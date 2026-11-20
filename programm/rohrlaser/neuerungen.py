@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.410", "<b>Schweißbaugruppen-Editor 2.0: Gesamtzeit von Hand und lernende Zeitvorschläge</b> "
+    ["0.9.418", "<b>Schweißbaugruppen-Editor 2.0: Gesamtzeit von Hand und lernende Zeitvorschläge</b> "
      "([[bg_gesamtzeit]]). Die ganze Bearbeitungszeit einer Baugruppe lässt sich mit einem Wert festlegen (Minuten "
      "oder Stunden); sie geht vor allem anderen und wird nicht zur berechneten Zeit dazugezählt. Bereiche feiner: "
      "dazu Richten, Schleifen, Qualitätskontrolle, Montage. Jede Änderung steht im <b>Protokoll</b>; ändert sich die "
@@ -31,6 +31,52 @@ NEUERUNGEN = [
      "Editor (Band Ausgabe) und Arbeitsgänge im Strukturbaum.",
      "Schweißbaugruppe: Gesamtzeit von Hand mit einem Wert, Protokoll, Zeitvorschläge aus vergleichbaren Baugruppen, "
      "Auswertung"],
+    ["0.9.416", "<b>Großes 3D-Visualisierungsupdate</b>: <b>Aussehen</b> ([[aussehen_3d]]) mit Material "
+     "(Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, Hintergrund und weichem Schatten, "
+     "Metall plastischer; zehn <b>Darstellungsarten</b> ([[darstellungen_3d]]) u. a. Flächentypen, Konturen betont, "
+     "Verdeckt ausgeblendet; <b>Mausbelegung</b> wie Inventor, SolidWorks oder Creo ([[mausbelegung_3d]]); "
+     "<b>Schnitt</b> mit bis zu drei Ebenen und Wandstärke sowie <b>Explosion</b> für Baugruppe und Satz, als Bild "
+     "oder PDF ([[schnitt_explosion_3d]]); <b>Profile</b>, Export/Import und <b>Selbsttest</b> "
+     "([[profile_3d]]); schneller bei großen Modellen ([[tempo_3d]]). Alles nur Anzeige, in allen Editoren.",
+     "3D: Material/Licht, 10 Darstellungen, CAD-Mausbelegung, Schnitt + Explosion, Profile und Selbsttest"],
+    ["0.9.415", "<b>Nichts still überschreiben</b> ([[admin_db_versionen]]): Jede Zeile in Angeboten, Positionen und "
+     "Stammdaten hat eine Versionsnummer. Hat ein Kollege dieselbe Zeile inzwischen geändert, fragt das Programm, ob "
+     "Ihre Eingabe gespeichert oder neu geladen werden soll. Gleichzeitig vergebene Angebotsnummern führen nicht mehr "
+     "zum Abbruch, das Programm nimmt die nächste freie.",
+     "Datenbank: Versionsnummern je Zeile, Rückfrage statt Überschreiben, sichere Angebotsnummer"],
+    ["0.9.414", "<b>Design- und Layout-Update</b>: <b>Meine Werkzeugleiste</b> ([[meine_werkzeugleiste]]) mit eigenen "
+     "Knöpfen und Knöpfen passend zur offenen Seite; Konfigurator mit Aktionsbibliothek (rund 75 Funktionen), "
+     "Ziehen und Ablegen, eigenem Text, Symbol, Farbe und Tastenkürzel ([[werkzeugleiste_konfigurieren]]); Knöpfe, "
+     "die gerade nicht gehen, sind grau und sagen warum. <b>Dashboard anpassen</b> mit Karte Schnellzugriffe und "
+     "Zuletzt verwendet ([[dashboard_anpassen]]), <b>Info-Panel rechts</b> zum offenen Angebot ([[info_panel]]), "
+     "<b>Arbeitsbereiche</b> Standard, Kalkulation, Angebot, Tablet und eigene ([[arbeitsbereiche]]), "
+     "<b>Spalten ein-/ausblenden</b> und verschieben in allen Listen ([[spalten_waehlen]]). Alles je Benutzer; "
+     "der Admin kann Vorgaben je Rolle für alle PCs speichern.",
+     "Meine Werkzeugleiste, Dashboard anpassen, Info-Panel, Arbeitsbereiche, Spalten ein/aus"],
+    ["0.9.413", "<b>Updates auch hinter Firewall und ohne Internet</b> ([[update_center]]): Hilfe → "
+     "<b>Update-Center</b> zeigt Stand, Quelle und Verlauf. Updates kommen aus dem Internet, aus einem "
+     "<b>Update-Ordner</b> im Firmennetz (der Admin stellt sie einmal bereit, mit Freigabe und Pflicht-Datum) oder aus "
+     "einer <b>Update-Datei</b> vom USB-Stick – immer mit derselben Signaturprüfung. Neu: <i>Beim Beenden</i> "
+     "einspielen, <i>Vorige Version</i> wiederherstellen, Proxy und Firmenzertifikat einstellbar, <b>Diagnose</b> mit "
+     "Bericht für die IT ([[it_freigabe]]).",
+     "Update-Center: Updates offline, über Netzwerkordner oder USB, Diagnose für die IT"],
+    ["0.9.412", "<b>Systemcheck vor dem Sammel-Update</b> ([[diagnose]]): Ein geschlossenes Angebot gibt seinen "
+     "Arbeitsspeicher jetzt vollständig frei (vorher 8 bis 12 MB mehr je Öffnen und Schließen eines Angebots mit 33 "
+     "STEP-Teilen, über den Tag wurde das Programm langsamer). Beim Ändern einer Zelle liest das Programm die "
+     "Bauteildaten nicht mehr mehrfach ein. Alle Kalkulationen bleiben genau gleich.",
+     "Speicher geschlossener Angebote wird freigegeben, Zelle ändern schneller"],
+    ["0.9.411", "<b>Datenbank sicherer</b> ([[admin_db_sicherheit]]): Das Programm arbeitet mit einem eigenen Konto "
+     "<i>ohne Superuser-Rechte</i>, Einrichtung und Wartung über ein getrenntes Verwalter-Konto. Passwörter werden "
+     "je PC zufällig erzeugt und verschlüsselt abgelegt, jede Anmeldung steht im Server-Protokoll. Ältere PCs stellen "
+     "beim ersten Start einmal um, die Daten bleiben unverändert.",
+     "Datenbank: eigenes Programmkonto ohne Superuser, Passwörter verschlüsselt, Anmeldungen protokolliert"],
+    ["0.9.410", "<b>Klick bearbeitet</b> ([[doppelklick]]): In allen Tabellen (Kundenliste, Positionen mit "
+     "Artikelnummer und Bezeichnung, Stammdaten, Zeiten, Nachkalkulation, Arbeitsvorbereitung) öffnet ein Klick in "
+     "die schon gewählte Zelle sie zum Bearbeiten; bisher ging das nur durch Lostippen oder F2. Doppelklick auf die "
+     "Bezeichnung einer Position bearbeitet sie direkt. Zugeklappte Experten-Einstellungen zeigen nur noch ihre "
+     "Überschrift. <b>Wiedervorlage ausschaltbar</b> ([[nachfassen]]): Einstellungen → Funktionen → Wiedervorlage "
+     "nimmt Liste, Kachel, Filter, Menüpunkt, automatische Wiedervorlagen und Erinnerungen weg.",
+     "Klick in die gewählte Zelle bearbeitet sie; Wiedervorlage in den Einstellungen ausschaltbar"],
     ["0.9.409", "<b>Teil messen</b> in allen 3D-Fenstern ([[teil_messen]]): Profilform, Maße, Wand, Eckradien, "
      "Querschnitt und Masse des Rohrs, je Kontur Länge, Ø, Geraden/Bögen, Fläche und Lage, dazu Lochabstände, "
      "Reststege und Abstand zum Ende gegen die Prüfregeln, als Text oder PDF. STEP-Flächen werden <b>exakt</b> "

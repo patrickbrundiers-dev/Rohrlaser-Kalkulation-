@@ -20,7 +20,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QAbstractTableModel, QEvent, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
 from PySide6.QtCore import QBuffer, QByteArray, QPoint
 from PySide6.QtGui import QAction, QActionGroup, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
-from PySide6.QtWidgets import (
+from PySide6.QtWidgets import (QSizePolicy, 
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QApplication, QFileDialog, QSpinBox, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QToolButton, QVBoxLayout, QWidget)
@@ -31,6 +31,8 @@ from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, funktionen, hilfe
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from . import einstellungen_extras, einstellungen_nav
+from . import konflikt_dialog
+from .datenbank import AenderungsKonflikt
 from .einstellungen_nav import NavigationsReiter
 from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
@@ -99,6 +101,8 @@ class StammdatenModell(QAbstractTableModel):
 
     def neu_laden(self):
         self.beginResetModel()
+        # Versionen VOR den Zeilen lesen: ändert jemand dazwischen, gilt die Zeile als geändert (nie umgekehrt)
+        self.versionen = self.db.versionen(self.t.name)
         self.daten = self.db.zeilen(self.t.name)
         self.k = self.db.kontext()
         if self.t.name == "schneiddaten" and not hasattr(self, "standard"):
@@ -193,7 +197,16 @@ class StammdatenModell(QAbstractTableModel):
             if bei and not zeile_trotzdem(self.db, self.t.titel, *bei):
                 self.meldung(f"Nicht geändert: {bei[0]} ändert diese Zeile gerade.")
                 return False
-            self.db.aendern(self.t.name, z["id"], f.name, wert)
+            try:
+                self.db.aendern(self.t.name, z["id"], f.name, wert, version=self.versionen.get(z["id"], 0),
+                                erwartet=z.get(f.name))
+            except AenderungsKonflikt as k:      # Schritt 3: nichts still überschreiben
+                if konflikt_dialog.fragen(k, f.titel) != konflikt_dialog.MEINE:
+                    self.neu_laden()
+                    self.meldung(f"{f.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.",
+                                 fehler=True)
+                    return False
+                self.db.aendern(self.t.name, z["id"], f.name, wert)
             if uid:
                 teilen.zeile_merken(self.db, self.t.name, uid)
         except ValueError as e:
@@ -580,7 +593,7 @@ class StammdatenSeite(QWidget):
         self.ansicht.sortByColumn(-1, Qt.AscendingOrder)
         self.ansicht.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
-                                     | QAbstractItemView.AnyKeyPressed)
+                                     | QAbstractItemView.AnyKeyPressed | QAbstractItemView.SelectedClicked)
         self.ansicht.setAlternatingRowColors(False)
         kopf = self.ansicht.horizontalHeader()
         kopf.setDefaultAlignment(Qt.AlignCenter | Qt.TextWordWrap)
@@ -633,7 +646,8 @@ class StammdatenSeite(QWidget):
     def doppelklick_setzen(self, aktion, tooltip):
         """Doppelklick auf eine Zeile ruft aktion(Zeile als dict) auf statt die Zelle zu bearbeiten (Tippen und F2
         bearbeiten weiter)."""
-        self.ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
+        self.ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed
+                                     | QAbstractItemView.SelectedClicked)    # Klick in die gewählte Zeile
         self.ansicht.setToolTip(tooltip)
         self.ansicht.doubleClicked.connect(
             lambda i: aktion(self.modell.daten[self.filter.mapToSource(i).row()]) if i.isValid() else None)
@@ -1555,6 +1569,8 @@ class EinstellungenSeite(QScrollArea):
             leer = QLabel("")
             self._formulare[id(box)][2].append((None, leer, knopf))
             self._formulare[id(box)][0].addRow(leer, knopf)
+        if "ansicht3d_material" in self.felder:     # V7 (19.11.2026): Profile, Export/Import, Selbsttest der 3D-Ansicht
+            self._profil_zeile()
         self.zweispaltig = None
         self.geteilt = False
         self._anordnen(False)
@@ -1570,7 +1586,17 @@ class EinstellungenSeite(QScrollArea):
         lay = QHBoxLayout(rahmen)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
-        lay.addWidget(w, 1)             # Feld behält seine Breite wie ohne Knöpfe (Platzhalter lesbar)
+        # Feld mit fester Höchstbreite (Zahl, Auswahl) bleibt links, Stern und ↺ direkt daneben; nur Felder ohne
+        # Grenze (lange Texte) wachsen. Bis 0.9.408 stand das Feld mitten im freien Platz und der Stern weit rechts.
+        breit = w.maximumWidth() >= 4000 and type(w) is not QWidget     # QWidget: Schalter + Wert (_mit_schalter)
+        if not breit and w.maximumWidth() <= 400:
+            # so breit wie der Inhalt verlangt (Wert ganz lesbar), höchstens die Grenze des Felds; nicht fest die
+            # Grenze, sonst braucht die Seite bei 1024 px eine Bildlaufleiste (Fracht → Historie und Einstellungen)
+            w.setMinimumWidth(min(w.maximumWidth(), max(w.minimumWidth(), w.sizeHint().width())))
+        if not breit:       # nie schmaler als der Inhalt (Auswahl ganz lesbar, auch wenn die Schrift später wechselt)
+            for x in [w] + w.findChildren(QComboBox):
+                x.setSizePolicy(QSizePolicy.Minimum, x.sizePolicy().verticalPolicy())
+        lay.addWidget(w, 1 if breit else 0)
         for le in ([w] if isinstance(w, QLineEdit) else []) + w.findChildren(QLineEdit):
             if le.placeholderText():    # Platzhalter ganz lesbar, auch mit breiterer Schrift (Layout-Rundgang)
                 breite = max(le.minimumWidth(), le.fontMetrics().horizontalAdvance(le.placeholderText()) + 24)
@@ -1588,6 +1614,8 @@ class EinstellungenSeite(QScrollArea):
         zur.setToolTip(f"Auf den Standard zurücksetzen ({einstellungen_extras.wert_text(e, e.vorgabe)})")
         zur.clicked.connect(lambda _=False, e=e: self.wert_zuruecksetzen(e.name))
         lay.addWidget(zur)
+        if not breit:
+            lay.addStretch(1)
         self.sterne[e.name], self.zurueck[e.name] = stern, zur
         return rahmen
 
@@ -1809,8 +1837,14 @@ class EinstellungenSeite(QScrollArea):
         self.neu_laden()
 
     def _experte(self, box, an):
-        """Expertenabschnitt auf- oder zuklappen (zu: nur die Überschrift mit Haken)."""
+        """Expertenabschnitt auf- oder zuklappen (zu: nur die Überschrift mit Haken). Zu nur so hoch wie die
+        Überschrift: bis 0.9.408 blieb darunter eine leere weiße Karte stehen (Patrick 19.11.2026)."""
         box.setFlat(not an)
+        box.setMaximumHeight(16777215 if an else box.fontMetrics().height() + 10)
+        # zu: keine Karte (Rahmen, Fläche), nur Haken und Titel; der Haken behält seinen Rahmen
+        box.setStyleSheet("" if an else stil.umsetzen(
+            "QGroupBox { border: none; background: transparent; } QGroupBox::indicator { width: 13px; height: 13px; "
+            "border: 1px solid #8593A4; border-radius: 3px; background: #FFFFFF; }"))
         for e, form, zeile, b in self.zeilen:
             if b is box:
                 form.setRowVisible(zeile, an)
@@ -1891,7 +1925,10 @@ class EinstellungenSeite(QScrollArea):
     def resizeEvent(self, e):
         b = self.viewport().width()
         lang = any(self._teilbar(box, b) for box in self.boxen)
-        stufe = (b >= self.TEILEN_AB and lang, b >= self.ZWEI_SPALTEN)
+        # zwei Spalten nur, wenn jede Karte in halber Breite ihre Wunschbreite hat (Auswahlen ganz lesbar); sonst
+        # bekam z. B. die Karte „Maus“ neben der breiten Karte „Aussehen“ nur 474 px (CI-Fund 20.11.2026)
+        wunsch = max((box.sizeHint().width() for box in self.boxen), default=0)
+        stufe = (b >= self.TEILEN_AB and lang, b >= self.ZWEI_SPALTEN and 2 * wunsch + 24 <= b)
         if stufe != getattr(self, "_stufe", None):
             self._stufe = stufe
             teilen, zwei = stufe
@@ -2035,6 +2072,124 @@ class EinstellungenSeite(QScrollArea):
         self._speichern(e, wert)
         w.setText(zahl_als_text(wert, None, tausender=False) if wert is not None else "")
 
+    def _profil_zeile(self):
+        """Seite 3D-Ansicht: Profile (fest und eigene), Export/Import als Datei und Selbsttest unter „Aussehen“."""
+        from PySide6.QtWidgets import QMenu
+        from . import ansicht3d_profile as ap
+        from PySide6.QtWidgets import QGridLayout
+        zeile = QWidget()
+        hl = QGridLayout(zeile)        # 2 × 2, damit die Zeile die Seite auch bei 1280 px nicht verbreitert
+        hl.setContentsMargins(0, 0, 0, 0)
+        hl.setColumnStretch(2, 1)
+        profil = QToolButton()
+        profil.setText("Profil")
+        profil.setPopupMode(QToolButton.InstantPopup)
+        profil.setToolTip("Fertige Zusammenstellungen (Präsentation, Werkstatt, Technisch, schwacher PC, Mausbelegung "
+                          "wie Inventor/SolidWorks/Creo) oder Ihre eigenen Profile übernehmen bzw. speichern")
+        menue = QMenu(profil)
+
+        def fuellen():
+            menue.clear()
+            for name in ap.alle(self.db):
+                menue.addAction(name, lambda n=name: self.profil_3d_anwenden(n))
+            menue.addSeparator()
+            menue.addAction("Aktuelle Werte als eigenes Profil speichern …", lambda: self.profil_3d_speichern())
+            eig = ap.eigene(self.db)
+            if eig:
+                lm = menue.addMenu("Eigenes Profil löschen")
+                for name in eig:
+                    lm.addAction(name, lambda n=name: (ap.loeschen(self.db, n), self.meldung(f"Profil „{n}“ gelöscht.")))
+        menue.aboutToShow.connect(fuellen)
+        profil.setMenu(menue)
+        profil.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        profil.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        hl.addWidget(profil, 0, 0)
+        for text, tipp, tun in (("Exportieren …", "3D-Einstellungen und eigene Profile als Datei (JSON) sichern",
+                                 lambda: self.einst_3d_exportieren()),
+                                ("Importieren …", "3D-Einstellungen aus einer Datei übernehmen (geprüft)",
+                                 lambda: self.einst_3d_importieren()),
+                                ("Selbsttest …", "Prüfrohr in allen Darstellungen, Materialien und Lichtprofilen "
+                                 "zeichnen und Zeiten, Schnitt und Netz prüfen (ändert nichts)",
+                                 lambda: self.selbsttest_3d())):
+            k = QPushButton(text)
+            k.setToolTip(tipp)
+            k.clicked.connect(lambda _=False, tun=tun: tun())
+            pos = len(zeile.findChildren(QPushButton)) + 1     # 0 = Profil
+            hl.addWidget(k, pos // 2, pos % 2)
+        box = next(b for e, _, _, b in self.zeilen if e.name == "ansicht3d_material")
+        leer = QLabel("")
+        self._formulare[id(box)][2].append((None, leer, zeile))
+        self._formulare[id(box)][0].addRow(leer, zeile)
+        self.profil_3d = profil
+
+    def profil_3d_anwenden(self, name):
+        from . import ansicht3d_profile as ap
+        werte = ap.alle(self.db).get(name)
+        if werte is None:
+            return []
+        geaendert = ap.anwenden(self.db, werte)
+        self.neu_laden()
+        self.meldung(f"3D-Profil „{name}“ übernommen ({len(geaendert)} Wert(e) geändert).")
+        return geaendert
+
+    def profil_3d_speichern(self, name=None):
+        from PySide6.QtWidgets import QInputDialog
+        from . import ansicht3d_profile as ap
+        if name is None:
+            name, ok = QInputDialog.getText(self, "Eigenes 3D-Profil", "Name des Profils:")
+            if not ok:
+                return None
+        try:
+            name = ap.speichern(self.db, name)
+        except ap.ProfilFehler as fehler:
+            self.meldung(str(fehler), fehler=True)
+            return None
+        self.meldung(f"Eigenes 3D-Profil „{name}“ gespeichert (nur dieser Arbeitsplatz).")
+        return name
+
+    def einst_3d_exportieren(self, ziel=None):
+        from . import ansicht3d_profile as ap
+        ziel = ziel or self._datei(True, "3D-Einstellungen exportieren", "3D-Einstellungen.json")
+        if not ziel:
+            return 0
+        n = ap.exportieren(self.db, ziel)
+        self.meldung(f"{n} 3D-Einstellungen exportiert: {ziel}")
+        return n
+
+    def einst_3d_importieren(self, quelle=None):
+        from . import ansicht3d_profile as ap
+        quelle = quelle or self._datei(False, "3D-Einstellungen importieren", "")
+        if not quelle:
+            return None
+        try:
+            geaendert, weg = ap.importieren(self.db, quelle)
+        except ap.ProfilFehler as fehler:
+            self.meldung(str(fehler), fehler=True)
+            return None
+        self.neu_laden()
+        self.meldung(f"{len(geaendert)} 3D-Einstellung(en) übernommen" + (f", {len(weg)} ungültige verworfen ("
+                     + "; ".join(weg[:3]) + ")" if weg else "") + ".")
+        return geaendert
+
+    def selbsttest_3d(self, zeigen=True):
+        """Qualitätsprüfung der 3D-Anzeige (ansicht3d_profile.selbsttest) mit Ergebnisliste."""
+        from . import ansicht3d_profile as ap
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            erg = ap.selbsttest()
+        finally:
+            QApplication.restoreOverrideCursor()
+        schlecht = [e for e in erg if not e[1]]
+        text = "\n".join(f"{'✓' if gut else '✗'} {titel}: {info}" for titel, gut, info in erg)
+        self.meldung(f"3D-Selbsttest: {len(erg) - len(schlecht)} von {len(erg)} Prüfungen in Ordnung.",
+                     fehler=bool(schlecht))
+        if zeigen and not getattr(self.window(), "stumm", False):
+            box = QMessageBox(QMessageBox.Warning if schlecht else QMessageBox.Information, "3D-Selbsttest",
+                              f"{len(erg) - len(schlecht)} von {len(erg)} Prüfungen in Ordnung.", QMessageBox.Ok, self)
+            box.setDetailedText(text)
+            box.exec()
+        return erg
+
     def _step_cache_leeren(self):
         from . import step_einstellungen
         n = step_einstellungen.cache_leeren(self.db)
@@ -2089,6 +2244,9 @@ class EinstellungenSeite(QScrollArea):
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
+        if e.name in ("ansicht3d_material", "ansicht3d_licht", "ansicht3d_hintergrund", "ansicht3d_schatten"):
+            from . import ansicht3d     # V2: Aussehen gilt sofort in allen offenen 3D-Ansichten
+            ansicht3d.aussehen_setzen({e.name: wert})
         if e.name in self.wert_schalter and not getattr(self, "_laden", False):
             self.wert_schalter[e.name].blockSignals(True)       # 0 bzw. leer von Hand: Schalter folgt
             self.wert_schalter[e.name].setChecked(bool(wert))
@@ -2601,46 +2759,95 @@ class StartSeite(QWidget):
         # Neue Anfragen aus dem Anfrage-Ordner (Plan W6a), über den Angeboten; nur mit Einstellung sichtbar
         from .anfragen_karte import AnfragenKarte
         self.anfragen = AnfragenKarte(fenster)
-        links = QWidget()
-        ll = QVBoxLayout(links)
-        ll.setContentsMargins(0, 0, 0, 0)
-        ll.setSpacing(10)
-        ll.addWidget(self.anfragen.karte)
-        ll.addWidget(angebote, 1)
-
-        raster = QGridLayout()
-        raster.setSpacing(10)
-        raster.addWidget(links, 0, 0, 3, 1)
-        raster.addWidget(heute, 0, 1)
-        raster.addWidget(stamm, 1, 1)
-        raster.addWidget(sicherung, 2, 1)
-        raster.setColumnStretch(0, 3)
-        raster.setColumnStretch(1, 2)
-        self.links_spalte, self.raster = links, raster
-        raster.setRowStretch(0, 1)          # Heute: die Wiedervorlage bekommt den Platz
+        # Schnellzugriffe (Design- und Layout-Update 19.11.2026): eigene Auswahl aus der Aktionsbibliothek
+        from .startseite_karten import SchnellKarte
+        self.schnell = SchnellKarte(fenster)
         lay = QVBoxLayout(self)
         kopf = QHBoxLayout()
         kopf.addWidget(titel)
         kopf.addSpacing(12)
         kopf.addWidget(version, 0, Qt.AlignBottom)
         kopf.addStretch(1)
+        anpassen = QPushButton("Dashboard anpassen …")
+        anpassen.setToolTip("Karten ein- und ausblenden und per Drag & Drop anordnen")
+        anpassen.clicked.connect(lambda: fenster.startseite_anpassen())
+        kopf.addWidget(anpassen, 0, Qt.AlignBottom)
         lay.addLayout(kopf)
         from .kacheln import KachelZeile         # U5: Kennzahlen als Kacheln für alle (Marge nur Admin, unten)
         self.kacheln = KachelZeile()
         self.kacheln.geklickt.connect(self._kachel_geklickt)
-        lay.addWidget(self.kacheln)
         from .kacheln import AUFTRAG_KACHELN       # Aufträge (Auftragsworkflow, Paket 7)
         self.auftrag_kacheln = KachelZeile(AUFTRAG_KACHELN)
         self.auftrag_kacheln.geklickt.connect(self._auftrag_kachel)
-        lay.addWidget(self.auftrag_kacheln)
         from .kacheln import ANFRAGEN_KACHELN       # Anfragen (Paket 6): gefüllt von der Seite Anfragen
         self.anfragen_kacheln = KachelZeile(ANFRAGEN_KACHELN)
         self.anfragen_kacheln.geklickt.connect(self._anfragen_kachel)
         self.anfragen_kacheln.setVisible(False)
-        lay.addWidget(self.anfragen_kacheln)
+        # Dashboard (19.11.2026): jede Karte steckt in einer Hülle; die Anordnung (werkzeugleiste.startseite) setzt die
+        # Hüllen in die Bereiche oben/links/rechts und blendet nicht gewählte aus. Die Karten selbst behalten ihre
+        # eigene Sichtbarkeit (Rechte, Funktionen, „nur mit Daten“).
+        from .startseite_karten import Huelle
+        self.huellen = {k: Huelle(w, lambda: self.spalten_pruefen()) for k, w in (
+            ("kacheln", self.kacheln), ("auftrag_kacheln", self.auftrag_kacheln),
+            ("anfragen_kacheln", self.anfragen_kacheln), ("anfragen", self.anfragen.karte), ("angebote", angebote),
+            ("heute", heute), ("schnellzugriffe", self.schnell), ("stammdaten", stamm), ("sicherung", sicherung))}
+        self.oben = QVBoxLayout()
+        self.oben.setSpacing(10)
+        lay.addLayout(self.oben)
+        links = QWidget()
+        ll = QVBoxLayout(links)
+        ll.setContentsMargins(0, 0, 0, 0)
+        ll.setSpacing(10)
+        rechts = QWidget()
+        rl = QVBoxLayout(rechts)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(10)
+        raster = QGridLayout()
+        raster.setSpacing(10)
+        raster.addWidget(links, 0, 0)
+        raster.addWidget(rechts, 0, 1)
+        raster.setColumnStretch(0, 3)
+        raster.setColumnStretch(1, 2)
+        self.links_spalte, self.rechts_spalte, self.raster = links, rechts, raster
         lay.addLayout(raster, 1)
+        self.karten_anordnen()
         self.setAcceptDrops(True)
         self.neu_laden()
+
+    def karten_anordnen(self):
+        """Karten nach der Anordnung des Benutzers (Dashboard anpassen) in die Bereiche setzen; nicht gewählte
+        ausblenden."""
+        from . import werkzeugleiste
+        anordnung = werkzeugleiste.startseite(self.f.db)
+        ziele = {"oben": self.oben, "links": self.links_spalte.layout(), "rechts": self.rechts_spalte.layout()}
+        for h in self.huellen.values():
+            h.gewaehlt = False
+            h.hide()
+            h.setParent(None)
+        for lay in ziele.values():
+            while lay.count():
+                lay.takeAt(0)
+        for bereich, karten in anordnung.items():
+            for karte in karten:
+                h = self.huellen[karte]
+                # die Liste „zuletzt bearbeitet“ und die Wiedervorlage bekommen den freien Platz (L8)
+                ziele[bereich].addWidget(h, 1 if karte in ("angebote", "heute") else 0)
+                h.gewaehlt = True
+                h.aktualisieren()
+        for lay in (self.links_spalte.layout(), self.rechts_spalte.layout()):
+            lay.addStretch(0)
+        self.schnell.neu_laden()
+        self.spalten_pruefen()
+        return anordnung
+
+    def spalten_pruefen(self):
+        """Spalte ohne sichtbare Karte ausblenden (z. B. ohne Recht „Angebote sehen“ oder alles nach rechts)."""
+        sehen = getattr(self, "_sehen", True)
+        for n, spalte in enumerate((self.links_spalte, self.rechts_spalte)):
+            voll = any(h.parent() is spalte and h.inhalt_sichtbar() and (sehen or k not in ("angebote", "anfragen"))
+                       for k, h in self.huellen.items())
+            spalte.setVisible(voll)
+            self.raster.setColumnStretch(n, (3, 2)[n] if voll else 0)
 
     def rolle_anwenden(self):
         """Benutzerverwaltung (rollen.py): ohne Recht „Angebote sehen“ (z. B. Mitarbeiter Produktion) keine Angebote,
@@ -2650,9 +2857,9 @@ class StartSeite(QWidget):
         sehen = rollen.darf(self.f.db, rollen.B_ANGEBOTE, rollen.SEHEN)
         bearbeiten = rollen.darf(self.f.db, rollen.B_ANGEBOTE) and not self.f.db.nur_lesen
         self.angebote_karte.setVisible(sehen)
+        self._sehen = sehen
         if hasattr(self, "links_spalte"):           # ohne Angebote (und Anfragen) keine leere linke Spalte
-            self.links_spalte.setVisible(sehen)
-            self.raster.setColumnStretch(0, 3 if sehen else 0)
+            self.spalten_pruefen()
         for b in self.angebote_knoepfe:
             b.setEnabled(bearbeiten)
         if not sehen:
@@ -2756,7 +2963,7 @@ class StartSeite(QWidget):
         n = len(self.wiedervorlagen)
         self.wv_titel.setText(f"<b>Wiedervorlage</b> ({n})" if n else
                               "<b>Wiedervorlage:</b> nichts fällig")
-        nachfassen = funktionen.an("funktion_nachfassen")     # Funktion ausgeschaltet: keine Wiedervorlage
+        nachfassen = funktionen.an(funktionen.WIEDERVORLAGE)  # Funktion ausgeschaltet: keine Wiedervorlage
         self.wv_titel.setVisible(nachfassen)
         self.wiedervorlage.setVisible(bool(n) and nachfassen)
         self.wv_knoepfe.setVisible(bool(n) and nachfassen)
@@ -3038,10 +3245,12 @@ class Hauptfenster(QMainWindow):
         from . import ansicht3d
         ansicht3d.renderer_setzen(db.einstellung("ansicht_3d"))     # OpenGL oder QPainter
         ansicht3d.speicher_setzen(db)       # Perspektive je Benutzer merken (3E-11)
+        from . import visualisierung
+        visualisierung.lesen(db)            # V2: Material, Licht, Hintergrund, Schatten (dieser Arbeitsplatz)
         from . import spaltenbreite
         spaltenbreite.speicher_setzen(db)        # von Hand gezogene Spaltenbreiten merken (Layout-Plan L15)
         from .update_fenster import Updater
-        self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
+        self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE"))   # Quellen: update_quellen
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")
         stil.fenster_stil(self)                # Theme und Dichte aus stil.anwenden (beim Start)
         self.resize(1400, 800)
@@ -3150,6 +3359,9 @@ class Hauptfenster(QMainWindow):
         self.reiter.oben.modus_setzen(db.einstellung(LEISTE) or "automatisch", 1400)
         self.reiter.oben.modus_geaendert.connect(lambda m: self.leiste_modus(m))
         self._menue()
+        # Meine Werkzeugleiste, Info-Panel, Arbeitsbereiche (Design- und Layout-Update 19.11.2026)
+        from . import werkzeugleiste_qt
+        werkzeugleiste_qt.einrichten(self)
         self.funktionen_anwenden()          # ausgeschaltete Funktionen gleich beim Start ausblenden
         self.benutzer_info = QLabel()
         self.benutzer_info.setTextFormat(Qt.PlainText)
@@ -3348,11 +3560,33 @@ class Hauptfenster(QMainWindow):
         """Knopf Abgleichen: Angebote und Stammdaten mit dem gemeinsamen Ordner abgleichen."""
         from . import teilen_fenster
         erg = teilen_fenster.abgleichen(self)
+        from . import werkzeugleiste
+        werkzeugleiste.vorgaben_lesen(self.db)      # Standardlayouts des Admins je Rolle (gemeinsamer Ordner)
         self.funktionen_anwenden()          # Funktionen ein/aus gelten für alle Plätze und kommen mit dem Abgleich
         if hasattr(self, "auftraege"):      # Aufträge der Kollegen (Ereignisse aus dem Abgleich)
             self.auftraege.neu_laden()
             self.produktion.neu_laden()
         return erg
+
+    # -------------------------------------------------------------- Werkzeugleiste, Dashboard, Info-Panel
+    def werkzeugleiste_konfigurieren(self, reiter=None):
+        """Ansicht → Werkzeugleiste konfigurieren (werkzeugleiste_dialog.KonfiguratorDialog); reiter 0/1/2 = Meine
+        Leiste, Kontextknöpfe, Schnellzugriffe."""
+        from .werkzeugleiste_dialog import KonfiguratorDialog
+        d = KonfiguratorDialog(self)
+        if reiter is not None:
+            d.reiter.setCurrentIndex(reiter)
+        if not self.stumm and d.exec():
+            d.uebernehmen()
+        return d
+
+    def startseite_anpassen(self):
+        from . import werkzeugleiste_qt
+        return werkzeugleiste_qt.startseite_anpassen(self)
+
+    def info_panel_umschalten(self, an=None):
+        from . import werkzeugleiste_qt
+        return werkzeugleiste_qt.info_umschalten(self, an)
 
     def konflikte_zeigen(self):
         """Datei → Abgleich-Konflikte: Stammdaten, die hier und bei einem Kollegen verschieden geändert wurden."""
@@ -3572,6 +3806,9 @@ class Hauptfenster(QMainWindow):
         a = QAction("Nach Updates suchen …", self)
         a.triggered.connect(lambda: self.updater.suchen())
         hilfe.addAction(a)
+        a = QAction("Update-Center …", self)        # Offline, Netzwerkordner, Diagnose (19.11.2026)
+        a.triggered.connect(self.update_center_zeigen)
+        hilfe.addAction(a)
         a = QAction("Über …", self)
         a.triggered.connect(lambda: QMessageBox.about(
             self, NAME, f"<b>{NAME}</b> {update.stand_text(self.updater.lokal)}<br>Angebotskalkulation und Materialoptimierung für Rohrlaserteile.<br>"
@@ -3581,6 +3818,10 @@ class Hauptfenster(QMainWindow):
         hilfe.addAction(a)
         from . import hauptadmin_menue      # Menü Hauptadmin (nur nach der Hauptadmin-Anmeldung sichtbar)
         hauptadmin_menue.einrichten(self)
+
+    def update_center_zeigen(self):
+        from . import update_center
+        return update_center.zeigen(self)
 
     # -------------------------------------------------------------- Tastenkürzel
     def _seite(self):
@@ -4209,6 +4450,8 @@ class Hauptfenster(QMainWindow):
             dauermerker.leeren()                # Angebots-Cache: alles Gerechnete geschrieben, bevor es zu ist
             self._cache_fuer_kollegen(angebot_id)
             self.reiter.removeTab(self.reiter.indexOf(seite))
+            from . import freigeben
+            freigeben.nach_loeschen(seite)      # Systemcheck 19.11.: sonst bleibt das Angebot ganz im Speicher
             seite.deleteLater()
             if (self.db.angebot(angebot_id) or {}).get("vorgang") == "Beauftragt":
                 from . import auslastung_austausch      # geänderter Auftrag: neue Freigabe für die Auslastung
@@ -4450,6 +4693,9 @@ class Hauptfenster(QMainWindow):
         self.auftraege.rechte_anwenden()
         if hasattr(self, "start"):
             self.start.rolle_anwenden()
+        if hasattr(self, "meine_leiste"):       # Leiste des (neu) angemeldeten Benutzers, Funktionen ein/aus
+            from . import werkzeugleiste_qt
+            werkzeugleiste_qt.aendern(self)
         darf_angebote = rollen.darf(self.db, rollen.B_ANGEBOTE) and not self.db.nur_lesen
         for name in self.ANGEBOT_KUERZEL:           # Menü und Tastenkürzel, die Angebote anlegen oder ändern
             if name in getattr(self, "kuerzel_aktionen", {}):
@@ -4593,6 +4839,9 @@ class Hauptfenster(QMainWindow):
         from PySide6.QtWidgets import QApplication
         stil.ansicht_wechseln(QApplication.instance(), self, self.db.einstellung("ansicht_thema"),
                               self.db.einstellung("ansicht_schrift"), self.db.einstellung("ansicht_dichte"))
+        if hasattr(self, "meine_leiste"):       # Symbole der eigenen Leiste und Schnellzugriffe in Theme-Farbe
+            from . import werkzeugleiste_qt
+            werkzeugleiste_qt.aendern(self)
 
     def alles_neu_laden(self):
         self.start.neu_laden()
@@ -4648,8 +4897,9 @@ class Hauptfenster(QMainWindow):
             except OSError:
                 pass
         if not self.stumm:
-            from . import fenster_merken
+            from . import fenster_merken, werkzeugleiste_qt
             fenster_merken.sitzung_merken(self)     # offene Angebote für den nächsten Start (B4)
+            werkzeugleiste_qt.zustand_merken(self)  # Lage von Werkzeugleiste und Info-Panel je Benutzer
             try:
                 _, fehler = self.db.sicherungen(zusatz="beenden")
             except OSError as e:

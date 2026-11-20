@@ -1396,6 +1396,28 @@ def main(ziel):
     foto.foto("update_hinweis", m, [(m.jetzt, 1)])
     m.close()
 
+    # Update-Center (Hilfe → Update-Center …): Stand nach einer Suche im Update-Ordner (Stände nur als Beispiel)
+    from rohrlaser import update_center, update_quellen
+    from rohrlaser import update as upd
+    beispiel = upd.Dateiliste(dict(version="0.9.410", stand=2100, datum="2026-11-20", dateien={}, pakete={}))
+    ordner_q = update_quellen.Quelle(r"\\server\Rohrlaser\Updates\Kalkulation\Update.json", r"\\server\Rohrlaser\Updates")
+    ordner_q.art = "ordner"
+    netz_q = update_quellen.InternetQuelle()
+    alt_suche, alt_lokal = f.updater.letzte_suche, f.updater.lokal
+    f.updater.lokal = dict(version="0.9.405", stand=2080, datum="2026-11-18")
+    f.updater.letzte_suche = dict(beste=(ordner_q, beispiel), ergebnisse=[
+        (ordner_q, beispiel, None),
+        (netz_q, None, "https://github.com/…/Update.json lässt sich nicht laden: HTTP Error 403: Forbidden. Der "
+                       "Download wird gesperrt, meist von einem Firmen-Proxy oder Webfilter.")])
+    c = update_center.UpdateCenter(f)
+    c.resize(900, 560)
+    c.show()
+    QApplication.processEvents()
+    foto.foto("update_center", c, [(c.l_verfuegbar, 1), (c.k_suchen, 2), (c.k_datei, 3), (c.k_zurueck, 4),
+                                    (c.reiter.tabBar(), 5)])
+    c.close()
+    f.updater.letzte_suche, f.updater.lokal = alt_suche, alt_lokal
+
     # Lizenz: Dialog Hilfe → Lizenz … mit einer Beispiel-Lizenz (Wegwerfschlüssel, Rechner-ID nur als Beispiel)
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     from rohrlaser import lizenz

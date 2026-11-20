@@ -11,7 +11,7 @@ Leere Texte in Zahlenspalten werden NULL (PostgreSQL kennt dort kein ''), Zähle
 """
 from . import db_verbindung
 
-EIGENE = {"stammdaten_stand", "angebot_aenderungen", "schema_stand"}     # Zähler der Verbindung, keine Daten
+EIGENE = {"stammdaten_stand", "angebot_aenderungen", "schema_stand", "zeilen_version"}     # Zähler der Verbindung, keine Daten
 _ZAHL = {"bigint", "integer", "smallint", "double precision", "real", "numeric"}
 
 

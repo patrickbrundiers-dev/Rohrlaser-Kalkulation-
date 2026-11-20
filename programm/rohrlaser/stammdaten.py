@@ -7,7 +7,8 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from . import dfm, feiertage, funktionen, naht, normprofile, ovalprofile, rp_profile, zeit_zusatz
+from . import dfm, feiertage, funktionen, naht, navigation3d, normprofile, ovalprofile, rp_profile, visualisierung, \
+    zeit_zusatz
 from . import geometrie as _geometrie
 from .stil import DICHTEN, THEMES
 from .drehfraes_preis import SCHNITTWERTE_VORGABE
@@ -2024,6 +2025,21 @@ EINSTELLUNGEN = (
                 auswahl="drehzentrum"),
     Einstellung("nav_traegheit", "3D-Navigation: Nachlauf nach dem Loslassen (Trägheit)", "Ansicht", "auswahl", "nein",
                 auswahl="janein"),
+    # V4 (3D-Visualisierungsupdate 19.11.2026): Mausbelegung wie die bekannten CAD-Programme, Zoomrichtung, Nachlauf
+    Einstellung("nav_maus", "3D-Navigation: Mausbelegung (Drehen/Verschieben wie im Programm, Inventor, SolidWorks oder "
+                "Creo)", "Ansicht", "auswahl", "Programm (links drehen, rechts/Mitte verschieben)", auswahl="mausbelegung"),
+    Einstellung("nav_zoom_umkehren", "3D-Navigation: Zoomrichtung des Mausrads umkehren", "Ansicht", "auswahl", "nein",
+                auswahl="janein"),
+    Einstellung("nav_nachlauf", "3D-Navigation: Stärke des Nachlaufs (0,5 kurz bis 0,97 lang)", "Ansicht", "zahl", 0.9,
+                0.5, 0.97),
+    # Aussehen der 3D-Ansichten (3D-Visualisierungsupdate V2, 19.11.2026): nur dieser Arbeitsplatz, gilt sofort
+    Einstellung("ansicht3d_material", "3D-Ansicht: Material (färbt Außen-/Innenwand und Blech; Konturfarben bleiben)",
+                "Ansicht", "auswahl", "Standard (Farben nach Fläche)", auswahl="material3d"),
+    Einstellung("ansicht3d_licht", "3D-Ansicht: Lichtprofil", "Ansicht", "auswahl", "Werkstatt", auswahl="licht3d"),
+    Einstellung("ansicht3d_hintergrund", "3D-Ansicht: Hintergrund (im Dunkelmodus immer dunkel)", "Ansicht", "auswahl",
+                "Verlauf", auswahl="hintergrund3d"),
+    Einstellung("ansicht3d_schatten", "3D-Ansicht: weicher Schatten unter dem Modell", "Ansicht", "auswahl", "ja",
+                auswahl="janein"),
     # Fangarten beim Messen (Messplan M2, 19.11.2026): einzeln ein/aus, nur dieser Arbeitsplatz
     Einstellung("fang_kreismitte", "Messen: Kreismitte fangen", "Ansicht", "auswahl", "ja", auswahl="janein"),
     Einstellung("fang_konturmitte", "Messen: Konturmitte fangen", "Ansicht", "auswahl", "ja", auswahl="janein"),
@@ -2225,7 +2241,7 @@ class Kontext:
                          "etikettformat": ["A4, 3 × 8 Etiketten (70 × 37 mm)", "A4, 2 × 7 Etiketten (105 × 42,3 mm)",
                                            "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "drehart": ["frei (alle Achsen)", "Drehteller (Hochachse bleibt)"], "drehzentrum": ["Punkt unter der Maus", "Modellmitte", "Gewähltes (Auswahl)"], "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schwenkueber": ["begrenzen (WARNUNG)", "FEHLER"], "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "drehart": ["frei (alle Achsen)", "Drehteller (Hochachse bleibt)"], "drehzentrum": ["Punkt unter der Maus", "Modellmitte", "Gewähltes (Auswahl)"], **visualisierung.AUSWAHL, "mausbelegung": list(navigation3d.MAUSBELEGUNGEN), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schwenkueber": ["begrenzen (WARNUNG)", "FEHLER"], "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
                          "nahtquelle": list(naht.QUELLEN), "geometrie": list(_geometrie.WERTE), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),

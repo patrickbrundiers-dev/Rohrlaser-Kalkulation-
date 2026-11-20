@@ -740,7 +740,14 @@ def kapitel_start(i):
             "Tag) oder fünf Minuten vergangen sind. Einstellungen liest es einmal statt bei jeder Rechnung aus der "
             "Datenbank; die Anfragen-Liste liest beim Aktualisieren alle 30 s nur geänderte Akten. Die Ergebnisse "
             "bleiben dabei genau gleich; ein Regressionstest vergleicht vor jedem Release 20 feste Angebote mit "
-            "dem gespeicherten Stand.")
+            "dem gespeicherten Stand.",
+            "<b>Speicher bleibt stabil (seit 0.9.412):</b> Ein geschlossenes Angebot gibt seinen Arbeitsspeicher "
+            "jetzt vollständig frei. Vorher blieb es mit allen Positionen, Ergebnissen und 3D-Daten im Speicher "
+            "(Beispiel 33 STEP-Teile: 8 bis 12 MB mehr je Öffnen und Schließen), bei einem langen Arbeitstag mit "
+            "vielen Angeboten wurde das Programm dadurch langsamer. Dazu liest das Programm beim Ändern einer Zelle "
+            "die Bauteildaten nicht mehr mehrfach ein. Gemessen wird das vor jedem Sammel-Update mit "
+            "<i>werkzeuge/systemcheck.py</i> (Zeit, Prozessor, Speicher, Datenbank, Langzeit; Ergebnisse bleiben "
+            "über einen Fingerabdruck aller Kalkulationen nachweislich gleich).")
     i.abschnitt("Angebots-Cache", marke="angebots_cache")
     i.text("Das Programm legt reine Rechenergebnisse auf jedem PC zusätzlich in <i>Daten/Rechenmerker</i> ab, je "
            "Angebot eine eigene Datei (<i>Angebote/A&lt;Nr&gt;.db</i>), dazu eine allgemeine Datei für Ergebnisse, "
@@ -996,6 +1003,86 @@ def kapitel_start(i):
     i.text("Seit 0.9.269 steht dafür oben rechts in der Menüleiste das Feld <b>Suchen … (Strg+K)</b>. Mit "
            "durchsucht werden auch die <b>Knöpfe der offenen Seite</b>, im Angebot z. B. <i>Optimieren</i>, "
            "<i>Zusatzarbeiten …</i>, <i>Material …</i> oder <i>Angebot (PDF)</i>.")
+    i.abschnitt("Meine Werkzeugleiste", marke="meine_werkzeugleiste")
+    i.text("Seit 0.9.414 steht unter der Menüleiste <b>Meine Werkzeugleiste</b>: eigene Knöpfe für die Funktionen, "
+           "die man oft braucht. Links stehen die festen Knöpfe (Vorgabe: <i>Neues Angebot</i>, <i>Aus STEP …</i>, "
+           "<i>Letzte Angebote ▾</i>, <i>Suchen</i>, <i>Favoriten ▾</i>), rechts nach einem grauen Titel die "
+           "<b>Kontextknöpfe</b> der offenen Seite. Im Angebot sind das z. B. <i>Speichern</i>, <i>Kalkulation "
+           "starten</i>, <i>Teil anlegen</i>, <i>STEP importieren</i>, <i>3D-Ansicht</i>, <i>Prüfen</i>, "
+           "<i>Dokumentenordner</i> und <i>Angebot (PDF)</i>; in der Angebotsliste, bei Anfragen, Aufträgen, "
+           "Produktion und Stammdaten andere passende Knöpfe.")
+    i.liste("<b>Kein Knopf ohne Funktion</b>: Jeder Knopf ruft eine vorhandene Funktion auf. Geht sie gerade nicht "
+            "(kein Angebot offen, keine Position gewählt, Funktion ausgeschaltet, fehlendes Recht), ist der Knopf grau "
+            "und der Tooltip sagt warum, z. B. „Nur mit geöffnetem Angebot“. Ausgeschaltete Funktionen "
+            "([[funktionen]]) erscheinen gar nicht.",
+            "<b>Rechtsklick</b> auf die Leiste: Knopf entfernen, Kontextknopf <i>Fest in die Leiste übernehmen</i>, "
+            "Beschriftung (nur Symbol, neben, unter dem Symbol), Größe (klein, normal, groß), <i>Kontextabhängige "
+            "Knöpfe</i> an/aus, <i>Werkzeugleiste konfigurieren …</i>.",
+            "<b>Verschieben</b>: Die Leiste lässt sich am Griff nach links, rechts oder unten ziehen; das Programm "
+            "merkt sich die Lage. <i>Ansicht → Meine Werkzeugleiste</i> blendet sie aus und ein.", kurz=True)
+    i.abschnitt("Werkzeugleiste konfigurieren", marke="werkzeugleiste_konfigurieren")
+    i.text("<i>Ansicht → Werkzeugleiste konfigurieren …</i> (oder Rechtsklick auf die Leiste) öffnet den "
+           "Konfigurator <b>Meine Werkzeugleiste konfigurieren</b>. Links steht die <b>Aktionsbibliothek</b> mit rund 75 Funktionen in den Gruppen Angebote, "
+           "Kalkulation, Bauteile, 3D-Editor, Material, Dokumente, Produktion, Navigation und Allgemein; das Suchfeld "
+           "darüber filtert auch nach Stichworten (z. B. „pdf“, „gehrung“). Rechts stehen drei Reiter:")
+    i.liste("<b>Meine Leiste</b>: die festen Knöpfe. Aktionen per <b>Ziehen und Ablegen</b> oder <i>Hinzufügen →</i> "
+            "übernehmen, in der Liste verschieben, <i>Gruppe</i> fügt einen Trenner mit Titel ein.",
+            "<b>Kontextknöpfe</b>: oben die Seite wählen (Startseite, Angebotsliste, Angebot, Anfragen, Aufträge, "
+            "Produktion, Pflege, Einstellungen), darunter deren Knöpfe genauso zusammenstellen.",
+            "<b>Schnellzugriffe</b>: die großen Knöpfe der Startseiten-Karte <i>Schnellzugriffe</i>.",
+            "<b>Gewählter Knopf</b>: eigener Text, Symbol, Farbe (Akzent, Grün, Orange, Rot) und ein eigenes "
+            "<b>Tastenkürzel</b>. Doppelt vergebene oder vom Programm schon belegte Kürzel meldet der Dialog vor dem "
+            "Übernehmen.",
+            "<b>Für die ganze Leiste</b>: Größe, Beschriftung, <i>Leiste anzeigen</i>, <i>Kontextabhängige Knöpfe zeigen "
+            "(rechts in der Leiste, je nach Seite)</i>. <i>Standard wiederherstellen</i> setzt nur "
+            "die Leiste zurück.", kurz=True)
+    i.text("Die Einstellungen gelten <b>je Benutzer</b> (angemeldetes Kürzel, [[benutzer_rollen]]) und bleiben auf diesem PC. "
+           "Der <b>Admin</b> kann mit <i>Als Standard für Rolle speichern</i> eine Vorgabe für eine Rolle (z. B. "
+           "Werkstatt, Versand, QS) festlegen. Sie liegt im gemeinsamen Ordner (<i>Admin/oberflaeche_vorgaben.json</i>) "
+           "und gilt nach dem Abgleichen auf allen PCs für jeden, der seine Leiste noch nicht selbst geändert hat. "
+           "Ohne eigene Vorgabe bekommen Werkstatt, Versand und QS eine passende eingebaute Leiste.")
+    i.abschnitt("Dashboard anpassen", marke="dashboard_anpassen")
+    i.text("Die Startseite ist ein Dashboard aus Karten. <b>Dashboard anpassen …</b> (Knopf oben auf der Startseite "
+           "oder <i>Ansicht</i>) zeigt vier Listen: <b>Oben</b> (ganze Breite), <b>Links</b>, <b>Rechts</b> und "
+           "<b>Ausgeblendet</b>. Karten zwischen den Listen <b>ziehen</b> oder mit den Pfeilen verschieben; die "
+           "Reihenfolge in der Liste ist die Reihenfolge auf der Seite. Die Kennzahl-Zeilen (Angebote, Aufträge, "
+           "Anfragen) gehören nach oben, das Programm setzt sie sonst selbst dorthin. <i>Standard</i> stellt die Vorgabe "
+           "wieder her.")
+    i.liste("Neue Karte <b>Schnellzugriffe</b>: große Knöpfe für die gewählten Funktionen, darunter "
+            "<b>Zuletzt verwendet</b> mit den sechs zuletzt benutzten Funktionen als Links.",
+            "Karten, die ein Recht oder eine Funktion brauchen (z. B. die Wiedervorlage bei ausgeschaltetem Nachfassen), bleiben trotz Wahl "
+            "aus, ohne eine Lücke zu hinterlassen. Ist eine Spalte leer, nutzt die andere die ganze Breite.", kurz=True)
+    i.abschnitt("Info-Panel rechts", marke="info_panel")
+    i.text("<i>Ansicht → Info-Panel rechts</i> (<b>Strg+Umschalt+I</b>) blendet rechts ein Panel zum offenen Angebot "
+           "ein: Nummer, Kunde, Referenz, Bearbeiter, Bearbeitungs- und Kalkulationsstatus, Zahl der Positionen, "
+           "Hinweise und Fehler, offene Aufgaben (Wiedervorlage) und die letzten Änderungen aus dem Verlauf. "
+           "<b>Nächster offener Punkt (F7)</b> springt zur nächsten Position mit Warnung oder Fehler, <i>Angebots-Check</i> "
+           "startet die Prüfung ([[angebots_check]]). Ohne offenes Angebot sagt das Panel, was zu tun ist. Das Panel "
+           "lässt sich lösen, verschieben und links andocken.")
+    i.abschnitt("Arbeitsbereiche: Layout speichern", marke="arbeitsbereiche")
+    i.text("<i>Ansicht → Arbeitsbereich</i> wechselt zwischen gespeicherten Layouts. Ein Arbeitsbereich merkt sich "
+           "Werkzeugleiste und Kontextknöpfe, Dashboard, Schnellzugriffe, Info-Panel, Lage von Leiste und "
+           "Panels, Zeilendichte und Breite der Navigation.")
+    i.tabelle(["Arbeitsbereich", "Inhalt"], [
+        ["Standard", "Vorgabe des Programms."],
+        ["Kalkulation", "Leiste mit Material, Maschinen, Staffeln und Gesamtkalkulation; Info-Panel an."],
+        ["Angebot", "Leiste mit Angebot per Mail, Angebotsakte und Fertigstellen; Info-Panel an."],
+        ["Tablet", "Große Knöpfe mit Text darunter, mehr Zeilenabstand, breite Navigation für Touch."],
+    ], [35 * mm, 125 * mm], kurz=True)
+    i.liste("<i>Aktuellen Arbeitsbereich speichern …</i> legt einen eigenen an (Name frei, die vier eingebauten "
+            "bleiben geschützt); <i>Arbeitsbereich löschen</i> entfernt eigene wieder.",
+            "<i>Standardlayout wiederherstellen …</i> setzt Leiste, Dashboard, Schnellzugriffe und Info-Panel nach einer "
+            "Rückfrage auf die Vorgabe zurück. Daten und Einstellungen der Kalkulation bleiben unverändert.",
+            "Bildschirmgröße: Das Fenster passt Leiste und Karten der Breite an. Eine Browser- oder Smartphone-"
+            "Fassung gibt es nicht, weil die Daten je PC gespeichert werden ([[admin_datenbank]]); der Arbeitsbereich "
+            "<i>Tablet</i> ist für Windows-Tablets gedacht.", kurz=True)
+    i.abschnitt("Tabellen: Spalten ein- und ausblenden", marke="spalten_waehlen")
+    i.text("<b>Rechtsklick auf den Tabellenkopf</b> zeigt in den Listen (Angebote, Kunden, Anfragen, Aufträge, "
+           "Lager, Stammdaten) <i>Spalten ein-/ausblenden</i> mit einem Haken je Spalte. Spalten lassen sich am Kopf "
+           "<b>ziehen</b>, um die Reihenfolge zu ändern; <i>Spaltenreihenfolge zurücksetzen</i> stellt sie wieder her. "
+           "Sortieren (Klick auf den Kopf) und Filtern wie bisher. Ausgeblendete Spalten, Reihenfolge und Breiten "
+           "merkt sich das Programm je Tabelle. Die Positionsliste im Angebot hat dafür ihr eigenes Menü "
+           "<i>Weitere Spalten</i> ([[spalten_ansichten]]).")
     i.abschnitt("Erste Schritte", marke="erste_schritte")
     i.text("<i>Hilfe → Erste Schritte …</i> zeigt fünf Schritte zum ersten Angebot, jeder mit einem Knopf, der die "
            "richtige Stelle öffnet: Firma und Kürzel eintragen, Maschine und Preise prüfen, erstes Angebot aus einer "
@@ -1122,6 +1209,12 @@ def kapitel_angebote(i):
     i.genauer()
     i.text("<i>Nachfassen: Wiedervorlage nach Tagen</i> = 0 schaltet das automatische Nachfassen ab; Gültigkeit und "
            "Wiedervorlagen von Hand bleiben.")
+    i.text("<b>Ganz ausschalten</b> (seit 0.9.410): <i>Einstellungen → Funktionen → Wiedervorlage</i> auf nein "
+           "([[funktionen]]). Dann gibt es keine Liste und keine Kachel <i>Wiedervorlage fällig</i> auf der Startseite, "
+           "keinen Filter <i>Wiedervorlage fällig</i>, keinen Menüpunkt <i>Wiedervorlage …</i>, beim Fertigstellen und "
+           "nach einer Rückfrage wird keine Wiedervorlage gesetzt, und fällige Notizen der Kollegen erinnern nicht mehr. "
+           "<i>Nachfassen vermerken …</i> bleibt. Schon gesetzte Daten bleiben gespeichert und gelten wieder nach dem "
+           "Einschalten. Vorgabe: ja (wie bisher).")
     i.abschnitt("Absagegrund und Angebots-Auswertung", marke="absage")
     i.text("Wer ein Angebot auf <i>Abgelehnt</i> setzt, trägt den <b>Grund</b> ein (Preis zu hoch, Lieferzeit zu lang, "
            "Kunde fertigt selbst …), wenn bekannt auch den Preis des Wettbewerbs. <i>Datei → Angebots-Auswertung …</i> "
@@ -6611,6 +6704,89 @@ def kapitel_optimieren(i):
             "Rohrachse, 0° = gerader Schnitt) und den Drehsinn um hoch und quer. Zwei Kanten oder Flächen quer zur "
             "Achse zeigen zusätzlich den gerichteten Winkel um die Rohrachse (+ gegen den Uhrzeigersinn beim Blick "
             "von Ende B).")
+    i.abschnitt("Aussehen der 3D-Ansicht: Material, Licht, Hintergrund, Schatten", marke="aussehen_3d")
+    i.text("Seit 0.9.416 lässt sich das Aussehen aller 3D-Ansichten einstellen: mit dem Knopf <b>Aussehen</b> in der "
+           "Leiste unter jeder 3D-Ansicht (im Rohr- und Blech-Editor im Menü <i>Blick</i>, in Baugruppe "
+           "und Satz) oder unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Aussehen. Die Wahl gilt sofort in "
+           "allen offenen 3D-Fenstern (Rohr- und Blech-Editor, Baugruppe, Satz, STEP-Prüfdialog, Viewer) und nur für "
+           "diesen Arbeitsplatz. Es ist nur Anzeige: Netz, Konturen, Export und Kalkulation bleiben genau gleich.",
+           kurz=True)
+    i.liste("<b>Material</b>: Standard (Farben nach Fläche), Rohstahl, Edelstahl, Aluminium, Lackiert (RAL 5010), "
+            "Gebürstet, Matt. Das Material färbt nur Außenwand, Innenwand und Blech. Konturen, Gravuren, Schnitte, "
+            "Nähte, Kostenfarben und Teilfarben behalten ihre Signalfarben, die Legende zeigt die Materialfarbe. "
+            "Metall spiegelt eine helle Umgebung (oben hell, Horizont dunkler): Oberseite und Seiten eines Rohrs "
+            "unterscheiden sich deutlich, Rundrohre bekommen einen weichen Glanzverlauf.",
+            "<b>Licht</b>: Werkstatt (Vorgabe), Studio (kräftiger, mit Fülllicht von rechts), Hell (wenig Schatten), "
+            "Technisch (flach, ohne Glanz, gut zum Prüfen von Konturen).",
+            "<b>Hintergrund</b>: Verlauf (Vorgabe), Weiß, Hellgrau, Studio (Blaugrau). Im Dunkelmodus bleibt der "
+            "Hintergrund immer dunkel.",
+            "<b>Schatten unter dem Modell</b>: ein weicher Schatten auf dem Boden unter dem Teil (Vorgabe an). Er zeigt "
+            "nur die Lage, wird bei Drahtgitter und Durchsichtig weggelassen und ändert nichts am Teil.",
+            "Die Vorgabe-Darstellung neuer 3D-Fenster ist seit 0.9.416 <i>Mit Kanten</i> (Körperkanten dunkel, wie im "
+            "CAD).",
+            "OpenGL und Software zeichnen mit denselben Werten, das Bild sieht auf jedem Rechner gleich aus.")
+    i.abschnitt("Darstellungsarten der 3D-Ansicht", marke="darstellungen_3d")
+    i.text("Die Auswahl <i>Darstellung</i> (Leiste, Menüband <i>3D-Darstellung</i> oder Rechtsklick) hat seit 0.9.416 "
+           "zehn Arten. Alle ändern nur das Bild.", kurz=True)
+    i.liste("<i>Schattiert</i>, <i>Mit Kanten</i> (Vorgabe), <i>Durchsichtig</i>, <i>Drahtgitter</i>, <i>Verdeckt "
+            "gestrichelt</i> wie bisher.",
+            "<i>Verdeckt ausgeblendet</i>: helle Flächen, nur sichtbare Kanten (wie eine Zeichnung).",
+            "<i>Durchsichtig mit Kanten</i>: Röntgenbild mit den Körperkanten, gut für Baugruppen.",
+            "<i>Flächentypen</i>: färbt die Flächen nach ihrer Art (eben, Zylinder, Kegel, Kugel, Torus, Freiform) mit "
+            "eigener Legende; braucht den Flächenkatalog der STEP-Messung.",
+            "<i>Konturen betont</i>: Teil blass, Konturen und Gravuren kräftig und dick.",
+            "<i>Nur Konturen</i>: nur die Schnittkonturen, das Rohr als feiner Hauch.",
+            "Lange, schmale Dreiecke werden fürs Zeichnen ohne Grafikkarte geteilt: nichts scheint mehr durch eine "
+            "Wand (z. B. beim L-Profil).")
+    i.abschnitt("Mausbelegung wie im CAD", marke="mausbelegung_3d")
+    i.text("Unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Maus wählt jeder Arbeitsplatz seine gewohnte "
+           "Belegung (seit 0.9.416):", kurz=True)
+    i.liste("<i>Programm</i>: links drehen, rechts oder Mitte verschieben (wie bisher).",
+            "<i>wie Inventor</i>: Umschalt+Mitte drehen, Mitte verschieben.",
+            "<i>wie SolidWorks</i>: Mitte drehen, Strg+Mitte verschieben.",
+            "<i>wie Creo</i>: Mitte drehen, Umschalt+Mitte verschieben.",
+            "Bei allen Belegungen bleiben Klick, Auswahl und Messen auf der linken Maustaste.",
+            "<i>Zoomrichtung des Mausrads umkehren</i> und <i>Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang) "
+            "unter Zoomen bzw. Drehen.")
+    i.abschnitt("Schnittansicht und Explosionsansicht", marke="schnitt_explosion_3d")
+    i.text("Seit 0.9.416 gibt es in jeder 3D-Ansicht (Leiste, Rohr- und Blech-Editor im Menü <i>Blick</i>, "
+           "Baugruppe, Satz) die Knöpfe <b>Schnitt</b> und <b>Explosion</b>. Beides ist nur Anzeige: Netz, Konturen, "
+           "Export und Kalkulation bleiben genau gleich. Oben rechts steht ein gelber Hinweis, solange einer davon "
+           "aktiv ist.", kurz=True)
+    i.liste("<b>Schnitt</b>: Klick schneidet quer zur Rohrachse in der Mitte (noch ein Klick: aus). Der Pfeil bietet "
+            "<i>Längs senkrecht</i>, <i>Längs waagrecht</i> und <i>Schnitt einstellen …</i>: bis zu drei Ebenen "
+            "zugleich, je Richtung, Lage (Schieber, mit mm-Wert), Neigung bis ±80° und <i>andere Seite</i>. Die "
+            "Schnittkanten sind magenta.",
+            "<b>Wandstärke an der Schnittstelle</b>: der Hinweis zeigt die Wand am Schnitt (≈, aus dem Netz, z. B. "
+            "<i>≈ 2.00 mm</i>; bei unterschiedlichen Wänden der typische Wert mit Bereich).",
+            "<b>Explosion</b> (für Baugruppe und Satz): Klick zieht die Teile auseinander (1×), der Pfeil wählt 0,5× "
+            "bis 2×. Jedes Teil rückt von der Mitte der Baugruppe weg. <b>Messen ist dabei gesperrt</b> (Abstände "
+            "zwischen Teilen wären falsch); Explosion auf <i>Aus</i>, dann messen.",
+            "<i>Ansicht als Bild/PDF speichern …</i> (in beiden Menüs) speichert die Ansicht, wie sie zu sehen ist, "
+            "als PNG oder als PDF (A4 quer, mit Titel und Hinweis).")
+    i.abschnitt("3D-Einstellungen: Profile, Export, Selbsttest", marke="profile_3d")
+    i.text("Auf der Einstellungsseite <i>3D-Ansicht und Navigation</i> stehen unter <i>Aussehen</i> (seit 0.9.416):",
+           kurz=True)
+    i.liste("<b>Profil</b>: fertige Zusammenstellungen <i>Standard</i>, <i>Präsentation (Kunde)</i>, <i>Werkstatt "
+            "(kräftig)</i>, <i>Technisch (wie Zeichnung)</i>, <i>Schwacher PC (schnell)</i>, <i>Wie Inventor</i>, "
+            "<i>Wie SolidWorks</i>, <i>Wie Creo</i>. Ein Profil ändert nur die Werte, die es nennt. <i>Aktuelle Werte "
+            "als eigenes Profil speichern …</i> merkt eigene Profile; sie gelten nur auf diesem Arbeitsplatz und "
+            "werden nie abgeglichen. <i>Eigenes Profil löschen</i> entfernt eines davon.",
+            "<b>Exportieren … / Importieren …</b>: alle 3D-Einstellungen samt eigenen Profilen als JSON-Datei, z. B. "
+            "für einen Kollegen. Beim Import werden unbekannte oder ungültige Werte verworfen und genannt.",
+            "<b>Selbsttest …</b>: zeichnet ein Prüfrohr in allen Darstellungen, Materialien und Lichtprofilen, prüft "
+            "Schnitt (Wand 3 mm) und dass das Netz unverändert bleibt, und zeigt die Zeiten und den Zeichenweg "
+            "(OpenGL oder Software). Ändert nichts.")
+    i.liste("Die einzelnen Einstellungen der Seite (alle nur dieser Arbeitsplatz): <i>3D-Ansicht: Material</i>, "
+            "<i>3D-Ansicht: Lichtprofil</i>, <i>3D-Ansicht: Hintergrund</i> (im Dunkelmodus immer dunkel), "
+            "<i>3D-Ansicht: weicher Schatten unter dem Modell</i>, <i>3D-Navigation: Mausbelegung</i> (Drehen/Verschieben "
+            "wie im Programm, Inventor, SolidWorks oder Creo), <i>3D-Navigation: Zoomrichtung des Mausrads umkehren</i> "
+            "und <i>3D-Navigation: Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang).")
+    i.abschnitt("Tempo der 3D-Ansicht", marke="tempo_3d")
+    i.text("Seit 0.9.416 rechnet das Programm die Körperkanten großer Modelle (ab 4.000 Dreiecken) gleich nach dem "
+           "Laden im Hintergrund, das erste Bild mit Kanten kommt dadurch schneller. Farben werden je Bild nur einmal "
+           "gerechnet, der Umriss von Rundungen beim Drehen erst nach dem Loslassen neu. Der Viewer für STEP-Anhänge "
+           "zeigt beim Lesen einen Laufbalken mit der verstrichenen Zeit.", kurz=True)
     i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
     i.text("<b>STEP speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor; ganze Baugruppen und "
            "Sätze: [[step_baugruppe]]) schreibt das Teil als "
@@ -8388,7 +8564,7 @@ def kapitel_baugruppen(i):
            "automatisch), Zeit von Hand und Komplexität; das Kalkulation-PDF nennt die Zeit von Hand mit Grund, das "
            "Kunden-PDF nur den Preis.")
     i.abschnitt("Gesamtzeit von Hand, Zeitvorschläge und Auswertung (Editor 2.0)", marke="bg_gesamtzeit")
-    i.text("Seit 0.9.410 lässt sich die <b>ganze Bearbeitungszeit einer Schweißbaugruppe mit einem Wert</b> festlegen. "
+    i.text("Seit 0.9.418 lässt sich die <b>ganze Bearbeitungszeit einer Schweißbaugruppe mit einem Wert</b> festlegen. "
            "Oben im Abschnitt <i>Kalkulation: Zeit</i> steht dafür das Feld <b>Gesamtzeit je Baugruppe</b>; der "
            "Schnellzugriff <i>Gesamtzeit überschreiben</i> im Band springt dorthin. Beispiel: berechnet sind "
            "Vorbereitung 20, Heften 35, Schweißen 90, Richten 25 und Nachbearbeitung 20 = 190 min; mit "
@@ -13592,8 +13768,9 @@ def kapitel_frachtkosten(i):
 
 def kapitel_pflege(i):
     i.kapitel("Updates und Datensicherung", marke="pflege")
-    i.text("Das Programm holt Updates auf Knopfdruck aus dem Internet und sichert die Datendatei selbst. Hier steht, "
-           "wie beides geht und wie die Daten auf einen anderen Rechner umziehen.")
+    i.text("Das Programm holt Updates auf Knopfdruck aus dem Internet, aus einem Update-Ordner im Firmennetz oder aus "
+           "einer Update-Datei (USB-Stick) und sichert die Daten selbst. Hier steht, wie beides geht, was die IT "
+           "freigeben muss und wie die Daten auf einen anderen Rechner umziehen.")
     i.abschnitt("Updates", marke="updates")
     i.bild("update_hinweis", "Hinweis auf eine neue Version", hoehe=55 * mm, legende=[
         (1, "<b>Jetzt aktualisieren</b>: lädt die neue Version, schließt alles, tauscht die Dateien aus und "
@@ -13661,6 +13838,96 @@ def kapitel_pflege(i):
             "das ohne Anmeldung nicht erreichbar ist, und melden <i>Keine Verbindung zum Update</i>. Dann einmal das "
             "neue Setup über die alte Installation installieren bzw. das neue ZIP entpacken und die Daten übernehmen "
             "([[datensicherung]]); danach geht es online weiter.")
+    i.abschnitt("Update-Center: offline, Netzwerkordner, Firewall", marke="update_center")
+    i.liste("<b>Hilfe → Update-Center …</b> zeigt installierte und verfügbare Version, die Quelle und die letzte "
+            "Aktualisierung.",
+            "Ohne Internet: <b>Update-Datei einspielen …</b> (Datei <i>Rohrlaser-Update.rlupdate</i>) oder <b>Aus "
+            "Ordner einspielen …</b> (USB-Stick).",
+            "Im Firmennetz: Der Admin legt das Update einmal in den <b>Update-Ordner</b>, alle Arbeitsplätze holen es "
+            "von dort, ohne eigenen Internetzugang.",
+            "Klappt es nicht: Reiter <b>Diagnose</b> → <b>Bericht für die IT speichern …</b>.", kurz=True)
+    i.bild("update_center", "Update-Center", hoehe=95 * mm, legende=[
+        (1, "Stand: installierte und verfügbare Version, Quelle, Status, letzte erfolgreiche Aktualisierung und die "
+            "gespeicherte vorige Version."),
+        (2, "<b>Nach Updates suchen</b> fragt alle Quellen; <b>Jetzt aktualisieren</b> spielt die neueste ein."),
+        (3, "<b>Update-Datei einspielen …</b> und <b>Aus Ordner einspielen …</b>: Update ohne Internet, z. B. vom "
+            "USB-Stick."),
+        (4, "<b>Vorige Version …</b>: zurück auf den Stand vor dem letzten Update, ohne Internet."),
+        (5, "Reiter: Quellen (Ergebnis je Quelle), Verlauf, Einstellungen, Diagnose und – nur für Admins – "
+            "Verteilen.")])
+    i.genauer()
+    i.text("<b>Drei Wege, eine Prüfung.</b> Internet, Update-Ordner und Update-Datei enthalten genau dasselbe: die "
+           "vom Hersteller digital signierte Dateiliste und die Pakete. Das Programm prüft bei jedem Weg dieselbe "
+           "Signatur und jede Prüfsumme und spielt nie eine ältere Version ein. Wer Dateien in einen Update-Ordner "
+           "legt, kann deshalb kein verändertes Programm einschleusen. Gesichert, geschlossen, ausgetauscht und bei "
+           "einem Fehler zurückgestellt wird wie beim Online-Update ([[updates]]).")
+    i.tabelle(["Weg", "Braucht", "Gut für"], [
+        ["Internet", "Zugriff auf github.com und *.githubusercontent.com (HTTPS, Port 443)",
+         "Einzelplatz, freies Netz"],
+        ["Update-Ordner", "Lesezugriff auf einen Netzwerkordner (SMB, intern); der Admin braucht einmal Internet "
+         "oder eine Update-Datei", "Firmennetz mit 10 bis 25 Plätzen, gesperrtes Internet, einheitlicher Stand"],
+        ["Update-Datei", "nichts: Datei per USB-Stick, Netzlaufwerk oder Browser-Download",
+         "Rechner ohne Netz, Proxy mit Anmeldung, Notfall"]], [30, 120, 114])
+    i.liste("<b>Quelle</b> (Reiter Einstellungen, je Arbeitsplatz): <i>Automatisch</i> (Vorgabe) fragt zuerst den "
+            "Update-Ordner, sonst das Internet; bei gleichem Stand gewinnt der Ordner. <i>Nur Update-Ordner</i> fragt "
+            "nie das Internet, <i>Nur Internet</i> arbeitet wie bisher. Dazu der Haken <i>Beim Programmstart still nach "
+            "Updates suchen</i>; übernommen wird alles mit <b>Einstellungen speichern</b>.",
+            "<b>Update-Ordner</b>: leer gelassen gilt der Unterordner <i>Updates</i> im gemeinsamen Ordner "
+            "([[mehrere_arbeitsplaetze]]); sonst ein eigener Pfad, am besten als UNC-Pfad (\\\\Server\\Freigabe\\Updates). "
+            "Darin liegt der Unterordner <i>Kalkulation</i> mit Dateiliste, Signatur und Paketen.",
+            "<b>Verteilen</b> (nur Admin, Fenster <i>Update bereitstellen</i> zeigt den Fortschritt): <i>Aus dem Internet bereitstellen</i> lädt das aktuelle Update einmal und "
+            "legt es in den Update-Ordner; <i>Aus Update-Datei bereitstellen …</i> geht ohne Internet. Ein Ordner mit "
+            "einem neueren Stand wird nie überschrieben. <i>Update-Datei erstellen …</i> speichert den Inhalt als eine "
+            "Datei für einen USB-Stick.",
+            "<b>Freigabe für alle Arbeitsplätze</b> (nur Admin, übernommen mit <b>Freigabe speichern</b>): <i>Pflicht-Update ab</i> Datum (danach bietet das "
+            "Programm kein <i>Später</i> mehr an, nur <i>Jetzt</i> oder <i>Beim Beenden</i>), ein <i>Hinweis</i> und "
+            "ein <i>Wartungsfenster</i> für die Kollegen, und <i>Arbeitsplätze holen Updates nur aus diesem Ordner "
+            "(nie direkt aus dem Internet)</i>: alle bleiben auf dem freigegebenen Stand.",
+            "<b>Arbeitsplätze</b>: Nach jedem Update schreibt jeder Platz Version, Zeit und Ergebnis in den "
+            "Update-Ordner. Der Admin sieht unter Verteilen, wer noch eine ältere Version hat (<i>veraltet</i>).",
+            "<b>Beim Beenden</b> (Hinweis auf eine neue Version): lädt und sichert jetzt, eingespielt wird erst beim "
+            "normalen Beenden. Laufende Kalkulationen werden so nicht unterbrochen.",
+            "<b>Vorige Version</b>: Nach jedem Update bleiben die ausgetauschten Dateien im Ordner <i>_vorige</i> "
+            "neben dem Programm. <i>Vorige Version …</i> stellt diesen Stand wieder her (geprüft über die Signatur "
+            "der damaligen Dateiliste). Hat die neue Version die Datenbank erweitert, danach die Sicherung "
+            "<i>vor_update</i> wiederherstellen ([[datensicherung]]).",
+            "<b>Datenbank</b>: Vor jedem Update sichert das Programm die Daten (<i>vor_update</i>). Eine Version, die "
+            "nur ein älteres Datenbank-Schema kennt als die Daten hier, wird nicht eingespielt.",
+            "<b>Verlauf</b>: jede Suche, jedes Laden und jedes Einspielen mit Ergebnis (Reiter Verlauf, Datei "
+            "<i>Daten\\Protokoll\\update_verlauf.json</i>).")
+    i.abschnitt("Firewall, Proxy und IT-Freigabeliste", marke="it_freigabe")
+    i.text("Das Programm umgeht keine Firewall und keinen Proxy, baut keine Tunnel auf und schaltet keine "
+           "Zertifikatsprüfung ab. Es braucht nur die folgenden, ausdrücklich freigegebenen Wege. Ohne Internet "
+           "reichen Update-Ordner oder Update-Datei.", kurz=True)
+    i.tabelle(["Ziel", "Protokoll, Port", "Wofür"], [
+        ["github.com", "HTTPS (TLS), TCP 443, ausgehend", "Dateiliste Update.json, Signatur, Sperrliste"],
+        ["release-assets.githubusercontent.com, objects.githubusercontent.com",
+         "HTTPS (TLS), TCP 443, ausgehend", "Pakete (Weiterleitung von github.com); Freigabe am einfachsten als "
+         "*.githubusercontent.com"],
+        ["Update-Ordner im Firmennetz", "SMB, TCP 445, nur intern", "Update ohne Internet; Arbeitsplätze lesen, "
+         "der Admin schreibt"],
+        ["127.0.0.1 (eigener Rechner)", "TCP, Port wechselnd, nur lokal", "Datenbank PostgreSQL des Platzes, nie "
+         "von außen erreichbar"]], [72, 66, 126])
+    i.liste("<b>Proxy</b>: Vorgabe ist der Proxy aus den Windows-Interneteinstellungen. Nutzt Windows nur ein "
+            "PAC-Skript (automatische Konfiguration), den Proxy im Update-Center fest eintragen (Rechner:Port). "
+            "<i>aus</i> verbindet direkt.",
+            "<b>Proxy mit Anmeldung</b> (NTLM/Kerberos): Benutzer und Passwort speichert das Programm nie. Bitte die "
+            "Update-Adressen ohne Anmeldung freigeben, oder Update-Ordner bzw. Update-Datei (im Browser laden) nutzen.",
+            "<b>TLS-Prüfung durch den Proxy</b> (Deep Packet Inspection): Das Programm vertraut dem "
+            "Windows-Zertifikatsspeicher. Verteilt die IT ihr Stammzertifikat per Gruppenrichtlinie dorthin, geht es "
+            "ohne weiteres; sonst die Zertifikatsdatei (.pem/.crt) im Update-Center eintragen, oder die Update-Adressen "
+            "von der TLS-Prüfung ausnehmen.",
+            "<b>Webfilter, gesperrte Downloads</b>: Kommt statt der Datei eine Sperrseite oder HTTP 403, meldet das "
+            "Programm das so. Download von Programmdateien (.zip) von den Adressen oben freigeben.",
+            "<b>DNS gesperrt</b>: Ohne Proxy muss der Rechner github.com auflösen können; mit Proxy löst der Proxy auf.",
+            "<b>Windows Defender Firewall, Gruppenrichtlinien</b>: ausgehend TCP 443 für "
+            "<i>Rohrlaser-Angebotskalkulation.exe</i> erlauben (eingehend wird nichts gebraucht). Das Programm "
+            "braucht keine Administratorrechte, wohl aber Schreibrecht im eigenen Programmordner (Setup: "
+            "Benutzerprofil; portabel: eigener Ordner, nicht C:\\Programme).",
+            "<b>Diagnose</b> (Update-Center → Diagnose → <b>Diagnose starten</b>): prüft Schreibrecht, Speicherplatz, Update-Ordner und "
+            "Signatur, Proxy und PAC-Skript, DNS, Verbindung Port 443, Zertifikat und Aussteller, den Abruf der "
+            "Dateiliste und die Datenbank. Der Bericht enthält keine Passwörter oder Zugangsdaten und ist für die IT "
+            "gedacht.")
     i.abschnitt("Datensicherung und Umzug", marke="datensicherung")
     i.liste("Das Programm sichert von selbst: täglich, beim Beenden und vor jedem Update oder Import.",
             "Selbst sichern: <b>Datensicherung erstellen</b> (Startseite oder Menü Datei).",
@@ -14033,8 +14300,11 @@ def kapitel_tastenkuerzel(i):
            "Strg+Enter übernimmt ([[eingaben]]).")
     i.abschnitt("Doppelklick", marke="doppelklick")
     i.text("Ein Doppelklick führt meist direkt dorthin, wo etwas zu tun ist. Wo er einen Dialog öffnet, bearbeitet "
-           "<b>Tippen</b> oder <b>F2</b> die Zelle weiterhin direkt. Der Tooltip (Maus kurz auf der Zelle lassen) "
-           "sagt, was der Doppelklick macht.")
+           "<b>Tippen</b> oder <b>F2</b> die Zelle weiterhin direkt. Ein <b>Klick in die schon gewählte Zelle</b> "
+           "(bzw. Zeile) öffnet sie ebenfalls zum Bearbeiten, ohne erst etwas zu tippen – in allen Tabellen, z. B. "
+           "Kundenliste, Positionen (Artikelnummer, Bezeichnung) und Stammdaten. Ein Doppelklick auf die "
+           "<b>Bezeichnung</b> einer Position bearbeitet sie immer direkt. Der Tooltip (Maus kurz auf der Zelle "
+           "lassen) sagt, was der Doppelklick macht.")
     i.tabelle(["Wo", "Doppelklick auf", "Wirkung"], [
         ["Angebot, Positionen", "Status", "führt zur Lösung: Bei <i>Schneidweg fehlt</i> oder einem Kontur-Hinweis "
                                           "öffnet sich der Schneidweg-Rechner, bei <i>EK fehlt</i> das EK-Fenster, "
@@ -14082,7 +14352,7 @@ def kapitel_admin_datenbank(i):
     i.tabelle(["Was", "Wo", "Bemerkung"], [
         ["PostgreSQL je PC", "<i>Daten\\pg</i>, Zugang in <i>Daten\\pg_zugang.json</i>",
          "Die einzige Datenbank ([[datenspeicher]]). Läuft nur, solange das Programm offen ist, nur auf "
-         "127.0.0.1, Passwort zufällig je PC."],
+         "127.0.0.1, Passwörter zufällig je PC, in der Zugangsdatei verschlüsselt."],
         ["Merkdatei", "<i>Daten\\rohrlaser.db</i> (klein)", "Zeigt dem Programm, dass die Daten in PostgreSQL liegen."],
         ["Archiv der alten Datendatei", "<i>Daten\\Sicherung\\Migration\\rohrlaser_SQLite_&lt;Datum&gt;.db</i>",
          "Die SQLite-Datendatei von vor dem Update; nur Archiv, das Programm arbeitet nicht mit ihr."],
@@ -14102,6 +14372,32 @@ def kapitel_admin_datenbank(i):
             "Neue Installationen legen PostgreSQL direkt an.", nummeriert=True)
     i.hinweis("Geht beim Umstellen etwas schief, ändert sich nichts und das Programm meldet den Grund; es arbeitet "
               "nicht auf der alten Datendatei weiter. Der nächste Start versucht es noch einmal.")
+    i.abschnitt("Rollen und Sicherheit", marke="admin_db_sicherheit")
+    i.liste("Das Programm meldet sich als <b>rohrlaser_app</b> an: Eigentümer der Datenbank, aber <b>kein "
+            "Superuser</b>. Es darf keine Servereinstellungen ändern, keine Rollen anlegen und keine Dateien des PCs "
+            "lesen; erlaubt ist nur, Probe-Datenbanken für die Prüfung der Sicherungen anzulegen.",
+            "Für Einrichtung und Wartung gibt es ein eigenes Verwalter-Konto (neue PCs: <i>rohrlaser_admin</i>, PCs "
+            "von vor diesem Update: <i>rohrlaser</i>). Das Programm nutzt es nur beim Einrichten.",
+            "Passwörter stehen nie im Programm: Sie werden beim ersten Start zufällig erzeugt und liegen in "
+            "<i>Daten\\pg_zugang.json</i>, mit dem Windows-Datenschutz verschlüsselt. Die Datei nützt auf einem "
+            "anderen PC nichts.",
+            "Jede Anmeldung und Abmeldung steht im Server-Protokoll <i>Daten\\pg_server.log</i> (Benutzer, "
+            "Datenbank, Programm, Dauer).",
+            "PCs mit älterem Datenordner stellen beim ersten Start einmal um: neues Programmkonto, alle Tabellen "
+            "wechseln den Eigentümer, die Daten bleiben unverändert. <i>Datei → Datenbank (PostgreSQL) …</i> zeigt "
+            "das Konto; steht dort „mit Superuser-Rechten“, hat die Umstellung nicht geklappt (Protokoll an den "
+            "Support).")
+    i.abschnitt("Nichts still überschreiben", marke="admin_db_versionen")
+    i.text("Jede Zeile (Angebot, Position, Stammdaten) hat eine Versionsnummer, die bei jeder Änderung steigt, gleich "
+           "ob durch eine Eingabe, den Abgleich mit Kollegen oder eine Neuberechnung. Beim Speichern einer Eingabe "
+           "prüft das Programm, ob sich <b>dasselbe Feld</b> seit dem Anzeigen woanders geändert hat (Abgleich, "
+           "zweites Fenster, zweiter Programmstart).")
+    i.liste("Nur andere Felder derselben Zeile geändert: Ihre Eingabe wird gespeichert, die anderen Änderungen "
+            "bleiben.",
+            "Dasselbe Feld inzwischen anders: Die Rückfrage <i>Inzwischen geändert</i> zeigt den gespeicherten Wert "
+            "und Ihre Eingabe. <i>Gespeicherten Wert behalten</i> lädt die Ansicht neu, <i>Meine Eingabe "
+            "speichern</i> überschreibt bewusst.",
+            "Zeile inzwischen gelöscht: Hinweis, die Eingabe wird nicht gespeichert.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",

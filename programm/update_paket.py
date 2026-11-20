@@ -5,6 +5,8 @@ Aufruf:
          --stand 57 [--commit SHA] [--adresse URL] [--in-programm]
 --adresse      Adresse der Pakete (Release update-dateien im Repository Rohrlaser-Updates), steht in der Dateiliste
 --in-programm  Dateiliste und Signatur zusätzlich in den Programmordner legen (kommt so ins ZIP: installierter Stand)
+--offline DATEI  zusätzlich die Update-Datei (.rlupdate) für Offline-Updates und Update-Ordner schreiben
+               (Dateiliste, Signatur, alle Pakete; Release „download“, Update-Center → Update-Datei einspielen)
 --aenderung    Text "Was ist neu"; ohne Angabe die Kurzfassung der aktuellen Version aus neuerungen.py (öffentlich:
                keine PR-Titel, kein Commit, Audit H4)
 
@@ -25,6 +27,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rohrlaser import VERSION, update  # noqa: E402
 from rohrlaser.neuerungen import NEUERUNGEN  # noqa: E402
+
+
+def schema_version():
+    """Datenbank-Schema dieses Programms (steht in der Dateiliste: Prüfung der Verträglichkeit vor dem Update)."""
+    text = (Path(__file__).resolve().parent / "rohrlaser" / "datenbank.py").read_text(encoding="utf-8")
+    return int(re.search(r"^SCHEMA_VERSION = (\d+)", text, re.M).group(1))
 
 
 def letzte_aenderung(version=VERSION, neuerungen=None):
@@ -76,10 +84,15 @@ def main(argv=None):
     ap.add_argument("--adresse", default=update.ADRESSE.rpartition("/")[0] + "/")   # Ordner der Dateiliste
     ap.add_argument("--aenderung")
     ap.add_argument("--in-programm", action="store_true")
+    ap.add_argument("--offline")
     a = ap.parse_args(argv)
     aenderung = letzte_aenderung() if a.aenderung is None else a.aenderung
-    liste = update.erstellen(a.programm, a.ziel, a.stand, "", aenderung, a.adresse)
+    liste = update.erstellen(a.programm, a.ziel, a.stand, "", aenderung, a.adresse, schema=schema_version())
     sid = signieren(a.ziel)
+    if a.offline:
+        from rohrlaser import update_verteilen
+        datei = update_verteilen.datei_erstellen(a.ziel, a.offline)
+        print(f"Update-Datei {datei}: {datei.stat().st_size / 1e6:.1f} MB")
     if a.in_programm:           # mit Signatur: echtheit.py prüft beim Start die eigenen Dateien gegen diese Liste
         shutil.copyfile(Path(a.ziel) / update.DATEILISTE, Path(a.programm) / update.DATEILISTE)
         if (Path(a.ziel) / update.SIGNATUR).is_file():

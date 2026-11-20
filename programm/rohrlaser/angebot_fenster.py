@@ -37,7 +37,8 @@ from .baugruppe_dialog import BaugruppeDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog, artikel_werte
 from .zeiten_seite import ZeitenSeite
-from .datenbank import VORGAENGE
+from .datenbank import VORGAENGE, AenderungsKonflikt
+from . import konflikt_dialog
 from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
     ist_muster, ist_zukaufteil, kein_laserteil
 from .angebot_oben import (KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, LinksStreifen, UebersichtBereich,
@@ -522,8 +523,8 @@ class AngeboteSeite(QWidget):
         menue.addSeparator()            # Plan A9
         self.nachfassen_aktionen = (menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen()),
                                     menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen()))
-        menue.aboutToShow.connect(lambda: [a.setVisible(funktionen.an("funktion_nachfassen"))
-                                           for a in self.nachfassen_aktionen])
+        menue.aboutToShow.connect(lambda: [a.setVisible(funktionen.an(n)) for a, n in zip(
+            self.nachfassen_aktionen, (funktionen.NACHFASSEN, funktionen.WIEDERVORLAGE))])
         # Zusammenarbeit (Patrick 28.10.2026): eigenes Angebot an einen Kollegen abgeben
         self.uebergeben_aktion = menue.addAction("An Kollegen übergeben …", lambda: self.uebergeben())
         self.notiz_aktion = menue.addAction("Notiz an Kollegen …", lambda: self.notiz())
@@ -593,8 +594,14 @@ class AngeboteSeite(QWidget):
         alle = self.db.angebote(such, seit=seit, dazu=offen)
         wer = self._wer_fuellen(alle)
         from . import cockpit
+        wv_an = funktionen.an(funktionen.WIEDERVORLAGE)
         faellig = {id(w.z): w for w in cockpit.wiedervorlagen(alle, tage,
-                                                             nachfassen=self.db.einstellung("nachfassen_tage"))}
+                                                             nachfassen=self.db.einstellung("nachfassen_tage"))
+                   } if wv_an else {}
+        i = self.vorgang_filter.findText("Wiedervorlage fällig")    # Filter nur mit eingeschalteter Wiedervorlage
+        self.vorgang_filter.view().setRowHidden(i, not wv_an)
+        if not wv_an and i == self.vorgang_filter.currentIndex():
+            self.vorgang_filter.setCurrentIndex(0)
         from . import lernen
         try:                        # B3: Chance je verschicktem Angebot (aus allen Angeboten, nicht nur den gezeigten)
             chancen = lernen.chancen_db(self.db, zeilen=None if such or seit else alle)
@@ -1699,7 +1706,8 @@ class PositionenModell(QAbstractTableModel):
                 return False            # berechneter Meterpreis unverändert bestätigt: bleibt berechnet
             if wert == p.get(f.name):
                 return False
-        self.s.db.position_aendern(p["id"], f.name, wert)
+        if not self.s.position_speichern(p, f, wert):
+            return False
         if f.name == "werkstoff_id" and p.get("profil_id"):     # aus Nacharbeit lernen (Paket D, E5)
             from . import nacharbeit
             nacharbeit.anbieten(self.s, "werkstoff", wert)
@@ -2570,7 +2578,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         fa.append((menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id)),  # Plan A9
                    "funktion_nachfassen"))
         fa.append((menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id)),
-                   "funktion_nachfassen"))
+                   funktionen.WIEDERVORLAGE))
         # CSV-Export (export.py): Angebotskopf und Angebotspositionen als einzelne Dateien, Ordner wählbar
         csv = menue.addMenu("CSV-Export")
         csv.setToolTipsVisible(True)
@@ -2593,13 +2601,15 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.pos_modell = PositionenModell(self)
         self.pos_modell.geaendert.connect(self.neu_laden)
         self.pos_ansicht = _tabelle(self.pos_modell, sortieren=False)
+        self.pos_ansicht.auto_groesse.ohne_spaltenwahl()     # eigene Spaltenwahl „Weitere Spalten“
         self.pos_modell.modelReset.connect(lambda: hasattr(self, "pos_info") and self._pos_info_zeigen())
         self.pos_ansicht.setItemDelegate(_AuswahlUnter(self.pos_modell, self.pos_ansicht))
         # ✓/✗ in der Zelle: Vorschläge dieser Position übernehmen bzw. ablehnen (Patrick 04.11.2026)
         self.pos_ansicht.vorschlag_klick = lambda r, ja: self.vorschlaege_uebernehmen([r]) if ja else \
             self.vorschlaege_ablehnen([r])
         # Doppelklick entscheidet _doppelklick (Dialog oder Zelle bearbeiten); Tippen und F2 bearbeiten immer
-        self.pos_ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
+        self.pos_ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed
+                                      | QAbstractItemView.SelectedClicked)   # Klick in die gewählte Zelle
         self.pos_ansicht.setSelectionBehavior(QAbstractItemView.SelectItems)
         self.pos_ansicht.setIconSize(QSize(64, 18))     # 3D-Vorschau in der Spalte Artikelnummer
         # Eingabe springt weiter, ↓ in der letzten Zeile = neue Position, Strg+D = Wert von oben (Plan W5)
@@ -3236,9 +3246,29 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.f.reiter_titel(self)
         self.verlauf.merken()
 
+    def position_speichern(self, p, f, wert):
+        """Eingabe in der Positionstabelle mit optimistischer Sperre (Schritt 3): Versionsnummer beim Laden und
+        angezeigter Wert. Inzwischen woanders geändert: Rückfrage; False = nicht gespeichert (neu geladen)."""
+        pv = getattr(self, "pos_versionen", None)
+        if pv is None:
+            pv = self.pos_versionen = {}
+        try:
+            pv[p["id"]] = self.db.position_aendern(p["id"], f.name, wert, version=pv.get(p["id"], 0),
+                                                   erwartet=p.get(f.name))
+        except AenderungsKonflikt as k:
+            if konflikt_dialog.fragen(k, f.titel, self) != konflikt_dialog.MEINE:
+                self.f.meldung(f"{f.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.", fehler=True)
+                QTimer.singleShot(0, self, self.neu_laden)        # nicht mitten in setData der Tabelle
+                return False
+            pv[p["id"]] = self.db.position_aendern(p["id"], f.name, wert)
+        return True
+
     def _daten_lesen(self):
         """Angebot, Positionen, Stammdaten und Einstellungen aus der Datenbank (Teil von _neu_laden); None = Angebot
         gibt es nicht mehr."""
+        # Versionsnummern VOR den Daten lesen (Schritt 3): ändert jemand dazwischen, gilt die Zeile als geändert
+        self.kopf_version = self.db.version("angebote", self.id)
+        self.pos_versionen = self.db.positions_versionen(self.id)
         a = self.db.angebot(self.id)
         if a is None:
             return None
@@ -3787,7 +3817,17 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return
         vorher = self._verkauf() if fd.name in KALK_NAMEN or fd.name == "mindestpreis_anwenden" else None
         try:
-            self.db.angebot_aendern(self.id, fd.name, wert)
+            try:
+                self.kopf_version = self.db.angebot_aendern(self.id, fd.name, wert,
+                                                            version=getattr(self, "kopf_version", None),
+                                                            erwartet=self.kopf.get(fd.name))
+            except AenderungsKonflikt as k:      # Schritt 3: nichts still überschreiben
+                if konflikt_dialog.fragen(k, fd.titel, self) != konflikt_dialog.MEINE:
+                    self.f.meldung(f"{fd.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.",
+                                   fehler=True)
+                    QTimer.singleShot(0, self, self.neu_laden)
+                    return
+                self.kopf_version = self.db.angebot_aendern(self.id, fd.name, wert)
         except ValueError as e:
             self.f.meldung(str(e), fehler=True)
             self._kopf_anzeigen()
@@ -6685,6 +6725,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         p = self.positionen[r]
         if art == "status":
             self.status_beheben(r)
+            return
+        if name == "bezeichnung" and self.pos_modell.flags(i) & Qt.ItemIsEditable:
+            self.pos_ansicht.edit(i)            # Bezeichnung: immer direkt bearbeiten (Patrick 19.11.2026)
             return
         if ist_baugruppe(p) and art != "zukauf":
             self.baugruppe_bearbeiten([r])
