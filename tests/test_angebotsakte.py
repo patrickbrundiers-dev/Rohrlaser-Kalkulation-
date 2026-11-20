@@ -100,7 +100,7 @@ assert bericht and bericht["version"] == 1, bericht
 assert abs(s._rechnung()[1]["verkauf"] - verkauf) < 1e-9, "die Akte ändert keine Rechnung"
 o = bericht["ordner"]
 assert o.name == "Angebotsakte" and o.parent == s.f.angebot_ordner(s.kopf)
-for art in ("gesamt", "kunde", "intern", "schnittschema", "kalkulationsdaten"):
+for art in ("gesamt", "kunde", "intern", "technik", "schnittschema", "kalkulationsdaten"):
     assert bericht["dateien"][art].exists(), art
 for u in ("PDF", "PDF/Versionen", "Technische_Daten", "Schnittschemata", "Kalkulationsdaten"):
     assert (o / u).is_dir(), u
@@ -113,8 +113,9 @@ ok("Ablage: Angebotsakte im Angebotsordner mit PDF, Versionen, Technische_Daten,
 kunde = seiten(bericht["dateien"]["kunde"])
 intern = seiten(bericht["dateien"]["intern"])
 gesamt = seiten(bericht["dateien"]["gesamt"])
-assert len(gesamt) == len(kunde) + len(intern), (len(gesamt), len(kunde), len(intern))
-assert all(a == 0 for _, a in kunde + intern + gesamt), "nichts ragt aus dem Blatt"
+technik = seiten(bericht["dateien"]["technik"])
+assert len(gesamt) == len(kunde) + len(intern) + len(technik), (len(gesamt), len(kunde), len(intern), len(technik))
+assert all(a == 0 for _, a in kunde + intern + technik + gesamt), "nichts ragt aus dem Blatt"
 kt = " ".join(t for t, _ in kunde)
 for z in ang["zeilen"]:
     assert akte_pdf.geld(z["gesamt"]) in kt, z
@@ -153,6 +154,32 @@ stufen = dict(angebotsakte.pruefen(akte, summen))
 assert ("OK", "Alle Kostenpositionen ergeben den Verkaufspreis der Kalkulation") in angebotsakte.pruefen(akte, summen)
 assert angebotsakte.schlimmste(akte["pruefung"]) in ("OK", "HINWEIS"), akte["pruefung"]
 ok("Gesamtkalkulation = Kalkulation: Gruppen ergeben den Verkaufspreis, Gewinnbasis ohne Zukauf (nur Aufschlag)")
+
+# Technisches Kalkulationsblatt (Angebotswesen P2): je Position Zeiten und Kosten je Teil aus derselben Kalkulation
+kb = akte["kalkblatt"]
+assert [t["pos"] for t in kb] == [angebotsakte.pos_text(p.get("pos")) for p, z in zip(s.positionen, zeilen) if p and z]
+for t, z in zip(kb, [z for p, z in zip(s.positionen, zeilen) if p and z]):
+    werte = {k["text"]: k for k in t["kosten"]}
+    assert abs(werte["Herstellkosten"]["teil"] - z["herstell_teil"]) < 1e-9
+    assert abs(werte["Selbstkosten"]["teil"] - z["selbst_teil"]) < 1e-9
+    assert abs(werte["Preis je Teil laut Kalkulation"]["teil"] - z["preis_teil"]) < 1e-9
+    teil = [k["teil"] for k in t["kosten"]]
+    i_h = next(i for i, k in enumerate(t["kosten"]) if k["text"] == "Herstellkosten")
+    i_s = next(i for i, k in enumerate(t["kosten"]) if k["text"] == "Selbstkosten")
+    assert abs(sum(teil[:i_h]) - z["herstell_teil"]) < 1e-6, t["pos"]
+    assert abs(sum(teil[i_h:i_s]) - z["selbst_teil"]) < 1e-6, t["pos"]
+    assert abs(sum(teil[i_s:-1]) - z["preis_teil"]) < 1e-6, t["pos"]
+    assert not any(k["text"].startswith("Abgleich") for k in t["kosten"]), t["kosten"]
+    if t["laser"] and z.get("laser_netto"):
+        assert abs(t["laser_netto"] - z["laser_netto"]) < 1e-9 and t["wege"], t["pos"]
+tt = " ".join(x for x, _ in technik)
+for w in ("Technisches Kalkulationsblatt", "INTERN", "Laserzeit genutzt je Teil", "Vorschub", "mm/min",
+          "Herstellkosten", "Selbstkosten", "Preis je Teil laut Kalkulation", "Kontur groß und Trennschnitt",
+          "Einstiche", "Schneidgas"):
+    assert w.lower() in tt.lower(), w
+assert technik[0][0].count("Seite 1 von") == 1
+ok("Seite 8 Technisches Kalkulationsblatt: je Position Wege, Vorschübe, Zeiten; Kosten ergeben Herstell-, Selbstkosten "
+   "und Preis je Teil der Kalkulation genau")
 
 gew = [x for x in akte["fertigung"]["schritte"] if x["art"] == "Gewinde"]
 assert gew and all(x["min"] is None for x in gew) and abs(sum(x["eur"] for x in gew) - summen["gewinde"]) < 1e-6
@@ -223,6 +250,8 @@ assert "Technische Bauteilübersicht" not in " ".join(t for t, _ in seiten(b4["d
 d = AkteDialog(None, neu)
 d.knoepfe["intern"].setChecked(True)
 assert not d.haken[1].isEnabled() and d.seiten == [3, 4, 5, 6, 7]
+d.knoepfe["technik"].setChecked(True)
+assert d.seiten == [8] and not d.haken[7].isEnabled()
 for h in d.haken.values():
     h.setChecked(False)
 assert not d.ok.isEnabled(), "ohne Seite kein Erstellen"

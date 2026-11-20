@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.429", "<b>Technisches Kalkulationsblatt</b> als drittes Dokument der Angebotsakte ([[angebotsakte]]): je "
+     "Position Schneidwege mit Vorschub, Einstiche, alle Zeitanteile bis zur Laserzeit je Teil und die Kosten je Teil "
+     "von Material bis zum Preis, genau aus derselben Kalkulation. Wählbar in <i>Angebotsdokument erstellen</i>, "
+     "abgelegt als _Technik.pdf.",
+     "Angebotsakte: Technisches Kalkulationsblatt (Zeiten und Kosten je Teil)"],
     ["0.9.429", "<b>Staffeln mit Mindestmarge</b>: Jede Stufe hält die Mindestmarge, größere Mengen werden nie "
      "billiger als erlaubt (Anhebung als eigener Posten). Je Stufe Deckungsbeitrag, Marge und Einsparung gegenüber "
      "der kleinsten Menge, Staffelrabatt [%], Zukauf-EK je Staffel (nur Aufschlag) und Preis von Hand mit Grund, "

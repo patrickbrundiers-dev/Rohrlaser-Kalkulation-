@@ -9244,8 +9244,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "dann öffnet sich das PDF wie früher im PDF-Programm. Angebot per E-Mail erstellt das PDF ohne Vorschau.")
     i.abschnitt("Angebotsdokument und Angebotsakte", marke="angebotsakte")
     i.text("<i>Ausgaben → Angebotsdokument erstellen …</i> erzeugt ein neues Dokument aus Kundenangebot und interner "
-           "Kalkulation: <b>Kundenangebot</b> (Seiten 1–2), <b>Interne Kalkulation</b> (Seiten 3–7) oder "
-           "<b>Komplettes Dokument</b> (alle Seiten). Es wird mit Version im Unterordner <i>Angebotsakte</i> des "
+           "Kalkulation: <b>Kundenangebot</b> (Seiten 1–2), <b>Interne Kalkulation</b> (Seiten 3–7), <b>Technisches "
+           "Kalkulationsblatt</b> (Seite 8) oder <b>Komplettes Dokument</b> (alle Seiten). Es wird mit Version im Unterordner <i>Angebotsakte</i> des "
            "Angebotsordners abgelegt ([[angebotsordner]]); die bisherigen PDFs bleiben unverändert.", kurz=True)
     i.genauer()
     i.liste("<b>Seite 1 Kundenangebot</b>: Anschrift, Angebotsdaten, Positionen mit Menge, Stück- und Gesamtpreis, "
@@ -9261,17 +9261,26 @@ def kapitel_ausgabe(i, seiten, ablage):
             "€/Stück), <b>Seite 6 Zukauf und Normteile</b> (entfällt ohne Zukauf; nur Aufschlag, kein Gewinn) und "
             "<b>Seite 7 Gesamtkalkulation</b> mit allen Kostenarten, Deckungsbeitrag, Gewinn und Preis je Position. "
             "Interne Seiten tragen einen gelben Randstreifen, Kundenseiten einen blauen.",
+            "<b>Seite 8 Technisches Kalkulationsblatt</b> (eigenes Dokument _Technik.pdf, für Arbeitsvorbereitung "
+            "und Fertigung, nur intern): oben eine Übersicht aller Positionen mit Laserzeit, Herstell-, Selbstkosten, "
+            "Preis und Marge je Stück; dann je Position Profil, Werkstoff, Maschine, Schneidgas und Herkunft der "
+            "Schneiddaten, die Schneidwege mit Vorschub [mm/min] und Zeit, die Einstiche, alle weiteren Zeitanteile "
+            "bis zur genutzten Laserzeit je Teil und die Kosten je Teil und je Position von Material bis zum Preis. "
+            "Die Kostenzeilen ergeben genau Herstellkosten, Selbstkosten und Preis je Teil der Kalkulation; weicht der "
+            "Stückpreis im Angebot ab (Rundung, Preis von Hand), steht er darunter.",
             "Alle Werte kommen aus derselben Rechnung wie Angebot und Kalkulation (keine zweite Rechnung, gleiche "
             "Rundung); die <b>Prüfliste</b> im Fenster meldet fehlende oder widersprüchliche Angaben (z. B. kein "
             "Preis, Position nicht eingeplant, Summe weicht ab) vor dem Erstellen.",
             "Im Fenster lassen sich einzelne Seiten abwählen; <i>Vorschau vor dem Speichern zeigen</i> schaltet die "
             "<b>Vorschau</b> ein und aus (<i>Speichern</i>, <i>Speichern und drucken</i>, <i>Abbrechen</i>).",
-            "<b>Ablage</b>: <i>Angebotsakte/PDF</i> (Angebot_&lt;Nr&gt;_Gesamt.pdf, _Kunde.pdf, _Intern.pdf, immer die "
+            "<b>Ablage</b>: <i>Angebotsakte/PDF</i> (Angebot_&lt;Nr&gt;_Gesamt.pdf, _Kunde.pdf, _Intern.pdf, _Technik.pdf, "
+            "immer die "
             "neueste Version), <i>PDF/Versionen</i> (ältere Versionen mit Nummer und Zeit, nichts wird "
             "überschrieben), <i>Technische_Daten</i> (3D-Bilder), <i>Schnittschemata</i> und "
             "<i>Kalkulationsdaten</i> (alle Werte je Version als Datei).",
             "In der <b>Angebotsübersicht</b> zeigt das Kontextmenü <i>Angebotsakte</i> die letzte Version und ob sie "
-            "zur Kalkulation passt; dort lassen sich Gesamt-, Kunden- und internes Dokument öffnen und drucken, "
+            "zur Kalkulation passt; dort lassen sich Gesamt-, Kunden- und internes Dokument sowie das technische "
+            "Kalkulationsblatt öffnen und drucken, "
             "<i>Erstellen / neu erzeugen …</i> öffnet das Fenster, <i>Ordner der Akte öffnen</i> zeigt die Ablage.",
             "Ändert sich die Kalkulation, ist die Akte <i>veraltet</i>; mit der Einstellung <i>Angebotsakte mit dem "
             "Angebots-PDF erneuern</i> (Einstellungen → Angebots-PDF, Vorgabe ja) wird sie beim nächsten Angebots-PDF "

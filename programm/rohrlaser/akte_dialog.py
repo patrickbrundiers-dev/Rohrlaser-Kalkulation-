@@ -1,5 +1,5 @@
 """Fenster „Angebotsdokument erstellen“ (Patrick 18.11.2026, Angebotsakte): Dokument wählen (Kundenangebot, interne
-Kalkulation, komplettes Dokument), Seiten an- und abwählen, Prüfliste sehen, Vorschau ein/aus."""
+Kalkulation, technisches Kalkulationsblatt, komplettes Dokument), Seiten an- und abwählen, Prüfliste sehen, Vorschau ein/aus."""
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QGridLayout, QGroupBox, QLabel,
                                QListWidget, QListWidgetItem, QRadioButton, QVBoxLayout)
@@ -11,7 +11,7 @@ ZEICHEN = {akte_.OK: "✓", akte_.HINWEIS: "i", akte_.WARNUNG: "!", akte_.FEHLER
 
 
 class AkteDialog(QDialog):
-    """Ergebnis nach exec: art ('kunde'/'intern'/'gesamt'), seiten [Nummern], vorschau (bool)."""
+    """Ergebnis nach exec: art ('kunde'/'intern'/'technik'/'gesamt'), seiten [Nummern], vorschau (bool)."""
 
     def __init__(self, parent, akte, stand_text="", vorschau=True, art="gesamt"):
         super().__init__(parent)
@@ -31,8 +31,12 @@ class AkteDialog(QDialog):
                                                      "interne Werte. Zum Versand an den Kunden."),
                 ("intern", "Interne Kalkulation erstellen", "Seiten 3–7: Schnittschema, Material, Fertigung, Zukauf, "
                                                             "Gesamtkalkulation. Nur für die interne Ablage."),
+                ("technik", "Technisches Kalkulationsblatt erstellen",
+                 "Seite 8: je Position Schneidwege, Vorschübe, Zeiten und die Kosten je Teil bis zum Preis. Für "
+                 "Arbeitsvorbereitung und Fertigung, nur intern."),
                 ("gesamt", "Komplettes Angebots- und Kalkulationsdokument erstellen",
-                 "Alle Seiten; dazu werden Kundenangebot und interne Kalkulation getrennt in der Akte abgelegt.")):
+                 "Alle Seiten; dazu werden Kundenangebot, interne Kalkulation und technisches Kalkulationsblatt getrennt "
+                 "in der Akte abgelegt.")):
             k = QRadioButton(text)
             k.setToolTip(tipp)
             self.arten.addButton(k)

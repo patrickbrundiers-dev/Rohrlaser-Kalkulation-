@@ -1153,11 +1153,90 @@ def _pruefliste(a, st):
     return _ueberschrift("Prüfliste", st, "Abgleich der Akte mit der Kalkulation vor der Freigabe") + [t]
 
 
+def _sek(x):
+    return "–" if x is None else f"{_de(x, 1)} s"
+
+
+def _seite_kalkblatt(a, st):
+    """Seite 8: Technisches Kalkulationsblatt (Angebotswesen P2). Je Position Schneidwege, Vorschübe, Zeitanteile und
+    die Kosten je Teil bis zum Preis, alles aus der Kalkulation des Angebots."""
+    teile = a.get("kalkblatt") or []
+    out = _seiten_titel(8, "Technisches Kalkulationsblatt", akte_.INTERN, st,
+                        f"{len(teile)} Position(en) · Zeiten je Teil in Sekunden, Kosten je Teil und je Position")
+    if not teile:
+        return out + [_p("Keine Positionen.", st["zelle"])]
+    daten = [["Pos.", "Artikel", "Stück", "Laserzeit/Stk", "Herstell/Stk", "Selbst/Stk", "Preis/Stk", "Marge"]]
+    for t in teile:
+        daten.append([t["pos"], t["artikel"] or t["bezeichnung"] or t["art"], menge(t["stueck"]),
+                      _sek(t["laser_netto"]) if t["laser"] else "–", geld(t["herstell"]), geld(t["selbst"]),
+                      geld(t["preis"]), prozent(t["marge"]) if t.get("marge") is not None else "–"])
+    b = [12 * mm, None, 14 * mm, 24 * mm, 24 * mm, 24 * mm, 22 * mm, 16 * mm]
+    b[1] = BREITE - sum(x for x in b if x)
+    out += [_tabelle(daten, b, rechts=(2, 3, 4, 5, 6, 7), stil=st), Spacer(1, 2 * mm)]
+    halb = (BREITE - 6 * mm) / 2
+    for t in teile:
+        block = []
+        block += _ueberschrift(f"Pos. {t['pos']}  ·  {t['artikel'] or t['bezeichnung'] or t['art']}", st,
+                             t["bezeichnung"] if t.get("artikel") else "")
+        links = [("Art", t["art"]), ("Profil", t["profil"]), ("Werkstoff", t["werkstoff"]),
+                 ("Bauteillänge", mm_(t["laenge"]) if t.get("laenge") else ""), ("Stückzahl", menge(t["stueck"]))]
+        rechts = [("Maschine", t["maschine"]), ("Schneidgas", t["gas"]),
+                  ("Schneiddaten", " · ".join(x for x in (f"Wand bis {mm_(t['wand_stufe'])}" if t.get("wand_stufe")
+                                                          else "", t.get("sd_herkunft") or "") if x)),
+                  ("Laserzeit", "von Hand vorgegeben" if t.get("zeit_manuell") else
+                   (f"Faktor {_de(t['faktor'], 2)}" if abs((t.get("faktor") or 1) - 1) > 1e-9 else "")),
+                  ("Hinweis", t.get("hinweis") or "")]
+        kopf = Table([[_kv(links, st, (24 * mm, halb - 24 * mm)), _kv(rechts, st, (24 * mm, halb - 24 * mm))]],
+                     colWidths=[halb + 6 * mm, halb])
+        kopf.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                                  ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+        block += [kopf, Spacer(1, 2 * mm)]
+        if t["laser"] and (t["wege"] or t["zeiten"] or t["laser_netto"]):
+            daten = [["Zeitanteil je Teil", "Weg", "Vorschub", "Anzahl", "Zeit"]]
+            for w in t["wege"]:
+                if "anzahl" in w:
+                    daten.append([w["text"] + (f" (je {_de(w['einstechzeit'], 1)} s)" if w.get("einstechzeit")
+                                               is not None else ""), "", "", menge(w["anzahl"]), _sek(w["s"])])
+                else:
+                    daten.append([w["text"], mm_(w["mm"]), f"{_de(w['vorschub'], 0)} mm/min"
+                                  if w.get("vorschub") else "–", "", _sek(w["s"])])
+            for z in t["zeiten"]:
+                daten.append([z["text"], "", "", "", _sek(z["s"])])
+            summen = []
+            if t["einsparung"] and abs(t["laser_brutto"] - t["laser_netto"]) > 0.05:
+                daten.append(["Laserzeit brutto", "", "", "", _sek(t["laser_brutto"])])
+                daten.append(["Einsparung (gemeinsame Schnitte, Teile im Verbund)", "", "", "",
+                              _sek(t["laser_netto"] - t["laser_brutto"])])
+            daten.append(["Laserzeit genutzt je Teil", "", "", "", _sek(t["laser_netto"])])
+            summen.append(len(daten) - 1)
+            b = [None, 26 * mm, 28 * mm, 18 * mm, 22 * mm]
+            b[0] = BREITE - sum(x for x in b if x)
+            block += [_tabelle(daten, b, rechts=(1, 2, 3, 4), stil=st, summen=summen, klein=True),
+                      Spacer(1, 2 * mm)]
+        daten = [["Kosten", "je Teil", "Position", "Anteil am Preis"]]
+        summen, hervor = [], []
+        preis = t["preis"] or 0
+        for k in t["kosten"]:
+            daten.append([k["text"], geld(k["teil"], 4 if abs(k["teil"]) < 1 else 2), geld(k["position"]),
+                          prozent(k["teil"] / preis) if preis else "–"])
+            if k["stufe"]:
+                summen.append(len(daten) - 1)
+        hervor.append((len(daten) - 1, INTERN_FL))
+        if t.get("vk_angebot") is not None and abs(t["vk_angebot"] - preis) > 0.005:
+            daten.append(["Stückpreis im Angebot (gerundet bzw. von Hand)", geld(t["vk_angebot"]),
+                          geld(t["vk_angebot"] * (t["stueck"] or 0)), ""])
+        b = [None, 28 * mm, 28 * mm, 28 * mm]
+        b[0] = BREITE - sum(x for x in b if x)
+        block.append(_tabelle(daten, b, rechts=(1, 2, 3), stil=st, summen=summen, hervor=hervor, klein=True))
+        out.append(KeepTogether(block))     # eine Position nicht über zwei Blätter, wenn sie auf eines passt
+    return out
+
+
 # ------------------------------------------------------------------ Dokument
 BAUER = {1: lambda a, e, st: _seite_kunde(a, e, st), 2: lambda a, e, st: _seite_technik(a, st),
          3: lambda a, e, st: _seite_schnitt(a, st), 4: lambda a, e, st: _seite_material(a, st),
          5: lambda a, e, st: _seite_fertigung(a, st), 6: lambda a, e, st: _seite_zukauf(a, st),
-         7: lambda a, e, st: _seite_gesamt(a, st)}
+         7: lambda a, e, st: _seite_gesamt(a, st), 8: lambda a, e, st: _seite_kalkblatt(a, st)}
 
 
 def schreiben(pfad, akte, einst=None, art="gesamt", seiten=None, version=None):
