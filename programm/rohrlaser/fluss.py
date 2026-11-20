@@ -7,7 +7,7 @@ dabei einmal zu wenig, Python gab Speicher frei, den Qt noch nutzte; beim Öffne
 das Programm ohne Meldung (Speicherzugriffsfehler). Qt.Orientation(0) wie in ansicht3d_leiste.FlussLayout ist gleich
 gemeint und stabil; tests/test_bg_absturz_1611.py verbietet die leere Schreibweise im ganzen Programm."""
 from PySide6.QtCore import QPoint, QRect, QSize, Qt
-from PySide6.QtWidgets import QLayout
+from PySide6.QtWidgets import QLayout, QWidgetItem
 
 
 class FlussLayout(QLayout):
@@ -19,6 +19,12 @@ class FlussLayout(QLayout):
 
     def addItem(self, item):
         self._dinge.append(item)
+
+    def insertWidget(self, i, w):
+        """Wie QBoxLayout.insertWidget (UmbruchLeiste setzt umgebrochene Knöpfe vorn in die zweite Zeile)."""
+        self.addChildWidget(w)
+        self._dinge.insert(max(0, min(i, len(self._dinge))), QWidgetItem(w))
+        self.invalidate()
 
     def addStretch(self, _=0):          # wie QHBoxLayout aufrufbar; eine umbrechende Zeile braucht keine Feder
         pass

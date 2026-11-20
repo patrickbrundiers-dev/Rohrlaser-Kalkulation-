@@ -9,6 +9,8 @@ abgeschnitten zu werden (UI-Modernisierung U2).
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QWidget
 
+from .fluss import FlussLayout
+
 
 class UmbruchLeiste(QWidget):
     ABSTAND = 12
@@ -20,17 +22,16 @@ class UmbruchLeiste(QWidget):
         for lay in (self.links_layout, self.rechts_layout):
             lay.setContentsMargins(0, 0, 0, 0)
             lay.setSpacing(6)
-        self.ueberlauf = QWidget()          # zweite Zeile links: Knöpfe, die oben nicht mehr passen
-        self.ueberlauf_layout = QHBoxLayout(self.ueberlauf)
-        self.ueberlauf_layout.setContentsMargins(0, 0, 0, 0)
-        self.ueberlauf_layout.setSpacing(6)
+        # zweite Zeile links: Knöpfe, die oben nicht mehr passen; bricht selbst weiter um (20.11.2026: sonst zwang die
+        # volle linke Knopfreihe dem maximierten Fenster ihre Breite auf)
+        self.ueberlauf = QWidget()
+        self.ueberlauf_layout = FlussLayout(self.ueberlauf)
         self._verschoben = []
         self.unten = QWidget()
         self._unten_layout = QHBoxLayout(self.unten)
         self._unten_layout.setContentsMargins(0, 0, 0, 0)
         self._unten_layout.setSpacing(self.ABSTAND)
-        self._unten_layout.addWidget(self.ueberlauf)
-        self._unten_layout.addStretch(1)
+        self._unten_layout.addWidget(self.ueberlauf, 1)
         self._gitter = QGridLayout(self)
         self._gitter.setContentsMargins(0, 0, 0, 0)
         self._gitter.setHorizontalSpacing(self.ABSTAND)
@@ -94,7 +95,10 @@ class UmbruchLeiste(QWidget):
             self._umbrechen(breite)
 
     def minimumSizeHint(self):
-        breite = max(self.links.minimumSizeHint().width(), self.rechts.minimumSizeHint().width())
+        """Breitester Knopf links neben dem rechten Teil: mehr braucht die Leiste nicht, der Rest bricht um."""
+        knoepfe = [w.minimumSizeHint().width() for w in self.links.findChildren(QWidget) + self.ueberlauf.findChildren(QWidget)
+                   if w.parentWidget() in (self.links, self.ueberlauf) and not w.isHidden()]
+        breite = max(knoepfe, default=0) + self.ABSTAND + self.rechts.minimumSizeHint().width()
         return QSize(breite, super().minimumSizeHint().height())
 
     def resizeEvent(self, e):
