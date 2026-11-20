@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.434", "<b>Lokale KI-Plattform</b> ([[ki]]). Neu sind die <b>KI-Zentrale</b> (Datei → KI-Zentrale …) mit "
+                "Status, Modellen, CPU/RAM/GPU, offenen Empfehlungen, Lernhistorie mit Zurücknehmen und Vergleich "
+                "alt/neu, verdächtigen Lerndaten, Wissenssuche und Protokoll aller KI-Aktionen, und der "
+                "<b>KI-Assistent</b> (Strg+Alt+K) für Fragen in normaler Sprache zum Angebot oder zu allen Daten. Im "
+                "Angebots-Check gibt es den Link <i>KI-Prüfung …</i>: Zehn Fach-Agenten prüfen das Angebot "
+                "technisch und kaufmännisch, der Bericht lässt sich als PDF speichern. Alle Zahlen kommen aus der "
+                "Kalkulation, die KI ändert nichts selbst. Ein lokales Sprachmodell (Ollama aus dem Netzwerkordner, "
+                "ohne Installation und ohne Admin-Rechte) ist freiwillig. Es läuft nur auf diesem PC bzw. im "
+                "Firmennetz, Cloud-Modelle und Internet-Adressen sind gesperrt.",
+     "Lokale KI: KI-Zentrale, KI-Assistent (Strg+Alt+K), KI-Prüfung im Angebots-Check, nur im eigenen Netz"],
     ["0.9.433", "<b>Weitere Prüfregeln beim STEP-Import, Schneidtechnik 2,5D/XY</b> ([[fertigbarkeit]]). Nach dem "
                 "Vergleich mit 247TailorSteel prüft der Import zusätzlich: Gravur zu nah an einer Schnittlinie "
                 "(Vorgabe 1,5 mm) oder berührt sie, Umfang an keinem der 5 Prüfpunkte (Enden, ¼, ½, ¾) geschlossen "

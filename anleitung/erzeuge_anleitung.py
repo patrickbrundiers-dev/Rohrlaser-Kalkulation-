@@ -10379,6 +10379,47 @@ def kapitel_automatik(i):
     i.text("Ausgeschaltet zeigt das Programm dazu nichts mehr und lernt nichts dazu. Was es schon gelernt hat, bleibt "
            "gespeichert und gilt wieder, sobald Sie den Schalter einschalten. Sind die ersten beiden Schalter aus, "
            "verschwindet auch Datei → Lernzentrale.")
+    i.abschnitt("Lokale KI: KI-Zentrale, KI-Assistent und KI-Prüfung", marke="ki")
+    i.text("Die KI-Plattform bündelt alles, was das Programm aus Ihren Daten prüft und lernt, in zehn Fach-Agenten "
+           "(Kalkulation, Rohrlaser, Material, Schweißen, Einkauf, Angebot, Qualität, Produktion, "
+           "Lernen, Verwaltung). <b>Alle Zahlen kommen aus der Kalkulation des Programms</b>: die KI macht nur "
+           "Vorschläge, ändert nie selbst einen Preis, Kennwert oder Stammdaten und läuft <b>nur auf diesem PC bzw. im "
+           "Firmennetz</b>. Adressen im Internet und Cloud-Modelle lässt das Programm nicht zu.")
+    i.liste("<b>KI-Prüfung</b>: Im Angebots-Check der Übersicht steht unter den Punkten <i>KI-Prüfung …</i>. Der Link "
+            "öffnet den KI-Assistenten mit der vollständigen technischen und kaufmännischen Prüfung aller Agenten "
+            "(Fehler, Warnungen, Vorschläge, Kennzahlen) mit Quelle. Doppelklick auf einen Befund springt zur Stelle im "
+            "Angebot; <b>Bericht speichern (PDF)</b> legt die Prüfung als PDF ab. Im Assistenten startet der Knopf "
+            "<b>Vollständige Angebotsprüfung</b> dieselbe Prüfung.",
+            "<b>KI-Assistent</b> (Datei → KI-Assistent …, <b>Strg+Alt+K</b>): Fragen in normaler Sprache, z. B. "
+            "<i>Warum ist dieses Angebot so teuer?</i>, <i>Welche Kalkulationspositionen fehlen?</i>, <i>Erstelle eine "
+            "Mengenstaffel für 10, 25, 50 und 100 Stück</i> oder <i>Wo verlieren wir aktuell am meisten Zeit?</i> "
+            "(Beispielfragen in der Liste oben). Mit offenem Angebot bezieht sich die Frage auf dieses Angebot, sonst "
+            "auf alle Daten. Unter der Antwort stehen Quellen und Datenstand.",
+            "<b>KI-Zentrale</b> (Datei → KI-Zentrale …): Reiter <i>Übersicht</i> (KI-Status, geladene Modelle, "
+            "Geschwindigkeit, CPU/RAM/GPU, analysierte Kalkulationen, offene Empfehlungen, Lernfortschritt, "
+            "Datenqualität), <i>Modelle</i>, <i>Empfehlungen</i> (Öffnen, Erledigt, Ablehnen), <i>Lernen</i> "
+            "(Lernhistorie mit Version, <b>Zurücknehmen</b>, reife Vorschläge mit <b>Vergleich alt/neu</b> an den "
+            "Prüfangeboten bzw. den letzten Aufträgen, verdächtige Lerndaten), <i>Wissen</i> (Suche in Angeboten, "
+            "Kunden, Zukauf, Stammdaten, Regeln und dieser Anleitung; <b>Index neu bauen</b> liest alles neu ein) und <i>Protokoll</i> (jede KI-Aktion mit "
+            "Benutzer, Modell und Dauer).")
+    i.text("<b>Ohne Sprachmodell</b> arbeitet alles regelbasiert. <b>Mit Sprachmodell</b> versteht der Assistent auch "
+           "frei formulierte Fragen und formuliert die Antwort; ein Faktencheck verwirft jede Antwort, die eine Zahl "
+           "nennt, die nicht in den Programmdaten steht (dann steht der Regeltext da).")
+    i.text("<b>Sprachmodell einrichten (ohne Admin-Rechte, ohne Internet)</b>:")
+    i.liste("Die ZIP-Version von Ollama in einen Netzwerkordner entpacken, die Modell-Dateien (*.gguf, z. B. "
+            "Qwen3-8B-Q4_K_M und nomic-embed-text) in einen zweiten Ordner legen.",
+            "KI-Zentrale → Modelle: <b>Ollama-Ordner</b> wählen und <b>Ollama starten</b>. Das Programm kopiert Ollama "
+            "ins Benutzerprofil und startet es nur für diesen PC (127.0.0.1, Cloud aus, ohne Proxy).",
+            "Im Feld <i>Modell importieren (ohne Internet)</i> den <b>Modell-Ordner</b> wählen, Dateien markieren, "
+            "<b>Importieren</b>. Danach <b>Sprachmodell benutzen</b> "
+            "einschalten und mit <b>Testen</b> die Geschwindigkeit messen.",
+            "Die Modelle für <i>Frage verstehen</i>, <i>Auslesen</i>, <i>Erklären</i> und <i>Suche (Einbettung)</i> "
+            "wählt das Programm nach Größe und freiem Speicher selbst; in den Auswahllisten lässt sich je Aufgabe ein "
+            "festes Modell einstellen. Ein llama.cpp- oder LM-Studio-Server im Firmennetz geht als "
+            "<i>OpenAI-kompatibel</i>.",
+            nummeriert=True)
+    i.hinweis("Ändern (Modelle, Server, Zurücknehmen) darf nur ein Admin, sobald ein Admin-Passwort gesetzt ist. "
+              "Protokoll und Empfehlungen gelten nur für diesen Arbeitsplatz.")
 
 
 def kapitel_nachkalkulation(i):

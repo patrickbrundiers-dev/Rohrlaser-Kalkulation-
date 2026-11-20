@@ -3689,6 +3689,8 @@ class Hauptfenster(QMainWindow):
                                   ("Prüfregeln (Regelkatalog) …", lambda: self.regelkatalog_zeigen(), None),
                                   ("Kostentreiber …", lambda: self.kostentreiber_zeigen(), None),
                                   ("Lernzentrale …", self.lernzentrale, None),
+                                  ("KI-Zentrale …", lambda: self.ki_zentrale(), None),
+                                  ("KI-Assistent …", lambda: self.ki_assistent(), "Ctrl+Alt+K"),
                                   ("Monatsbericht …", self.monatsbericht, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
                                   ("Reklamationen …", self.reklamationen, None),
@@ -5186,6 +5188,17 @@ class Hauptfenster(QMainWindow):
         self.meldung(f"Schweiß-Richtwerte geladen: {len(neue)} Regel(n) neu ({', '.join(schweiss_neu.arten(zeilen))}), "
                      "vorhandene unverändert.", aktion=("Rückgängig", zurueck))
         return len(neue)
+
+    def ki_zentrale(self, dialog=None):
+        """Datei → KI-Zentrale … (lokale KI-Plattform 20.11.2026): Status, Modelle, Empfehlungen, Lernen, Wissen,
+        Protokoll. Alles nur auf diesem PC bzw. im Firmennetz."""
+        from . import ki_zentrale
+        return ki_zentrale.zeigen(self, dialog)
+
+    def ki_assistent(self):
+        """Datei → KI-Assistent … (Strg+Alt+K): Fragen zum offenen Angebot oder zu allen Daten; ändert nichts."""
+        from . import ki_assistent
+        return ki_assistent.zeigen(self)
 
     def lernzentrale(self, dialog=None):
         """Datei → Lernzentrale … (Patrick 08.11.2026 „Programm soll lernen“): alles Gelernte, einzeln vergessen."""

@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, onlinepreise, pg_lokal, teilen, vollmaterial, zukauf
+from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, ki_protokoll, onlinepreise, pg_lokal, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -50,7 +50,7 @@ from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VO
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 98     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 99     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -200,6 +200,8 @@ SCHEMA_VERSION = 98     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     fb_gravur_tiefe (fertigbarkeit.py); leer = Vorgabe
                         # 98: Prüfregeln aus dem 247TailorSteel-Vergleich (20.11.2026): maschinen.fb_gravur_abstand,
                         #     fb_umfang_offen, fb_nm_profil, fb_nm_wand, schneidtechnik, fb_xy_faktor; positionen.schneidtechnik
+                        # 99: Lokale KI-Plattform (20.11.2026): Tabellen ki_aktionen (Protokoll aller KI-Aktionen) und
+                        #     ki_empfehlungen (offene KI-Empfehlungen), ki_protokoll.py; nur dieser PC, leer = nichts
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -734,6 +736,7 @@ class Datenbank:
             automatik.einrichten(self.con)
             auftraege.einrichten(self.con)
             onlinepreise.einrichten(self.con)
+            ki_protokoll.einrichten(self.con)
             db_verbindung.schema_version_setzen(self.con, SCHEMA_VERSION)
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")

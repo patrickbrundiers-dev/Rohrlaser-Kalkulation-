@@ -4939,10 +4939,20 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return self.step_gelb_pruefen([int(x) for x in wert.split(",") if x.strip().isdigit()])
         if art == "materialanfrage":     # MAT-009: alter Materialpreis → Anfrage an den Lieferanten
             return self.material_anfragen()
+        if art == "ki":                 # lokale KI-Plattform: Angebotsprüfung aller Fach-Agenten
+            return self.ki_pruefung()
         if art == "normteile" and getattr(self.f, "zukauf", None) is not None:      # M6
             self.f.reiter.setCurrentWidget(self.f.zukauf)
             return self.f.zukauf.normteile_zeigen()
         return None
+
+    def ki_pruefung(self):
+        """KI-Prüfung: öffnet den KI-Assistenten mit der vollständigen Angebotsprüfung (nur Vorschläge)."""
+        if not hasattr(self.f, "ki_assistent"):
+            return None
+        d = self.f.ki_assistent()
+        d.pruefen()
+        return d
 
     def check_erledigen(self, aktionen):
         """K1: Punkte des Angebots-Checks vom Programm erledigen lassen. Ergebnis: erledigte Aktionen."""
