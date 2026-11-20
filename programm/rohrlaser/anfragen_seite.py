@@ -124,6 +124,8 @@ class AnfragenSeite(QWidget):
         self.filter_art.setToolTip("Was für eine Mail: Anfrage, Bestellung, Reklamation, Werbung … (erkannt beim "
                                    "Eingang, von Hand änderbar)")
         self.filter_art.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
+        self.filter_art.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.filter_art.setMinimumContentsLength(9)     # lange Arten gekürzt, das Fenster bleibt so breit wie bisher
         filter_.addWidget(self.filter_art)
         self.filter_kunde = QComboBox()     # 20.11.2026: Filter nach Kunde (Projekt-/Bestell-Nr. über die Suche)
         self.filter_kunde.setToolTip("Nur Anfragen dieses Kunden")
