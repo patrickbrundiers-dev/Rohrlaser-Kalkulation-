@@ -10,6 +10,7 @@ Inhalt: Angebote mit Positionen (Nummer, Kunde, Vorgang, Datum, Artikel, Bezeich
 Kunden, Zukaufartikel und Normteile, Lieferanten, Werkstoffe, Profile, Maschinen, Zusatzarbeiten, Arbeitsgang- und
 Angebotsregeln, Prüfregeln, Lernwerte (Kennwerte-Historie) und die Abschnitte der Bedienungsanleitung.
 Ohne Qt."""
+import html
 import json
 import math
 import re
@@ -18,6 +19,7 @@ import unicodedata
 from pathlib import Path
 
 ORDNER = "ki_wissen"
+SEM_MIN = 0.55          # Ähnlichkeit, ab der ein Treffer der semantischen Suche zählt (nomic-embed: 0,4–0,8)
 K1, B = 1.4, 0.72
 ANGEBOTE_MAX = 5000
 VEKTOREN_MAX = 3000
@@ -123,7 +125,8 @@ def anleitung_abschnitte():
                 text = kandidat.read_text(encoding="utf-8")
                 for m in re.finditer(r'(?:kapitel|abschnitt|ueberschrift)\(\s*["\']([^"\']{3,80})["\']', text):
                     rest = text[m.end(): m.end() + 2500]
-                    saetze = " ".join(re.findall(r'"([^"]{20,})"', rest))[:2000]
+                    saetze = " ".join(re.findall(r'"([^"]{20,})"', rest))
+                    saetze = html.unescape(re.sub(r"<[^>]+>|\[\[[a-z0-9_]+\]\]|\{[A-Z_]+\}", "", saetze))[:2000]
                     if saetze:
                         out.append(_dok("anleitung", f"Anleitung: {m.group(1)}", saetze, "Bedienungsanleitung"))
                 if out:
@@ -137,7 +140,8 @@ def _stand(db):
     try:
         from . import db_verbindung
         a = db.con.execute("SELECT COUNT(*), MAX(geaendert) FROM angebote").fetchone()
-        return [str(db.stammdaten_stand()), a[0], str(a[1] or ""), db_verbindung.aenderungsstand(db.con)]
+        from . import VERSION
+        return [str(db.stammdaten_stand()), a[0], str(a[1] or ""), db_verbindung.aenderungsstand(db.con), VERSION]
     except Exception:           # noqa: BLE001
         return [time.time()]
 
@@ -253,7 +257,7 @@ def suchen(db, frage, n=8, senden=None, semantisch=True):
                 sem = sorted(((_kosinus(q, vek[d["ziel"] or d["titel"]]), i) for i, d in enumerate(ix["doks"])
                               if (d["ziel"] or d["titel"]) in vek), reverse=True)[:n * 3]
                 for s, i in sem:
-                    if s > 0.3:
+                    if s > SEM_MIN:
                         treffer.setdefault(i, dict(bm=0.0, sem=0.0))["sem"] = s
         except Exception:       # noqa: BLE001 – ohne Modell: nur Volltext
             pass

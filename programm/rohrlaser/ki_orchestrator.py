@@ -176,7 +176,7 @@ def fragen(db, frage, angebot_id=None, seite=None, senden=None, heute=None, mit_
         befunde, fehler = r["befunde"], r["fehler"]
         if not hat_angebot and not global_ok:
             extra = "Für diese Frage bitte ein Angebot öffnen (der Assistent prüft dann dieses Angebot)."
-    if absicht in ("suche", "vergleich", None) or not befunde:
+    if absicht in ("suche", "vergleich", None) or (not befunde and not staffel):
         try:
             treffer = ki_wissen.suchen(db, frage, 6, senden=senden)
         except Exception as e:  # noqa: BLE001

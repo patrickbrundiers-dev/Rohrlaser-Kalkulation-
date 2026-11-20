@@ -19,7 +19,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
 from . import ki_agenten, ki_lernhistorie, ki_modelle, ki_protokoll, ki_ressourcen, ki_wissen
 
 
-def darf_verwalten(db):
+def darf_verwalten(db, f=None):
+    """Modelle, Server und Zurücknehmen ändern: ohne Admin-Passwort jeder, sonst nur freigeschalteter Admin."""
     try:
         from . import admin_schutz
         return admin_schutz.ist_admin(db)
@@ -72,7 +73,7 @@ class KiZentrale(QDialog):
         lay.addWidget(leiste)
         self.uhr = QTimer(self)
         self.uhr.setInterval(5000)
-        self.uhr.timeout.connect(self._ressourcen_setzen)
+        self.uhr.timeout.connect(lambda: self._ressourcen_setzen())
         self.uhr.start()
         self.neu_laden()
 
@@ -104,9 +105,9 @@ class KiZentrale(QDialog):
         g.setColumnStretch(1, 1)
         self.reiter.addTab(w, "Übersicht")
 
-    def _ressourcen_setzen(self):
-        if not self.isVisible() and self.uhr.isActive():
-            return
+    def _ressourcen_setzen(self, immer=False):
+        if not immer and not self.isVisible():      # Uhr: nur messen, solange das Fenster zu sehen ist
+            return None
         r = ki_ressourcen.messen()
         self.status["cpu"].setText(f"{r['cpu_kerne']} Kerne, Last {r['cpu_last_pct'] if r['cpu_last_pct'] is not None else '–'} %"
                                    f", Programm {r['prozess_mb'] or '–'} MB")
@@ -126,7 +127,7 @@ class KiZentrale(QDialog):
         mess = ki_modelle.messungen(self.db)
         self.status["tempo"].setText(", ".join(f"{n}: {v['tokens_s']} Token/s" for n, v in mess.items()
                                                if v.get("tokens_s")) or "noch nicht gemessen (Modelle → Testen)")
-        self._ressourcen_setzen()
+        self._ressourcen_setzen(immer=True)
         z = ki_protokoll.zaehlen(self.db)
         self.status["analysiert"].setText(f"{z['angebote']} Angebote in {z['pruefungen']} Prüfungen, "
                                           f"{z['fragen']} Fragen an den Assistenten")
@@ -164,6 +165,9 @@ class KiZentrale(QDialog):
                                      "regelbasiert)")
         self.aktiv_haken.toggled.connect(self._aktiv_setzen)
         v.addWidget(self.aktiv_haken)
+        self.schloss = QLabel("Ändern nur als Admin: in den Einstellungen mit dem Schloss freischalten.")
+        self.schloss.setStyleSheet("color:#B45309")
+        v.addWidget(self.schloss)
         form = QFormLayout()
         z1 = QHBoxLayout()
         self.ollama_feld = QLineEdit()
@@ -227,7 +231,8 @@ class KiZentrale(QDialog):
         return self.liste
 
     def _modelle_setzen(self):
-        frei = darf_verwalten(self.db)
+        frei = darf_verwalten(self.db, self.f)
+        self.schloss.setVisible(not frei)
         self.aktiv_haken.blockSignals(True)
         self.aktiv_haken.setChecked(ki_modelle.aktiv(self.db))
         self.aktiv_haken.blockSignals(False)
@@ -418,7 +423,7 @@ class KiZentrale(QDialog):
     def _lernen_setzen(self):
         _fuellen(self.lern_tabelle, [[e["quelle"], e["titel"], e["was"], (e["datum"] or "")[:16], e["version"],
                                       e["status"]] for e in self.historie])
-        self.zurueck_knopf.setEnabled(darf_verwalten(self.db))
+        self.zurueck_knopf.setEnabled(darf_verwalten(self.db, self.f))
         try:
             self.vorschlaege = ki_lernhistorie.offene_vorschlaege(self.db)
         except Exception:       # noqa: BLE001

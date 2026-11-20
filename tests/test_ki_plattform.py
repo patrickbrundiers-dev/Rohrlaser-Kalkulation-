@@ -301,6 +301,9 @@ d = ki_zentrale.zeigen(f, dialog=gesehen.append, senden=ollama)
 assert gesehen and d.reiter.count() == 6
 assert d.modell_tabelle.rowCount() == 3 and d.agenten_tabelle.rowCount() == 10
 assert "Modell" in d.status["ki"].text()
+from rohrlaser import admin_schutz  # noqa: E402
+assert d.schloss.isHidden() == admin_schutz.ist_admin(db) and d.server_feld.isEnabled() == admin_schutz.ist_admin(db)
+assert "GB" in d.status["ram"].text()
 d.ordner_feld.setText(str(ordner))
 d._dateien_setzen()
 assert d.datei_tabelle.rowCount() == 1
