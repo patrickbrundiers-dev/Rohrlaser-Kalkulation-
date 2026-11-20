@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, onlinepreise, pg_lokal, teilen, vollmaterial, zukauf
+from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, onlinepreise, pg_lokal, produktion_lst, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -724,6 +724,7 @@ class Datenbank:
             automatik.einrichten(self.con)
             auftraege.einrichten(self.con)
             onlinepreise.einrichten(self.con)
+            produktion_lst.einrichten(self.con)        # Lernsystem L1: Produktionsdaten aus TRUMPF-LST
             db_verbindung.schema_version_setzen(self.con, SCHEMA_VERSION)
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")

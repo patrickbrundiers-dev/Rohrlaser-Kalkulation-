@@ -64,6 +64,12 @@ def zeigen(f, dialog=None):
         if k.geaendert and hasattr(f, "alles_neu_laden"):
             f.alles_neu_laden()
 
+    def lst_einlesen(_markiert):
+        from . import produktion_lst
+        erg = produktion_lst.ordner_einlesen(f.db)
+        f.meldung(produktion_lst.ergebnis_text(erg), fehler=bool(erg["fehler"]) and not erg["neu"])
+        d.accept()
+
     grau = {i: QBrush(stil.farbe("#8A94A3")) for i, e in enumerate(eintraege) if not e["gelernt"]}
     n = sum(1 for e in eintraege if e["gelernt"])
     text = (f"{n} Sache{'n' if n != 1 else ''} gelernt; grau = noch beobachtet (gelernt nach {lernen.SCHWELLE} gleichen "
@@ -72,6 +78,14 @@ def zeigen(f, dialog=None):
             "„Vergessen“ nimmt es zurück, auch bei den Kollegen im gemeinsamen Ordner. Preise lernt das Programm nie."
             if eintraege else "Das Programm hat noch nichts gelernt. Es lernt aus Ihren ✓/✗ bei Zusatzarbeit-"
             "Vorschlägen, aus Änderungen nach dem STEP-Import und aus der Nachkalkulation.")
+    try:                        # Lernsystem L1: gesammelte Produktionsdaten aus TRUMPF-LST
+        from . import produktion_lst
+        u = produktion_lst.uebersicht(f.db)
+        if u["dateien"]:
+            text += (f" Produktionsdaten: {u['dateien']} LST-Dateien, {u['teile']} Teile ({u['voll']} vollständig, "
+                     f"{u['gemessen']} mit gemessener Zeit).")
+    except Exception:           # noqa: BLE001 – nur Anzeige
+        pass
     d = TabellenDialog(f, "Lernzentrale", text, ("Bereich", "Kunde", "Was gelernt", "Stand", "Geändert"),
                        zeilen(eintraege),
                        [("Vergessen", lambda m: ausfuehren([r for r in m if eintraege[r]["vergessen"]],
@@ -79,7 +93,8 @@ def zeigen(f, dialog=None):
                         ("Übernehmen", uebernehmen),
                         ("Nicht mehr lernen", lambda m: ausfuehren(
                             [r for r in m if eintraege[r]["quelle"] == lernen.TABELLE], lernen.sperren)),
-                        ("Kennwerte prüfen …", kennwerte)],
+                        ("Kennwerte prüfen …", kennwerte),
+                        ("LST-Ordner einlesen", lst_einlesen)],
                        farben=grau, breite=1100)
     if dialog:
         dialog(d)

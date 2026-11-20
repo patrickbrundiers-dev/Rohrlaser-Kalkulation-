@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.425", "<b>Lernsystem aus TRUMPF-Produktionsdaten, Schritt 1</b> ([[trumpf_programm]]): Ordner der "
+                "gefertigten LST-Dateien einstellen und in der Lernzentrale einlesen. Je Teil Auftrag, PPEASE-Nummer, "
+                "Maschine, Werkstoff, Profil, Schneidweg, Einstiche und die Zeiten für Anschnitt, Konturen und "
+                "Abschnitt (berechnet und, wenn vorhanden, an der Maschine gemessen), mit Datenqualität. Jede Datei "
+                "zählt einmal. An der Kalkulation ändert sich noch nichts.",
+     "Lernsystem: LST-Produktionsdaten einlesen (Schritt 1)"],
     ["0.9.423", "<b>Fehler aus den Supportpaketen vom 20.11. behoben</b>. Beim Beenden brach die Sicherung mit "
      "„call stack is not deep enough“ ab und das Programm stürzte danach ab: ein Fehler beim Sichern hält das Beenden "
      "nicht mehr auf, er steht nur im Protokoll. Die Lernzentrale öffnet wieder (gemerkte STEP-Teilearten mit Datum). "

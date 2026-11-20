@@ -8073,6 +8073,16 @@ def kapitel_zukauf_angebot(i):
            "Zehntel genau). Gebogene Teile stehen in der TUBX schon als gerades Rohr mit Ausklinkungen, so wie der "
            "Laser sie schneidet. Liegt eine LST mit gleichem Namen dabei, wird sie nicht zusätzlich eingelesen. "
            "Rückgängig nimmt alle eingelesenen Positionen auf einmal zurück.")
+    i.text("<b>Produktionsdaten fürs Lernen</b> (seit 0.9.425, Lernsystem Schritt 1): In den Einstellungen "
+           "(STEP-Import, TRUMPF-Programme) den <i>Ordner der gefertigten LST-Dateien</i> wählen, dann in der "
+           "Lernzentrale ([[lernen]]) <b>LST-Ordner einlesen</b>. Gelesen werden alle LST-Dateien auch in "
+           "Unterordnern, jede nur einmal (auch als Kopie oder umbenannt). Je Teil merkt sich das Programm Auftrag, "
+           "PPEASE-Nummer (z. B. aus dem Dateinamen 2026-44094_1.lst), Maschine, Werkstoff, Profil, Länge, "
+           "Schneidweg, Einstiche und die Zeiten für Anschnitt, Konturen und Abschnitt: berechnet von TruTops und, "
+           "wenn die Maschine die LST nach dem Lauf speichert, gemessen (eine solche neuere Fassung ersetzt die "
+           "alte). Jedes Teil bekommt eine Datenqualität (vollständig, Teilwerte fehlen, unplausibel). Noch wird "
+           "nichts an der Kalkulation geändert; Vergleich und Vorschläge folgen in den nächsten Schritten, und "
+           "gelernte Werte gelten nur nach Freigabe. Die Einstichzeit bleibt ein eigener Posten.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "
