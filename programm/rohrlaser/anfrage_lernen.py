@@ -239,6 +239,8 @@ def anwenden(m, ein, text, betreff=""):
 
 
 def _lesen(p):
+    if not Path(p).is_file():           # kein Lesen ohne Datei (der Takt der Seite Anfragen liest sonst nichts)
+        return {}
     try:
         z = json.loads(Path(p).read_text(encoding="utf-8"))
         return z if isinstance(z, dict) else {}

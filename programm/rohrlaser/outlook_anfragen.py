@@ -228,6 +228,8 @@ def stand_lesen(abl):
 
 
 def _json_lesen(p, leer):
+    if not Path(p).is_file():
+        return leer
     try:
         s = json.loads(Path(p).read_text(encoding="utf-8"))
         return s if isinstance(s, type(leer)) else leer
