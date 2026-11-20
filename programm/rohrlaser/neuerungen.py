@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.414", "<b>Großes 3D-Visualisierungsupdate</b>: <b>Aussehen</b> ([[aussehen_3d]]) mit Material "
+    ["0.9.415", "<b>Großes 3D-Visualisierungsupdate</b>: <b>Aussehen</b> ([[aussehen_3d]]) mit Material "
      "(Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, Hintergrund und weichem Schatten, "
      "Metall plastischer; zehn <b>Darstellungsarten</b> ([[darstellungen_3d]]) u. a. Flächentypen, Konturen betont, "
      "Verdeckt ausgeblendet; <b>Mausbelegung</b> wie Inventor, SolidWorks oder Creo ([[mausbelegung_3d]]); "
@@ -29,6 +29,15 @@ NEUERUNGEN = [
      "oder PDF ([[schnitt_explosion_3d]]); <b>Profile</b>, Export/Import und <b>Selbsttest</b> "
      "([[profile_3d]]); schneller bei großen Modellen ([[tempo_3d]]). Alles nur Anzeige, in allen Editoren.",
      "3D: Material/Licht, 10 Darstellungen, CAD-Mausbelegung, Schnitt + Explosion, Profile und Selbsttest"],
+    ["0.9.414", "<b>Design- und Layout-Update</b>: <b>Meine Werkzeugleiste</b> ([[meine_werkzeugleiste]]) mit eigenen "
+     "Knöpfen und Knöpfen passend zur offenen Seite; Konfigurator mit Aktionsbibliothek (rund 75 Funktionen), "
+     "Ziehen und Ablegen, eigenem Text, Symbol, Farbe und Tastenkürzel ([[werkzeugleiste_konfigurieren]]); Knöpfe, "
+     "die gerade nicht gehen, sind grau und sagen warum. <b>Dashboard anpassen</b> mit Karte Schnellzugriffe und "
+     "Zuletzt verwendet ([[dashboard_anpassen]]), <b>Info-Panel rechts</b> zum offenen Angebot ([[info_panel]]), "
+     "<b>Arbeitsbereiche</b> Standard, Kalkulation, Angebot, Tablet und eigene ([[arbeitsbereiche]]), "
+     "<b>Spalten ein-/ausblenden</b> und verschieben in allen Listen ([[spalten_waehlen]]). Alles je Benutzer; "
+     "der Admin kann Vorgaben je Rolle für alle PCs speichern.",
+     "Meine Werkzeugleiste, Dashboard anpassen, Info-Panel, Arbeitsbereiche, Spalten ein/aus"],
     ["0.9.413", "<b>Updates auch hinter Firewall und ohne Internet</b> ([[update_center]]): Hilfe → "
      "<b>Update-Center</b> zeigt Stand, Quelle und Verlauf. Updates kommen aus dem Internet, aus einem "
      "<b>Update-Ordner</b> im Firmennetz (der Admin stellt sie einmal bereit, mit Freigabe und Pflicht-Datum) oder aus "
