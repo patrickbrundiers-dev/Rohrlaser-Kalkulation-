@@ -4145,7 +4145,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 los = self.losgroesse()
             except (ValueError, KeyError, ZeroDivisionError, TypeError):
                 los = None
-            d = AbrufDialog(self, self.kopf, self.db.einstellungen(), stueck=stueck or None, losgroesse=los)
+            d = AbrufDialog(self, self.kopf, self.db.einstellungen(), stueck=stueck or None, losgroesse=los,
+                            auswerten=self.abruf_auswertung)
             if self.f.stumm or not d.exec():
                 self._kopf_anzeigen()
                 return False
@@ -4163,6 +4164,14 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.f.meldung("Abruf-/Rahmenangebot gespeichert. " + (preis_aenderung(vorher, self._verkauf())
                                                                  if vorher is not None else ""))
         return True
+
+    def abruf_auswertung(self, werte=None):
+        """Wirtschaftlichkeit des Abruf-Angebots mit der Rechnung des Rahmenauftrags (rahmen_kalk; Patrick 20.11.2026):
+        werte = Kopffelder aus dem Fenster (sonst die gespeicherten). Ändert am Angebot nichts."""
+        from . import rahmen_kalk as rk
+        kopf = dict(self.kopf, **(werte or {}))
+        einst = rechnen.einstellungen_angebot(kopf, self.db.einstellungen())
+        return rk.angebot_auswertung(kopf, self.positionen, self.db.kontext(), self.db.tabellen(), einst)
 
     def gleitklausel_pruefen(self, antwort=None):
         """Knopf „Gleitklausel prüfen …“ (Vorschlag K1, gleitklausel.py): festgeschriebene Materialpreise gegen die

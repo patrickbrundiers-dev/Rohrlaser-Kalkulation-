@@ -28,7 +28,8 @@ NEUERUNGEN = [
      "Material je Los, gesamt oder Beistellung, Preisstaffel 100 bis 5.000 Stück mit Mindestmarge. Preisbindung "
      "(Festpreis, Materialbindung, Gleitklausel): Auswirkung einer Materialpreisänderung, neue Preise nur nach "
      "Freigabe. Übersicht mit Ampel und Filtern, Warnungen zum Vertragsende, Abschlussübersicht, sieben Dokumente "
-     "(Kundenangebot ohne interne Zahlen). Im Angebot <i>Vorgang → Rahmenauftrag aus Angebot …</i>.",
+     "(Kundenangebot ohne interne Zahlen). Im Angebot <i>Vorgang → Rahmenauftrag aus Angebot …</i>. Das Fenster <i>Abruf-/Rahmenangebot</i> rechnet "
+     "mit derselben Rechnung: Varianten A/B/C, Materialvergleich, empfohlene Losgröße und Preisstaffel ([[abruf_angebot]]).",
      "Rahmenaufträge mit Abrufen, optimierten Losen, Material, Preisbindung mit Freigabe und Ampel"],
     ["0.9.432", "<b>Anfragen: Anhänge mit Rolle und Revision, Nachträge als Änderung</b> ([[anhang_analyse]]). Jeder "
      "Anhang zeigt seine Rolle (3D-Modell, Zeichnung, Stückliste, Anfrageformular, Bild, Archiv, "

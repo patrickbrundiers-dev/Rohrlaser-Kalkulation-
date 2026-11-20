@@ -2388,6 +2388,14 @@ def kapitel_angebot(i):
            "bis 600 Stück), setzt man in der Karte <i>Kalkulation dieses Angebots</i> den Haken "
            "<b>Abruf-/Rahmenangebot</b>. Die Stückzahlen der Positionen sind der kleinste Abruf; Programmierung und "
            "Muster werden auf die Jahresmenge verteilt, Rüsten und Fracht zählen je Abruf.", kurz=True)
+    i.text("Im Fenster <b>Abruf-/Rahmenangebot</b> steht der Block <b>Wirtschaftlichkeit (wie Rahmenauftrag)</b>: "
+           "dieselbe Rechnung wie beim Rahmenauftrag ([[rahmenauftraege]]), mit der Kalkulation dieses Angebots. "
+           "Die Abrufe (kleinste Jahresmenge ÷ kleinster Abruf) werden gleichmäßig über die Laufzeit verteilt und "
+           "drei Varianten verglichen: <i>A</i> ein Los je Abruf, <i>B</i> alles in einem Los, <i>C</i> optimierte "
+           "Lose. Lager, Kapitalbindung und Kommissionierung sind eingerechnet. Dazu kommen der Materialvergleich (je "
+           "Los oder gesamt zu Beginn), die empfohlene Losgröße und eine Preisstaffel (Menge aller Positionen) für die kleinste und größte "
+           "Jahresmenge. <i>Neu rechnen</i> rechnet mit den Werten oben. Am Angebot ändert das nichts; wer den Vertrag "
+           "führen will, legt mit <i>Vorgang → Rahmenauftrag aus Angebot …</i> den Rahmenauftrag an.")
     i.genauer()
     i.liste("Fenster <b>Abrufdaten …</b>: Jahresmenge von, Jahresmenge bis, Abrufmenge von, Abrufmenge bis, "
             "Laufzeit / Preisbindung [Monate] (Vorgabe aus den Einstellungen, 12), Material und Lagerzins. Neben dem Knopf steht die Kurzfassung, z. B. „4.000 "
@@ -9802,7 +9810,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "doppelten), je mit Preis, Ersparnis und „reicht“, wenn der Zielpreis erreicht ist. Umgestellt wird "
             "nichts.",
             "Abruf-Angebote ([[abruf_angebot]]): Das Fenster nennt die <i>Wirtschaftliche Abrufmenge (Andler)</i> aus "
-            "Rüsten und Fracht je Abruf gegen den Lagerzins auf die Stückkosten (nur Hinweis).")
+            "Rüsten und Fracht je Abruf gegen den Lagerzins auf die Stückkosten (nur Hinweis). Genauer ist der Block "
+            "<i>Wirtschaftlichkeit (wie Rahmenauftrag)</i> im selben Fenster ([[rahmenauftraege]]).")
     i.abschnitt("Hinweise: Auslastung und Marktpreis", marke="kalk_hinweise")
     i.text("Der Angebots-Check nennt zwei Hinweise, ohne etwas zu ändern: Ist die Maschine in der Lieferwoche "
            "voll (<i>Gewinn nach Auslastung: Hinweis „voll“ ab Belegung</i>, Vorgabe 0,90), braucht es keinen "

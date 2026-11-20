@@ -320,6 +320,23 @@ assert st["preis"]["selbst"] > 0
 ok(f"Kostenmodell aus der zentralen Rechnung (Gerade durch beide Läufe), Gegenprüfung je Los "
    f"{max(abs(x['abweichung']) for x in gp):.2f} % Abweichung, Empfehlung {erg['empfehlung']}")
 
+# ------------------------------------------------------------------ Abruf-Angebot im Angebotsfenster (gleiche Rechnung)
+ka = dict(kopf, abruf="ja", abruf_jahr_von=1200, abruf_jahr_bis=2400, abruf_von=100, abruf_bis=200, abruf_laufzeit=12)
+abr_a, rpos_a, ab_a = rk.abrufplan_aus_angebot(ka, pos, "2027-01-01")
+assert len(abr_a) == 12 and abr_a[0]["mengen"] == {"10": 100.0, "20": 100.0} and abr_a[-1]["datum"] == "2027-12-01"
+assert {p["pos"]: p["menge"] for p in rpos_a} == {"10": 1200.0, "20": 1200.0}
+aw_a = rk.angebot_auswertung(ka, pos, k_, tab, einst, "2027-01-01")
+assert not aw_a.get("fehler"), aw_a
+va = aw_a["varianten"]
+assert va[rk.A]["lose"] == 12 and va[rk.B]["lose"] == 1 and va[aw_a["empfehlung"]]["selbst"] <= va[rk.A]["selbst"] + 1e-9
+assert [z["menge"] for z in aw_a["preisstaffel"]] == [2400, 4800] and len(aw_a["preisstaffel"][0]["szenarien"]) == 5
+nah(aw_a["losgroesse"], aw_a["ergebnis"]["menge"] / aw_a["ergebnis"]["lose"])
+assert "Empfehlung: Variante" in rk.angebot_text(aw_a)
+assert db.angebot(a).get("abruf") != "ja"                                 # Auswertung ändert das Angebot nicht
+assert rk.angebot_auswertung(kopf, pos, k_, tab, einst)["fehler"]          # ohne Abruf-Angebot: Hinweis
+ok(f"Abruf-Angebot: gleiche Rechnung wie der Rahmen (12 Abrufe, Empfehlung {aw_a['empfehlung']}, Lose zu ca. "
+   f"{aw_a['losgroesse']:.0f} Stk.), Preisstaffel für kleinste und größte Jahresmenge")
+
 # ------------------------------------------------------------------ Dokumente
 from rohrlaser import rahmen_pdf  # noqa: E402
 ra.version_festschreiben(db, ur, erg)
@@ -380,6 +397,16 @@ d.grafik.resize(800, 160)
 assert not d.grafik.grab().isNull()
 neu = seite.neu(werte=dict(kunde="Neu GmbH"))
 assert ra.sicht(db, neu)["kunde"] == "Neu GmbH"
+from rohrlaser.abruf_dialog import AbrufDialog  # noqa: E402
+sa = fenster.angebot_oeffnen(a)
+assert sa.abruf_bearbeiten(dict(abruf="ja", abruf_jahr_von=1200, abruf_jahr_bis=2400, abruf_von=100, abruf_bis=200,
+                                abruf_laufzeit=12))
+ad = AbrufDialog(None, sa.kopf, db.einstellungen(), auswerten=sa.abruf_auswertung)
+assert ad.auswertung and not ad.auswertung.get("fehler") and ad.w_var.rowCount() == 3 and ad.w_staffel.rowCount() == 10
+ad.von.setValue(200)
+a2 = ad.neu_rechnen()
+assert a2["abrufe"] == 6 and a2["je_abruf"] == 200, (a2.get("abrufe"), a2.get("je_abruf"))
+ok("Abruf-Angebot im Angebotsfenster: Fenster zeigt Varianten A/B/C und Preisstaffel, Neu rechnen mit den Werten oben")
 db.einstellung_setzen("rahmen_aktiv", "nein")
 assert not fenster.rahmen_an()
 ok("Oberfläche: Reiter mit Ampel und Filter, Rahmenfenster mit 9 Reitern, Berechnen, Preise, Festschreiben, "

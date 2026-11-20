@@ -26,6 +26,7 @@ gerundet) und die Andler-Losgröße als Richtwert. Material getrennt: je Los, ge
 mit Preisstaffel nach kg, Mindestbestellmenge und Bestellkosten; was über den Bedarf gekauft wird, bleibt auf dem
 Materialkonto des Rahmens und mindert den nächsten Einkauf (kein allgemeines Restelager).
 """
+import calendar
 import datetime
 import math
 
@@ -825,3 +826,82 @@ def berechnen(r, modell, einst=None, heute=None, mengen=STAFFEL_MENGEN):
                 preisstaffel=preisstaffel(abr, modell, par, mengen, start, marge_min), empfehlung=v["empfehlung"],
                 ergebnis=beste, je_position=je_position(beste, modell, abr), restplan=rest, modell=modell,
                 rest_unwirtschaftlich=restmenge_unwirtschaftlich(r, modell, par))
+
+
+# ------------------------------------------------------------------ Abruf-Angebot im Angebotsfenster (20.11.2026)
+def abrufplan_aus_angebot(kopf, positionen, start=None):
+    """Abrufplan eines Abruf-/Rahmenangebots (abruf.py) für die Rahmenrechnung: Abrufe = kleinste Jahresmenge ÷
+    kleinster Abruf (aufgerundet), gleichmäßig über die Laufzeit; je Abruf die Stückzahl jeder Position (Stückzahl
+    im Angebot = kleinster Abruf, wie im Abruf-Angebot). Ergebnis (abrufe, rahmen_pos, daten) oder (None, None,
+    Fehlertext)."""
+    from . import abruf
+    ab = abruf.daten(kopf)
+    if not ab:
+        return None, None, "Jahresmenge und Abrufmenge fehlen."
+    pos = [p for p in positionen or () if p.get("muster") != "ja" and p.get("pos") is not None
+           and _n(p.get("stueck")) > 0]
+    if not pos:
+        return None, None, "Keine Position mit Stückzahl."
+    n = max(int(math.ceil(ab["jahr_von"] / ab["von"] - 1e-9)), 1)
+    t0 = datum(start) or datetime.date.today()
+    schritt = ab["laufzeit"] / n
+
+    def termin(i):                  # ganze Monate auf den Kalendertag, sonst Tage (30,4375 je Monat)
+        if abs(schritt - round(schritt)) < 1e-9:
+            m = t0.month - 1 + int(round(i * schritt))
+            j, m = t0.year + m // 12, m % 12 + 1
+            return datetime.date(j, m, min(t0.day, calendar.monthrange(j, m)[1]))
+        return t0 + datetime.timedelta(days=round(i * schritt * 30.4375))
+    abr = [dict(nr=i + 1, datum=termin(i).isoformat(),
+                mengen={str(p["pos"]): _n(p["stueck"]) for p in pos}) for i in range(n)]
+    rahmen_pos = [dict(pos=str(p["pos"]), menge=_n(p["stueck"]) * n) for p in pos]
+    return abr, rahmen_pos, ab
+
+
+def angebot_auswertung(kopf, positionen, k, tabellen, einst, start=None):
+    """Wirtschaftlichkeit eines Abruf-Angebots mit derselben Rechnung wie der Rahmenauftrag: Varianten A/B/C
+    (Lager, Kapital, Kommissionierung), Materialvergleich, Preisstaffel für die kleinste und größte Jahresmenge,
+    empfohlene Losgröße. Ändert am Angebot nichts. Ergebnis dict oder dict(fehler=Text)."""
+    abr, rpos, ab = abrufplan_aus_angebot(kopf, positionen, start)
+    if abr is None:
+        return dict(fehler=ab)
+    modell, info = kostenmodell_aus_angebot(kopf, positionen, rpos, abr, k, tabellen, einst)
+    if modell is None:
+        return dict(fehler=info)
+    par = parameter(einst)
+    if ab["bevorraten"] and ab["zins"] > 0:
+        par["zins"] = 100 * ab["zins"]
+    marge_min = mindestmarge_satz(einst)
+    art = GESAMT if ab["bevorraten"] else JE_LOS
+    t0 = abr[0]["datum"]
+    v = varianten(abr, modell, par, art, t0, marge_min)
+    mv = materialvergleich(abr, modell, par, t0, marge_min)
+    je_abruf = sum(_n(x) for x in abr[0]["mengen"].values())
+    mengen = sorted({int(round(je_abruf * max(ab["jahr_von"] / ab["von"], 1))),
+                     int(round(je_abruf * max(ab["jahr_bis"] / ab["von"], 1)))})
+    beste = v[v["empfehlung"]]
+    return dict(abrufe=len(abr), je_abruf=je_abruf, material_art=art, varianten=v, materialvergleich=mv,
+                preisstaffel=preisstaffel(abr, modell, par, mengen, t0, marge_min), empfehlung=v["empfehlung"],
+                ergebnis=beste, losgroesse=beste["menge"] / max(beste["lose"], 1), marge_min=marge_min,
+                je_position=je_position(beste, modell, abr))
+
+
+def _de(x, nk=2):
+    return f"{x:,.{nk}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def angebot_text(a):
+    """Kurztext der Auswertung für Fenster und Meldungen."""
+    if not a or a.get("fehler"):
+        return (a or {}).get("fehler") or ""
+    v, e = a["varianten"], a["empfehlung"]
+    b = v[e]
+    t = (f"{a['abrufe']} Abrufe à {_de(a['je_abruf'], 0)} Stk. Empfehlung: Variante {e} – {VARIANTE_TEXT[e]}, "
+         f"{b['lose']} Los(e) zu ca. {_de(a['losgroesse'], 0)} Stk., Preis {_de(b['preis_stueck'], 3)} €/Stk.")
+    ein = v[A]["selbst"] - b["selbst"]
+    if ein > 0.005:
+        t += f" Gegenüber Fertigung je Abruf {_de(ein)} € günstiger."
+    mv = a.get("materialvergleich")
+    if mv:
+        t += f" Material: {mv['empfehlung']} ist {_de(mv['ersparnis'])} € günstiger."
+    return t
