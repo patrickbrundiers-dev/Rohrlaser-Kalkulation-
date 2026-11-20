@@ -2649,6 +2649,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 ("Ähnliche Teile und Revisionen …", lambda: self.aehnliche_teile(), ""),
                 ("Zukaufteile bearbeiten …", lambda: self.zukaufteile(), ""),
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
+                ("Satz per Text ändern …", lambda: self.bauteil_aus_text(satz=self._satz_der_zeile()), ""),
                 ("Satz bearbeiten (Anzahl Sätze) …", lambda: self.satz_bearbeiten(), ""),
                 ("Blech-EK je Satz/Baugruppe …", lambda: self.satz_bearbeiten(), ""),
                 ("Zusatzarbeit für ganzen Satz …", lambda: self.zusatz_satz(), ""),
@@ -5388,7 +5389,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import (BLECH, DXF, LEER, PDF, RAHMEN, ROHR, ROHRZUG, SCHWEISS, TRUMPF, UEBERNEHMEN, VORLAGE,
+        from .neue_position import (BLECH, DXF, LEER, PDF, RAHMEN, ROHR, ROHRZUG, SCHWEISS, TEXT_BAUTEIL, TRUMPF,
+                                    UEBERNEHMEN, VORLAGE,
                                     ZUKAUF, TypDialog)
         if typ is None:
             if self.f.stumm:
@@ -5418,6 +5420,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return typ if self.rahmen_assistent(dialog=dialog) else None
         if typ == ROHRZUG:
             return typ if self.rohrzug_assistent(dialog=dialog) else None
+        if typ == TEXT_BAUTEIL:
+            return typ if self.bauteil_aus_text(dialog=dialog) else None
         if typ == UEBERNEHMEN:
             return typ if self.positionen_uebernehmen(dialog=dialog) else None
         if typ == VORLAGE:
@@ -5608,8 +5612,11 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         hinweise = []
         for t in w["erg"]["teile"]:
             je = len(t["lagen"])
+            # eigenes Profil je Teil (Bauteil-Generator: Querstreben aus anderem Rohr), sonst das des Satzes
+            t_pid = t.get("profil_id") or w["profil_id"]
+            profil = self.k.profile[t_pid]
             pid = self.db.position_neu(self.id, dict(
-                pos=self._naechste_pos(), profil_id=w["profil_id"], werkstoff_id=w["werkstoff_id"],
+                pos=self._naechste_pos(), profil_id=t_pid, werkstoff_id=w["werkstoff_id"],
                 laenge=t["laenge"], stueck=w["saetze"] * je, satz=name, je_satz=je,
                 bezeichnung=f"{name} {t['name']}", technik=schneidweg.speichern(t["eingaben"])))
             netz = rahmen.netz(t, profil)
@@ -5626,6 +5633,116 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.db.satz_daten_speichern(self.id, name, dict(stoesse=w["erg"]["stoesse"]))
         self.neu_laden()
         return name, hinweise
+
+    def bauteil_aus_text(self, dialog=None, satz_dialog=None, text=None, satz=None):
+        """Bauteil-Generator (bauteil_generator.py, Wettbewerbsanalyse 247TailorSteel 20.11.2026): Beschreibung als
+        Text, das Fenster zeigt Teile, 3D, Annahmen und Prüfung. Rohrrahmen: die Rohre werden ein Satz wie beim
+        Rahmen-Assistenten (Positionen mit Schneidweg, Netz, Einbaulage, Stößen), Befestigungsplatten Blechteile
+        (Blech-Editor, Richtpreis als EK) im selben Satz; danach öffnet Satz in 3D. Blechteil allein: eine Position
+        wie aus dem Blech-Editor. Beschreibung und Verlauf stehen in den Daten des Satzes. dialog(d) bzw.
+        satz_dialog(d) bedienen die Fenster (Tests), text füllt die Beschreibung vor. satz = gespeicherter Satz aus
+        dem Generator („Satz per Text ändern“, Stufe 2): Beschreibung und Änderungen werden erneut abgespielt, nach OK
+        ersetzen die neuen Positionen die alten des Satzes (gleicher Name, ein Schritt Rückgängig). Ergebnis: Name
+        oder None."""
+        from . import bauteil_generator as bgen, blech
+        from .bauteil_generator_dialog import BauteilGeneratorDialog
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return None
+        letzte = next((p for p in reversed(self.positionen) if p.get("werkstoff_id")), {})
+        daten = getattr(self, "blech_daten", None) or self.db.blech_daten()
+        d = BauteilGeneratorDialog(self, self.k.profile, self.k.werkstoffe,
+                                   letzte.get("werkstoff_id") or self.db.einstellung("step_werkstoff"),
+                                   daten["werkstoffe"], float(self.kopf.get("stange") or 6000.0),
+                                   profil_anlegen=lambda t: self.abmessung_neu(t))
+        alt = []
+        if satz:
+            gen = (self.db.satz_daten(self.id).get(satz) or {}).get("generator") or {}
+            alt = [p for p in self.positionen if p.get("satz") == satz]
+            if not gen.get("verlauf") or not alt:
+                self.f.meldung(f"Satz {satz} stammt nicht aus „Bauteil aus Text“: dafür Satz in 3D bzw. die "
+                               "Editoren nutzen.", fehler=True)
+                return None
+            d.setWindowTitle(f"Satz {satz} per Text ändern – Übernehmen legt den Satz neu an (Rückgängig möglich)")
+            d.name.setText(satz)
+            rohr = next((p for p in alt if p.get("je_satz") and p.get("profil_id")), alt[0])
+            if rohr.get("werkstoff_id") in d.werkstoffe:
+                d.werkstoff.setCurrentText(rohr["werkstoff_id"])
+            d.wiederherstellen(gen["verlauf"])
+            if rohr.get("je_satz"):
+                d.saetze.setValue(max(1, round(float(rohr.get("stueck") or 0) / float(rohr["je_satz"]))))
+        if text:
+            d.erstellen(text)
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+            return None
+        g = d.ergebnis
+        plan, name = g["plan"], g["name"]
+        if alt and plan.get("blech"):
+            self.f.meldung("Satz per Text ändern: aus dem Satz wurde ein einzelnes Blechteil. Bitte als neues "
+                           "Bauteil aus Text anlegen.", fehler=True)
+            return None
+        e = bgen.blech_e(plan, g["blech_werkstoff_id"])
+        lieferant = zukauf.lieferant_vorgabe("Blechteile")
+        if plan.get("blech"):                       # einzelnes Blechteil
+            erg = blech.rechnen(dict(e, stueck=g["saetze"]), daten["werkstoffe"], daten["laser"], daten["einst"])
+            if erg["fehler"] or not erg.get("richtpreis"):
+                self.f.meldung("Bauteil aus Text: " + "; ".join(erg["fehler"] or ["kein Richtpreis"]), fehler=True)
+                return None
+            ok = self._blech_anlegen(dict(e, generator=dict(text=g["text"], verlauf=g["verlauf"])), erg,
+                                     dict(bezeichnung=name, artikelnr=None, stueck=g["saetze"], lieferant=lieferant))
+            return name if ok else None
+        teile = [dict(t, profil_id=plan["streben_profil_id"] if t.get("profil") else None)
+                 for t in plan["erg"]["teile"]]
+        w = dict(erg=dict(plan["erg"], teile=teile), profil_id=plan["profil_id"], werkstoff_id=g["werkstoff_id"],
+                 saetze=g["saetze"], name=name)
+        self.verlauf.pause += 1
+        try:
+            if alt:                     # alte Positionen des Satzes ersetzen (Rückgängig stellt sie wieder her)
+                self.db.positionen_loeschen([p["id"] for p in alt])
+                self.db.satz_daten_speichern(self.id, satz, None)
+                self.neu_laden()
+            name, hinweise = self._rohre_als_satz(w)
+            if plan.get("platten"):
+                n = plan["platten"]["anzahl"]
+                erg = blech.rechnen(dict(e, stueck=n * g["saetze"]), daten["werkstoffe"], daten["laser"],
+                                    daten["einst"])
+                if erg["fehler"] or not erg.get("richtpreis"):
+                    hinweise.append("Befestigungsplatte nicht angelegt: " + "; ".join(erg["fehler"] or
+                                                                                      ["kein Richtpreis"]))
+                else:
+                    self._blech_anlegen(e, erg, dict(bezeichnung=f"{name} Befestigungsplatte", artikelnr=None,
+                                                     stueck=n * g["saetze"], lieferant=lieferant),
+                                        extra=dict(satz=name, je_satz=n), leise=True)
+            sd = self.db.satz_daten(self.id).get(name) or {}
+            self.db.satz_daten_speichern(self.id, name, dict(sd, generator=dict(
+                text=g["text"], verlauf=g["verlauf"], annahmen=plan["annahmen"])))
+        finally:
+            self.verlauf.pause -= 1
+        self.neu_laden()
+        anzahl = sum(len(t["lagen"]) for t in teile)
+        self.rueckgaengig_anbieten(
+            f"Bauteil aus Text: Satz {name} mit {anzahl} Rohren" + (
+                f" und {plan['platten']['anzahl']} Platten" if plan.get("platten") else "") +
+            (f" geändert ({len(alt)} alte Positionen ersetzt)." if alt else " angelegt.")
+            + "".join(f" {h}" for h in hinweise),
+            bericht=("Bauteil aus Text", "\n".join([f"Beschreibung: {g['text']}"] +
+                                                   [f"Änderung: {v}" for v in g["verlauf"][1:]] +
+                                                   bgen.zusammenfassung(plan) +
+                                                   [f"Annahme: {a}" for a in plan["annahmen"]] +
+                                                   [f"Hinweis: {h}" for h in plan["hinweise"] + hinweise])))
+        stecken = plan["erg"]["stecken"]
+        if satz_dialog is not None or not self.f.stumm or stecken:
+            def bedienen(sd_):
+                if stecken:
+                    sd_.steck_alle(melden=False)
+                if satz_dialog is not None:
+                    return satz_dialog(sd_)
+                if self.f.stumm:
+                    sd_._ok()
+                    return sd_.result()
+                return sd_.exec()
+            self.satz_3d(satz=name, dialog=bedienen)
+        return name
 
     def rohrzug_assistent(self, dialog=None, bg_dialog=None):
         """Rohrzug aus XYZ-Punkten (Plan Paket K4): gerade Rohre mit Gehrungen an den Knicken (rohrzug.py) werden
@@ -6963,6 +7080,10 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             sichtbar = not zeilen or noetig is None or bool(arten & noetig)
             if text in ("Satz in 3D …", "Satz bearbeiten (Anzahl Sätze) …"):
                 sichtbar = mit_satz
+            elif text == "Satz per Text ändern …":         # nur Sätze aus „Bauteil aus Text“
+                satz = self._satz_der_zeile() if zeilen else None
+                sichtbar = bool(satz) and not self.fremd() and not self.db.nur_lesen and bool(
+                    (self.db.satz_daten(self.id).get(satz) or {}).get("generator"))
             elif text == "Blech-EK je Satz/Baugruppe …":     # Patrick 07.11.2026: Einkauf je Satz leichter finden
                 sichtbar = mit_satz or mit_bg
             elif text == "Zusatzarbeit für ganzen Satz …":
@@ -10643,7 +10764,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if "muster" in d.ergebnis:          # Häkchen „Satz als Muster“: alle Teile des Satzes
             for q in teile:
                 self.db.position_aendern(q["id"], "muster", d.ergebnis["muster"])
-        self.db.satz_daten_speichern(self.id, satz, d.ergebnis["daten"])
+        # Beschreibung des Bauteil-Generators bleibt (Satz per Text ändern), alles andere kommt aus dem Fenster
+        gen = (self.db.satz_daten(self.id).get(satz) or {}).get("generator")
+        self.db.satz_daten_speichern(self.id, satz, dict(d.ergebnis["daten"], **({"generator": gen} if gen else {})))
         hinweise = vorab + self.stecken_anwenden(d.ergebnis["stecken"]) + self.knicke_anwenden(d.ergebnis.get("knicke"))
         hinweise += self.familien_aus_baugruppe(d.ergebnis.get("familien"))
         if d.ergebnis.get("saetze"):        # Anzahl Sätze geändert (31.10.2026): Stückzahlen folgen

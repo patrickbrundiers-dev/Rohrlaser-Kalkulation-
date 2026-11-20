@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.431", "<b>Weitere Prüfregeln beim STEP-Import, Schneidtechnik 2,5D/XY</b> ([[fertigbarkeit]]). Nach dem "
+    ["0.9.432", "<b>Weitere Prüfregeln beim STEP-Import, Schneidtechnik 2,5D/XY</b> ([[fertigbarkeit]]). Nach dem "
                 "Vergleich mit 247TailorSteel prüft der Import zusätzlich: Gravur zu nah an einer Schnittlinie "
                 "(Vorgabe 1,5 mm) oder berührt sie, Umfang an keinem der 5 Prüfpunkte (Enden, ¼, ½, ¾) geschlossen "
                 "(offenes Profil spannt nicht sicher), Einnietmuttern aus Zeichnung, Formular oder Zusatzarbeit (M4 "
@@ -30,6 +30,18 @@ NEUERUNGEN = [
                 "Schneidtechnik): bei XY meldet der Import Löcher im Rundrohr über 0,5 × Rohr-Ø, der Angebots-Check "
                 "ebenso. Alles nur Hinweis (gelb), das Teil bleibt wie in der STEP; Grenzwerte je Maschine.",
      "STEP-Import prüft Gravurabstand, offenen Umfang, Einnietmuttern; Schneidtechnik 2,5D/XY je Position"],
+    ["0.9.431", "<b>Bauteil aus Text</b> ([[bauteil_aus_text]]). Neue Position → <i>Bauteil aus Text</i>: "
+     "Rohrrahmen, Gestell, Querstreben, Befestigungsplatten, Lasche, L-Winkel oder Flanschring in eigenen Worten "
+     "beschreiben, z. B. „Rohrrahmen 1000 x 600 aus 40 x 40 x 3 mit vier Querstreben und zwei "
+     "Befestigungsplatten“. Das Programm zeigt Teile, 3D, Annahmen, Hinweise und Fehler, ändert per Satz („Breite "
+     "1200“, „6 Querstreben“, „ohne Platten“) mit Verlauf und legt die Teile erst nach „Übernehmen“ als Satz mit 3D "
+     "an. Ohne Internet, ohne Cloud. Fehlt eine wichtige Angabe, stellt das Fenster eine <b>Rückfrage</b> mit "
+     "Knöpfen (Vorschlag eingesetzt). Neu sind <b>Bohrungen in Rohren</b> („je 2 Bohrungen Ø 9 in den "
+     "Querstreben“, „im Handlauf“) als Konturen mit Prüfung, <b>Geländer</b> (Handlauf, Untergurt, Pfosten, "
+     "Füllstäbe) und <b>Tischgestelle</b> mit Mittelstrebe. Rechtsklick → <i>Satz per Text ändern …</i> öffnet einen "
+     "gespeicherten Satz wieder und ersetzt ihn nach der Änderung (Rückgängig möglich).",
+     "Bauteil aus Text: Rahmen, Geländer, Tische, Streben, Platten, Bohrungen und Blechteile aus einer "
+     "Beschreibung, mit Rückfragen und späterer Änderung"],
     ["0.9.430", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "

@@ -1,7 +1,8 @@
 """Fenster 'Neue Position': zuerst der Typ (Patrick 22.10.2026), danach öffnet das Angebot das passende Fenster:
 Rohr / Profil = Schneidweg-Rechner mit Kopfzeile (Artikel, Profil, Werkstoff, Länge, Stückzahl), Blech / Kantteil =
 Schnellanlage eines Zukaufartikels (Kategorie Blechteile), Aus DXF = DXF-Import (Bleche: dxf_import_dialog, Rohrzeichnung: Rohr-Editor), Zukaufteil = dieselbe Schnellanlage ohne Kategorie,
-Schweißbaugruppe = Editor der Baugruppe (baugruppe_dialog), Rahmen-Assistent = rahmen_dialog, Aus anderem
+Schweißbaugruppe = Editor der Baugruppe (baugruppe_dialog), Rahmen-Assistent = rahmen_dialog, Bauteil aus Text =
+bauteil_generator_dialog, Aus anderem
 Angebot = Positionen übernehmen (position_kopie_dialog), leere
 Zeile = wie bisher alles in der Positionsliste eintragen."""
 from PySide6.QtCore import Qt
@@ -13,6 +14,7 @@ TRUMPF = "Aus TRUMPF-Programm (LST/TUBX)"     # trumpf_programm.py, Patrick 20.1
 SCHWEISS = "Schweißbaugruppe"
 RAHMEN = "Rahmen-Assistent"
 ROHRZUG = "Rohrzug aus Punkten"         # Plan Paket K4 (rohrzug.py)
+TEXT_BAUTEIL = "Bauteil aus Text"       # Bauteil-Generator (bauteil_generator.py, 20.11.2026)
 UEBERNEHMEN = "Aus anderem Angebot"
 VORLAGE = "Aus Vorlage"                # Positionsvorlagen (Vorschlag H6a, positionsvorlagen.py)
 PDF = "Aus PDF-Zeichnung (Test)"       # nur mit Einstellung pdf_zeichnung = ja (Plan W7 Stufe 1)
@@ -36,6 +38,9 @@ TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und St
                  "und Ecken (Gehrung, stumpf, gesteckt) eingeben, die Rohre werden ein Satz mit 3D.",
          ROHRZUG: "Rohrzug aus XYZ-Punkten der Mittellinie (Geländer, Gestell): gerade Rohre mit Gehrungen an den "
                   "Knicken, als Schweißbaugruppe mit 3D.",
+         TEXT_BAUTEIL: "Bauteil in eigenen Worten beschreiben (Rohrrahmen, Gestell, Querstreben, Befestigungsplatten, "
+                       "Lasche, L-Winkel, Flanschring): das Programm erstellt Teile mit 3D, zeigt Annahmen und Prüfung; "
+                       "Änderungen per Satz („Breite 1200“). Ohne Internet.",
          UEBERNEHMEN: "Positionen aus einem anderen Angebot (auch eines Kollegen) als neue Positionen kopieren: mit "
                       "allen Eingaben, Technik, Zusatzarbeiten, Baugruppe bzw. Satz und 3D; der Preis wird neu "
                       "kalkuliert.",
