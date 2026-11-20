@@ -376,7 +376,7 @@ def lochwand_innen(e):
 
 radial, par = lochwand_innen(dict(a={}, b={}, konturen=[bo])), lochwand_innen(dict(a={}, b={}, konturen=[bo], d3=True))
 aussen_q = 21.2 * math.sin(10 / 21.2)                  # Rand außen (Bogen 10 auf R 21,2) quer gemessen
-innen_q = 19.2 * math.sin(10 / 19.2)                   # 2D: Innenkante maßhaltig (Bogen 10 auf ri 19,2)
+innen_q = 10.0                                         # 2D: innen Ø 20 in der Draufsicht (Bolzen passt, 20.11.2026)
 assert abs(radial - innen_q) < 0.1 and abs(par - aussen_q) < 0.1, (radial, par)     # parallel: innen so breit wie außen
 # Dialog: Felder schreiben in die Zeile, Kopien in 3D, Bezug ab Ende B
 d.eingaben_setzen(dict(a={}, b={}, konturen=[dict(art=sw.RECHTECK, anzahl=1, b=40, h=10, r=0, x=100)]))

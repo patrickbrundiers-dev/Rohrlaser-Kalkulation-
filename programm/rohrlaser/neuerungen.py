@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.428", "<b>Lernsystem aus TRUMPF-Produktionsdaten</b> ([[lernsystem]]): Ordner der gefertigten LST-Dateien "
+    ["0.9.436", "<b>Lernsystem aus TRUMPF-Produktionsdaten</b> ([[lernsystem]]): Ordner der gefertigten LST-Dateien "
                 "einstellen, dann <i>Datei → Produktionsdaten & Lernsystem …</i>. Das Programm liest jede LST einmal "
                 "(im Hintergrund), ordnet die Teile über PPEASE-Nummer, Artikelnummer oder gleiche Merkmale Angebot "
                 "und Position zu und vergleicht die an der Maschine gemessene Zeit mit unserer Laserzeit. Passt die "
@@ -30,6 +30,52 @@ NEUERUNGEN = [
                 "Preiswirkung; geändert wird nur mit „Freigeben“ (über 15 % mit zweiter Bestätigung), jede Freigabe "
                 "lässt sich zurücksetzen. Die Kalibrierung je Baustein lernt mit, das Einstechen getrennt.",
      "Lernsystem: LST-Produktionsdaten, Vergleich und gelernte Faktoren"],
+    ["0.9.430", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+                "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
+                "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
+                "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
+                "Angebot nach dem Optimieren je Abmessung der neueste Kauf mit ähnlicher Menge als Meterpreis, mit "
+                "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
+                "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen). Mit Patricks echtem ERP-Export "
+                "geprüft: Datum Erf., Zusatztext und Preiseinheit werden erkannt, Rohrart und Güte notfalls aus der "
+                "Artikelnummer; ohne Norm entscheiden nahtlos/geschweißt, Rohrnormen (DIN 2458, EN 10255 …) und "
+                "Güten wie P235GH oder E235+C. Ausreißer werden im Angebot nicht genommen, die Bemerkung nennt den "
+                "Durchschnitt der 12 Monate, und die Käufe erscheinen im Preisverlauf als Kurve „ERP-Einkauf“. "
+                "S235 EN 10210 gibt es nicht und ist entfernt (Verweise gehen auf S235 EN 10219); neu sind S275 "
+                "EN 10219, S195T EN 10255 und P235TR2 EN 10216-1.",
+     "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.429", "<b>Exakte Rohrabwicklung mit Bemaßung, DXF und PDF, 3D und 2D verknüpft</b> ([[abwicklung_exakt]]). "
+     "Die Abwicklung zeigt die echte Außenhaut: beim Quadrat-/Rechteckrohr mit Eckradius ist der Umfang "
+     "2 × (B + H) − 8 r + 2 π r (60 × 40 × 3: 189,7 statt 200 mm), mit Radiuslinien und Seitenbreiten; Konturen "
+     "liegen genau wie im 3D und im Schnittkörper. Abwicklungsfenster: DXF (Layer AUSSENKONTUR, INNENKONTUR, KANTE, "
+     "RADIUS, GRAVUR, BESCHRIFTUNG), PDF, Original (Import) gestrichelt darüber, Gegenprobe der Konturlänge als "
+     "Hinweis. Maus über einer Kontur im 3D hebt sie in Skizze und Abwicklung hervor und umgekehrt; unsicher "
+     "erkannte Merkmale aus dem STEP-Import gelb. Abwicklung 1:1 drucken mit echtem Umfang. Neu im Rechtsklick: "
+     "<i>Rohr teilen …</i> (eine Rohrposition in zwei, nicht bei STEP-Teilen). Geänderte Rechnung (Patrick "
+     "20.11.): Konturen, die beim Quadrat-/Rechteckrohr bis in den Eckradius reichen, zählen mit ihrer Länge auf der "
+     "Außenhaut (außen breiter, z. B. 89,4 statt 80 mm); die Rundrohr-Bohrung wird in Abwicklung und 3D so breit "
+     "gezeichnet, wie die Rechnung sie zählt (Bolzen Ø d passt durch).",
+     "Abwicklung mit echter Außenhaut, DXF/PDF, Hover 3D↔2D, unsichere Merkmale gelb, Rohr teilen"],
+    ["0.9.428", "<b>Anfragen: Mail-Art, Sachgebiet und technische Angaben erkennen</b> ([[anfrage_art]]). Jede Mail "
+     "wird eingeordnet: neue Anfrage, Angebotsnachfrage, Angebotsänderung, Bestellung, Auftragsänderung, technische "
+     "Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, allgemeine Mail oder Werbung, mit Sicherheit und "
+     "Gründen. Dazu das Sachgebiet (Rohr, Blech, Profil, Schweißbaugruppe, Dreh-/Frästeil, Material) und technische "
+     "Angaben mit Fundstelle: Abmessung, Wandstärke, Blechdicke, Stückzahl, Zeichnungs-Nr., Revision, Angebotsfrist, "
+     "Verfahren und Anforderungen. In der Liste steht die Art vorn im Betreff (z. B. [Bestellung]), neuer Filter "
+     "<i>Mail-Art</i>. Ändern von Hand steht im Verlauf und dient dem Lernen. Werbung wird nur vorgeschlagen, nie von "
+     "selbst aussortiert. Alles lokal, ohne KI-Dienst.",
+     "Anfragen: Mail-Art (Anfrage, Bestellung, Reklamation …), Sachgebiet und technische Angaben erkennen"],
+    ["0.9.427", "<b>Fertigbarkeit beim STEP-Import</b> ([[fertigbarkeit]]). Der Import prüft jedes Rohr gegen die "
+                "Konstruktionsregeln der Maschine: Loch oder Schlitz kleiner als 0,7 × Wand, Steg zwischen Konturen "
+                "oder zum Rohrende schmaler als 0,7 × Wand, Gravur tiefer als 0,5 mm, Länge und Hüllkreis außerhalb "
+                "der Maschine, auf Wunsch Innenecken ohne Radius. Ein Verstoß macht das Teil gelb mit Grund, das Teil "
+                "bleibt wie in der STEP. Grenzwerte je Maschine (Stammdaten → Maschinen → Fertigbarkeit beim Import). "
+                "Importanalyse mit Spalte Fertigbar und Dateianforderungen (Volumenkörper, Einheit), Hinweis im "
+                "Angebots-Check. Rechts neben den Merkmalen zeigt die Importanalyse das Teil in 3D, ein Klick färbt "
+                "den Bereich des Merkmals; „Nächstes zu prüfen“ springt zu unsicheren Merkmalen und Regelverstößen. "
+                "Gewinde, Senkungen und Fließlöcher aus Modell und Zeichnung werden abgeglichen (bestätigt, Anzahl "
+                "abweichend, nur in der Zeichnung).",
+     "STEP-Import prüft Loch, Steg, Gravur, Länge und Hüllkreis; Importanalyse mit 3D, Gewinde mit Zeichnung"],
     ["0.9.426", "<b>Explosionsansicht einstellen, von Hand ändern und speichern</b> ([[explosion_3d]]). Neues Fenster "
      "<i>Explosion einstellen …</i>: Stärke bis 3×, Richtung (frei, waagrecht, senkrecht, nur X/Y/Z), nach "
      "Unterbaugruppen, ohne Überlappung, Verbindungslinien zur Einbaulage, Positionsnummern aus der Stückliste und "

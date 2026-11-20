@@ -488,7 +488,7 @@ def _():
                            "AW6060-T66": "AlMg3"}, passend
         assert step.blech_werkstoff_passend("unbekannt", k.werkstoffe, bw) is None
         assert step.blech_werkstoff_s235(bw) == "S235JR" and step.blech_werkstoff_s235({}, k.werkstoffe) == \
-            "S235-10210"
+            "S235-10219"
         mw = [dict(m) for m in MW]          # B14: Rohr + 2 Bleche, B02: Blech allein
         mw[0]["_werkstoff"] = "1.4301"
         assert step.bleche_werkstoff_vorbelegen(mw, None, k.werkstoffe, bw) == 3

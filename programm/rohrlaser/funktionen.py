@@ -67,6 +67,11 @@ FUNKTIONEN = (
              "Häkchen „Muster“ in den Editoren und „Muster an/aus“ (vorhandene Muster bleiben)"),
     Funktion("funktion_abruf", "Abruf-/Rahmenangebote",
              "Haken „Abruf-/Rahmenangebot“ im Angebotskopf (vorhandene Abruf-Angebote bleiben)"),
+    # Plan Materialpreise aus ERP-CSV (Patrick 30.10.2026, 11a): optional, Vorgabe aus
+    Funktion("funktion_erp_preise", "Materialpreise aus ERP-CSV",
+             "Knopf „Preise aus ERP-CSV …“ bei den Preisen, ERP-Preis je Abmessung nach dem Optimieren und die "
+             "Seite ERP-Preisimport (gespeicherte Käufe und gewählte Preise in Angeboten bleiben)",
+             seiten=("e_erp_preise",), vorgabe="nein"),
     # Patrick 19.11.2026: „Muss der Maschinenvergleich immer laufen? … über die Option ausschaltbar machen“. Aus =
     # kein Vergleich von selbst (Angebots-Check, Automatik nach dem Import, Reiter Optimierung); der Knopf
     # „Maschinen vergleichen …“ rechnet weiter, wenn man ihn drückt

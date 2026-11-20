@@ -5,6 +5,8 @@
   Merkmale, Kennzahlen) – kein zweites Messen, alle Module lesen sie aus der Position
 - A2 Prüfdialog: Schrittleiste oben, Knopf „Importanalyse …“, Erkennungszeile im Infofeld, Fenster mit allen Teilen
 - A3 Ablegen eines ZIP mit Herstellerformat: Import startet mit den entpackten Dateien und der Meldung
+- A4 Fertigbarkeit (20.11.2026): Grenzwerte als Maschinenfelder in der Datenbank, Import prüft mit der Maschine des
+  Angebots, Befunde stehen in der gespeicherten Analyse der Position
 
 Bilder für die Vergleichsseite: IMPORTENGINE_BILDER=Ordner python tests/test_importengine_ablauf.py
 Aufruf: python tests/test_importengine_ablauf.py
@@ -127,6 +129,24 @@ def _():
         seite.step_importieren = alt
     namen = sorted(Path(p).name for p in importe[0])
     assert "Rahmen.CATPart" in namen and "R06_RE40x30x3.step" in namen and "T03_QR40x3.step" in namen, namen
+
+
+@fall("A4 Fertigbarkeit: Maschinenfelder in der Datenbank, Prüfung mit der Maschine des Angebots, in der Position")
+def _():
+    from rohrlaser import db_verbindung, fertigbarkeit
+    spalten = set(db_verbindung.spalten(db.con, "maschinen"))
+    assert set(fertigbarkeit.FELDER) <= spalten, set(fertigbarkeit.FELDER) - spalten
+    vorher = len(db.positionen(aid))
+    seite.step_importieren([str(HIER / "step_importengine" / "I07_QR40x3_L800_Fertigbarkeit.step")])
+    neu = db.positionen(aid)[vorher:]
+    assert len(neu) == 1, len(neu)
+    a = ba.aus_position(neu[0])
+    regeln = sorted(x["art"] for x in a["merkmale"] if x["merkmal"] == ba.M_FERTIG)
+    assert regeln == sorted([fertigbarkeit.LOCH, fertigbarkeit.STEG, fertigbarkeit.STEG_ENDE, fertigbarkeit.GRAVUR]), \
+        regeln
+    assert a["kennzahlen"]["fertigbar"] is False and a["kategorie"] == ba.VIERKANT
+    texte = [p.text for p in seite.freigabe_punkte()]
+    assert any("Konstruktionsregel der Maschine" in t for t in texte), texte
 
 
 print("ALLE OK" if not fehler else f"{fehler} FEHLER")

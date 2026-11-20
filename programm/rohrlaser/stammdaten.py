@@ -552,7 +552,17 @@ MASCHINEN = Tabelle(
      *[Feld(f"faktor_{b}_{kurz}", f"Kalibrierung {kat}: Faktor {text} (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75)
        for kat, kurz in (("Edelstahl", "es"), ("Aluminium", "alu"), ("Buntmetall", "bunt"))
        for b, text in (("schneiden", "Schneiden"), ("einstechen", "Einstechen"), ("ecken", "Ecken und Radien"),
-                       ("bewegen", "Verfahren, Drehen, Kopfhub"), ("neben", "Nebenzeit, Messen, Entnahme"))]),
+                       ("bewegen", "Verfahren, Drehen, Kopfhub"), ("neben", "Nebenzeit, Messen, Entnahme"))],
+     # Fertigbarkeit beim STEP-Import (Laserhub-Vergleich L1/L3, Patrick 20.11.2026, fertigbarkeit.py): leer =
+     # Vorgabe, 0 = Prüfung aus; nur Hinweis (gelb), ändert nichts am Teil
+     Feld("fb_loch_faktor", "Fertigbarkeit: kleinstes Loch/Schlitz [× Wand] (leer = 0,7)", "zahl", 0, 10, stellen=2,
+          breite=85),
+     Feld("fb_steg_faktor", "Fertigbarkeit: schmalster Steg [× Wand] (leer = 0,7)", "zahl", 0, 10, stellen=2,
+          breite=85),
+     Feld("fb_eckradius", "Fertigbarkeit: kleinster Innen-Eckradius [mm] (leer = aus)", "zahl", 0, 50, stellen=2,
+          breite=85),
+     Feld("fb_gravur_tiefe", "Fertigbarkeit: tiefste Lasergravur [mm] (leer = 0,5)", "zahl", 0, 20, stellen=2,
+          breite=85)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -2112,6 +2122,12 @@ EINSTELLUNGEN = (
 ) + tuple(
     # Funktionen ein/aus (funktionen.py, Patrick 29.10.2026): ja = sichtbar, nein = ausgeblendet, Daten bleiben
     Einstellung(f.name, f.titel, "Funktionen", "auswahl", f.vorgabe, auswahl="janein") for f in funktionen.FUNKTIONEN)
+EINSTELLUNGEN += (
+    # Materialpreise aus ERP-CSV (erp_preise.py, Plan 30.10.2026): Zeitraum der Käufe, Ausreißer der Übersicht
+    Einstellung("erp_monate", "ERP-Preise: Zeitraum der Käufe [Monate]", "ERP-Preisimport", "ganz", 12, 1, 120),
+    Einstellung("erp_ausreisser", "ERP-Preise: Ausreißer ab Abweichung vom Median", "ERP-Preisimport", "anteil",
+                0.25, 0.01, 5),
+)
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
 
 
@@ -2644,8 +2660,6 @@ _BEISPIEL_WERKSTOFFE = [
     ("AW6063-T66", _AL, "EN AW-6063 T66", None, "EN 755-2", 2.70, "Beispiel", 4600, "EN AW-6063 T66", _SP),
     ("AW6082-T6", _AL, "EN AW-6082 T6", "3.2315", "EN 755-2", 2.70, "Beispiel", 4800, "EN AW-6082 T6", _SP),
     # seit 24.10.2026: typische Rohr- und Profilwerkstoffe am Rohrlaser
-    ("S235-10210", _ST, "S235JRH", "1.0039", _ROHR_W, 7.85, "Beispiel", 1050, "S235 EN10210", _GS, None, 0.95, None,
-     _ZUNDER),
     ("S355-10210", _ST, "S355J2H", "1.0576", _ROHR_W, 7.85, "Beispiel", 1100, "S355 EN10210", _GS, None, 0.95, None,
      _ZUNDER),
     ("DX51D+Z275", _ST, "DX51D+Z275", "1.0226", "EN 10305-3 / EN 10346 sendzimirverzinkt", 7.85, "Beispiel", 1300,
@@ -2673,7 +2687,14 @@ _BEISPIEL_WERKSTOFFE = [
     ("CuZn37", _BM, "CuZn37 (Messing)", "CW508L", "EN 12449 nahtlos gezogen", 8.44, "Beispiel", 7500,
      "Messing CuZn37", _NL, _N2, None, NUR_FASER, "Messing " + _BUNT + ", N₂"),
     ("Cu-DHP", _BM, "Cu-DHP (Kupfer)", "CW024A", "EN 12449 / EN 1057 nahtlos", 8.94, "Beispiel", 9500,
-     "Kupfer Cu-DHP", _NL, _O2, None, NUR_FASER, "Kupfer " + _BUNT + ", mit O₂, Vorschub gering")]
+     "Kupfer Cu-DHP", _NL, _O2, None, NUR_FASER, "Kupfer " + _BUNT + ", mit O₂, Vorschub gering"),
+    # seit 20.11.2026: Güten aus Patricks ERP-Export (S235 EN 10210 gibt es nicht, entfernt)
+    ("S275-10219", _ST, "S275J0H", "1.0149", _ROHR_S, 7.85, "Beispiel", 1030, "S275 EN10219", _GS),
+    ("S195T-10255", _ST, "S195T", "1.0026", "EN 10255 / EN 10217-1 geschweißt (Gewinderohr)", 7.85, "Beispiel", 1000,
+     "S195T EN10255", _GS),
+    ("P235TR2-10216", _ST, "P235TR2", "1.0255", "EN 10216-1 nahtlos (Leitungsrohr)", 7.85, "Beispiel", 1350,
+     "P235TR2 EN10216-1 nahtlos", _NL)]
+ERP_BEISPIEL_WERKSTOFFE = ("S275-10219", "S195T-10255", "P235TR2-10216")
 _BEISPIEL_WERKSTOFFE = [w + (None,) * (14 - len(w)) for w in _BEISPIEL_WERKSTOFFE]
 # bis Schema 54 vorhandene Beispielwerkstoffe (bekommen beim Update nur ihre leeren Lasereigenschaften)
 ALTE_BEISPIEL_WERKSTOFFE = tuple(w[0] for w in _BEISPIEL_WERKSTOFFE[:12])
