@@ -485,3 +485,90 @@ def zip_name(kopf):
     """'Angebot_2613000461.zip' (unzulässige Zeichen der Nummer als _)."""
     nr = re.sub(r'[\\/:*?"<>|\x00-\x1f\s]', "_", _text(kopf.get("nummer"))) or "ohne_Nummer"
     return f"Angebot_{nr}.zip"
+
+
+# ------------------------------------------------------------------ ProFirst-Vorlage (Patrick 20.11.2026)
+# Nachbau der Dateien, die PROfirst selbst schreibt (Vorlage 2613000479.CSV und 2613000479_HEADER.CSV aus dem
+# Supportpaket 20.11.2026): Dateinamen „<Angebotsnummer>.CSV“ (Positionen) und „<Angebotsnummer>_HEADER.CSV“ (Kopf),
+# Windows-1252 ohne BOM, Semikolon auch am Zeilenende, CRLF; Erstellungsdatum und „Date“ mit Uhrzeit, „Pos.“ immer
+# 1, „Format“ leer, „Rabatt(Euros)“ 0, Beträge ohne unnötige Nachkommastellen im Kopf (Versandkosten 360), Preis im
+# Kopf = Summe der Positionen, Kundenkurzbez. = Kundenname in Großbuchstaben. Bewusst wie bisher (PROfirst meldete
+# beim Einlesen „double“-Fehler, 28.10.2026): Lieferzeit in Wochen als Zahl, Marge Netto% und Verschnitt ohne %.
+CSV_FORMAT = "csv_format"           # Einstellung: "profirst" (Vorgabe) oder "bisher" (Angebotskopf.csv/-positionen.csv)
+PROFIRST, BISHER = "profirst", "bisher"
+PROFIRST_KODIERUNG = "cp1252"
+
+
+def format_von(db_einstellung):
+    """Gewähltes CSV-Format aus dem Wert der Einstellung csv_format."""
+    return BISHER if str(db_einstellung or "").strip().lower() == BISHER else PROFIRST
+
+
+def profirst_dateinamen(kopf):
+    """(Positionen, Kopf): ('2613000479.CSV', '2613000479_HEADER.CSV')."""
+    nr = re.sub(r'[\\/:*?"<>|\x00-\x1f\s]', "_", _text((kopf or {}).get("nummer"))) or "ohne_Nummer"
+    return f"{nr}.CSV", f"{nr}_HEADER.CSV"
+
+
+def _zeitstempel(w):
+    """'TT.MM.JJJJ HH:MM:SS' aus ISO-Zeitstempel; nur Datum -> 00:00:00; leer ohne Datum."""
+    s = str(w or "").strip().replace("T", " ")
+    for f in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.datetime.strptime(s[:19] if f.endswith("%S") else s[:16] if f.endswith("%M") else s[:10],
+                                              f).strftime("%d.%m.%Y %H:%M:%S")
+        except ValueError:
+            pass
+    return ""
+
+
+def profirst(kopf, kopfzeile, pos_zeilen, kunde=None):
+    """Kopf- und Positionszeilen (Listen in KOPF_SPALTEN/POSITION_SPALTEN) auf die PROfirst-Vorlage umstellen;
+    gibt neue Listen zurück."""
+    kunde = kunde or {}
+    ki = {s: i for i, s in enumerate(KOPF_SPALTEN)}
+    pi = {s: i for i, s in enumerate(POSITION_SPALTEN)}
+    k = list(kopfzeile)
+    erstellt = _zeitstempel(kopf.get("angelegt")) or (k[ki["Erstellungsdatum"]] + " 00:00:00" if
+                                                      k[ki["Erstellungsdatum"]] else "")
+    k[ki["Erstellungsdatum"]] = erstellt
+    for s in ("Versandkosten", "Restblech min.€"):
+        k[ki[s]] = zahl(k[ki[s]]) if k[ki[s]] else k[ki[s]]
+    if not k[ki["Restblech min.€"]]:
+        k[ki["Restblech min.€"]] = "0"
+    k[ki["Rabatt(Euros)"]] = k[ki["Rabatt(Euros)"]] or "0"
+    name = k[ki["Kunde:"]]
+    k[ki["Kundenkurzbez."]] = _text(kunde.get("kurzname")).upper() or name.upper()
+    summe = sum(_zahl(z[pi["Preis"]]) or 0.0 for z in pos_zeilen)
+    k[ki["Preis"]] = geld(summe)
+    out = []
+    for z in pos_zeilen:
+        z = list(z)
+        z[pi["Pos."]] = "1"
+        z[pi["Format"]] = ""
+        z[pi["Date"]] = erstellt or z[pi["Date"]]
+        out.append(z)
+    return k, out
+
+
+def profirst_bytes(spalten, zeilen):
+    """CSV wie PROfirst: Windows-1252 ohne BOM, Semikolon, jede Zeile endet mit ';', CRLF; nicht darstellbare Zeichen
+    als '?'."""
+    puffer = io.StringIO(newline="")
+    w = csv.writer(puffer, delimiter=TRENNER, quotechar='"', quoting=csv.QUOTE_MINIMAL, lineterminator="\r\n")
+    w.writerow(list(spalten) + [""])            # leere letzte Zelle = Semikolon am Zeilenende
+    for z in zeilen:
+        if len(z) != len(spalten):
+            raise ValueError(f"Zeile mit {len(z)} statt {len(spalten)} Spalten")
+        w.writerow(list(z) + [""])
+    return puffer.getvalue().encode(PROFIRST_KODIERUNG, errors="replace")
+
+
+def profirst_schreiben(ordner, kopf, kopfzeile, pos_zeilen, kunde=None):
+    """Beide Dateien in den Ordner schreiben; Ergebnis [Pfad Positionen, Pfad Kopf]."""
+    k, p = profirst(kopf, kopfzeile, pos_zeilen, kunde)
+    pos_name, kopf_name = profirst_dateinamen(kopf)
+    ordner = Path(ordner)
+    _sicher_schreiben(ordner / pos_name, profirst_bytes(POSITION_SPALTEN, p))
+    _sicher_schreiben(ordner / kopf_name, profirst_bytes(KOPF_SPALTEN, [k]))
+    return [ordner / pos_name, ordner / kopf_name]

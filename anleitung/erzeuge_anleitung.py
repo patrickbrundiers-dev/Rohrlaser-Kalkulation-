@@ -9152,8 +9152,8 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Netzordner eintragen ([[einstellungen]]).")
     i.abschnitt("CSV-Export: Angebotskopf und Angebotspositionen", marke="csv_export")
     i.text("<b>Ausgaben → CSV-Export → Kopf + Positionen …</b> fragt nach dem Ordner und speichert dort zwei "
-           "einzelne Dateien: <i>&lt;Nr&gt; Angebotskopf.csv</i> (eine Zeile) und <i>&lt;Nr&gt; "
-           "Angebotspositionen.csv</i> (eine Zeile je Position). <b>Nur Angebotskopf …</b> bzw. <b>Nur "
+           "einzelne Dateien genau nach der PROfirst-Vorlage: <i>&lt;Nr&gt;_HEADER.CSV</i> (Angebotskopf, eine "
+           "Zeile) und <i>&lt;Nr&gt;.CSV</i> (Angebotspositionen, eine Zeile je Position). <b>Nur Angebotskopf …</b> bzw. <b>Nur "
            "Angebotspositionen …</b> speichern eine Datei. Erst nach dem CSV-Export wird in der Schrittanzeige "
            "<b>④ Verschickt</b> grün.", kurz=True)
     i.genauer()
@@ -9164,7 +9164,15 @@ def kapitel_ausgabe(i, seiten, ablage):
            "(Mauszeiger auf den Preisstand in der Übersicht); er zählt nicht als Versand für Wiedervorlage und "
            "Nachfassen. Ältere Angebote ohne CSV-Export zeigen ④ Verschickt so lange grau, bis Sie den Export "
            "nachholen.")
-    i.text("Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF (Windows), Dezimalpunkt (79.98) ohne Tausendertrennzeichen, Beträge mit "
+    i.text("<b>PROfirst-Vorlage</b> (Vorgabe seit 0.9.422): Dateinamen <i>&lt;Nr&gt;.CSV</i> und "
+           "<i>&lt;Nr&gt;_HEADER.CSV</i>, Zeichensatz Windows-1252 ohne BOM, jede Zeile endet mit <i>;</i>, "
+           "Erstellungsdatum und Spalte <i>Date</i> mit Uhrzeit (<i>29.10.2026 11:18:38</i>), <i>Pos.</i> immer 1, "
+           "<i>Format</i> leer, <i>Rabatt(Euros)</i> 0, Kundenkurzbezeichnung in Großbuchstaben und <i>Preis</i> im "
+           "Kopf = Summe der Positionen. Lieferzeit, Marge und Verschnitt bleiben Zahlen ohne Text und %-Zeichen, "
+           "weil der PROfirst-Import sonst mit <i>double</i> abbricht. Das bisherige Format (<i>&lt;Nr&gt; "
+           "Angebotskopf.csv</i>, UTF-8 mit BOM) gibt es weiter über die Einstellung <i>CSV-Export: Format</i> "
+           "(<i>bisher</i>).")
+    i.text("Format: Semikolon, UTF-8 mit BOM (bisheriges Format), Zeilenende CRLF (Windows), Dezimalpunkt (79.98) ohne Tausendertrennzeichen, Beträge mit "
            "2 Stellen, Zeiten <i>HH:MM:SS</i>, Datum <i>TT.MM.JJJJ</i>. Texte mit Semikolon, Anführungszeichen oder "
            "Zeilenumbruch stehen in Anführungszeichen. Spaltentitel und Reihenfolge sind fest vorgegeben, es gibt "
            "keine zusätzlichen Spalten. Der Export ändert nichts am Angebot; die Werte stammen aus derselben "
