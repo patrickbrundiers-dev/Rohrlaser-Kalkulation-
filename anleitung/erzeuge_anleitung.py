@@ -8524,7 +8524,9 @@ def kapitel_baugruppen(i):
             "Zeit von Hand verteilt sich anteilig auf die eigenen Zeiten, die Mischung der Stundensätze bleibt; "
             "Fremdleistungen, Schweißdraht und Gas ändern sich nicht. Ohne automatische Grundlage gilt der "
             "<b>Stundensatz</b>, der darunter gewählt ist; dazu eine <b>Notiz</b> (Grund).",
-            "<b>Je Bereich</b> (aufklappen): Vorbereitung, Heften, Schweißen, Nachbearbeitung, Weitere einzeln von Hand. "
+            "<b>Je Bereich</b> (aufklappen): Vorbereitung, Heften, Schweißen, Richten, Schleifen, Nachbearbeitung, "
+            "Qualitätskontrolle, Montage und Weitere einzeln von Hand (bis 0.9.408 fünf Bereiche; Baugruppen, die "
+            "schon Bereiche von Hand nach der alten Einteilung haben, rechnen damit unverändert weiter). "
             "Den Bereich eines Arbeitsgangs zeigt die Spalte <i>Bereich</i> im Reiter Arbeitsgänge (automatisch aus "
             "Vorkalkulation bzw. Namen, änderbar).",
             "<b>Komplexität</b>: Faktor je Baugruppe (1,0 = wie berechnet) mit Gründen zum Anhaken. Er wirkt nur auf die "
@@ -8561,6 +8563,69 @@ def kapitel_baugruppen(i):
            "Schweißen). Export: die Datei Schweissbaugruppen.csv hat die Spalten Stückzeit, Rüstzeit (wirksam und "
            "automatisch), Zeit von Hand und Komplexität; das Kalkulation-PDF nennt die Zeit von Hand mit Grund, das "
            "Kunden-PDF nur den Preis.")
+    i.abschnitt("Gesamtzeit von Hand, Zeitvorschläge und Auswertung (Editor 2.0)", marke="bg_gesamtzeit")
+    i.text("Seit 0.9.418 lässt sich die <b>ganze Bearbeitungszeit einer Schweißbaugruppe mit einem Wert</b> festlegen. "
+           "Oben im Abschnitt <i>Kalkulation: Zeit</i> steht dafür das Feld <b>Gesamtzeit je Baugruppe</b>; der "
+           "Schnellzugriff <i>Gesamtzeit überschreiben</i> im Band springt dorthin. Beispiel: berechnet sind "
+           "Vorbereitung 20, Heften 35, Schweißen 90, Richten 25 und Nachbearbeitung 20 = 190 min; mit "
+           "<i>240</i> (oder <i>4 h</i>) rechnet die Baugruppe mit genau 240 min. Die 240 min werden <b>nicht</b> zu "
+           "den 190 min dazugezählt: die berechneten Zeiten werden anteilig auf diesen Wert gebracht und bleiben als "
+           "Grundlage sichtbar (grau <i>automatisch 3 h 10 min</i>, orange <i>+50 min (+26 %)</i>).", kurz=True)
+    i.bild("baugruppe_gesamtzeit", "Kalkulation: Zeit mit Gesamtzeit von Hand und Zeitvorschlag", hoehe=80 * mm, legende=[
+        (1, "<b>Gesamtzeit je BG</b> (je Baugruppe) von Hand in Minuten oder Stunden: Stückzeit und Rüstanteil zusammen, ohne "
+            "Fremdleistung. Gilt für jede Stückzahl und jede Staffelstufe. ↺ setzt auf automatisch zurück."),
+        (2, "<b>Zeitvorschlag</b> aus vergleichbaren Baugruppen mit der Anzahl der Datensätze. Er ändert nichts von "
+            "allein: <i>Vorschlag übernehmen</i> trägt ihn als Gesamtzeit ein, <i>Vergleichbare …</i> zeigt die "
+            "Baugruppen dahinter."),
+        (3, "Stückzeit, Rüstzeit und Bereiche von Hand ruhen, solange eine Gesamtzeit eingetragen ist; ihre Werte "
+            "bleiben gespeichert."),
+        (4, "<b>Für Zeitvorschläge freigeben</b>: nur freigegebene Zeiten zählen beim Lernen mit. <b>Protokoll …</b> "
+            "zeigt jede Änderung, <b>Auswertung …</b> alle Zeiten von Hand.")])
+    i.liste("<b>Vorrang</b>: Gesamtzeit vor Stückzeit und Rüstzeit, diese vor den Bereichen, sonst automatisch. Was "
+            "gerade überdeckt ist, steht mit <i>ruht</i> daneben und gilt wieder, sobald die Gesamtzeit entfernt wird.",
+            "<b>Ins Angebot</b> geht genau diese Zeit: Preis, Staffelstufen, Nachkalkulation-Soll, CSV und das "
+            "Kalkulation-PDF rechnen mit der Gesamtzeit von Hand, nichts doppelt.",
+            "<b>Baugruppe später geändert</b> (Nähte, Teile, Gewicht, Arbeitsgänge): die Zeit von Hand bleibt, es "
+            "erscheint der Hinweis <i>Zeit von Hand prüfen</i> mit den Gründen, auch im Angebots-Check. Mit <i>Zeit "
+            "geprüft, gilt weiter</i> verschwindet er; gelöscht wird die Zeit nie von allein.",
+            "<b>Protokoll</b>: jede Änderung mit altem und neuem Wert, automatischer Zeit, Benutzer, Zeitpunkt, Grund "
+            "(Feld Notiz), laufender Version und, falls verwendet, dem Lernvorschlag. Es bleibt auch nach <i>Alles "
+            "automatisch</i> erhalten und wird mit dem Angebot gespeichert.", kurz=True)
+    i.text("<b>Lernende Zeitvorschläge.</b> Beim Speichern des Fensters merkt das Programm jede Zeit von Hand mit den "
+           "Merkmalen der Baugruppe (Anzahl und Art der Teile, Profile, Werkstoff, größte Wanddicke, Gewicht, "
+           "Nahtlänge, Anzahl Nähte, Schweißverfahren, automatische Zeit, Zeit von Hand, Benutzer, Datum): eine Zeile je "
+           "Angebot und Baugruppe, dieselbe Entscheidung zählt nie doppelt, eine kopierte Baugruppe zählt nicht noch "
+           "einmal. Für eine neue Baugruppe sucht es <b>vergleichbare</b>: nur gleiche Werkstoffgruppe und gleiches "
+           "Verfahren, dazu ähnliche Nahtlänge, Teilezahl, Gewicht, Nähte und Wanddicke (ab 60 % Ähnlichkeit). Es gibt "
+           "also keinen pauschalen Aufschlag auf alle Baugruppen. Ab 3 vergleichbaren erscheint der Vorschlag: "
+           "automatische Zeit × gewichtetes Mittel der Verhältnisse von Hand ÷ automatisch; ähnlichere und neuere "
+           "Entscheidungen zählen mehr (Gewicht halbiert sich in zwei Jahren), <b>Ausreißer</b> werden genannt und "
+           "nicht gezählt. Ab 8 vergleichbaren prüft das Programm sich selbst (jede Entscheidung einmal weggelassen "
+           "und aus den anderen vorhergesagt), nennt den mittleren Fehler und nimmt eine Ausgleichsgerade nur, wenn "
+           "sie dabei genauer ist. Der Tooltip des Vorschlags erklärt die Rechnung.")
+    i.text("<b>Struktur und Stückliste.</b> Der Baum links zeigt je Unterbaugruppe die Einzelteile, die Nahtgruppen "
+           "und jetzt auch die <b>Arbeitsgänge</b> (grau, <i>Arbeitsgang: …</i>); der Tooltip eines Teils nennt die "
+           "Art (Rohrteil, Blechteil oder Zukaufteil). Im Band <i>Ausgabe</i> öffnet <b>Stückliste …</b> das Fenster "
+           "<i>Stückliste der Schweißbaugruppe</i>: alle Einzelteile mit Art, Profil, Unterbaugruppe und den "
+           "Stückzahlen je Unterbaugruppe, je Baugruppe und für den Auftrag, aus dem Stand des Fensters (auch "
+           "ungespeichert). <i>Kopieren</i> legt sie für Excel in die Zwischenablage, <i>Als CSV speichern …</i> "
+           "schreibt eine Datei.", kurz=True)
+    i.text("Eine Zeit von Hand ist eine <b>Kalkulationsvorgabe, keine gemessene Ist-Zeit</b>. Gemessene Zeiten kommen "
+           "aus der Nachkalkulation und stehen getrennt darunter (<i>Erfahrung</i>, [[nachkalkulation]]). Die "
+           "Zeitentscheidungen gehen wie Stammdaten über den gemeinsamen Ordner an alle Arbeitsplätze.")
+    i.text("Im Band stehen dazu drei Schnellzugriffe: <i>Gesamtzeit überschreiben</i>, <i>Lernvorschlag übernehmen</i> "
+           "(nur bedienbar, wenn es einen Vorschlag gibt) und <i>Auswertung Zeiten …</i>. Das Fenster <i>Vergleichbare "
+           "Baugruppen</i> listet die Baugruppen hinter einem Vorschlag mit Ähnlichkeit, automatischer Zeit, Zeit von "
+           "Hand und Abweichung; das Fenster <i>Zeit von Hand: Protokoll</i> zeigt die Änderungen dieser Baugruppe. Die "
+           "Auswertung öffnet das Fenster <i>Schweißbaugruppen: Auswertung der Zeiten von Hand</i>; dort nimmt "
+           "<i>Für Vorschläge sperren / freigeben</i> einen einzelnen Datensatz aus dem Lernen heraus oder gibt ihn "
+           "wieder frei.")
+    i.bild("baugruppe_auswertung", "Auswertung der Zeiten von Hand", hoehe=70 * mm, legende=[
+        (1, "<b>Ansicht</b>: automatisch gegen von Hand (Punkte über der Linie = mehr Zeit, Ring = Ausreißer), "
+            "Vergleich der Baugruppenarten, nach Material, nach Gewicht, häufigste Abweichungen, Entwicklung."),
+        (2, "Reiter <b>Alle Zeiten von Hand</b>: automatisch, von Hand, Differenz in Minuten und Prozent, "
+            "Lernvorschlag, wer und wann; ein Datensatz lässt sich für Vorschläge sperren oder wieder freigeben. "
+            "<b>Größte Korrekturen</b> zeigt die zehn stärksten Abweichungen.")])
     i.abschnitt("Mengen aus den Einzelteilen", marke="baugruppe_mengen")
     i.text("Für Arbeitsgänge, die nach Gewicht, Fläche oder Länge abgerechnet werden (Verzinken €/kg, Pulvern €/m², "
            "Strahlen, Prüfen je Teil), rechnet das Programm die Menge selbst: in der Spalte <b>Menge aus</b> "

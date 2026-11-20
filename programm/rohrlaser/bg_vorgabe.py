@@ -18,14 +18,32 @@ ihre Zeiten nach Bereichen und Zeitart und legt eine Vorgabe von Hand darüber:
                   sonst der der meisten Schweißzeit, sonst 'Schweißen'). Fremdleistungen, Kosten je Einheit,
                   Einmalbeträge, Schweißdraht und Gas bleiben.
 Ohne Vorgabe und mit Faktor 1 ändert sich nichts (bitgleich wie vor dem 12.11.2026).
+
+Editor 2.0 (Patrick 19.11.2026):
+  Gesamtzeit      bg['vorgabe']['gesamt_min'] = gesamte Bearbeitungszeit je Baugruppe von Hand (Stückzeit und
+                  Rüstanteil zusammen, ohne Fremdleistung). Sie geht vor allem anderen: Rüsten und Stück werden mit
+                  einem gemeinsamen Faktor auf genau diese Zeit gebracht (nichts wird dazugezählt). Stückzeit,
+                  Rüstzeit und Bereiche von Hand bleiben gespeichert, wirken aber erst wieder ohne Gesamtzeit.
+  Vorrang         Gesamtzeit > Stückzeit/Rüstzeit > Bereiche > automatisch.
+  Bereiche        feiner: dazu Richten, Schleifen, Qualitätskontrolle, Montage. Baugruppen, die schon Bereiche von
+                  Hand nach der alten Einteilung haben (ohne 'fein'), rechnen weiter mit der alten (BEREICHE_ALT).
+  Protokoll       bg['zeit_protokoll']: jede Änderung der Zeit von Hand (alt, neu, wer, wann, Grund, automatische
+                  Zeit, verwendeter Lernvorschlag, Version); bleibt auch nach dem Zurücksetzen.
+  Gültigkeit      pruefen(): hat sich die Baugruppe seit der Vorgabe geändert, gibt es einen Hinweis; die Zeit
+                  bleibt, bis der Benutzer sie ändert oder bestätigt (bestaetigen()).
 """
 import math
 import re
 
 VORBEREITUNG, HEFTEN, SCHWEISSEN, NACHBEARBEITUNG, WEITERE = ("Vorbereitung", "Heften", "Schweißen",
                                                              "Nachbearbeitung", "Weitere")
+RICHTEN, SCHLEIFEN, QK, MONTAGE = "Richten", "Schleifen", "Qualitätskontrolle", "Montage"
 FREMD = "Fremdleistung"
-BEREICHE = (VORBEREITUNG, HEFTEN, SCHWEISSEN, NACHBEARBEITUNG, WEITERE)
+BEREICHE_ALT = (VORBEREITUNG, HEFTEN, SCHWEISSEN, NACHBEARBEITUNG, WEITERE)     # Einteilung bis 0.9.408
+BEREICHE = (VORBEREITUNG, HEFTEN, SCHWEISSEN, RICHTEN, SCHLEIFEN, NACHBEARBEITUNG, QK, MONTAGE, WEITERE)
+ALT_ZU = {RICHTEN: NACHBEARBEITUNG, SCHLEIFEN: NACHBEARBEITUNG, QK: NACHBEARBEITUNG, MONTAGE: WEITERE}
+PROTOKOLL = "zeit_protokoll"
+PROTOKOLL_MAX = 200
 # Vorschläge der Vorkalkulation (vorkalk.AG_NAMEN) haben ihren Bereich fest
 BEREICH_VK = {"ruesten": VORBEREITUNG, "positionieren": VORBEREITUNG, "fase": VORBEREITUNG, "wenden": SCHWEISSEN,
               "verputzen": NACHBEARBEITUNG, "beizen": NACHBEARBEITUNG, "richten": NACHBEARBEITUNG,
@@ -39,6 +57,19 @@ BEREICH_WOERTER = (
     (HEFTEN, ("heft",)),
     (SCHWEISSEN, ("schweiß", "schweiss", "wenden", "umspann", "naht")),
 )
+# feine Einteilung (Editor 2.0): Art der Vorkalkulation und Wortteile, in dieser Reihenfolge geprüft
+BEREICH_VK_FEIN = dict(BEREICH_VK, verputzen=SCHLEIFEN, richten=RICHTEN, pruefen=QK, zfp=QK, vorwaermen=VORBEREITUNG)
+BEREICH_WOERTER_FEIN = (
+    (QK, ("sichtprüf", "pruef", "prüf", "kontroll", "vermess", "messen", "zfp", "abnahme")),
+    (SCHLEIFEN, ("verputz", "schleif", "bürst", "buerst", "polier", "spritzer", "glätt")),
+    (MONTAGE, ("montage", "montier", "verschraub", "zusammenbau", "einpress", "niet")),
+    (NACHBEARBEITUNG, ("beiz", "passiv", "nacharbeit")),
+    (VORBEREITUNG, ("bereitstell", "sortier", "entgrat", "reinig", "anpass", "vorbereit", "vorricht", "positionier",
+                    "fase", "rüst", "ruest", "kommission", "spann", "zusammenstell", "vorwärm", "vorwaerm")),
+    (RICHTEN, ("richten", "richt")),
+    (HEFTEN, ("heft",)),
+    (SCHWEISSEN, ("schweiß", "schweiss", "wenden", "umspann", "naht")),
+)
 KOMPLEX_GRUENDE = ("schwierige Zugänglichkeit", "viele Einzelteile", "aufwendige Positionierung",
                    "mehrere Schweißlagen", "häufiges Wenden", "hohe Maßanforderungen")
 
@@ -47,21 +78,36 @@ def _zahl(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
 
 
-def bereich(ag):
+def bereich(ag, fein=True):
     """Bereich eines Arbeitsgangs (dict aus bg['arbeitsgaenge']): Fremdleistung, Feld 'bereich', Art der
-    Vorkalkulation, Wortteil im Namen, sonst Weitere."""
+    Vorkalkulation, Wortteil im Namen, sonst Weitere. fein=False: Einteilung bis 0.9.408 (BEREICHE_ALT)."""
     if ag.get("fremd"):
         return FREMD
-    if ag.get("bereich") in BEREICHE:
-        return ag["bereich"]
+    b = ag.get("bereich")
+    if b in BEREICHE:
+        return b if fein else ALT_ZU.get(b, b)
     art = (ag.get("vk") or {}).get("art")
-    if art in BEREICH_VK:
-        return BEREICH_VK[art]
+    vk = BEREICH_VK_FEIN if fein else BEREICH_VK
+    if art in vk:
+        return vk[art]
     name = str(ag.get("name") or "").lower()
-    for b, woerter in BEREICH_WOERTER:
+    for b, woerter in (BEREICH_WOERTER_FEIN if fein else BEREICH_WOERTER):
         if any(w in name for w in woerter):
             return b
     return WEITERE
+
+
+def fein(bg):
+    """Feine Einteilung der Bereiche? Nein nur für Baugruppen, die Bereiche von Hand nach der alten Einteilung
+    haben (so bleibt ihre Rechnung, wie sie war)."""
+    v = (bg or {}).get("vorgabe")
+    if not isinstance(v, dict) or not isinstance(v.get("bereiche"), dict) or not v["bereiche"]:
+        return True
+    return v.get("fein") is True
+
+
+def bereiche_liste(bg):
+    return BEREICHE if fein(bg) else BEREICHE_ALT
 
 
 # ------------------------------------------------------------------ Zeit lesen und schreiben
@@ -130,21 +176,28 @@ def abweichung_text(minuten):
 
 # ------------------------------------------------------------------ Daten der Baugruppe
 def vorgabe(bg):
-    """Vorgabe von Hand der Baugruppe: dict(stueck_min, ruest_min, bereiche, satz_id, grund, am, auto_damals); nur
-    gültige Zahlen ≥ 0, sonst None bzw. {}."""
+    """Vorgabe von Hand der Baugruppe: dict(gesamt_min, stueck_min, ruest_min, bereiche, satz_id, grund, am, von,
+    auto_damals, frei (für Zeitvorschläge freigegeben), vorschlag (übernommener Lernvorschlag), fein); nur gültige
+    Zahlen ≥ 0, sonst None bzw. {}."""
     v = (bg or {}).get("vorgabe")
     v = v if isinstance(v, dict) else {}
     ber = v.get("bereiche") if isinstance(v.get("bereiche"), dict) else {}
-    return dict(stueck_min=v["stueck_min"] if _zahl(v.get("stueck_min")) and v["stueck_min"] >= 0 else None,
-                ruest_min=v["ruest_min"] if _zahl(v.get("ruest_min")) and v["ruest_min"] >= 0 else None,
-                bereiche={b: w for b, w in ber.items() if b in BEREICHE and _zahl(w) and w >= 0},
+    liste = bereiche_liste(bg)
+
+    def z(n):
+        return v[n] if _zahl(v.get(n)) and v[n] >= 0 else None
+    return dict(gesamt_min=z("gesamt_min"), stueck_min=z("stueck_min"), ruest_min=z("ruest_min"),
+                bereiche={b: w for b, w in ber.items() if b in liste and _zahl(w) and w >= 0},
                 satz_id=v.get("satz_id") or None, grund=v.get("grund") or "", am=v.get("am") or "",
+                von=v.get("von") or "", frei=v.get("frei") is not False,
+                vorschlag=v.get("vorschlag") if isinstance(v.get("vorschlag"), dict) else None, fein=liste is BEREICHE,
                 auto_damals=v.get("auto_damals") if isinstance(v.get("auto_damals"), dict) else {})
 
 
 def hat_vorgabe(bg):
     v = vorgabe(bg)
-    return v["stueck_min"] is not None or v["ruest_min"] is not None or bool(v["bereiche"])
+    return (v["gesamt_min"] is not None or v["stueck_min"] is not None or v["ruest_min"] is not None
+            or bool(v["bereiche"]))
 
 
 def komplex(bg):
@@ -185,29 +238,148 @@ def preis_hand(bg, anzahl):
     return float(x["preis"])
 
 
+ZAHLEN = ("gesamt_min", "stueck_min", "ruest_min", "bereiche")
+
+
 def vorgabe_setzen(bg, auto=None, **werte):
     """Felder der Vorgabe in bg setzen (None = Feld entfernen); leere Vorgabe fällt weg. auto = zeiten-Ergebnis
-    (merkt die automatische Zeit beim ersten Setzen, auto_damals)."""
+    (merkt die automatische Zeit beim Setzen, auto_damals; dazu die Merkmale der Baugruppe aus werte['merkmale'],
+    damit pruefen() spätere Änderungen erkennt)."""
     v = dict(bg.get("vorgabe") or {}) if isinstance(bg.get("vorgabe"), dict) else {}
+    merkmale = werte.pop("merkmale", None)
+    war_fein = fein(bg)
     for n, w in werte.items():
         if n == "bereiche":
-            ber = {b: x for b, x in (w or {}).items() if b in BEREICHE and _zahl(x)}
+            liste = BEREICHE if war_fein else BEREICHE_ALT
+            ber = {b: x for b, x in (w or {}).items() if b in liste and _zahl(x)}
             if ber:
                 v["bereiche"] = ber
+                if war_fein:
+                    v["fein"] = True
             else:
                 v.pop("bereiche", None)
+                v.pop("fein", None)
         elif w is None or w == "":
             v.pop(n, None)
         else:
             v[n] = w
-    zahlen = [n for n in ("stueck_min", "ruest_min", "bereiche") if n in v]
-    if not zahlen:
+    if not [n for n in ZAHLEN if n in v]:
         bg.pop("vorgabe", None)
         return bg
     if auto is not None:
+        n = auto.get("anzahl") or 0
         v["auto_damals"] = dict(stueck_min=round(auto.get("auto_stueck_min") or 0.0, 2),
-                                ruest_min=round(auto.get("auto_ruest_min") or 0.0, 2))
+                                ruest_min=round(auto.get("auto_ruest_min") or 0.0, 2),
+                                je_bg_min=round(auto.get("auto_je_bg_min") or 0.0, 2), anzahl=n)
+        if isinstance(merkmale, dict):
+            v["auto_damals"]["merkmale"] = {k: merkmale[k] for k in PRUEF_MERKMALE if _zahl(merkmale.get(k))}
     bg["vorgabe"] = v
+    return bg
+
+
+# ------------------------------------------------------------------ Protokoll und Gültigkeit (Editor 2.0)
+PRUEF_MERKMALE = ("teile_n", "naht_m", "naht_n", "gewicht_kg")
+PRUEF_AB = 0.05             # ab 5 % Änderung der automatischen Zeit bzw. eines Merkmals gibt es den Hinweis
+
+
+def protokoll(bg):
+    """Änderungen der Zeit von Hand, älteste zuerst: [dict(version, am, von, aenderungen [(Feld, alt, neu)],
+    auto_min (automatisch je Baugruppe damals), grund, vorschlag)]."""
+    x = (bg or {}).get(PROTOKOLL)
+    return [e for e in x if isinstance(e, dict)] if isinstance(x, list) else []
+
+
+def version(bg):
+    """Laufende Nummer des Stands der Zeitvorgabe (0 = nie von Hand geändert)."""
+    p = protokoll(bg)
+    return int(p[-1].get("version") or len(p)) if p else 0
+
+
+def _stand(v):
+    out = {n: v[n] for n in ("gesamt_min", "stueck_min", "ruest_min")}
+    out.update({f"Bereich {b}": w for b, w in v["bereiche"].items()})
+    return out
+
+
+FELD_TITEL = dict(gesamt_min="Gesamtzeit je Baugruppe", stueck_min="Stückzeit je Baugruppe",
+                  ruest_min="Rüstzeit je Auftrag")
+
+
+def protokollieren(bg, vorher, auto_min=None, von="", am="", grund="", vorschlag=None):
+    """Nach einer Änderung: Unterschied zwischen vorher (= vorgabe(bg) vor der Änderung) und jetzt als Eintrag
+    anhängen. Ohne Unterschied der Zeiten kein Eintrag (nichts doppelt). Ergebnis: der Eintrag oder None."""
+    alt, neu = _stand(vorher), _stand(vorgabe(bg))
+    aend = [(FELD_TITEL.get(n, n), alt.get(n), neu.get(n)) for n in list(alt) + [n for n in neu if n not in alt]
+            if not _gleich(alt.get(n), neu.get(n))]
+    if not aend:
+        return None
+    liste = protokoll(bg)
+    e = dict(version=version(bg) + 1, am=am, von=von, aenderungen=aend, grund=grund or "",
+             auto_min=round(auto_min, 2) if _zahl(auto_min) else None)
+    if vorschlag:
+        e["vorschlag"] = vorschlag
+    bg[PROTOKOLL] = (liste + [e])[-PROTOKOLL_MAX:]
+    return e
+
+
+def _gleich(a, b):
+    if a is None or b is None:
+        return a is None and b is None
+    return abs(a - b) < 1e-6
+
+
+def protokoll_text(bg, n=None):
+    """Zeilen für die Anzeige, neueste zuerst."""
+    out = []
+    for e in reversed(protokoll(bg)[-(n or PROTOKOLL_MAX):]):
+        teile = []
+        for feld, alt, neu in e.get("aenderungen") or ():
+            a = zeit_text(alt) if alt is not None else "automatisch"
+            b = zeit_text(neu) if neu is not None else "automatisch"
+            teile.append(f"{feld}: {a} → {b}")
+        t = f"V{e.get('version')} {e.get('am') or ''} {e.get('von') or ''}".strip() + ": " + "; ".join(teile)
+        if _zahl(e.get("auto_min")):
+            t += f" (automatisch damals {zeit_text(e['auto_min'])} je BG)"
+        if e.get("vorschlag"):
+            vs = e["vorschlag"]
+            t += f" – Lernvorschlag {zeit_text(vs.get('min'))} aus {vs.get('n')} vergleichbaren"
+        if e.get("grund"):
+            t += f" – {e['grund']}"
+        out.append(t)
+    return out
+
+
+def pruefen(bg, z, merkmale=None):
+    """Gründe, warum die Zeit von Hand geprüft werden sollte (Baugruppe seit der Vorgabe geändert), sonst []. z =
+    zeiten-Ergebnis, merkmale = bg_zeitlernen.merkmale(...). Die Zeit bleibt in jedem Fall bestehen."""
+    v = vorgabe(bg)
+    d = v["auto_damals"]
+    if not z or not z.get("hand") or not d:
+        return []
+    out = []
+
+    def anders(alt, neu):
+        return _zahl(alt) and _zahl(neu) and abs(neu - alt) > max(0.05, PRUEF_AB * max(abs(alt), abs(neu)))
+    if v["gesamt_min"] is not None and _zahl(d.get("je_bg_min")) and d.get("anzahl") == z.get("anzahl"):
+        if anders(d["je_bg_min"], z.get("auto_je_bg_min")):
+            out.append(f"automatische Zeit je Baugruppe {zeit_text(d['je_bg_min'])} → "
+                       f"{zeit_text(z['auto_je_bg_min'])}")
+    elif anders(d.get("stueck_min"), z.get("auto_stueck_min")):
+        out.append(f"automatische Stückzeit {zeit_text(d.get('stueck_min'))} → {zeit_text(z['auto_stueck_min'])}")
+    titel = dict(teile_n=("Einzelteile", "{:g}"), naht_m=("Nahtlänge", "{:.2f} m"), naht_n=("Nähte", "{:g}"),
+                 gewicht_kg=("Gewicht", "{:.1f} kg"))
+    dm = d.get("merkmale") if isinstance(d.get("merkmale"), dict) else {}
+    for k in PRUEF_MERKMALE:
+        if merkmale and anders(dm.get(k), merkmale.get(k)):
+            t, f = titel[k]
+            out.append(f"{t} {f.format(dm[k])} → {f.format(merkmale[k])}".replace(".", ","))
+    return out
+
+
+def bestaetigen(bg, z, merkmale=None):
+    """Zeit von Hand gilt weiter: den heutigen Stand der Baugruppe als Grundlage merken (Hinweis verschwindet)."""
+    if isinstance(bg.get("vorgabe"), dict) and z:
+        vorgabe_setzen(bg, auto=z, merkmale=merkmale)
     return bg
 
 
@@ -254,7 +426,8 @@ def anwenden(out, posten, bg, saetze, n, ohne_hand=False):
     v = vorgabe(bg)
     if ohne_hand:
         kf, gruende = 1.0, []
-        v = dict(v, stueck_min=None, ruest_min=None, bereiche={})
+        v = dict(v, gesamt_min=None, stueck_min=None, ruest_min=None, bereiche={})
+    fein_ = fein(bg) or ohne_hand
     ber = {b: dict(bereich=b, auto_stueck=0.0, auto_ruest=0.0, eur_stueck=0.0, eur_ruest=0.0) for b in BEREICHE}
     for p in posten:
         b = ber[p["bereich"]]
@@ -269,7 +442,22 @@ def anwenden(out, posten, bg, saetze, n, ohne_hand=False):
     k = {b: kf for b in BEREICHE}
     extra = {}
     hand_b = set()
-    if v["stueck_min"] is not None:
+    k_r = 1.0
+    extra_r = None
+    n_eff = n if n else 1
+    hand_gesamt = v["gesamt_min"] is not None
+    if hand_gesamt:
+        # Gesamtzeit je Baugruppe: Rüsten und Stück mit EINEM Faktor auf genau diese Zeit (nichts kommt dazu)
+        hand_b = set(BEREICHE)
+        basis = a_ruest + a_stueck * n_eff
+        if basis > 1e-9:
+            k_r = v["gesamt_min"] * n_eff / basis
+            k = {b: k_r for b in BEREICHE}
+        else:
+            k = {b: 1.0 for b in BEREICHE}
+            if v["gesamt_min"] > 0:
+                extra[SCHWEISSEN] = v["gesamt_min"]
+    elif v["stueck_min"] is not None:
         hand_b = set(BEREICHE)
         if a_stueck > 1e-9:
             k = {b: v["stueck_min"] / a_stueck for b in BEREICHE}
@@ -286,9 +474,9 @@ def anwenden(out, posten, bg, saetze, n, ohne_hand=False):
                 k[b] = 1.0
                 if w > 0:
                     extra[b] = w
-    k_r = 1.0
-    extra_r = None
-    if v["ruest_min"] is not None:
+    if hand_gesamt:
+        pass
+    elif v["ruest_min"] is not None:
         if a_ruest > 1e-9:
             k_r = v["ruest_min"] / a_ruest
         elif v["ruest_min"] > 0:
@@ -365,20 +553,26 @@ def anwenden(out, posten, bg, saetze, n, ohne_hand=False):
         x = ber[b]
         stueck = x["auto_stueck"] * k[b] + extra.get(b, 0.0)
         ruest = x["auto_ruest"] * k_r + (extra_r if extra_r and b == VORBEREITUNG else 0.0)
-        if not (x["auto_stueck"] or x["auto_ruest"] or stueck or ruest or b in hand_b):
+        if not (x["auto_stueck"] or x["auto_ruest"] or stueck or ruest or b in v["bereiche"]):
             continue
         liste.append(dict(bereich=b, auto_stueck=x["auto_stueck"], auto_ruest=x["auto_ruest"], stueck=stueck,
                           ruest=ruest, hand=b in hand_b))
-    stueck = v["stueck_min"] if v["stueck_min"] is not None else sum(x["stueck"] for x in liste)
-    ruest = v["ruest_min"] if v["ruest_min"] is not None else sum(x["ruest"] for x in liste)
+    hand_stueck = v["stueck_min"] is not None and not hand_gesamt
+    hand_ruest = v["ruest_min"] is not None and not hand_gesamt
+    stueck = v["stueck_min"] if hand_stueck else sum(x["stueck"] for x in liste)
+    ruest = v["ruest_min"] if hand_ruest else sum(x["ruest"] for x in liste)
     auto_stueck_k = a_stueck * kf
+    gesamt = v["gesamt_min"] * n_eff if hand_gesamt else ruest + stueck * n
     out["zeiten"] = dict(auto_stueck_min=a_stueck, auto_ruest_min=a_ruest, komplex=kf, komplex_gruende=gruende,
                          auto_komplex_min=auto_stueck_k, stueck_min=stueck, ruest_min=ruest,
-                         hand_stueck=v["stueck_min"] is not None, hand_ruest=v["ruest_min"] is not None,
-                         hand_bereiche=sorted(v["bereiche"]), hand=bool(hand_b) or v["ruest_min"] is not None,
-                         bereiche=liste, satz_id=sid, satz=satz_v, grund=v["grund"], am=v["am"],
-                         auto_damals=v["auto_damals"], anzahl=n,
-                         gesamt_min=ruest + stueck * n, auto_gesamt_min=a_ruest + a_stueck * n,
+                         hand_stueck=hand_stueck, hand_ruest=hand_ruest, hand_gesamt=hand_gesamt,
+                         hand_bereiche=sorted(v["bereiche"]) if not hand_gesamt and not hand_stueck else [],
+                         hand=bool(hand_b) or hand_ruest,
+                         bereiche=liste, satz_id=sid, satz=satz_v, grund=v["grund"], am=v["am"], von=v["von"],
+                         auto_damals=v["auto_damals"], anzahl=n, fein=fein_,
+                         gesamt_min=gesamt, auto_gesamt_min=a_ruest + a_stueck * n,
+                         # je Baugruppe mit Rüstanteil: von Hand bzw. wie es ohne Zeit von Hand gerechnet würde
+                         je_bg_min=gesamt / n_eff, auto_je_bg_min=a_ruest / n_eff + auto_stueck_k,
                          fremd_eur=out["fremd"])
     return out
 
@@ -387,6 +581,9 @@ def gesamt_text(z):
     """Kurztext für Kopf und Angebotsliste: 'automatisch 40 min' bzw. 'von Hand 55 min (+15 min)'."""
     if not z:
         return ""
+    if z.get("hand_gesamt"):
+        return (f"von Hand {zeit_text(z['je_bg_min'])} je BG gesamt "
+                f"({abweichung_text(z['je_bg_min'] - z['auto_je_bg_min'])})")
     if z["hand"]:
         auto = z["auto_komplex_min"] if not z["hand_stueck"] else z["auto_stueck_min"]
         return f"von Hand {zeit_text(z['stueck_min'])} je BG ({abweichung_text(z['stueck_min'] - auto)})"

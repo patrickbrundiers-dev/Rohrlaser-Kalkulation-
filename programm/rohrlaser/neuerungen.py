@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.418", "<b>Schweißbaugruppen-Editor 2.0: Gesamtzeit von Hand und lernende Zeitvorschläge</b> "
+     "([[bg_gesamtzeit]]). Die ganze Bearbeitungszeit einer Baugruppe lässt sich mit einem Wert festlegen (Minuten "
+     "oder Stunden); sie geht vor allem anderen und wird nicht zur berechneten Zeit dazugezählt. Bereiche feiner: "
+     "dazu Richten, Schleifen, Qualitätskontrolle, Montage. Jede Änderung steht im <b>Protokoll</b>; ändert sich die "
+     "Baugruppe danach, kommt ein Hinweis, die Zeit bleibt. Aus den Zeiten von Hand entstehen <b>Zeitvorschläge aus "
+     "vergleichbaren Baugruppen</b> (gleiche Werkstoffgruppe und Verfahren, ähnliche Nahtlänge, Teile, Gewicht; "
+     "Ausreißer zählen nicht), übernommen wird nur mit Knopf. Neue <b>Auswertung</b> mit Grafik. Dazu <b>Stückliste</b> der Baugruppe im "
+     "Editor (Band Ausgabe) und Arbeitsgänge im Strukturbaum.",
+     "Schweißbaugruppe: Gesamtzeit von Hand mit einem Wert, Protokoll, Zeitvorschläge aus vergleichbaren Baugruppen, "
+     "Auswertung"],
     ["0.9.417", "<b>Sicherung vollständiger</b> ([[admin_sicherung_inhalt]]): Jede Sicherung enthält jetzt zusätzlich ein "
      "geprüftes PostgreSQL-Abbild und die Angebotsdokumente aus dem Angebotsordner. Beim Wiederherstellen lassen sich "
      "die Dokumente auf denselben Stand bringen, abweichende Dateien werden vorher beiseitegelegt. Klappt ein Teil der "

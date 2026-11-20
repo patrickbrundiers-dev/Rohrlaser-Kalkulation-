@@ -959,6 +959,7 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None, ohne_hand=False):
         return (km.get(kid) or {}).get("name") or "" if kid else ""
 
     posten = []         # Lohnanteile je Zeile für Bereiche und Vorgabe (bg_vorgabe.anwenden)
+    fein = bg_vorgabe.fein(bg) or ohne_hand     # Einteilung der Bereiche (alte nur mit alten Bereichen von Hand)
 
     for nt in bg["naehte"]:
         f = faktor(bg, nt.get("knoten") or "")
@@ -1022,7 +1023,7 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None, ohne_hand=False):
             out["einmal_fremd"] += einmal / n if n else 0.0
         out["fremd" if r["fremd"] else "eigen"] += je
         if not r["fremd"] and (r["laufend_min"] or r["einmal_min"]):
-            posten.append(dict(zeile=len(out["zeilen"]), bereich=bg_vorgabe.bereich(ag),
+            posten.append(dict(zeile=len(out["zeilen"]), bereich=bg_vorgabe.bereich(ag, fein),
                                stueck_min=r["laufend_min"] * f, stueck_eur=r["laufend_min"] * f / 60 * _n(r["satz"]),
                                ruest_min=r["einmal_min"] * r["umlage_faktor"],
                                ruest_eur=r["einmal_min"] / 60 * _n(r["satz"]) * r["umlage_faktor"],
@@ -1030,7 +1031,7 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None, ohne_hand=False):
         out["zeilen"].append(dict(art="Arbeitsgang", id=ag.get("id"), name=ag.get("name") or "Arbeitsgang",
                                   knoten=kname(ag.get("knoten")), faktor=f, zeit_min=r["laufend_min"] * f,
                                   kosten=r["laufend"] * f, einmal=einmal, fremd=r["fremd"], werte=r,
-                                  vorschlag=ag_status(ag) == VORSCHLAG, bereich=bg_vorgabe.bereich(ag),
+                                  vorschlag=ag_status(ag) == VORSCHLAG, bereich=bg_vorgabe.bereich(ag, fein),
                                   vk_status=ag_status(ag)))
     return bg_vorgabe.anwenden(out, posten, bg, saetze, n, ohne_hand)
 

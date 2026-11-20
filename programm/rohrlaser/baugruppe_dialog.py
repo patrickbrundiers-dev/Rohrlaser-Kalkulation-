@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from . import baugruppe, baugruppe_vorschlaege as bv, bg_mengen, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     tastatur, vorkalk
-from . import bg_vorgabe, funktionen, tempo
+from . import bg_stueckliste, bg_vorgabe, funktionen, tempo
 from .fluss import FlussLayout
 from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
@@ -1972,6 +1972,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         from .bg_zeit_feld import ZeitFeld
         self.zeit_feld = ZeitFeld(saetze, nur_lesen)
         self.zeit_feld.geaendert.connect(self.zeit_vorgabe)
+        self.zeit_feld.vorschlag_nehmen.connect(self.zeit_vorschlag_nehmen)
+        self.zeit_feld.vergleichbare.connect(self.zeit_vergleichbare_zeigen)
+        self.zeit_feld.auswertung.connect(self.zeit_auswertung_zeigen)
+        self.zeit_feld.bestaetigt.connect(self.zeit_bestaetigen)
+        self.zeit_feld.protokoll.connect(self.zeit_protokoll_zeigen)
         lay.addWidget(self.zeit_feld)
         QTimer.singleShot(0, self.erfahrung_zeigen)
         # Kostenübersicht mit Einzelteilen, Zuschlägen, Preis und Marge (Paket 2), nach Eingaben kurz verzögert
@@ -3159,23 +3164,139 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return "wiederverwendbar: einmalig nicht berechnet"
         return ""
 
-    def zeit_vorgabe(self, w):
+    def zeit_vorgabe(self, w, vorschlag=None):
         """Eingaben des Felds Kalkulation: Zeit (bg_zeit_feld) in die Baugruppe übernehmen und neu rechnen. Die
-        automatische Zeit beim Setzen wird gemerkt (Hinweis, wenn sie sich später ändert)."""
+        automatische Zeit und die Merkmale beim Setzen werden gemerkt (Hinweis, wenn sich die Baugruppe später
+        ändert), jede Änderung der Zeiten kommt ins Protokoll der Baugruppe. vorschlag = übernommener Lernvorschlag."""
         if self.nur_lesen:
             return
         from . import bg_vorgabe
         alt = bg_vorgabe.vorgabe(self.bg)
-        neu = dict(stueck_min=w["stueck_min"], ruest_min=w["ruest_min"], bereiche=w["bereiche"])
-        zahlen_neu = (neu["stueck_min"], neu["ruest_min"], neu["bereiche"]) != (alt["stueck_min"], alt["ruest_min"],
-                                                                              alt["bereiche"])
-        auto = (self.erg or {}).get("zeiten") if zahlen_neu else None
-        bg_vorgabe.vorgabe_setzen(self.bg, auto=auto, satz_id=w["satz_id"], grund=w["grund"],
+        neu = dict(gesamt_min=w.get("gesamt_min"), stueck_min=w["stueck_min"], ruest_min=w["ruest_min"],
+                   bereiche=w["bereiche"])
+        zahlen_neu = any(neu[n] != alt[n] for n in neu)
+        z = (self.erg or {}).get("zeiten")
+        auto = z if zahlen_neu else None
+        wer = self._kuerzel()
+        if zahlen_neu:
+            vs = dict(min=vorschlag["min"], n=vorschlag["n"]) if vorschlag else None
+            if not vorschlag and alt["vorschlag"] and neu["gesamt_min"] == alt["gesamt_min"]:
+                vs = alt["vorschlag"]           # die Gesamtzeit aus dem Vorschlag steht noch
+        else:
+            vs = alt["vorschlag"]
+        bg_vorgabe.vorgabe_setzen(self.bg, auto=auto, merkmale=getattr(self, "_zeit_merkmale", None) if zahlen_neu
+                                  else None, satz_id=w["satz_id"], grund=w["grund"],
+                                  frei=None if w.get("frei", True) else False, vorschlag=vs,
                                   am=datetime.date.today().strftime("%d.%m.%Y") if zahlen_neu else alt["am"] or None,
-                                  **neu)
+                                  von=wer if zahlen_neu else alt["von"] or None, **neu)
+        if zahlen_neu:
+            bg_vorgabe.protokollieren(self.bg, alt, auto_min=(z or {}).get("auto_je_bg_min"), von=wer,
+                                      am=datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), grund=w["grund"],
+                                      vorschlag=dict(min=vorschlag["min"], n=vorschlag["n"]) if vorschlag else None)
+        if zahlen_neu or w.get("frei", True) != alt["frei"]:
+            self._zeit_entschieden = True       # beim Speichern als Kalkulationsentscheidung merken (bg_zeitlernen)
         bg_vorgabe.komplex_setzen(self.bg, w["komplex_faktor"], w["komplex_gruende"])
         bg_vorgabe.schnell_setzen(self.bg, w.get("material_eur"), w.get("zukauf_eur"))
         self.aktualisieren()
+
+    def _kuerzel(self):
+        try:
+            return str(self.db.einstellung("benutzer_kuerzel") or "") if self.db is not None else ""
+        except Exception:       # noqa: BLE001
+            return ""
+
+    def _angebot_nummer(self):
+        kopf = getattr(self.parent(), "kopf", None) or {}
+        return str(kopf.get("nummer") or "")
+
+    def _zeit_lernen_zeigen(self, bg, positionen):
+        """Editor 2.0: Merkmale der Baugruppe, Hinweis „Zeit von Hand prüfen“ und Zeitvorschlag aus vergleichbaren
+        Baugruppen im Feld Kalkulation: Zeit. Reine Anzeige: nichts wird von allein übernommen."""
+        from . import bg_vorgabe, bg_zeitlernen
+        z = (self.erg or {}).get("zeiten")
+        try:
+            self._zeit_merkmale = m = bg_zeitlernen.merkmale(bg, positionen, self.k, self.erg)
+        except Exception:       # noqa: BLE001 – Beiwerk, das Fenster darf daran nicht scheitern
+            self._zeit_merkmale = m = None
+        self.zeit_feld.pruef_setzen(bg_vorgabe.pruefen(bg, z, m))
+        vs = None
+        if self.db is not None and z and m:
+            if getattr(self, "_zeit_faelle", None) is None:
+                self._zeit_faelle = bg_zeitlernen.faelle(self.db)
+            vs = bg_zeitlernen.vorschlag(None, m, z.get("auto_je_bg_min"), ohne=(self._angebot_nummer(), bg.get("id")),
+                                         daten=self._zeit_faelle)
+        self._zeit_vorschlag = vs
+        v = bg_vorgabe.vorgabe(bg)
+        genommen = bool(vs and v["gesamt_min"] is not None and abs(v["gesamt_min"] - vs["min"]) < 0.05)
+        self.zeit_feld.vorschlag_setzen(vs, uebernommen=genommen)
+        if getattr(self, "zeit_vorschlag_knopf", None) is not None:
+            self.zeit_vorschlag_knopf.setEnabled(bool(vs) and not genommen and not self.nur_lesen)
+
+    def stueckliste_zeigen(self):
+        """Editor 2.0: Stückliste aus dem Stand des Fensters (bg_stueckliste)."""
+        d = bg_stueckliste.StuecklisteDialog(self, self.daten(), self.teile, self.anzahl.value(), self.step_name())
+        d.exec()
+
+    def zeit_gesamt_fokus(self):
+        """Schnellzugriff „Gesamtzeit überschreiben“: Abschnitt Zeit aufklappen und ins Feld springen."""
+        k = getattr(self, "klappen", None)
+        if k:
+            k["zeit"].oeffnen(True)
+        f = self.zeit_feld.felder["gesamt_min"]
+        f.setFocus()
+        f.selectAll()
+
+    def zeit_vorschlag_nehmen(self):
+        """Lernvorschlag als Gesamtzeit je Baugruppe von Hand übernehmen (nur mit diesem Knopf)."""
+        vs = getattr(self, "_zeit_vorschlag", None)
+        if self.nur_lesen or not vs:
+            return
+        from . import bg_vorgabe
+        try:
+            w = self.zeit_feld.werte()
+        except bg_vorgabe.Fehler:
+            return
+        w["gesamt_min"] = vs["min"]
+        if not w["grund"]:
+            w["grund"] = f"Lernvorschlag aus {vs['n']} vergleichbaren Baugruppen"
+        self.zeit_vorgabe(w, vorschlag=vs)
+
+    def zeit_bestaetigen(self):
+        """Hinweis „Zeit von Hand prüfen“: die Zeit gilt weiter, heutiger Stand als Grundlage."""
+        if self.nur_lesen:
+            return
+        from . import bg_vorgabe
+        bg_vorgabe.bestaetigen(self.bg, (self.erg or {}).get("zeiten"), getattr(self, "_zeit_merkmale", None))
+        self.aktualisieren()
+
+    def zeit_vergleichbare_zeigen(self):
+        from . import bg_zeit_dialoge
+        vs = getattr(self, "_zeit_vorschlag", None)
+        if vs:
+            bg_zeit_dialoge.VergleichDialog(self, vs, (self.erg or {}).get("zeiten")).exec()
+
+    def zeit_protokoll_zeigen(self):
+        from . import bg_zeit_dialoge
+        bg_zeit_dialoge.ProtokollDialog(self, self.bg).exec()
+
+    def zeit_auswertung_zeigen(self):
+        from . import bg_zeit_dialoge
+        bg_zeit_dialoge.AuswertungDialog(self, self.db).exec()
+
+    def zeit_lernen_merken(self):
+        """Beim Speichern des Fensters: die Zeitentscheidung dieser Baugruppe für Lernvorschläge festhalten (eine
+        Zeile je Angebot und Baugruppe). Nur, wenn die Zeit in diesem Fenster entschieden wurde oder es die Zeile
+        schon gibt: eine kopierte Baugruppe zählt nicht noch einmal."""
+        from . import bg_zeitlernen
+        nr = self._angebot_nummer()
+        if self.db is None or not nr:
+            return None
+        bg = self.daten()
+        if not getattr(self, "_zeit_entschieden", False) and bg_zeitlernen.zeile(self.db, nr, bg.get("id")) is None:
+            return None
+        return bg_zeitlernen.merken(self.db, nr, baugruppe.name(self._position(bg), bg), bg,
+                                    (self.erg or {}).get("zeiten"), getattr(self, "_zeit_merkmale", None),
+                                    self._kuerzel())
 
     def _kopf_zeigen(self):
         """Status als farbiges Kennzeichen und Gesamtpreis des Auftrags in der Kopfzeile."""
@@ -3360,6 +3481,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if getattr(self, "zeit_feld", None) is not None:
             self.zeit_feld.ohne_teile = not any(t.get("drin") for t in self.teile)
             self.zeit_feld.setzen(bg, self.erg.get("zeiten"))
+            self._zeit_lernen_zeigen(bg, positionen)
         if getattr(self, "_kosten_timer", None) is not None:
             self._kosten_timer.start()
         m = bg_mengen.mengen(bg, positionen, self.k)
@@ -3691,6 +3813,31 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         r.einsetzen("Konstruktion", "Naht zeichnen", self.zeichnen_knopf, self.zeichnen_zurueck, self.zeichnen_ok,
                     self.zeichnen_art)
         r.einsetzen("Konstruktion", "Auswahl im 3D", self.auswahl_knick, self.auswahl_steck)
+        # Editor 2.0 (19.11.2026): Schnellzugriffe auf die Zeit von Hand
+        self.zeit_knopf = QPushButton("Gesamtzeit überschreiben")
+        self.zeit_knopf.setObjectName("bg_zeit_ueberschreiben")
+        self.zeit_knopf.setToolTip("Die ganze Bearbeitungszeit der Baugruppe mit einem Wert von Hand festlegen "
+                                   "(öffnet „Kalkulation: Zeit“ und springt ins Feld Gesamtzeit je Baugruppe)")
+        self.zeit_knopf.clicked.connect(self.zeit_gesamt_fokus)
+        self.zeit_knopf.setEnabled(not self.nur_lesen)
+        self.zeit_vorschlag_knopf = QPushButton("Lernvorschlag übernehmen")
+        self.zeit_vorschlag_knopf.setObjectName("bg_zeit_vorschlag")
+        self.zeit_vorschlag_knopf.setToolTip("Zeitvorschlag aus vergleichbaren Baugruppen als Gesamtzeit von Hand "
+                                             "übernehmen (nur wenn es einen Vorschlag gibt)")
+        self.zeit_vorschlag_knopf.clicked.connect(self.zeit_vorschlag_nehmen)
+        self.zeit_vorschlag_knopf.setEnabled(False)
+        self.zeit_auswertung_knopf = QPushButton("Auswertung Zeiten …")
+        self.zeit_auswertung_knopf.setObjectName("bg_zeit_auswertung")
+        self.zeit_auswertung_knopf.clicked.connect(self.zeit_auswertung_zeigen)
+        self.zeit_auswertung_knopf.setEnabled(self.db is not None)
+        self.stueckliste_knopf = QPushButton("Stückliste …")
+        self.stueckliste_knopf.setObjectName("bg_stueckliste")
+        self.stueckliste_knopf.setToolTip("Alle Einzelteile der Baugruppe mit Art, Unterbaugruppe und Stückzahlen; "
+                                          "kopieren oder als CSV speichern")
+        self.stueckliste_knopf.clicked.connect(self.stueckliste_zeigen)
+        r.einsetzen("Ausgabe", "Ausgabe", self.stueckliste_knopf)
+        r.einsetzen("Konstruktion", "Zeit von Hand", self.zeit_knopf, self.zeit_vorschlag_knopf,
+                    self.zeit_auswertung_knopf)
         self._band_3d_knoepfe()
         r.auffrischen()
 
@@ -3718,6 +3865,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 ("Einzelteile", str(n_teile), "Positionen in der Baugruppe"),
                 *([("Sicherheit", self.sicherheit["kurz"], self.sicherheit["text"])]
                   if getattr(self, "sicherheit", None) else []),
+                *([("Zeitvorschlag", _min(self._zeit_vorschlag["min"]),
+                    f"Aus {self._zeit_vorschlag['n']} vergleichbaren Baugruppen (Kalkulation: Zeit). Wird nur mit "
+                    "dem Knopf übernommen.")] if getattr(self, "_zeit_vorschlag", None) else []),
                 ("Vorschläge offen", str(vorkalk.offen(self.bg)),
                  "Gelbe Vorschläge der Vorkalkulation, die noch nicht bestätigt sind (Prüfmeldungen: Klick springt "
                  "zur ersten Zeile; „Vorschläge bestätigen“ übernimmt alle)"),
@@ -3744,6 +3894,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             from . import vorrichtung
             if vorrichtung.wieder_offen(self.bg, tr):
                 out.append("HINWEIS: " + vorrichtung.hinweis_wieder(tr))
+        from . import bg_vorgabe as _bv        # Editor 2.0: Baugruppe seit der Zeit von Hand geändert
+        gruende = _bv.pruefen(self.bg, (self.erg or {}).get("zeiten"), getattr(self, "_zeit_merkmale", None))
+        if gruende:
+            out.append("HINWEIS: Zeit von Hand prüfen, die Baugruppe hat sich seit der Vorgabe geändert ("
+                       + "; ".join(gruende) + "). Die Zeit bleibt bestehen.")
         for h in (getattr(self, "vk_ergebnis", None) or {}).get("hinweise") or ():
             t = f"HINWEIS: Vorkalkulation: {h}"
             if t not in out:
@@ -3798,12 +3953,19 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                     je = t.get("je") or 1
                     it = item(eltern, ("teil", t["_id"]), (self._teil_titel(t["_q"]), _text(je),
                                                            _text(je * f) if f is not None else "?"), True)
-                    it.setToolTip(0, self._teil_text(t, 0) + ("" if t["_id"] in self.netze else " (ohne 3D-Daten)"))
+                    it.setToolTip(0, bg_stueckliste.teil_art(t["_q"]) + ": " + self._teil_text(t, 0)
+                                  + ("" if t["_id"] in self.netze else " (ohne 3D-Daten)"))
             for n in self.bg["naehte"]:
                 if (n.get("knoten") or "") == kid:
                     text = f"Nahtgruppe {n.get('nr') or ''}: {n.get('nahtart') or ''} {_text(n.get('laenge'))} mm"
                     it = item(eltern, ("naht", n.get("id")), (text.strip(), _text(n.get("anzahl") or 1), ""))
                     it.setForeground(0, QBrush(stil.farbe(GRAU)))
+            for nr, a in enumerate(self.bg["arbeitsgaenge"]):   # Editor 2.0: Bearbeitungsschritte in der Struktur
+                if (a.get("knoten") or "") == kid:
+                    it = item(eltern, ("ag", nr), ("Arbeitsgang: " + str(a.get("name") or ""), "", ""))
+                    it.setForeground(0, QBrush(stil.farbe(GRAU)))
+                    it.setToolTip(0, "Bearbeitungsschritt (Reiter Arbeitsgänge und Vorrichtungen), Bereich "
+                                  + bg_vorgabe.bereich(a))
             for k in self.bg["knoten"]:
                 if (k.get("parent") or "") == kid:
                     f = baugruppe.faktor(self.bg, k["id"])
@@ -4337,6 +4499,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if self.vk_auto.isChecked():
             self.vorkalkulation()
         self.ergebnis = self.werte()
+        self.zeit_lernen_merken()
         self.accept()
 
     def werte(self):
