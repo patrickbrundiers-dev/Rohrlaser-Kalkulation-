@@ -4916,8 +4916,10 @@ class Hauptfenster(QMainWindow):
             werkzeugleiste_qt.zustand_merken(self)  # Lage von Werkzeugleiste und Info-Panel je Benutzer
             try:
                 _, fehler = self.db.sicherungen(zusatz="beenden")
-            except OSError as e:
-                fehler = str(e)
+            except Exception as e:      # noqa: BLE001 – ein Fehler in der Sicherung darf das Beenden nie abbrechen
+                fehler = f"{type(e).__name__}: {e}"         # (sonst laufen Hintergrund-Threads weiter, Absturz 20.11.)
+                from . import protokoll
+                protokoll.warnung(f"Sicherung beim Beenden: {fehler}")
             if fehler and QMessageBox.warning(
                     self, "Datensicherung", f"Die Sicherung beim Beenden ist nicht vollständig:\n\n{fehler}\n\n"
                     "Trotzdem beenden?", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:

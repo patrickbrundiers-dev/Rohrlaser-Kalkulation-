@@ -28,7 +28,7 @@ RUHE_S = 15                 # Sekunden: jüngere Dateien werden evtl. noch gesch
 SPERRE = ".in_bearbeitung"  # Datei im Unterordner: Kürzel und Zeit des Bearbeiters
 SPERRE_STUNDEN = 12         # ältere Sperren gelten als vergessen (Programm abgestürzt)
 ZUGEWIESEN = ".zugewiesen"  # Datei im Unterordner: Kürzel des Kollegen, Absender, Zeit, Notiz
-STEP = {".step", ".stp", ".igs", ".iges"}     # mit IGES (Patrick 05.11.2026)
+STEP = {".step", ".stp", ".igs", ".iges", ".tubx"}     # mit IGES (05.11.2026) und TRUMPF-TUBX (20.11.2026)
 FORMULAR = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff",     # Anfrageformulare (gelesen ab W6b/W6c)
             ".csv", ".xlsx",        # Kunden-Stückliste (Roadmap Phase 1, ERP-001, stueckliste.py)
             ".docx", ".docm", ".odt", ".ods", ".xlsm"}      # Word/LibreOffice-Formular (formular_office.py, 17.11.2026)
@@ -600,7 +600,7 @@ def verschieben(anfrage, ziel, step_ordner="STEP"):
     return n, fehler
 
 
-def werte(db, gelesen, mails, ordner_kunde=None):
+def werte(db, gelesen, mails, ordner_kunde=None, kunde_fest=False):
     """Was Formulare und E-Mails einer Anfrage vorbelegen (W6b/W6c, Mail 28.10.2026, Freigabe F1-F4 a). gelesen =
     gelesene Formulare (dict text/ocr/unsicher), mails = mail.Mail. Kunde: Absenderadresse der Mail (F1), sonst Name im
     Text, sonst ordner_kunde; Anfrage-Nr. aus Formular, Betreff oder Text; Wunschtermin als Lieferzeit (F2); interne
@@ -608,9 +608,11 @@ def werte(db, gelesen, mails, ordner_kunde=None):
     Dazu (Patrick 28.10.2026 „robuster und intelligenter“): Kunde auch über den Domainnamen (passt zum Kundennamen),
     Hinweise auf unbekannte Absender, gewünschte Staffelmengen, erwähnte Zusatzarbeiten und schon vorhandene Angebote
     mit derselben Anfrage-Nr. Ein Fehler beim Auswerten bricht das Öffnen nie ab (dann nur ohne Vorschläge).
-    Ergebnis (Kundennummer oder None, Anfrage-Nr. oder None, weitere Werte für neu_aus_step)."""
+    Ergebnis (Kundennummer oder None, Anfrage-Nr. oder None, weitere Werte für neu_aus_step).
+    kunde_fest (19.11.2026): der Kunde der Anfrage ist bestätigt bzw. von Hand gewählt (ordner_kunde, auch leer =
+    „Intern ohne Kunde“) – die Mail ändert ihn dann nicht, und es wird kein neuer Kunde angelegt."""
     try:
-        return _werte(db, gelesen, mails, ordner_kunde)
+        return _werte(db, gelesen, mails, ordner_kunde, kunde_fest)
     except Exception as e:          # nie am Auswerten scheitern: Anfrage öffnet ohne Vorschläge
         weitere = dict(formulare=list(gelesen)) if gelesen else {}
         if mails:
@@ -658,7 +660,7 @@ def kontakt_uebernehmen(db, kontakt):
     return len(kontakt["felder"])
 
 
-def _werte(db, gelesen, mails, ordner_kunde=None):
+def _werte(db, gelesen, mails, ordner_kunde=None, kunde_fest=False):
     from . import formular, mail
     formular_text = "\n".join(g["text"] for g in gelesen if g.get("text"))
     # mehrere Mails zur selben Anfrage (F3 a): die neueste gilt, andere Werte älterer Mails nur als Hinweis
@@ -707,8 +709,14 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
                 hinweis.append(f"Kunde {kunde_text(kunden, kunde_domain)} ({wie}, bitte prüfen)")
                 break
     kunde = kunde_mail or e["kunde"] or kunde_domain or ordner_kunde
+    if kunde_fest:                  # in der Anfrage bestätigt bzw. von Hand gewählt: gilt
+        if kunde != ordner_kunde:
+            hinweis.append("Kunde wie in der Anfrage bestätigt (die Mail deutet auf "
+                           f"{kunde_text(kunden, kunde) if kunde else 'keinen Kunden'})")
+        kunde_mail = kunde_mail if kunde_mail == ordner_kunde else None     # Signatur nur beim selben Kunden
+        kunde = ordner_kunde
     weitere, kopf = dict(formulare=gelesen), {}
-    if not kunde:           # unbekannter Kunde: neu anlegen mit „Kunde prüfen“ (Patrick 28.10.2026)
+    if not kunde and not kunde_fest:           # unbekannter Kunde: neu anlegen mit „Kunde prüfen“ (Patrick 28.10.2026)
         absender = next((m for m in vom_kunden if mail.adressen(m, domains)), None)
         daten = mail.kunde_daten(absender, formular_text, domains)
         if daten and not _eigene_firma(daten, eigen_name, domains):

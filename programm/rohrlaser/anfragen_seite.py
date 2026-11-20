@@ -23,14 +23,18 @@ import datetime
 import html
 from concurrent.futures import ThreadPoolExecutor
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout,
                                QHBoxLayout,
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter,
-                               QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
+                               QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
 
+from . import protokoll
 from . import anfragen_akten as ak
+from . import anfragen_dokumente as adok
+from . import anfragen_sammeln as sa
+from . import mail_zuordnung as mz
 from . import outlook_anfragen as ol
 from . import stil
 from . import virenpruefung as vp
@@ -88,7 +92,7 @@ class AnfragenSeite(QWidget):
         oben.addStretch(1)
         filter_ = QHBoxLayout()         # zweite Zeile: Suche und Filter (passt auch in schmale Fenster)
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Suchen: Kunde, Betreff, Text, Datei, Angebot …")
+        self.suche.setPlaceholderText("Suchen: Kunde, Betreff, Text, Projekt-/Bestell-Nr., Datei, Mail, Angebot …")
         self.suche.setClearButtonEnabled(True)
         self.suche.setMinimumWidth(320)
         self.suche.textChanged.connect(lambda _t: self.liste_fuellen())
@@ -104,11 +108,16 @@ class AnfragenSeite(QWidget):
         self.filter_prio.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
         filter_.addWidget(self.filter_prio)
         self.filter_daten = QComboBox()     # Patrick 17.11.2026: Anfragen ohne STEP (nur PDF, ohne Anhang) finden
-        for text, wert in (("Alle Anfragen", ""), ("Mit STEP", "step"), ("Ohne STEP", "ohne")):
+        for text, wert in (("Alle Anfragen", ""), ("Mit STEP", "step"), ("Ohne STEP", "ohne"),
+                           ("Kunde prüfen", "pruefen")):
             self.filter_daten.addItem(text, wert)
         self.filter_daten.setToolTip("Ohne STEP: nur PDF-Zeichnung, nur DXF oder Mail ohne Anhang")
         self.filter_daten.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
         filter_.addWidget(self.filter_daten)
+        self.filter_kunde = QComboBox()     # 20.11.2026: Filter nach Kunde (Projekt-/Bestell-Nr. über die Suche)
+        self.filter_kunde.setToolTip("Nur Anfragen dieses Kunden")
+        self.filter_kunde.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
+        filter_.addWidget(self.filter_kunde)
         self.filter_zeit = QComboBox()
         for text, tage in (("Letzte 90 Tage", ERLEDIGT_TAGE), ("Letztes Jahr", 365), ("Alle", 0)):
             self.filter_zeit.addItem(text, tage)
@@ -158,6 +167,9 @@ class AnfragenSeite(QWidget):
         kopf.setSectionResizeMode(2, QHeaderView.Stretch)
         self.tabelle.itemSelectionChanged.connect(self._gewaehlt_neu)
         self.tabelle.itemActivated.connect(lambda _it: self.hauptaktion())
+        self.tabelle.setAcceptDrops(True)          # Dateien/Mails auf eine Zeile ziehen = zu dieser Anfrage
+        self.tabelle.viewport().setAcceptDrops(True)
+        self.tabelle.viewport().installEventFilter(self)
         teiler.addWidget(self.tabelle)
 
         rechts = QWidget()
@@ -170,7 +182,13 @@ class AnfragenSeite(QWidget):
         self.inhalt = QTextBrowser()
         self.inhalt.setOpenLinks(False)
         self.inhalt.anchorClicked.connect(self._link)
-        rl.addWidget(self.inhalt, 1)
+        self.reiter = QTabWidget()      # 20.11.2026: Übersicht · Dokumente & Mails · Chronik
+        self.reiter.addTab(self.inhalt, "Übersicht")
+        self.dokumente = adok.DokumentePanel(self)
+        self.reiter.addTab(self.dokumente, "Dokumente && Mails")
+        self.chronik = QTextBrowser()
+        self.reiter.addTab(self.chronik, "Chronik")
+        rl.addWidget(self.reiter, 1)
         zeile = QHBoxLayout()
         self.wahl_bearbeiter = QComboBox()
         self.wahl_bearbeiter.setToolTip("Bearbeiter für Übernehmen bzw. Bearbeiter ändern")
@@ -234,8 +252,9 @@ class AnfragenSeite(QWidget):
         self.teiler, self._geteilt = teiler, False
 
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.neu_laden)
+        self.timer.timeout.connect(lambda: self.neu_laden(takt=True))
         self.timer.start(AKTUALISIEREN_S * 1000)
+        self._takt_stand = None         # Stand beim letzten Takt: unverändert -> Liste nicht neu aufbauen
         self._bekannt = None            # Nummern der neuen Anfragen beim letzten Lesen (Windows-Meldung)
         self._antworten = {}            # Antworten des Kunden je Anfrage beim letzten Lesen
         self.neu_laden()
@@ -248,6 +267,27 @@ class AnfragenSeite(QWidget):
         self._ol_warten.setInterval(500)
         self._ol_warten.timeout.connect(self._outlook_pruefen)
         QTimer.singleShot(3000, self.outlook_abrufen)
+
+    def eventFilter(self, obj, e):
+        """Ziehen auf eine Zeile der Liste: Dateien bzw. Outlook-Mails zu dieser Anfrage."""
+        if obj is self.tabelle.viewport() and e.type() in (QEvent.DragEnter, QEvent.DragMove, QEvent.Drop):
+            m = e.mimeData()
+            if not (m.hasUrls() or adok.ist_outlook_zug(m)):
+                return False
+            if e.type() != QEvent.Drop:
+                e.acceptProposedAction()
+                return True
+            it = self.tabelle.itemAt(e.position().toPoint())
+            if it is not None:
+                self.waehlen(it.data(Qt.ItemDataRole.UserRole))
+                if m.hasUrls():
+                    self.dokumente_hinzufuegen([ak.Path(u.toLocalFile()) for u in m.urls() if u.isLocalFile()],
+                                               quelle="drag")
+                else:
+                    self.outlook_auswahl_hinzufuegen(quelle="drag")
+            e.acceptProposedAction()
+            return True
+        return super().eventFilter(obj, e)
 
     def showEvent(self, ereignis):
         """Beim ersten Zeigen: Liste links etwas breiter als die Anfrage rechts (Betreff und Status lesbar)."""
@@ -291,18 +331,34 @@ class AnfragenSeite(QWidget):
             out.setdefault(k, "")
         return out
 
-    def neu_laden(self, eingang=False):
-        """Akten neu lesen; eingang: vorher den Anfrage-Ordner ansehen (Karte der Startseite)."""
+    def neu_laden(self, eingang=False, takt=False):
+        """Akten neu lesen; eingang: vorher den Anfrage-Ordner ansehen (Karte der Startseite). takt: Aufruf der Uhr
+        alle AKTUALISIEREN_S Sekunden – ist keine Akte geändert (Ablage liefert dann dieselben Objekte aus ihrem
+        Zwischenspeicher), bleibt die Liste stehen. Vorher baute jeder Takt alles neu auf: alle 30 s stand das
+        Programm 0,5–0,7 s, auch auf der Startseite (Supportpaket 20.11.2026)."""
         if eingang:
             karte = getattr(getattr(self.f, "start", None), "anfragen", None)
             if karte is not None:
                 karte.neu_laden(erzwingen=True)
+        if not getattr(self, "_wiederhergestellt", False) and not getattr(self.db, "nur_lesen", False):
+            self._wiederhergestellt = True
+            try:                        # abgebrochene Zusammenführungen (Absturz, Netz) zu Ende führen
+                for t in sa.wiederherstellen(self.ablage()):
+                    self.f.meldung(t)
+            except Exception as fehler:           # noqa: BLE001
+                protokoll.warnung(f"Anfragen: Meldung nicht angezeigt ({type(fehler).__name__}: {fehler})")
         try:
-            self.akten = self.ablage().alle()
+            akten = self.ablage().alle()
+            stand = (tuple(map(id, akten)), datetime.datetime.now().strftime("%Y%m%d%H"))  # Ampel/Fristen stündlich
+            if takt and stand == self._takt_stand and akten:
+                return
+            self._takt_stand = stand
+            self.akten = akten
             self.hinweis.setVisible(False)
             self.fehlalarme_aufheben()
         except OSError as e:
             self.akten = []
+            self._takt_stand = None
             self.hinweis.setText(f"Anfragen nicht lesbar: {fehler_text(e)}")
             self.hinweis.setVisible(True)
         self._erkannt = {}
@@ -603,6 +659,15 @@ class AnfragenSeite(QWidget):
             i = box.findData(alt if alt is not None else (self.ich() if not alle else ""))
             box.setCurrentIndex(max(0, i))
             box.blockSignals(False)
+        alt = self.filter_kunde.currentData()
+        namen_k = self._kunden_namen()
+        self.filter_kunde.blockSignals(True)
+        self.filter_kunde.clear()
+        self.filter_kunde.addItem("Alle Kunden", "")
+        for nr in sorted({a.kunde for a in self.akten if a.kunde}, key=lambda n: (namen_k.get(n) or n).lower()):
+            self.filter_kunde.addItem(f"{namen_k.get(nr) or nr} ({nr})", nr)
+        self.filter_kunde.setCurrentIndex(max(0, self.filter_kunde.findData(alt or "")))
+        self.filter_kunde.blockSignals(False)
 
     def sichtbare(self):
         tage = self.filter_zeit.currentData() if self.ordner in (ak.ERLEDIGT, ak.AUSSORTIERT) else 0
@@ -612,8 +677,13 @@ class AnfragenSeite(QWidget):
         if self.ampel_filter:
             liste = [a for a in liste if self.passt_filter(a, self.ampel_filter)]
         daten = self.filter_daten.currentData() or ""
-        if daten:
+        if daten == "pruefen":
+            liste = [a for a in liste if a.kunde_pruefen()]
+        elif daten:
             liste = [a for a in liste if (a.daten_art() == "step") == (daten == "step")]
+        kunde = self.filter_kunde.currentData() if hasattr(self, "filter_kunde") else ""
+        if kunde:
+            liste = [a for a in liste if a.kunde == kunde]
         return liste
 
     def liste_fuellen(self):
@@ -639,10 +709,16 @@ class AnfragenSeite(QWidget):
             anh = ", ".join(f"{n} {ak.ART_TEXT[x]}" for x, n in arten.items())
             if a.kennzeichen():         # ohne STEP (17.11.2026): Kennzeichen vorn
                 anh = a.kennzeichen() + (f" · {anh}" if arten and "mail" not in arten else "")
-            kunde = kunden.get(a.kunde) or a.kopf.get("kunde_name") or a.absender or a.kopf.get("absender", "")
+            kunde = kunden.get(a.kunde) or a.stand.get("kunde_name") or a.kopf.get("kunde_name") or a.absender \
+                or a.kopf.get("absender", "")
+            if a.kunde_pruefen():       # Kunde nicht sicher erkannt (19.11.2026): auffällig, nie still falsch
+                v = (a.zuordnung.get("vorschlaege") or [None])[0]
+                kunde = "⚠ Kunde prüfen" + (f": {v['name']}?" if v else (f" ({kunde})" if kunde else ""))
             stufe, faellig, frist = self.ampeln.get(a.nr) or (None, None, "")
             status = ak.STATUS_TEXT[a.status]
-            if a.aussortiert:
+            if a.stand.get("zusammengefuehrt_in"):
+                status = f"Zusammengeführt in {a.stand['zusammengefuehrt_in']}"
+            elif a.aussortiert:
                 status = f"Keine Anfrage: {a.aussortiert}"
             elif frist:                 # kurz in der Liste, ganz im Tooltip und rechts im Kopf
                 status += " · " + ("überfällig" if stufe == "rot" and faellig else "heute" if stufe == "gelb"
@@ -725,16 +801,20 @@ class AnfragenSeite(QWidget):
         if a is None:
             self.kopf.setText("<i>Keine Anfrage gewählt</i>")
             self.inhalt.clear()
+            self.dokumente.fuellen(None, None)
+            self.chronik.clear()
             return
         e = html.escape
         s = a.stand
-        absender = a.kopf.get("absender_name") or ""
-        adresse = a.kopf.get("absender") or ""
+        absender = a.absender if a.stand.get("absender_korr") else a.kopf.get("absender_name") or ""
+        adresse = a.absender_adresse
         zeilen = [f"<b style='font-size:14px'>{e(a.betreff)}</b>",
                   f"{e(a.nr)} · <span style='color:{FARBE[a.status]}'>{ak.STATUS_TEXT[a.status]}</span>"
                   + (f" · {e(ak.PRIORITAET_TEXT[a.prioritaet])}" if a.prioritaet != "normal" else ""),
                   (f"Von {e(absender)} &lt;{e(adresse)}&gt;" if adresse else (f"Von {e(absender)}" if absender else
-                   ("Kunde nicht erkennbar, bitte selbst wählen" if a.kopf.get("weitergeleitet") else "")))
+                   (f"Interne Anfrage von {e(a.zuordnung['anfragender_intern'].get('name') or '')}"
+                    if a.zuordnung.get("anfragender_intern") else
+                    "Kunde nicht erkennbar, bitte selbst wählen" if a.kopf.get("weitergeleitet") else "")))
                   + (f" · intern {e(a.kopf['weitergeleitet'])}" if a.kopf.get("weitergeleitet") else ""),
                   f"Eingang {_zeit(a.eingang)}"
                   + (f" · übernommen {ak._zeit_text(s['uebernommen_am'])} von {e(a.bearbeiter)}" if a.bearbeiter
@@ -757,6 +837,19 @@ class AnfragenSeite(QWidget):
         if n:
             teile.append(f"<p style='color:#A66A00'>Vom selben Absender wurden schon {n} Mails als „Keine Anfrage“ "
                          f"aussortiert ({e(grund)}). <a href='aussortieren:{e(grund)}'>Auch diese aussortieren</a></p>")
+        if a.stand.get("zusammengefuehrt_in"):
+            z = a.stand["zusammengefuehrt_in"]
+            teile.append(f"<p style='color:#2F6FB3'><b>Zusammengeführt in <a href='anfrage:{e(z)}'>{e(z)}</a></b>"
+                         " – Mails und Dokumente stehen dort.</p>")
+        try:
+            teile.append(adok.herkunft_html(a, self._kunden_namen()))
+            vs = sa.vorschlaege(self.akten, a, self._mailtext(a)) if a.status != ak.ERLEDIGT else []
+        except Exception:               # noqa: BLE001 – Anzeige, nie ein Fehler
+            vs = []
+        if vs:
+            teile.append("<p style='color:#A66A00'><b>Gehört vielleicht zu:</b> " + "; ".join(
+                f"<a href='anfrage:{e(b.nr)}'>{e(b.nr)}</a> {e(b.betreff)} ({e(g)}) · "
+                f"<a href='zusammen:{e(b.nr)}'>Zusammenführen …</a>" for b, g in vs) + "</p>")
         if a.status != ak.ERLEDIGT:
             teile += self._erkannt_html(a)
         if s.get("vormessung"):
@@ -803,6 +896,17 @@ class AnfragenSeite(QWidget):
         teile.append("<p><b>Verlauf:</b></p><p style='color:#555'>"
                      + "<br>".join(e(ak.verlauf_text(x)) for x in verlauf) + "</p>")
         self.inhalt.setHtml("".join(teile))
+        try:
+            self.dokumente.fuellen(a, self.ablage().wurzel)
+            self.chronik.setHtml(adok.chronik_html(a))
+        except Exception as fehler:               # noqa: BLE001
+            protokoll.warnung(f"Anfragen: Chronik nicht angezeigt ({type(fehler).__name__}: {fehler})")
+
+    def _kunden_namen(self):
+        try:
+            return {str(k.get("kundennr")): k.get("name") or "" for k in self.db.zeilen("kunden")}
+        except Exception:               # noqa: BLE001
+            return {}
 
     def _angebot_text(self, nummer):
         """Summe netto und Stand des Angebots, z. B. „ (1.234,50 € netto, versendet)“."""
@@ -861,6 +965,28 @@ class AnfragenSeite(QWidget):
         art, _, wert = t.partition(":")
         if art == "angebot":
             self.angebot_oeffnen(wert)
+        elif art == "anfrage":
+            self.waehlen(wert)
+        elif art == "zusammen" and a:
+            self.zusammenfuehren([wert] if wert else None)
+        elif art == "kunde_ok" and a:
+            self.kunde_zuordnen(wert, bestaetigen=True)
+        elif art == "angebot_hand" and a:
+            self.angebot_hand()
+        elif art == "kunde_wahl" and a:
+            self.kunde_zuordnen()
+        elif art == "kunde_neu" and a:
+            self.kunde_neu_anlegen()
+        elif art == "ansprechpartner" and a:
+            self.ansprechpartner_setzen()
+        elif art == "absender" and a:
+            self.absender_korrigieren()
+        elif art == "ohne_kunde" and a:
+            self._ausfuehren(lambda abl, x: abl.zuordnung_aendern(x, "ohne_kunde"),
+                             "Anfrage {nr}: intern, ohne Kunde.")
+        elif art == "zuruecksetzen" and a:
+            self._ausfuehren(lambda abl, x: abl.zuordnung_aendern(x, "zuruecksetzen"),
+                             "Anfrage {nr}: Zuordnung zurückgesetzt (wie beim Eingang erkannt).")
         elif art == "aussortieren" and a:
             self.aussortieren(wert)
         elif art == "rueckfrage" and a:
@@ -1184,6 +1310,294 @@ class AnfragenSeite(QWidget):
         mails.sort(key=lambda p: p.suffix.lower() != ".msg")
         return mails[0] if mails else None
 
+    # ------------------------------------------------------------------ Herkunft und Kunde (19.11.2026)
+    def kunde_zuordnen(self, nr=None, bestaetigen=False, regel=False, domain=False, grund=""):
+        """Kunde von Hand zuordnen bzw. Vorschlag übernehmen (bestaetigen). Ohne nr: Fenster mit Suche und
+        „Als Regel merken“. regel/domain: Lernregel Adresse bzw. Domain → Kunde anlegen. Ergebnis: Akte oder None."""
+        a = self.akte()
+        if a is None:
+            return None
+        try:
+            kunden = self.db.zeilen("kunden")
+        except Exception:               # noqa: BLE001
+            kunden = []
+        if nr is None:
+            if self.f.stumm:
+                return None
+            d = adok.KundeDialog(self, kunden, a)
+            if d.exec() != QDialog.Accepted or not d.wahl():
+                return None
+            nr, regel, domain, grund = d.wahl(), d.regel.isChecked(), d.domain.isChecked(), d.grund.text().strip()
+        name = self._kunden_namen().get(str(nr), "")
+        r = None
+        adresse = a.absender_adresse
+        if (regel or domain) and adresse:
+            try:
+                r = mz.regel_anlegen(self.ablage().wurzel, "domain" if domain else "adresse",
+                                     mz.mail._domain(adresse) if domain else adresse, nr, name, von=self.ich(),
+                                     akte=a.nr)
+            except (OSError, ValueError) as e:
+                self.f.meldung(f"Regel nicht gespeichert: {e}", fehler=True)
+        feld = "bestaetigt" if bestaetigen and not grund else "kunde"
+        return self._ausfuehren(lambda abl, x: abl.zuordnung_aendern(x, feld, nr, name, grund=grund,
+                                                                      regel=r and mz.regel_text(r)),
+                                f"Anfrage {{nr}}: Kunde {nr} {name}".rstrip() + (" (als Regel gemerkt)." if r else "."))
+
+    def kunde_neu_anlegen(self, daten=None, trotzdem=False):
+        """Neuen Kunden aus Absender und Signatur anlegen (Bemerkung „Kunde prüfen“) und zuordnen; vorher Dubletten im
+        Kundenstamm zeigen (trotzdem: ohne Rückfrage, Tests). Ergebnis: Kundennummer oder None."""
+        from . import mail, step_neu
+        a = self.akte()
+        if a is None:
+            return None
+        if daten is None:
+            m = None
+            p = self._mail_pfad(a)
+            if p is not None:
+                m = mail.lesen(p)
+                w = mail.weiterleitung(m, self._eigene_domains(), self.db.einstellung("briefkopf_1") or "") \
+                    if m is not None else None
+                m = w.original if w is not None and w.original is not None else (None if w is not None else m)
+            daten = (mail.kunde_daten(m, "", self._eigene_domains()) if m is not None else None) or {}
+            k = a.stand.get("absender_korr")
+            if k and k.get("adresse"):
+                daten["email"] = k["adresse"]
+        if not daten.get("name"):
+            if self.f.stumm:
+                return None
+            name, gut = QInputDialog.getText(self, "Neuer Kunde", "Firmenname:")
+            if not gut or not name.strip():
+                return None
+            daten["name"] = name.strip()
+        dub = mz.kunden_dubletten(self.db.zeilen("kunden"), daten)
+        if dub and not trotzdem:
+            text = "\n".join(f"{k['kundennr']} {k.get('name') or ''} ({g})" for k, g in dub[:6])
+            if self.f.stumm:
+                self.f.meldung(f"Möglicherweise schon im Kundenstamm: {text}", fehler=True)
+                return None
+            if QMessageBox.question(self, "Neuer Kunde", f"Diese Kunden passen schon:\n\n{text}\n\nTrotzdem einen "
+                                    f"neuen Kunden „{daten['name']}“ anlegen?") != QMessageBox.Yes:
+                return None
+        nr, _id = step_neu.kunde_anlegen(self.db, daten)
+        if not nr:
+            self.f.meldung("Kunde nicht angelegt (Lesemodus?)", fehler=True)
+            return None
+        self._ausfuehren(lambda abl, x: abl.zuordnung_aendern(x, "kunde", nr, daten["name"], grund="neu angelegt"),
+                         f"Neuer Kunde {nr} {daten['name']} angelegt (Bemerkung „Kunde prüfen“) und zugeordnet.")
+        return nr
+
+    def angebot_hand(self, nummer=None):
+        """Anfrage von Hand mit einem vorhandenen Angebot verknüpfen (Angebotsnummer)."""
+        a = self.akte()
+        if a is None:
+            return None
+        if nummer is None:
+            if self.f.stumm:
+                return None
+            nummer, gut = QInputDialog.getText(self, "Angebot verknüpfen", "Angebotsnummer:")
+            if not gut:
+                return None
+        nummer = nummer.strip()
+        try:
+            z = self.db.con.execute("SELECT id FROM angebote WHERE nummer=? ORDER BY id DESC LIMIT 1",
+                                    (nummer,)).fetchone()
+        except Exception:               # noqa: BLE001
+            z = None
+        if not nummer or not z:
+            self.f.meldung(f"Angebot {nummer or '?'} nicht gefunden.", fehler=True)
+            return None
+        erg = self._ausfuehren(lambda abl, x: abl.angebot_verknuepfen(x, nummer, von_hand=True),
+                               f"Anfrage {{nr}} mit Angebot {nummer} verknüpft.")
+        try:
+            alt = ak.akten_zum_angebot(self.db, z[0])
+            if a.nr not in alt:
+                self.db.zusatz_setzen(z[0], "anfrage_akte", alt + [a.nr] if alt else a.nr)
+        except Exception as fehler:               # noqa: BLE001
+            protokoll.warnung(f"Anfragen: Verweis im Angebot nicht gesetzt ({type(fehler).__name__}: {fehler})")
+        return erg
+
+    def ansprechpartner_setzen(self, text=None):
+        a = self.akte()
+        if a is None:
+            return None
+        if text is None:
+            if self.f.stumm:
+                return None
+            text, gut = QInputDialog.getText(self, "Ansprechpartner", "Ansprechpartner beim Kunden:",
+                                             text=a.zuordnung.get("ansprechpartner") or "")
+            if not gut:
+                return None
+        return self._ausfuehren(lambda abl, x: abl.zuordnung_aendern(x, "ansprechpartner", text.strip()),
+                                "Anfrage {nr}: Ansprechpartner geändert.")
+
+    def absender_korrigieren(self, adresse=None, name=""):
+        a = self.akte()
+        if a is None:
+            return None
+        if adresse is None:
+            if self.f.stumm:
+                return None
+            adresse, gut = QInputDialog.getText(self, "Absender korrigieren",
+                                                "E-Mail-Adresse des Kunden (für Antwort und Angebot):",
+                                                text=a.absender_adresse)
+            if not gut:
+                return None
+        adresse = adresse.strip().lower()
+        if adresse and "@" not in adresse:
+            self.f.meldung("Bitte eine E-Mail-Adresse eingeben.", fehler=True)
+            return None
+        if mz.mail.ist_intern(adresse, self._eigene_domains()):
+            self.f.meldung("Das ist eine eigene Adresse, nicht die des Kunden.", fehler=True)
+            return None
+        return self._ausfuehren(lambda abl, x: abl.zuordnung_aendern(x, "absender", adresse, name),
+                                "Anfrage {nr}: Absender korrigiert.")
+
+    # ------------------------------------------------------------------ Dokumente, Zusammenführen (20.11.2026)
+    def dokumente_hinzufuegen(self, pfade=None, quelle="hand"):
+        """Mails und Dokumente zur gewählten Anfrage (ohne pfade: Dateiauswahl). Ergebnis: dict wie
+        anfragen_sammeln.hinzufuegen oder None."""
+        a = self.akte()
+        if a is None or getattr(self.db, "nur_lesen", False):
+            return None
+        if pfade is None:
+            if self.f.stumm:
+                return None
+            pfade = adok.dateien_waehlen(self)
+        pfade = [p for p in pfade if p.is_file()] + [x for p in pfade if p.is_dir() for x in sorted(p.rglob("*"))
+                                                     if x.is_file() and not x.name.startswith(".")]
+        if not pfade:
+            return None
+        try:
+            r = sa.hinzufuegen(self.ablage(), a, pfade, quelle=quelle)
+        except (ak.AblageFehler, OSError) as e:
+            self.f.meldung(f"{a.nr}: {fehler_text(e) if isinstance(e, OSError) else e}", fehler=True)
+            return None
+        teile = [f"{len(r['neu'])} hinzugefügt"] if r["neu"] else []
+        if r["doppelt"]:
+            teile.append(f"{len(r['doppelt'])} schon vorhanden ({', '.join(r['doppelt'][:3])})")
+        if r["fehler"]:
+            teile.append("nicht übernommen: " + "; ".join(r["fehler"][:3]))
+        self.f.meldung(f"Anfrage {a.nr}: " + ", ".join(teile or ["nichts Neues"]), fehler=bool(r["fehler"]))
+        self._mailtexte.pop(a.nr, None)
+        self.neu_laden()
+        self.waehlen(a.nr)
+        return r
+
+    def outlook_auswahl_hinzufuegen(self, quelle="outlook"):
+        """Die im Outlook-Fenster markierten Mails als .msg sichern und hinzufügen (auch beim Ziehen aus Outlook)."""
+        import shutil
+        if self.akte() is None:
+            return None
+        ziel = adok.zwischenordner()
+        try:
+            dateien, fehler = ol.auswahl_sichern(ziel, getattr(self, "outlook_ausfuehren", None))
+            if fehler and not dateien:
+                self.f.meldung("Outlook: " + "; ".join(fehler[:2]), fehler=True)
+                return None
+            return self.dokumente_hinzufuegen(dateien, quelle=quelle)
+        finally:
+            shutil.rmtree(ziel, ignore_errors=True)
+
+    def dokumente_verschieben(self, dateien=None, ziel=None):
+        a = self.akte()
+        if a is None:
+            return None
+        dateien = dateien if dateien is not None else self.dokumente.gewaehlt()
+        if not dateien:
+            self.f.meldung("Bitte im Reiter „Dokumente & Mails“ die Mails bzw. Dateien markieren.", fehler=True)
+            return None
+        if ziel is None:
+            if self.f.stumm:
+                return None
+            d = adok.AnfrageWahlDialog(self, self.akten, a.nr, f"{len(dateien)} Datei(en) aus {a.nr} zuweisen an:")
+            if d.exec() != QDialog.Accepted or not d.wahl():
+                return None
+            ziel = d.wahl()
+        nach = self.akte(ziel) or self.ablage().lesen(ziel)
+        if nach is None:
+            return None
+        return self._ausfuehren(lambda abl, x: sa.verschieben(abl, x, nach, dateien),
+                                f"{len(dateien)} Datei(en) aus {{nr}} an {ziel} zugewiesen.")
+
+    def zusammenfuehren(self, weitere=None, bestaetigt=None):
+        """Weitere Anfragen in die gewählte zusammenführen: Fenster mit Vorschlägen und Übersicht, erst nach
+        Bestätigung (bestaetigt=True: ohne Fenster, Tests). Ergebnis: Journal-ID oder None."""
+        from . import admin_schutz
+        a = self.akte()
+        if a is None:
+            return None
+        vs = sa.vorschlaege(self.akten, a, self._mailtext(a))
+        if not self.f.stumm and not bestaetigt:
+            d = adok.ZusammenDialog(self, a, self.akten, vs if weitere is None else
+                                    [(self.akte(n), "gewählt") for n in weitere if self.akte(n)])
+            if weitere:
+                for i in range(d.liste.count()):
+                    if d.liste.item(i).data(Qt.ItemDataRole.UserRole) in weitere:
+                        d.liste.item(i).setCheckState(Qt.Checked)
+            if d.exec() != QDialog.Accepted or not d.gewaehlt():
+                return None
+            weitere = d.gewaehlt()
+        elif not bestaetigt:
+            return None
+        akten = [x for x in (self.akte(n) for n in weitere or ()) if x is not None]
+        try:
+            jid = sa.zusammenfuehren(self.ablage(), a, akten, ich=self.ich(), admin=admin_schutz.ist_admin(self.db))
+        except (ak.AblageFehler, OSError) as e:
+            self.f.meldung(f"Zusammenführen: {fehler_text(e) if isinstance(e, OSError) else e}", fehler=True)
+            self.neu_laden()
+            return None
+        self.f.meldung(f"{', '.join(x.nr for x in akten)} in {a.nr} zusammengeführt (rückgängig über "
+                       "„Zusammenführung rückgängig“).")
+        self.neu_laden()
+        self.waehlen(a.nr)
+        return jid
+
+    def trennen(self, jid=None):
+        from . import admin_schutz
+        a = self.akte()
+        if a is None:
+            return None
+        if not self.f.stumm and QMessageBox.question(
+                self, "Zusammenführung rückgängig", "Die zuletzt zusammengeführten Anfragen wieder trennen? Ihre Mails "
+                "und Dokumente werden hier ausgeblendet, die Anfragen sind wieder eigenständig.") != QMessageBox.Yes:
+            return None
+        try:
+            wieder = sa.rueckgaengig(self.ablage(), a, jid, ich=self.ich(), admin=admin_schutz.ist_admin(self.db))
+        except (ak.AblageFehler, OSError) as e:
+            self.f.meldung(f"Trennen: {fehler_text(e) if isinstance(e, OSError) else e}", fehler=True)
+            return None
+        self.f.meldung(f"{', '.join(x.nr for x in wieder)} wieder eigenständig.")
+        self.neu_laden()
+        self.waehlen(a.nr)
+        return wieder
+
+    def kategorie_setzen(self, kategorie, dateien=None):
+        a = self.akte()
+        if a is None or not kategorie:
+            return None
+        if kategorie == "__neu__":
+            if self.f.stumm:
+                return None
+            name, gut = QInputDialog.getText(self, "Neue Kategorie", "Name der Kategorie:")
+            if not gut or not name.strip():
+                return None
+            try:
+                sa.kategorie_anlegen(self.ablage().wurzel, name)
+            except (ak.AblageFehler, OSError) as e:
+                self.f.meldung(str(e), fehler=True)
+                return None
+            kategorie = " ".join(name.split())[:40]
+        dateien = dateien if dateien is not None else self.dokumente.gewaehlt()
+        if not dateien:
+            self.f.meldung("Bitte die Dokumente markieren.", fehler=True)
+            return None
+
+        def tun(abl, x):
+            for d in dateien:
+                x = sa.kategorie_setzen(abl, x, d, kategorie)
+            return x
+        return self._ausfuehren(tun, f"{len(dateien)} Dokument(e) unter „{kategorie}“.")
+
     def rueckfrage(self, text=None):
         """Rückfrage an den Kunden: Antwort auf seine Mail in Outlook öffnen (Text mit den fehlenden Angaben, nie
         automatisch gesendet), dann wartet die Anfrage auf den Kunden (Ampel ruht, bis er antwortet). Ohne Outlook:
@@ -1206,8 +1620,10 @@ class AnfragenSeite(QWidget):
                                                       "gesendet wird erst von Ihnen):", text)
             if not gut or not text.strip():
                 return None
-        an, betreff = a.kopf.get("absender") or "", ae.rueckfrage_betreff(a)
+        an, betreff = a.absender_adresse, ae.rueckfrage_betreff(a)
         msg = self._mail_pfad(a)
+        if (a.kopf.get("zuordnung") or {}).get("art") in ("weitergeleitet", "intern") or a.kopf.get("weitergeleitet"):
+            msg = None                  # nie auf die interne Mail antworten: Notizen der Kollegen bleiben intern
         gut, fehler = ma.outlook_oeffnen(an, betreff, text, ausfuehren=getattr(self, "rueckfrage_ausfuehren", None),
                                          signatur_=True, antwort=msg if msg and msg.suffix.lower() == ".msg" else None)
         if not gut:
@@ -1535,6 +1951,13 @@ class OutlookDialog(QDialog):
                                 "oder Name heißt.")
         lay.addWidget(self.kat_tab, 1)
         self.kategorien_zeigen()
+        lay.addWidget(QLabel("<b>Zuordnungsregeln</b> (gelernt aus Korrekturen, gelten für neue Mails)"))
+        self.regeln = QTextBrowser()     # 19.11.2026: kontrolliertes Lernen, sichtbar und löschbar
+        self.regeln.setOpenLinks(False)
+        self.regeln.setMaximumHeight(110)
+        self.regeln.anchorClicked.connect(self._regel_link)
+        lay.addWidget(self.regeln)
+        self.regeln_zeigen()
         self.stand = QLabel()
         self.stand.setWordWrap(True)
         lay.addWidget(self.stand)
@@ -1545,6 +1968,18 @@ class OutlookDialog(QDialog):
         lay.addWidget(unten)
         self.anzeigen()
         self.resize(640, 520)
+
+    def regeln_zeigen(self):
+        try:
+            self.regeln.setHtml(adok.regeln_html(mz.regeln_lesen(self.seite.ablage().wurzel)))
+        except Exception:               # noqa: BLE001
+            self.regeln.setHtml("<i>Regeln nicht lesbar</i>")
+
+    def _regel_link(self, url):
+        art, _, rid = url.toString().partition(":")
+        if art == "regel_weg" and rid:
+            mz.regel_loeschen(self.seite.ablage().wurzel, rid)
+            self.regeln_zeigen()
 
     def _pfad_setzen(self, schl, pfad):
         """Outlook-Pfad eines Ordners speichern ("" = Vorgabe). Ergebnis: Fehlertext oder ""."""

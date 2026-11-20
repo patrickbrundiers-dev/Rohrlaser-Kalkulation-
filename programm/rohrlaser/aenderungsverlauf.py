@@ -282,7 +282,8 @@ def eintraege(con, tabelle=None, uid=None, ohne_angebote=False, text="", grenze=
         bed.append("tabelle<>?")
         werte.append(ANGEBOT)
     if text:
-        bed.append("(bezug LIKE ? OR feld LIKE ? OR wer LIKE ? OR alt LIKE ? OR neu LIKE ?)")
+        bed.append("(" + " OR ".join(f"suchtext({s}) LIKE suchtext(?)" for s in ("bezug", "feld", "wer", "alt", "neu"))
+                   + ")")          # ohne Groß-/Kleinschreibung (20.11.2026)
         werte += [f"%{text}%"] * 5
     sql = f"SELECT {', '.join(SPALTEN)} FROM {TABELLE}"
     if bed:

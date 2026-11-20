@@ -58,19 +58,34 @@ VERSENDET = "angebot_versendet"     # Angebot per E-Mail an den Kunden (als Antw
 # Paket 6 (Freigabe 14.11.2026 „Alle vier“)
 RUECKFRAGE = "rueckfrage"           # Rückfrage an den Kunden (Outlook-Antwort): Ampel hält an, bis er antwortet
 ANTWORT_DA = "antwort_erhalten"     # Antwort von Hand vermerkt (z. B. am Telefon)
+# Kundenerkennung (Patrick 19.11.2026): automatische Zuordnung und jede Korrektur von Hand als Ereignis
+ZUORDNUNG = "zuordnung"
+# Anfragen sammeln und zusammenführen (Patrick 20.11.2026, anfragen_sammeln): nie löschen, alles umkehrbar
+KATEGORIE = "kategorie"                 # Kategorie eines Dokuments geändert
+DATEI_WEG = "datei_verschoben"          # Mail/Datei einer anderen Anfrage zugewiesen (bleibt hier ausgeblendet liegen)
+ZUSAMMEN = "zusammengefuehrt"           # in der Hauptanfrage: Inhalte weiterer Anfragen übernommen
+AUFGEGANGEN = "aufgegangen"             # in der weiteren Anfrage: in die Hauptanfrage zusammengeführt
+TRENNEN = "getrennt"                    # in der Hauptanfrage: Zusammenführung rückgängig
+GETRENNT = "wieder_eigenstaendig"       # in der weiteren Anfrage: wieder eigenständig
+ZUORDNUNG_FELDER = {"automatisch": "Kunde automatisch", "kunde": "Kunde geändert", "bestaetigt": "Kunde bestätigt",
+                    "ansprechpartner": "Ansprechpartner geändert", "absender": "Absender korrigiert",
+                    "ohne_kunde": "Intern (ohne Kunde)", "zuruecksetzen": "Zuordnung zurückgesetzt"}
 AKTION_TEXT = {EINGEGANGEN: "Eingegangen", DATEI_DAZU: "Datei dazu", ZUGEWIESEN: "Zugewiesen",
                UEBERNOMMEN: "Übernommen", BEARBEITER: "Bearbeiter geändert", PRIORITAET: "Priorität",
                NOTIZ: "Notiz", STAND: "Bearbeitungsstand", ANGEBOT: "Angebot verknüpft",
                ERLEDIGT_A: "Als erledigt markiert", WIEDER: "Wieder geöffnet", ZURUECK: "Zurückgegeben",
                VIREN: "Virenprüfung", AUSSORTIERT: "Keine Anfrage", VORMESSUNG: "Vormessung",
                VERSENDET: "Angebot per E-Mail", RUECKFRAGE: "Rückfrage an den Kunden",
-               ANTWORT_DA: "Antwort des Kunden erhalten"}
+               ANTWORT_DA: "Antwort des Kunden erhalten", ZUORDNUNG: "Zuordnung", KATEGORIE: "Kategorie",
+               DATEI_WEG: "Zu anderer Anfrage verschoben", ZUSAMMEN: "Anfragen zusammengeführt",
+               AUFGEGANGEN: "Zusammengeführt in", TRENNEN: "Zusammenführung rückgängig",
+               GETRENNT: "Wieder eigenständig"}
 AUSSORTIER_GRUENDE = ("Werbung", "Rechnung", "Lieferant / Einkauf", "Bewerbung", "Sonstiges")
 AUSSORTIER_VORSCHLAG = 2    # so oft vom selben Absender aussortiert: beim nächsten Mal „Keine Anfrage?“ vorschlagen
 AUTO = "Automatik"          # Kürzel-Zusatz im Verlauf für automatische Zuweisungen
 
 # Dateiarten (Anzeige als Kurzwort)
-ARTEN = {"step": {".step", ".stp", ".igs", ".iges"}, "pdf": {".pdf"}, "dxf": {".dxf", ".dwg"},
+ARTEN = {"step": {".step", ".stp", ".igs", ".iges", ".tubx"}, "pdf": {".pdf"}, "dxf": {".dxf", ".dwg"},
          "excel": {".xlsx", ".xls", ".xlsm", ".csv"}, "bild": {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"},
          "mail": {".msg", ".eml"}, "zip": {".zip"}}
 ART_TEXT = {"step": "STEP", "pdf": "PDF", "dxf": "DXF/DWG", "excel": "Excel", "bild": "Bild", "mail": "Mail",
@@ -187,7 +202,10 @@ def stand_aus_verlauf(ereignisse):
     s = dict(status=NEU, bearbeiter="", zugewiesen="", zugewiesen_von="", prioritaet="normal", notizen=[],
              stand="", angebote=[], eingang="", uebernommen_am="", erledigt_am="", erledigt_von="", generation=1,
              dazu=[], letzte="", viren={}, viren_alt=[], mids=[], antworten=0, aussortiert="", vormessung="",
-             vormessung_stempel="", versendet=[], rueckfrage="", rueckfrage_text="", antwort_am="")
+             vormessung_stempel="", versendet=[], rueckfrage="", rueckfrage_text="", antwort_am="",
+             kunde=None, kunde_name="", kunde_bestaetigt=False, ohne_kunde=False, ansprechpartner=None,
+             absender_korr=None, internet_ids=[], zuordnung_von="", weg={}, kategorien={}, zusammen=[],
+             zusammengefuehrt_in="", status_vor="", mids_weg=[])
     for e in sorted(ereignisse, key=lambda e: (e.get("zeit", ""), e.get("kuerzel", ""), e.get("nr", 0))):
         a, k, z = e.get("aktion"), e.get("kuerzel", ""), e.get("zeit", "")
         e["ungueltig"] = False
@@ -198,9 +216,63 @@ def stand_aus_verlauf(ereignisse):
             s["dazu"] += [d for d in e.get("dateien", []) if d.get("name") not in namen]
             if e.get("nachrichten_id") and e["nachrichten_id"] not in s["mids"]:
                 s["mids"].append(e["nachrichten_id"])
+            if e.get("internet_id") and e["internet_id"] not in s["internet_ids"]:
+                s["internet_ids"].append(e["internet_id"])
             s["antworten"] += bool(e.get("antwort"))
             if e.get("antwort"):
                 s.update(antwort_am=z, rueckfrage="")
+        elif a == KATEGORIE:
+            s["kategorien"][str(e.get("datei"))] = e.get("neu") or ""
+        elif a == DATEI_WEG:
+            for d in e.get("dateien") or ():
+                s["weg"][str(d)] = e.get("neu") or ""
+            s["mids"] = [x for x in s["mids"] if x not in set(e.get("mids") or ())]
+            s["mids_weg"] += [x for x in e.get("mids") or () if x not in s["mids_weg"]]
+        elif a == ZUSAMMEN:
+            namen = {d.get("name") for d in s["dazu"]}
+            s["dazu"] += [d for d in e.get("dateien", []) if d.get("name") not in namen]
+            s["mids"] += [x for x in e.get("mids") or () if x not in s["mids"]]
+            s["internet_ids"] += [x for x in e.get("internet_ids") or () if x not in s["internet_ids"]]
+            s["zusammen"].append(dict(id=e.get("id"), von=e.get("von") or [], zeit=z, kuerzel=k,
+                                      dateien=[d.get("datei", d.get("name")) for d in e.get("dateien", [])],
+                                      mids=e.get("mids") or [], aktiv=True))
+        elif a == TRENNEN:
+            for zz in s["zusammen"]:
+                if zz["id"] == e.get("id") and zz["aktiv"]:
+                    zz["aktiv"] = False
+                    for d in zz["dateien"]:
+                        s["weg"][str(d)] = "getrennt"
+                    s["mids"] = [x for x in s["mids"] if x not in set(zz["mids"])]
+        elif a == AUFGEGANGEN:
+            if s["zusammengefuehrt_in"]:
+                e["ungueltig"] = True
+                continue
+            s.update(status_vor=s["status"], zusammengefuehrt_in=e.get("neu") or "", status=ERLEDIGT,
+                     erledigt_am=z, erledigt_von=k, zugewiesen="")
+        elif a == GETRENNT:
+            if not s["zusammengefuehrt_in"]:
+                e["ungueltig"] = True
+                continue
+            s.update(status=s["status_vor"] or NEU, zusammengefuehrt_in="", status_vor="", erledigt_am="",
+                     erledigt_von="")
+        elif a == ZUORDNUNG:
+            f = e.get("feld")
+            if f == "kunde":
+                s.update(kunde=str(e.get("neu") or ""), kunde_name=e.get("name", ""), kunde_bestaetigt=True,
+                         ohne_kunde=False, zuordnung_von=k)
+            elif f == "bestaetigt":
+                s.update(kunde_bestaetigt=True, zuordnung_von=k)
+                if e.get("neu"):
+                    s.update(kunde=str(e["neu"]), kunde_name=e.get("name", ""))
+            elif f == "ohne_kunde":
+                s.update(kunde="", kunde_name="", kunde_bestaetigt=True, ohne_kunde=True, zuordnung_von=k)
+            elif f == "ansprechpartner":
+                s["ansprechpartner"] = str(e.get("neu") or "")
+            elif f == "absender":
+                s["absender_korr"] = dict(name=e.get("name", ""), adresse=str(e.get("neu") or ""))
+            elif f == "zuruecksetzen":
+                s.update(kunde=None, kunde_name="", kunde_bestaetigt=False, ohne_kunde=False, ansprechpartner=None,
+                         absender_korr=None, zuordnung_von="")
         elif a == RUECKFRAGE:
             s.update(rueckfrage=z, rueckfrage_text=e.get("neu", ""))
         elif a == ANTWORT_DA:
@@ -279,7 +351,46 @@ class Akte:
 
     @property
     def absender(self):
+        k = self.stand.get("absender_korr")
+        if k:
+            return k.get("name") or k.get("adresse") or ""
         return self.kopf.get("absender_name") or self.kopf.get("absender") or ""
+
+    @property
+    def absender_adresse(self):
+        """Adresse des Kunden (korrigiert von Hand, sonst aus der Mail; bei interner Anfrage leer)."""
+        k = self.stand.get("absender_korr")
+        return (k.get("adresse") if k else None) or self.kopf.get("absender") or ""
+
+    @property
+    def zuordnung(self):
+        """Erkennung beim Eingang (Kopf) mit den Korrekturen aus dem Verlauf: dict wie mail_zuordnung.zuordnen."""
+        z = dict(self.kopf.get("zuordnung") or {})
+        s = self.stand
+        if s.get("kunde") is not None:
+            z.update(kundennr=s["kunde"], kunde_name=s.get("kunde_name", ""), automatisch=False)
+        if s.get("kunde_bestaetigt"):
+            z.update(stufe="eindeutig", bestaetigt_von=s.get("zuordnung_von", ""))
+        if s.get("ohne_kunde"):
+            z["ohne_kunde"] = True
+        if s.get("ansprechpartner") is not None:
+            z["ansprechpartner"] = s["ansprechpartner"]
+        elif "ansprechpartner" not in z and self.kopf.get("ansprechpartner"):
+            z["ansprechpartner"] = self.kopf["ansprechpartner"]
+        return z
+
+    def internet_ids(self):
+        """Message-IDs aller Mails der Akte (Eingang, Antworten, hinzugefügte und zusammengeführte Mails)."""
+        ids = {(self.kopf.get("zuordnung") or {}).get("internet_id")} | set(self.stand.get("internet_ids") or ())
+        ids |= {(d.get("herkunft") or {}).get("internet_id") for d in self.dateien() if d.get("art") == "mail"}
+        return {x for x in ids if x}
+
+    def kunde_pruefen(self):
+        """Kunde nicht sicher (Stufe nicht eindeutig, nicht bestätigt, kein Kunde von Hand): Hinweis in der Liste."""
+        z = self.kopf.get("zuordnung")
+        if not z or self.status == ERLEDIGT or self.stand.get("kunde_bestaetigt") or self.stand.get("kunde"):
+            return False
+        return z.get("stufe") != "eindeutig" and not self.kopf.get("kundennr")
 
     @property
     def betreff(self):
@@ -287,15 +398,21 @@ class Akte:
 
     @property
     def kunde(self):
+        if self.stand.get("kunde") is not None:     # von Hand zugeordnet bzw. bestätigt (Verlauf)
+            return self.stand["kunde"]
         return str(self.kopf.get("kundennr") or "")
 
     @property
     def eingang(self):
         return _datum(self.kopf.get("eingang")) or _datum(self.stand["eingang"])
 
-    def dateien(self):
-        """[{name, pfad, art, groesse, sha256, warnung}] – Kopf und später dazugekommene, ohne Doppel."""
+    def dateien(self, mit_weg=False):
+        """[{name, pfad, art, groesse, sha256, warnung, id, kategorie, herkunft}] – Kopf und später dazugekommene, ohne
+        Doppel. Einer anderen Anfrage zugewiesene bzw. nach dem Trennen ausgeblendete Dateien nur mit mit_weg (dann
+        mit weg = Ziel)."""
         out, gesehen = [], set()
+        weg = self.stand.get("weg") or {}
+        kat = self.stand.get("kategorien") or {}
         for d in list(self.kopf.get("dateien", [])) + list(self.stand["dazu"]):
             name = d.get("name") if isinstance(d, dict) else str(d)
             if not name or (d.get("datei", name) if isinstance(d, dict) else name) in gesehen:
@@ -308,6 +425,13 @@ class Akte:
             e["viren"] = self.stand.get("viren", {}).get(e.get("datei", name))
             if e["viren"] == "fund":
                 e.update(gesperrt=True, warnung="Virus gefunden: gesperrt")
+            schl = e.get("datei", name)
+            if schl in weg:
+                if not mit_weg:
+                    continue
+                e["weg"] = weg[schl]
+            e["id"] = dokument_id(e.get("sha256"), schl)
+            e["kategorie"] = kat.get(schl) or e.get("kategorie") or ""
             out.append(e)
         return out
 
@@ -365,14 +489,37 @@ class Akte:
 
     def suchtext(self):
         return " ".join([self.nr, self.absender, self.kopf.get("absender", ""), self.betreff,
+                         str(self.zuordnung.get("ansprechpartner") or ""), self.stand.get("kunde_name") or "",
                          self.kopf.get("kurz", ""), self.kopf.get("kunde_name", ""), self.kunde, self.bearbeiter,
-                         " ".join(d["name"] for d in self.dateien()), " ".join(self.stand["angebote"])]).lower()
+                         " ".join(d["name"] for d in self.dateien()), " ".join(self.stand["angebote"]),
+                         " ".join(" ".join(str((d.get("herkunft") or {}).get(f) or "") for f in ("betreff", "von"))
+                                  for d in self.dateien() if d.get("art") == "mail")]).lower()
 
     def __repr__(self):
         return f"Akte({self.nr}, {self.status}, {self.bearbeiter!r})"
 
 
 ANHAENGE = "Anhaenge"       # Unterordner von Dateien: aus den Mails ausgepackte Anhänge (zum Ansehen)
+
+
+def mail_herkunft(pfad):
+    """Von, An, CC, Datum, Betreff und Message-ID einer Mail-Datei (für die Herkunft eines Dokuments)."""
+    from . import mail
+    try:
+        m = mail.lesen(pfad)
+    except Exception:                   # noqa: BLE001 – kaputte Mail: als Datei übernehmen
+        m = None
+    if m is None:
+        return dict(lesbar=False)
+    return dict(von=m.absender, von_name=m.absender_name, an=[a for _, a in m.an], cc=[a for _, a in m.cc],
+                datum=m.datum.isoformat() if m.datum else "", betreff=m.betreff, internet_id=m.nachrichten_id)
+
+
+def dokument_id(sha, name=""):
+    """Eindeutige Dokumenten-ID: gleicher Inhalt = gleiche ID (D- und die ersten 12 Zeichen der SHA-256)."""
+    if sha:
+        return f"D-{str(sha)[:12].upper()}"
+    return "D-" + hashlib.sha256(str(name).encode("utf-8")).hexdigest()[:12].upper()
 
 
 def anhaenge_auspacken(dateien_ordner, liste, vorhanden=()):
@@ -532,6 +679,8 @@ class OrdnerAblage:
                 z = _frei(o / DATEIEN / p.name)
                 shutil.copy2(p, z)
                 liste.append(dict(name=z.name, art=art(z.name), groesse=z.stat().st_size, sha256=pruefsumme(z)))
+                if liste[-1]["art"] == "mail":
+                    liste[-1]["herkunft"] = dict(quelle=kopf.get("quelle") or "eingang", **mail_herkunft(z))
             liste += anhaenge_auspacken(o / DATEIEN, liste, {d["sha256"] for d in liste})
             k = dict(kopf)
             k.update(nr=o.name, angelegt=_jetzt(jetzt), angelegt_von=self.kuerzel, schluessel=schluessel,
@@ -551,8 +700,22 @@ class OrdnerAblage:
         """Später gekommene Dateien (Nachtrag) in die Akte kopieren, gleiche Inhalte nur einmal. weitere: zusätzliche
         Felder im Ereignis (antwort=True bei einer Antwort des Kunden, nachrichten_id aus Outlook). Ergebnis: neue
         Namen."""
-        vorhanden = {d.get("sha256") for d in akte.dateien() if d.get("sha256")}
+        neu = self.kopieren(akte, pfade, herkunft=weitere.pop("herkunft", None))
+        if neu:
+            self.ereignis(akte, DATEI_DAZU, dateien=neu, jetzt=jetzt, **weitere)
+        return [d["name"] for d in neu]
+
+    def kopieren(self, akte, pfade, herkunft=None, vorhanden=None):
+        """Dateien in den Ordner Dateien der Akte kopieren (ohne Ereignis): gleiche Inhalte nur einmal, erst unter
+        vorläufigem Namen und erst nach geprüfter Prüfsumme unter dem richtigen (ein Netzabbruch hinterlässt nie eine
+        halbe Datei; liegt von einem abgebrochenen Versuch schon dieselbe Datei da, wird sie genommen). Anhänge von
+        Mails werden ausgepackt. herkunft: dict für jeden Eintrag (Quelle, alte Anfrage …); je Mail kommen Von, An,
+        Datum und Betreff dazu. Ergebnis: neue Einträge (wie im Kopf). OSError bei Netzabbruch."""
+        if vorhanden is None:
+            vorhanden = {d.get("sha256") for d in akte.dateien(mit_weg=True) if d.get("sha256")}
+            vorhanden -= {d.get("sha256") for d in akte.dateien(mit_weg=True) if d.get("weg")}
         neu = []
+        (akte.pfad / DATEIEN).mkdir(parents=True, exist_ok=True)
         for p in map(Path, pfade):
             try:
                 h = pruefsumme(p)
@@ -560,14 +723,31 @@ class OrdnerAblage:
                 continue
             if h in vorhanden:
                 continue
-            z = _frei(akte.pfad / DATEIEN / p.name)
-            shutil.copy2(p, z)
+            z = akte.pfad / DATEIEN / p.name
+            if not (z.exists() and pruefsumme(z) == h):
+                z = _frei(z)
+                tmp = z.with_name(f".{z.name}.{os.getpid()}.teil")
+                try:
+                    shutil.copy2(p, tmp)
+                    if pruefsumme(tmp) != h:
+                        raise OSError(f"{p.name}: Kopie unvollständig")
+                    tmp.replace(z)
+                finally:
+                    tmp.unlink(missing_ok=True)
             vorhanden.add(h)
-            neu.append(dict(name=z.name, art=art(z.name), groesse=z.stat().st_size, sha256=h))
+            e = dict(name=z.name, art=art(z.name), groesse=z.stat().st_size, sha256=h)
+            if herkunft:
+                e["herkunft"] = dict(herkunft)
+            if e["art"] == "mail":
+                e.setdefault("herkunft", {}).update(mail_herkunft(z))
+            neu.append(e)
         if neu:
-            neu += anhaenge_auspacken(akte.pfad / DATEIEN, neu, vorhanden)
-            self.ereignis(akte, DATEI_DAZU, dateien=neu, jetzt=jetzt, **weitere)
-        return [d["name"] for d in neu]
+            aus = anhaenge_auspacken(akte.pfad / DATEIEN, neu, vorhanden)
+            for e in aus:
+                if herkunft:
+                    e["herkunft"] = dict(herkunft)
+            neu += aus
+        return neu
 
     def schluessel_setzen(self, schluessel, nr):
         """Doppel-Schlüssel auf eine vorhandene Akte zeigen lassen (Antwort des Kunden: dieselbe Mail nie zweimal)."""
@@ -786,6 +966,35 @@ class OrdnerAblage:
         if erledigen and akte.status == BEARBEITUNG:
             akte = self.erledigen(akte, jetzt=jetzt)
         return akte
+
+    def zuordnung_aendern(self, akte, feld, neu="", name="", grund="", regel=None, jetzt=None):
+        """Korrektur der Erkennung von Hand (feld aus ZUORDNUNG_FELDER): kunde (neu = Kundennummer, name),
+        bestaetigt (Vorschlag übernehmen, neu = Kundennummer), ansprechpartner, absender (neu = Adresse, name),
+        ohne_kunde, zuruecksetzen. regel: angelegte Lernregel (dict) zum Nachlesen im Verlauf. Ergebnis: Akte."""
+        if feld not in ZUORDNUNG_FELDER or feld == "automatisch":
+            raise AblageFehler(f"Unbekannte Korrektur: {feld}")
+        akte = self.neu_lesen(akte)
+        alt = {"kunde": akte.kunde, "bestaetigt": akte.kunde, "ansprechpartner": akte.zuordnung.get("ansprechpartner"),
+               "absender": akte.absender_adresse}.get(feld, "")
+        weitere = dict(feld=feld, name=name or "")
+        if grund:
+            weitere["grund"] = grund
+        if regel:
+            weitere["regel"] = regel
+        self.ereignis(akte, ZUORDNUNG, alt=alt or "", neu=str(neu or ""), jetzt=jetzt, **weitere)
+        return self.neu_lesen(akte)
+
+    def zuordnung_protokollieren(self, akte, jetzt=None):
+        """Automatische Zuordnung beim Eingang in den Verlauf (Adresse, Weiterleitung, Kunde, Stufe, Kriterien,
+        Message-ID)."""
+        z = akte.kopf.get("zuordnung")
+        if not z:
+            return None
+        return self.ereignis(akte, ZUORDNUNG, neu=z.get("kundennr", ""), feld="automatisch", stufe=z.get("stufe"),
+                             kriterien=z.get("kriterien", []), adresse=(z.get("original") or {}).get("adresse", ""),
+                             weiterleiter=[w.get("adresse") or w.get("name") for w in z.get("weiterleiter") or ()],
+                             nachrichten_id=z.get("nachrichten_id", ""), internet_id=z.get("internet_id", ""),
+                             jetzt=jetzt)
 
     def zustaendig_zuweisen(self, akten, kunden, jetzt=None):
         """Fester Bearbeiter je Kunde (Kundenstamm „Zuständig“): neue Anfragen dieses Kunden, die noch nie zugewiesen
@@ -1028,6 +1237,31 @@ def verlauf_text(e):
             t += f": Sperre aufgehoben für {', '.join(frei)}" + (f" ({e['grund']})" if e.get("grund") else "")
         else:
             t += f": Virus in {', '.join(fund)}, gesperrt" if fund else f": {len(e.get('dateien') or {})} Datei(en) sauber"
+    elif a == ZUSAMMEN:
+        t += f": {', '.join(e.get('von') or [])} → hier ({len(e.get('dateien') or [])} Dateien)"
+    elif a in (AUFGEGANGEN, DATEI_WEG):
+        t += f" {neu}" if a == AUFGEGANGEN else f" {neu}: " + ", ".join(map(str, e.get("dateien") or []))
+    elif a == TRENNEN:
+        t += f": {neu} wieder eigenständig" if neu else ""
+    elif a == GETRENNT:
+        t += f" (von {alt} getrennt)" if alt else ""
+    elif a == KATEGORIE:
+        t += f" {e.get('datei')}: {alt or '–'} → {neu}"
+    elif a == ZUORDNUNG:
+        f = e.get("feld")
+        t = ZUORDNUNG_FELDER.get(f, t)
+        if f == "automatisch":
+            t += f" ({e.get('stufe') or '?'})" + (f": {neu}" if neu else ": kein Kunde gesetzt")
+            if e.get("kriterien"):
+                t += " – " + "; ".join(e["kriterien"][:3])
+        elif f in ("kunde", "bestaetigt"):
+            t += f": {alt or '–'} → {neu or '–'} {e.get('name') or ''}".rstrip()
+        elif f in ("ansprechpartner", "absender"):
+            t += f": {alt or '–'} → {' '.join(x for x in (e.get('name'), neu) if x) or '–'}"
+        if e.get("grund"):
+            t += f" ({e['grund']})"
+        if e.get("regel"):
+            t += " · als Regel gemerkt"
     elif a == EINGEGANGEN and neu:
         t += f" ({'Outlook' if neu == 'outlook' else 'Anfrage-Ordner' if neu == 'ordner' else neu})"
     if e.get("ungueltig"):
@@ -1157,14 +1391,20 @@ def _domain(adresse):
     return a.rpartition("@")[2] if "@" in a else ""
 
 
-def mail_kopf(k, m, kunden=(), eigene=(), firma=""):
+def mail_kopf(k, m, kunden=(), eigene=(), firma="", regeln=None, wurzel=None):
     """Absender, Betreff, Kurztext und Kunde einer Mail in den Kopf k (Patrick 17.11.2026: „Nie die weitergeleitete
     Mail-Domain nehmen“). Intern weitergeleitet (mail.weiterleitung): alles aus der Mail des Kunden darin, der Kollege
     steht nur unter „weitergeleitet“; ist der Kunde nicht erkennbar, bleibt der Absender leer. Eigene Domains zählen
-    nie als Kunde. Ergebnis: k."""
+    nie als Kunde. Ergebnis: k.
+    Seit 19.11.2026 (Kundenerkennung, mail_zuordnung): Rollen, Stufe und Kriterien stehen unter k["zuordnung"]; die
+    Kundennummer setzt nur eine eindeutige Zuordnung, sonst steht der Kunde dort als Vorschlag („Kunde prüfen“).
+    regeln: gelernte Regeln (sonst aus wurzel/_outlook/regeln.json)."""
     from . import anfragen, mail
+    from . import mail_zuordnung as mz
     eigene = set(eigene or ()) | set(anfragen.EIGENE)
-    w = mail.weiterleitung(m, eigene, firma)
+    if regeln is None:
+        regeln = mz.regeln_lesen(wurzel) if wurzel else []
+    w = mail.weiterleitung(m, eigene, firma, mz.interne_adressen(regeln))
     o = m
     if w is not None:
         eigene |= {mail._domain(a) for _, a, _ in w.weiterleiter if a}
@@ -1178,21 +1418,32 @@ def mail_kopf(k, m, kunden=(), eigene=(), firma=""):
     else:                               # Kunde nicht erkennbar: nie den Kollegen bzw. die eigene Domain nehmen
         k.update(absender="", absender_name=(w.original.absender_name if w and w.original else "") or "",
                  betreff=mail.betreff_ohne(m.betreff) or k.get("betreff") or "", kurz=mail.neuester_teil(m.text))
-    if not k.get("kundennr"):
-        try:
-            nr, _wie = mail.kunde(o or m, kunden, eigene)
-        except Exception:               # noqa: BLE001
-            nr = None
-        if nr:
-            k.update(kundennr=str(nr), kunde_name=anfragen.kunde_text(kunden, nr))
+    try:
+        z = mz.zuordnen(m, kunden, eigene, firma, regeln, nachrichten_id=k.get("nachrichten_id", ""))
+    except Exception as e:              # noqa: BLE001 – nie am Erkennen scheitern: dann zur Prüfung
+        z = dict(stufe=mz.UNBEKANNT, kundennr="", vorschlaege=[], kriterien=[], automatisch=True,
+                 hinweise=[f"Erkennung fehlgeschlagen ({type(e).__name__}), bitte Kunde selbst wählen"])
+    if z.get("art") == mz.INTERN:       # interne Anfrage: der Kollege ist nie Absender des Kunden
+        k.update(absender="", absender_name="")
+    k["zuordnung"] = z
+    if z.get("ansprechpartner"):
+        k["ansprechpartner"] = z["ansprechpartner"]
+    if not k.get("kundennr") and z.get("kundennr"):
+        k.update(kundennr=str(z["kundennr"]), kunde_name=anfragen.kunde_text(kunden, z["kundennr"]))
     return k
 
 
-def antwort_zu(akten, betreff, absender, konversation="", jetzt=None, eigene=()):
+def antwort_zu(akten, betreff, absender, konversation="", jetzt=None, eigene=(), in_reply_to="", referenzen=()):
     """Akte, zu der eine Mail als Antwort des Kunden gehört, oder None: gleiche Outlook-Konversation, sonst ein
     Antwort-Betreff (AW:, RE: …) mit gleichem Kern-Betreff vom selben Absender bzw. derselben Firma (Domain), jüngstens
-    ANTWORT_TAGE nach dem Eingang. Mehrere Treffer: die jüngste Anfrage."""
+    ANTWORT_TAGE nach dem Eingang. Mehrere Treffer: die jüngste Anfrage. Zuerst (19.11.2026): die Kopfzeilen
+    In-Reply-To/References nennen eine Mail der Akte (eindeutig, auch ohne AW: im Betreff)."""
+    from . import mail_zuordnung as mz
     jetzt = jetzt or datetime.datetime.now()
+    from . import anfragen_sammeln
+    ueber_kopf = mz.antwort_ueber_kopf(akten, in_reply_to, referenzen)
+    if ueber_kopf is not None:          # zusammengeführt: in die Hauptanfrage
+        return anfragen_sammeln.ziel(akten, ueber_kopf)
     passt = []
     if konversation:
         passt = [a for a in akten if a.kopf.get("konversation") == konversation]
@@ -1202,7 +1453,8 @@ def antwort_zu(akten, betreff, absender, konversation="", jetzt=None, eigene=())
         if len(kern) >= 4 and dom and dom not in (set(eigene or ()) | set(anfragen.EIGENE)):   # nie über eigene Domain
             passt = [a for a in akten if betreff_kern(a.betreff) == kern and _domain(a.kopf.get("absender")) == dom
                      and (not a.eingang or jetzt - a.eingang < datetime.timedelta(days=ANTWORT_TAGE))]
-    return max(passt, key=lambda a: (a.eingang or datetime.datetime.min, a.nr), default=None)
+    a = max(passt, key=lambda a: (a.eingang or datetime.datetime.min, a.nr), default=None)
+    return anfragen_sammeln.ziel(akten, a) if a is not None else None
 
 
 def leitdatei(anfrage):
@@ -1214,7 +1466,7 @@ def leitdatei(anfrage):
     return (anfrage.step or anfrage.dateien or [None])[0]
 
 
-def kopf_aus_ordner(anfrage, kunden=()):
+def kopf_aus_ordner(anfrage, kunden=(), wurzel=None):
     """Kopf einer Akte aus einer Anfrage im Anfrage-Ordner (anfragen.Anfrage)."""
     from . import anfrage_vorab, anfragen, mail
     m = None
@@ -1227,7 +1479,7 @@ def kopf_aus_ordner(anfrage, kunden=()):
              kunde_name=anfragen.kunde_text(kunden, kunde) if kunde else "")
     if m is not None:
         k["betreff"] = anfrage.name
-        mail_kopf(k, m, kunden)
+        mail_kopf(k, m, kunden, wurzel=wurzel)
         k["betreff"] = k.get("betreff") or anfrage.name
     else:
         k.update(betreff=anfrage.name, kurz="")
@@ -1259,7 +1511,10 @@ def aus_ordner(abl, liste, kunden=(), jetzt=None, inbox=None):
             if akte is None and a.mails:
                 akte = _als_antwort(abl, a, h, kunden, jetzt, inbox)
             if akte is None:
-                akte, _neu = abl.anlegen(kopf_aus_ordner(a, kunden), a.dateien, h, jetzt=jetzt)
+                akte, _neu = abl.anlegen(kopf_aus_ordner(a, kunden, abl.wurzel), a.dateien, h, jetzt=jetzt)
+                if _neu and akte is not None:
+                    abl.zuordnung_protokollieren(akte, jetzt=jetzt)
+                    akte = abl.neu_lesen(akte)
             elif akte.status == NEU:
                 bekannt = {d.get("sha256") for d in akte.dateien()}
                 dazu = [d for d in a.dateien if _summe(d) not in bekannt]
@@ -1277,8 +1532,10 @@ def _als_antwort(abl, anfrage, h, kunden, jetzt, inbox):
     """Anfrage aus dem Ordner, die eine Antwort des Kunden auf eine vorhandene Anfrage ist: Dateien dazu, Schlüssel
     auf diese Akte; die Originale kommen gleich nach .uebernommen/<Nr> (die Karte zeigt die Antwort nicht als eigene
     Anfrage). Ergebnis: Akte oder None."""
-    k = kopf_aus_ordner(anfrage, kunden)
-    ziel = antwort_zu(abl.alle(), k.get("betreff"), k.get("absender"), jetzt=jetzt)
+    k = kopf_aus_ordner(anfrage, kunden, abl.wurzel)
+    z = k.get("zuordnung") or {}
+    ziel = antwort_zu(abl.alle(), k.get("betreff"), k.get("absender"), jetzt=jetzt,
+                      in_reply_to=z.get("in_reply_to", ""), referenzen=z.get("referenzen", ()))
     if ziel is None:
         return None
     abl.dateien_dazu(ziel, anfrage.dateien, jetzt=jetzt, antwort=True)
@@ -1316,7 +1573,9 @@ def arbeitskopie(akte, jetzt=None):
         z = _frei(o / d["name"])
         shutil.copy2(d["pfad"], z)
         neu.append(z)
-    return anfragen.Anfrage(akte.betreff, o, neu, akte.kunde or None)
+    anf = anfragen.Anfrage(akte.betreff, o, neu, akte.kunde or None)
+    anf.kunde_fest = bool(akte.stand.get("kunde_bestaetigt"))      # von Hand: im Prüfdialog nicht neu erkennen
+    return anf
 
 
 def eingang_ablegen(anfrage, inbox, nr):

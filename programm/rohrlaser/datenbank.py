@@ -2544,9 +2544,11 @@ class Datenbank:
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = [seit, seit] if zeitraum else []
         if suche:
-            sql += (" WHERE a.nummer LIKE ? OR a.kunde LIKE ? OR a.kundennr LIKE ? OR a.bemerkung LIKE ? "
-                    "OR a.auftragsnr LIKE ? OR a.kundenreferenz LIKE ? "
-                    "OR a.id IN (SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
+            # ohne Groß-/Kleinschreibung (Patrick 20.11.2026; LIKE unterscheidet sie in PostgreSQL)
+            sql += (" WHERE " + " OR ".join(f"suchtext(a.{s}) LIKE suchtext(?)" for s in (
+                        "nummer", "kunde", "kundennr", "bemerkung", "auftragsnr", "kundenreferenz"))
+                    + " OR a.id IN (SELECT angebot_id FROM positionen WHERE suchtext(artikel) LIKE suchtext(?) "
+                    "OR suchtext(bezeichnung) LIKE suchtext(?))")
             werte = [f"%{suche}%"] * 8
         elif zeitraum:
             sql += (" WHERE a.datum >= ? OR a.geaendert >= ? OR (COALESCE(a.ersetzt_durch, '') = '' AND "
@@ -3519,6 +3521,14 @@ class Datenbank:
             except OSError as e:
                 info["dokumente_fehler"] = [str(e)]
                 protokoll.warnung(f"Sicherung {ziel.name}: Angebotsdokumente nicht gesichert ({e})")
+        try:                            # Anfrage-Akten (Mails, Dokumente, Verlauf) mitsichern (20.11.2026)
+            from . import anfragen_akten
+            akten = anfragen_akten.wurzel(self)
+            if akten.is_dir():
+                z = dokumente_sicherung.spiegeln(akten, ziel.parent, ordner=dokumente_sicherung.ANFRAGEN)
+                info["anfragen"] = dokumente_sicherung.text(z)
+        except Exception as e:          # noqa: BLE001 – Sicherung der Datenbank darf daran nie scheitern
+            protokoll.warnung(f"Sicherung {ziel.name}: Anfrage-Akten nicht gesichert ({e})")
         return info
 
     @liest

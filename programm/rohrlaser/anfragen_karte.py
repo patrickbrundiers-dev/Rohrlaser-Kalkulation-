@@ -25,6 +25,29 @@ from .klartext import fehler_text
 ANFRAGEN_S = 30             # Sekunden zwischen zwei Blicken in den Ordner
 
 
+
+def _ordner_stempel(ordner, jetzt=None):
+    """Stempel des Anfrage-Ordners: (Pfad, Größe, Änderungszeit) aller Einträge, rekursiv; None, wenn eine Datei
+    jünger als anfragen.RUHE_S ist (wird evtl. noch geschrieben, dann immer richtig suchen) oder der Ordner nicht
+    lesbar ist."""
+    import os
+    jetzt = (jetzt or datetime.datetime.now()).timestamp()
+    out = []
+    stapel = [str(ordner)]
+    try:
+        while stapel:
+            with os.scandir(stapel.pop()) as it:
+                for e in it:
+                    st = e.stat(follow_symlinks=False)
+                    if jetzt - st.st_mtime < anfragen.RUHE_S + 2:
+                        return None
+                    out.append((e.path, st.st_size, st.st_mtime_ns))
+                    if e.is_dir(follow_symlinks=False):
+                        stapel.append(e.path)
+    except OSError:
+        return None
+    return tuple(sorted(out))
+
 class AnfragenKarte:
     """Baut die Karte (self.karte) und hält die Anfragen (self.anfragen)."""
 
@@ -103,6 +126,15 @@ class AnfragenKarte:
             anfragen.EIGENE = anfragen.eigene_domains(self.f.db)
         except Exception:
             anfragen.EIGENE = set()
+        # Schnellprüfung (Supportpaket 20.11.2026: alle 30 s stand das Programm 0,5–0,7 s): Namen, Größen und Zeiten
+        # aller Dateien im Ordner, dazu Kunden, Angebote und Stunde (Sperren laufen ab). Gleich und keine Datei jünger
+        # als die Ruhezeit -> nichts geändert, Mails und ZIPs nicht neu öffnen.
+        schnell = _ordner_stempel(o)
+        if schnell is not None:
+            schnell = (schnell, len(kunden), len(angebote), ich, datetime.datetime.now().strftime("%Y%m%d%H"))
+        if not erzwingen and schnell is not None and schnell == getattr(self, "_schnell", None):
+            return
+        self._schnell = schnell
         dateien, ohne_anfragen = [], []
         mit_ohne = (self.f.db.einstellung(anfragen.OHNE_STEP) or "ja") == "ja"
         neu = anfragen.suchen(o, kunden, ohne_step=ohne, angebote=angebote, ohne_dateien=dateien,
@@ -563,8 +595,9 @@ class AnfragenKarte:
         from . import mail
         gelesen = [g for g in (self.formular_lesen(d) for a in gesperrt for d in a.formulare) if g]
         mails = [m for m in (mail.lesen(d) for a in gesperrt for d in a.mails) if m]
+        fest = any(getattr(a, "kunde_fest", False) for a in gesperrt)
         kunde, nummer, weitere = anfragen.werte(self.f.db, gelesen, mails,
-                                                next((a.kunde for a in gesperrt if a.kunde), None))
+                                                next((a.kunde for a in gesperrt if a.kunde), None), kunde_fest=fest)
         if nummer and len(gesperrt) == 1:
             try:
                 gesperrt[0] = anfragen.umbenennen(gesperrt[0], anfragen.ordner_name(
