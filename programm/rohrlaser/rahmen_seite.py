@@ -51,7 +51,14 @@ def _item(text, rechts=False, farbe=None):
     return it
 
 
-def _tabelle(spalten):
+def _vz(x):
+    """Prozentzahl mit Vorzeichen und Komma (+16,0)."""
+    return f"{x:+.1f}".replace(".", ",")
+
+
+def _tabelle(spalten, verteilen=False):
+    """verteilen: Zahlentabellen ohne Textspalte am Ende, Spalten gleichmäßig über die Breite (nicht alles in
+    die letzte Spalte)."""
     t = QTableWidget(0, len(spalten))
     t.setHorizontalHeaderLabels(list(spalten))
     t.verticalHeader().setVisible(False)
@@ -60,6 +67,9 @@ def _tabelle(spalten):
     t.setAlternatingRowColors(True)
     t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
     t.horizontalHeader().setStretchLastSection(True)
+    if verteilen:
+        for i in range(1, len(spalten)):
+            t.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
     return t
 
 
@@ -385,7 +395,7 @@ class RahmenFenster(QDialog):
     def _positionen(self):
         w = QWidget()
         self.pos_t = _tabelle(("Pos.", "Artikel", "Bezeichnung", "Rahmenmenge", "Stückpreis €", "kg/Stk.", "Abgerufen",
-                               "Geplant", "Geliefert", "Offen", "Noch abrufbar", "Gefertigt", "Auf Lager", "Restwert €"))
+                               "Geplant", "Geliefert", "Offen", "Noch abrufbar", "Gefertigt", "Auf Lager", "Restwert €"), verteilen=True)
         knoepfe = QHBoxLayout()
         for t, f in (("Position ergänzen …", self.position_neu), ("Menge ändern …", lambda: self.position_feld("menge")),
                      ("Preis ändern …", lambda: self.position_feld("preis")),
@@ -625,9 +635,9 @@ class RahmenFenster(QDialog):
         self.empf = QLabel("Noch nicht berechnet. Die Kosten je Los kommen aus der Kalkulation des Angebots.")
         self.empf.setWordWrap(True)
         self.empf.setTextFormat(Qt.RichText)
-        self.var_t = _tabelle(("Posten", "A je Abruf", "B gesamt", "C optimiert"))
-        self.fest_t = _tabelle(("Feste Losgröße", "Lose", "Selbstkosten €", "Preis €/Stk.", "Marge"))
-        self.gp_t = _tabelle(("Los", "Stück", "Modell €", "Zentrale Rechnung €", "Abweichung", "Material Abw."))
+        self.var_t = _tabelle(("Posten", "A je Abruf", "B gesamt", "C optimiert"), verteilen=True)
+        self.fest_t = _tabelle(("Feste Losgröße", "Lose", "Selbstkosten €", "Preis €/Stk.", "Marge"), verteilen=True)
+        self.gp_t = _tabelle(("Los", "Stück", "Modell €", "Zentrale Rechnung €", "Abweichung", "Material Abw."), verteilen=True)
         unten = QHBoxLayout()
         unten.addWidget(self.fest_t)
         unten.addWidget(self.gp_t)
@@ -875,7 +885,7 @@ class RahmenFenster(QDialog):
         self.aus_text.setWordWrap(True)
         self.aus_text.setTextFormat(Qt.RichText)
         self.aus_t = _tabelle(("Pos.", "Offen", "Preis €", "Material alt €", "Material neu €", "Differenz €",
-                               "Gewinn alt €", "Gewinn neu €", "Materialanteil", "Gleitpreis €"))
+                               "Gewinn alt €", "Gewinn neu €", "Materialanteil", "Gleitpreis €"), verteilen=True)
         self.vor_t = _tabelle(("Vorgeschlagen", "Von", "Neue Preise", "Grund", "Status", "Entschieden"))
         vk = QHBoxLayout()
         for t, f in (("Freigeben", self.freigeben), ("Ablehnen", self.ablehnen)):
@@ -928,7 +938,7 @@ class RahmenFenster(QDialog):
                           (v.get("modell") or {}).get("skonto") or 0.0)
         self.auswirkung_erg = a
         self.aus_text.setText(
-            f"Materialpreis {(faktor - 1) * 100:+.1f} % auf die offene Restmenge: Materialkosten {_eur(a['material_alt'])} → "
+            f"Materialpreis {_vz((faktor - 1) * 100)} % auf die offene Restmenge: Materialkosten {_eur(a['material_alt'])} → "
             f"{_eur(a['material_neu'])} € (<b>{_eur(a['differenz'])} €</b>), Selbstkosten {_eur(a['selbst_alt'])} → "
             f"{_eur(a['selbst_neu'])} €, Gewinn {_eur(a['gewinn_alt'])} → <b>{_eur(a['gewinn_neu'])} €</b>, Marge "
             f"{_pz(a['marge_alt'])} → {_pz(a['marge_neu'])}. {a['text']}. "
@@ -946,7 +956,7 @@ class RahmenFenster(QDialog):
         if not a:
             return None
         u = ra.preis_vorschlagen(self.db, self.uid, a["vorschlag"],
-                                 f"Materialpreis {(a['faktor'] - 1) * 100:+.1f} % ({a['text']})",
+                                 f"Materialpreis {_vz((a['faktor'] - 1) * 100)} % ({a['text']})",
                                  ab=datetime.date.today().isoformat(),
                                  auswirkung={n: a[n] for n in ("differenz", "gewinn_alt", "gewinn_neu", "faktor")})
         self.laden()
@@ -1068,7 +1078,7 @@ class RahmenFenster(QDialog):
         self.abs_text = QLabel()
         self.abs_text.setWordWrap(True)
         self.abs_t = _tabelle(("Pos.", "Menge", "Abgerufen", "Geliefert", "Nicht abgerufen", "Gefertigt", "Auf Lager",
-                               "Lieferverpflichtung", "Umsatz €", "Restwert €"))
+                               "Lieferverpflichtung", "Umsatz €", "Restwert €"), verteilen=True)
         lay = QVBoxLayout(w)
         lay.addWidget(self.abs_text)
         lay.addWidget(self.abs_t, 1)
