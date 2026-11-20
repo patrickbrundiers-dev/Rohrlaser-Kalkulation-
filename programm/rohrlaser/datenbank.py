@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, onlinepreise, pg_lokal, teilen, vollmaterial, zukauf
+from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, onlinepreise, pg_lokal, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -50,7 +50,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 95     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 96     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -194,6 +194,8 @@ SCHEMA_VERSION = 95     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 94: Online-Preise (18.11.2026, onlinepreise.py): Tabellen online_lieferanten, online_preise,
                         #     online_zuordnung (geteilt) und online_abrufe (Protokoll dieses Platzes); leer = wie bisher
                         # 95: Bauteilbibliothek (19.11.2026): positionsvorlagen.kategorie und .favorit; leer = wie bisher
+                        # 96: Schweißbaugruppen-Editor 2.0 (19.11.2026): Tabelle bg_zeiten (Zeiten von Hand je Angebot
+                        #     und Baugruppe mit Merkmalen, bg_zeitlernen.py; über den gemeinsamen Ordner geteilt); leer = nichts
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -207,11 +209,13 @@ SICHERUNGEN_BEHALTEN = None   # None = gestaffelt (STAFFEL), sonst so viele lauf
 STAFFEL = dict(tage=7, wochen=4, monate=12)
 SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Sicherung je Tag beim Beenden)
 ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE,
-                                                                POSITIONSVORLAGEN, lernen.GELERNT) + onlinepreise.TABELLEN
+                                                                POSITIONSVORLAGEN, lernen.GELERNT,
+                                                                bg_zeitlernen.BG_ZEITEN) + onlinepreise.TABELLEN
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
                 POSITIONSVORLAGEN.name: POSITIONSVORLAGEN,
                 KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
                 kennwerte.HISTORIE.name: kennwerte.HISTORIE, lernen.GELERNT.name: lernen.GELERNT,
+                bg_zeitlernen.BG_ZEITEN.name: bg_zeitlernen.BG_ZEITEN,
                 **{t.name: t for t in onlinepreise.TABELLEN}}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)

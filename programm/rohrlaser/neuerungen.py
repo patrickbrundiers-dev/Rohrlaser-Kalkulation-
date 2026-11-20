@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.418", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.419", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -29,6 +29,16 @@ NEUERUNGEN = [
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
                 "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.418", "<b>Schweißbaugruppen-Editor 2.0: Gesamtzeit von Hand und lernende Zeitvorschläge</b> "
+     "([[bg_gesamtzeit]]). Die ganze Bearbeitungszeit einer Baugruppe lässt sich mit einem Wert festlegen (Minuten "
+     "oder Stunden); sie geht vor allem anderen und wird nicht zur berechneten Zeit dazugezählt. Bereiche feiner: "
+     "dazu Richten, Schleifen, Qualitätskontrolle, Montage. Jede Änderung steht im <b>Protokoll</b>; ändert sich die "
+     "Baugruppe danach, kommt ein Hinweis, die Zeit bleibt. Aus den Zeiten von Hand entstehen <b>Zeitvorschläge aus "
+     "vergleichbaren Baugruppen</b> (gleiche Werkstoffgruppe und Verfahren, ähnliche Nahtlänge, Teile, Gewicht; "
+     "Ausreißer zählen nicht), übernommen wird nur mit Knopf. Neue <b>Auswertung</b> mit Grafik. Dazu <b>Stückliste</b> der Baugruppe im "
+     "Editor (Band Ausgabe) und Arbeitsgänge im Strukturbaum.",
+     "Schweißbaugruppe: Gesamtzeit von Hand mit einem Wert, Protokoll, Zeitvorschläge aus vergleichbaren Baugruppen, "
+     "Auswertung"],
     ["0.9.417", "<b>Sicherung vollständiger</b> ([[admin_sicherung_inhalt]]): Jede Sicherung enthält jetzt zusätzlich ein "
      "geprüftes PostgreSQL-Abbild und die Angebotsdokumente aus dem Angebotsordner. Beim Wiederherstellen lassen sich "
      "die Dokumente auf denselben Stand bringen, abweichende Dateien werden vorher beiseitegelegt. Klappt ein Teil der "
