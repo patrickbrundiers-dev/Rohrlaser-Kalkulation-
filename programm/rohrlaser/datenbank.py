@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, onlinepreise, teilen, vollmaterial, zukauf
+from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, onlinepreise, pg_lokal, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -3418,8 +3418,23 @@ class Datenbank:
         return {e.name: json.loads(gespeichert[e.name]) if e.name in gespeichert else e.vorgabe for e in EINSTELLUNGEN}
 
     # -------------------------------------------------------------- Sicherung
+    dokumente_ablage = None     # Ablage der Angebotsdokumente (Pfad oder Aufruf ohne Argumente), setzt das Hauptfenster
+
     @liest
-    def sicherung(self, ordner=None, behalten=SICHERUNGEN_BEHALTEN, zusatz=None, con=None):
+    def dokumente_fuer_sicherung(self):
+        """Ablage, die mit jeder Sicherung gespiegelt wird (Schritt 4), oder None (keine Ablage, Einstellung aus).
+        Im Hauptthread aufrufen (liest Einstellungen); die Sicherung im Hintergrund bekommt das Ergebnis."""
+        a = self.dokumente_ablage
+        if a is None or (self.einstellung("sicherung_dokumente") or "ja") == "nein":
+            return None
+        try:
+            a = a() if callable(a) else a
+        except OSError:
+            return None
+        return Path(a) if a else None
+
+    @liest
+    def sicherung(self, ordner=None, behalten=SICHERUNGEN_BEHALTEN, zusatz=None, con=None, dokumente=_OHNE):
         """Kopie der Datendatei nach Daten/Sicherung (sqlite-Backup, auch bei offener Datei sicher), danach geprüft
         (Integrität, gleiche Anzahl Angebote und Positionen wie das Original) und mit einer Beschreibung
         <name>.json daneben (Version, Schema, Zeit, Anzahlen, Prüfsumme). Scheitert die Prüfung, wird die Kopie
@@ -3430,7 +3445,14 @@ class Datenbank:
         geschützter Sicherungen GESCHUETZT_BEHALTEN (vor_update: 3); die Datendatei selbst wird nie gelöscht.
         con: eigene Verbindung zur Datendatei (Sicherung im Hintergrund, sicherung_heute): kopiert in kleinen
         Schritten, damit das Programm weiter speichern kann; ändert sich dabei die Anzahl Angebote, wird einmal neu
-        kopiert. Ergebnis: Pfad der Sicherung."""
+        kopiert. Ergebnis: Pfad der Sicherung.
+        Schritt 4 (Datenbank-Auftrag 19.11.2026): bei PostgreSQL zusätzlich ein geprüftes Abbild <name>.pgdump
+        (pg_abbild) und, wenn eine Ablage bekannt ist (dokumente: Pfad, None = keine; Vorgabe
+        dokumente_fuer_sicherung()), der Spiegel der Angebotsdokumente mit Liste <name>.dokumente.json
+        (dokumente_sicherung). Beides bricht die Sicherung nicht ab; Fehler stehen in der Beschreibung und im
+        Protokoll."""
+        if dokumente is _OHNE:
+            dokumente = self.dokumente_fuer_sicherung() if con is None else None
         ordner = Path(ordner) if ordner else self.pfad.parent / "Sicherung"
         ordner.mkdir(parents=True, exist_ok=True)
         jetzt = datetime.datetime.now()
@@ -3462,6 +3484,7 @@ class Datenbank:
             _sicherung_loeschen(ziel)
             raise
         info.update(art=zusatz or "", erstellt=jetzt.isoformat(timespec="seconds"), quelle=str(self.pfad))
+        info.update(self._sicherung_zusaetze(quelle, ziel, dokumente))
         ziel.with_suffix(".json").write_text(json.dumps(info, indent=1, ensure_ascii=False), encoding="utf-8")
         # nach Zeit (mehrere Sicherungen in einer Sekunde heißen _1, _2 … _10 und sortieren nach Namen falsch)
         alle = sorted(ordner.glob(f"{self.pfad.stem}_*.db"), key=lambda p: (p.stat().st_mtime_ns, p.name))
@@ -3475,6 +3498,29 @@ class Datenbank:
                 _sicherung_loeschen(p)
         return ziel
 
+    def _sicherung_zusaetze(self, quelle, ziel, dokumente):
+        """PostgreSQL-Abbild und Angebotsdokumente zur Sicherung ziel; Ergebnis: Felder für die Beschreibung."""
+        from . import dokumente_sicherung, pg_abbild, protokoll
+        info = {}
+        if not db_verbindung.ist_sqlite(quelle):
+            try:
+                info["pg_abbild"] = pg_abbild.erstellen(quelle, ziel).name
+            except (OSError, pg_lokal.PgFehlt, db_verbindung.DbFehler) as e:
+                info["pg_abbild_fehler"] = str(e)
+                protokoll.warnung(f"Sicherung {ziel.name}: kein PostgreSQL-Abbild ({e})")
+        if dokumente is not None:
+            try:
+                z = dokumente_sicherung.spiegeln(dokumente, ziel.parent, liste_fuer=ziel)
+                info["dokumente"] = dokumente_sicherung.text(z)
+                if z["fehler"]:
+                    info["dokumente_fehler"] = z["fehler"][:20]
+                    protokoll.warnung(f"Sicherung {ziel.name}: {len(z['fehler'])} Dokumente nicht lesbar, z. B. "
+                                      f"{z['fehler'][0]}")
+            except OSError as e:
+                info["dokumente_fehler"] = [str(e)]
+                protokoll.warnung(f"Sicherung {ziel.name}: Angebotsdokumente nicht gesichert ({e})")
+        return info
+
     @liest
     def sicherung_heute(self, ordner=None, hintergrund=False):
         """Beim Start: eine Sicherung je Tag. hintergrund=True: in einem eigenen Thread mit eigener Verbindung (bei
@@ -3485,7 +3531,7 @@ class Datenbank:
             return None
         if not hintergrund:
             return self.sicherung(ordner)
-        return SicherungLauf(self, ordner)
+        return SicherungLauf(self, ordner, self.dokumente_fuer_sicherung())
 
     @liest
     def sicherungen(self, zusatz=None):
@@ -3503,7 +3549,7 @@ class Datenbank:
         gemeinsam = self.sicherung_gemeinsam() if zusatz == "beenden" else None
         if gemeinsam is not None:            # Beenden: auch in den gemeinsamen Ordner (Patrick 28.10.2026)
             try:
-                pfade.append(self.sicherung(gemeinsam, behalten=SICHERUNGEN_GEMEINSAM, zusatz=zusatz))
+                pfade.append(self.sicherung(gemeinsam, behalten=SICHERUNGEN_GEMEINSAM, zusatz=zusatz, dokumente=None))
             except OSError as e:
                 fehler = fehler or f"Gemeinsamer Ordner nicht erreichbar ({gemeinsam}): {e}"
         return pfade, fehler
@@ -3531,7 +3577,16 @@ class Datenbank:
         """Datendatei durch eine Sicherung, eine Datendatei oder eine Export-Datei (.zip) ersetzen. Vorher wird die
         Quelle geprüft (Integrität, nicht von einer neueren Programmversion) und der jetzige Stand gesichert
         (Sicherung mit `zusatz`, geschützt). Der Inhalt wird in die offene Datei kopiert, danach werden ältere
-        Schemas wie beim Öffnen erweitert. Ergebnis: (Beschreibung der Quelle, Pfad der Sicherung des alten Stands)."""
+        Schemas wie beim Öffnen erweitert. Ergebnis: (Beschreibung der Quelle, Pfad der Sicherung des alten Stands).
+        Ein PostgreSQL-Abbild (.pgdump, Schritt 4) wird erst in eine SQLite-Datei verwandelt und dann genauso
+        eingelesen."""
+        from . import pg_abbild
+        if Path(quelle).suffix.lower() == pg_abbild.ENDUNG:
+            if db_verbindung.ist_sqlite(self.con):
+                raise SicherungFehler("Ein PostgreSQL-Abbild lässt sich nur mit PostgreSQL einlesen.")
+            with tempfile.TemporaryDirectory() as tmp:
+                datei = pg_abbild.nach_sqlite(self.con, quelle, Path(tmp) / f"{Path(quelle).stem}.db")
+                return self.wiederherstellen(datei, zusatz=zusatz)
         with _quelle_entpacken(quelle) as datei:
             info = datei_pruefen(datei)
             if info["schema"] > SCHEMA_VERSION:
@@ -3625,8 +3680,10 @@ def _nur_lesen(pfad):
 
 
 def _sicherung_loeschen(pfad):
-    Path(pfad).unlink(missing_ok=True)
-    Path(pfad).with_suffix(".json").unlink(missing_ok=True)
+    """Sicherung mit Beschreibung, PostgreSQL-Abbild und Dokumentenliste (Schritt 4) löschen."""
+    p = Path(pfad)
+    for weg in (p, p.with_suffix(".json"), p.with_suffix(".pgdump"), p.with_name(p.stem + ".dokumente.json")):
+        weg.unlink(missing_ok=True)
 
 
 class PruefLauf:
@@ -3669,18 +3726,24 @@ class PruefLauf:
 class SicherungLauf:
     """Tägliche Sicherung im Hintergrund (Datenbank.sicherung_heute): fertig(), warten(), pfad oder fehler."""
 
-    def __init__(self, db, ordner):
+    def __init__(self, db, ordner, dokumente=None):
         import threading
         self.pfad = self.fehler = self.pruefung = None
-        self._thread = threading.Thread(target=self._lauf, args=(db, ordner), name="Sicherung", daemon=True)
+        self.info = {}
+        self._thread = threading.Thread(target=self._lauf, args=(db, ordner, dokumente), name="Sicherung",
+                                        daemon=True)
         self._thread.start()
 
-    def _lauf(self, db, ordner):
+    def _lauf(self, db, ordner, dokumente):
         from . import pruef_wiederherstellung
         sqlite = db_verbindung.ist_sqlite(db.con)
         con = sqlite3.connect(db.pfad, timeout=30) if sqlite else db.con.zweite()
         try:
-            self.pfad = db.sicherung(ordner, con=con)
+            self.pfad = db.sicherung(ordner, con=con, dokumente=dokumente)
+            try:
+                self.info = json.loads(self.pfad.with_suffix(".json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                self.info = {}
             # Phase 7: einmal je Woche die neue Sicherung probeweise wiederherstellen
             if pruef_wiederherstellung.faellig(db):
                 self.pruefung = pruef_wiederherstellung.pruefen(db, self.pfad, pg=None if sqlite else con)
