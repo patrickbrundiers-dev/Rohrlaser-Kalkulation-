@@ -131,7 +131,31 @@ def _lage(d):
     return out
 
 
+def _ausdehnung(d):
+    """(x0, x1) längs aus dem Umriss der Abwicklung bzw. Lage ± Ø/2, sonst None (für die Markierung im 3D)."""
+    xs = []
+    for p in d.get("umriss") or ():
+        try:
+            xs.append(float(p[1]))
+        except (TypeError, ValueError, IndexError):
+            continue
+    if xs:
+        return round(min(xs), 1), round(max(xs), 1)
+    if d.get("z") is None:
+        return None
+    z, r = _f(d.get("z")), (_f(d.get("durchmesser")) or _f(d.get("laenge")) or 0) / 2
+    return round(z - r, 1), round(z + r, 1)
+
+
 def _kontur_merkmal(d, sicher):
+    e = _kontur_merkmal_ohne_lage(d, sicher)
+    aus = _ausdehnung(d)
+    if aus:
+        e["x0"], e["x1"] = aus
+    return e
+
+
+def _kontur_merkmal_ohne_lage(d, sicher):
     art = d.get("art") or ""
     konf = 95 if sicher else 75
     lg, br = _f(d.get("laenge")), _f(d.get("breite"))
@@ -226,6 +250,46 @@ def _blech_merkmale(b):
     return out
 
 
+def _mit_zeichnung(out, m):
+    """Gewinde, Senkungen und Fließlöcher aus Modell und Zeichnung/Formular zusammenführen (Laserhub-Vergleich L4,
+    20.11.2026; Laserhub nimmt sie nur aus der Zeichnung): passt die Zeichnung zum Vorschlag aus dem Modell, gilt er
+    als sicher (95 %, Quelle Zeichnung); widerspricht sie (Anzahl), bleibt er zu prüfen mit beiden Werten; steht etwas
+    nur in der Zeichnung, kommt es als Merkmal „nur Zeichnung“ dazu (zu prüfen). Kosten unverändert (€/Stück)."""
+    text = m.get("_zeichnung_text")
+    if not text:
+        return
+    from . import zeichnung_hinweise as zh
+    quelle = m.get("_zeichnung_quelle") or "Zeichnung"
+    try:
+        hinweise = zh.lesen(text)
+    except Exception:       # noqa: BLE001 – Zeichnung ist Zusatz
+        return
+    art_merkmal = {zh.GEWINDE: M_GEWINDE, zh.SENKUNG: M_SENKUNG, zh.FLOWDRILL: M_FLIESS}
+    for h in hinweise:
+        merkmal = art_merkmal.get(h.get("art"))
+        if merkmal is None:
+            continue
+        n_z = h.get("anzahl")
+        if merkmal == M_GEWINDE:
+            treffer = [e for e in out if e.get("merkmal") == M_GEWINDE and h.get("gewinde") and
+                       str(e.get("abmessung") or "").startswith(f"{h['gewinde']} ")]
+        else:
+            treffer = [e for e in out if e.get("merkmal") == merkmal]
+        n_m = sum(int(e.get("anzahl") or 1) for e in treffer)
+        if treffer and (n_z is None or n_z == n_m):
+            for e in treffer:
+                e.update(konfidenz=95, quelle=quelle, hinweis=f"bestätigt durch {quelle} ({zh.text(h)})")
+        elif treffer:
+            for e in treffer:
+                e.update(konfidenz=min(int(e.get("konfidenz", 70)), 70), quelle=quelle,
+                         hinweis=f"{quelle}: {zh.text(h)}, Modell: {n_m} – Anzahl prüfen")
+        else:
+            out.append(dict(merkmal=merkmal, art=h.get("art"), abmessung=zh.text(h), anzahl=int(n_z or 1),
+                            bearbeitung={M_GEWINDE: GEWINDE, M_SENKUNG: SENKEN, M_FLIESS: FLOWDRILL}[merkmal],
+                            konfidenz=60, quelle=quelle,
+                            hinweis=f"nur in der {quelle} – im Modell kein passendes Loch, bitte prüfen"))
+
+
 def merkmale(m, gewinde_tabelle=None):
     """Alle erkannten Bearbeitungen eines Teils (Liste von dicts, siehe Modultext)."""
     sicher = _sicherheit(m).get("konturen", "sicher") == "sicher"
@@ -239,6 +303,7 @@ def merkmale(m, gewinde_tabelle=None):
     for g, dm, n in _gewinde(m.get("bohrungen"), gewinde_tabelle):
         out.append(dict(merkmal=M_GEWINDE, art="Gewinde", d=dm, abmessung=f"{g} (Kernloch Ø {dm:g} mm)", anzahl=n,
                         bearbeitung=GEWINDE, konfidenz=70, hinweis="Annahme aus dem Kernloch – bitte bestätigen"))
+    _mit_zeichnung(out, m)
     if "Fase" in str(m.get("hinweise") or ""):
         out.append(dict(merkmal=M_FASE, art="Fase", abmessung="laut Hinweis der Messung", bearbeitung="Fasen",
                         konfidenz=75))
@@ -248,8 +313,9 @@ def merkmale(m, gewinde_tabelle=None):
     for f in m.get("_fertigbarkeit") or ():      # geprüft beim Import mit der Maschine des Angebots
         e = dict(merkmal=M_FERTIG, art=f.get("regel") or "", abmessung=f.get("text") or "", bearbeitung="prüfen",
                  konfidenz=70, hinweis="Konstruktionsregel der Maschine – Teil bleibt wie in der STEP")
-        if f.get("x") is not None:
-            e["x"] = f["x"]
+        for k in ("x", "x0", "x1"):
+            if f.get(k) is not None:
+                e[k] = f[k]
         if f.get("seite"):
             e["seite"] = f["seite"]
         out.append(e)

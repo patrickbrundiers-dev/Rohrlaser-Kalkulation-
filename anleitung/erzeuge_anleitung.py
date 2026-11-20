@@ -4750,6 +4750,18 @@ def kapitel_step(i):
             "„Fertigbarkeit“ nennen Lage und Maß. Der Reiter <b>Dateien</b> zeigt je Datei Körper, Volumenkörper "
             "(oder aus Flächen genäht), Einheit und ob die Anforderungen erfüllt sind. Der Angebots-Check nennt "
             "Positionen mit Verstoß als Hinweis.")
+    i.text("Außerdem zeigt die Importanalyse rechts neben den Merkmalen eine <b>3D-Ansicht</b> des gewählten "
+           "Teils: ein Klick auf ein Merkmal (auch auf einen Fertigbarkeits-Befund) färbt seinen Bereich im 3D. "
+           "<b>Nächstes zu prüfen ▸</b> springt über alle Teile zum nächsten Merkmal, das nicht sicher erkannt ist "
+           "oder eine Regel verletzt.", kurz=True)
+    i.liste("<b>Gewinde, Senkungen, Fließlöcher mit Zeichnung</b>: liegt zum Teil eine Zeichnung oder ein Formular "
+            "vor, gleicht die Analyse den Gewinde-Vorschlag aus dem Kernloch damit ab. Stimmt Größe und Anzahl, gilt er "
+            "als sicher („bestätigt durch Zeichnung“); weicht die Anzahl ab, bleibt er zu prüfen mit beiden Werten; "
+            "steht etwas nur in der Zeichnung, erscheint es als Merkmal „nur in der Zeichnung“. Die Kosten bleiben "
+            "€ je Stück wie bisher.",
+            "<b>Zukaufteile</b> des Imports (Blech-, Fräs-, Drehteile) nennt die Importanalyse oben: nach dem "
+            "Übernehmen fragt die <b>Materialanfrage</b> sie gesammelt an (Gruppen Blechteile bzw. Dreh-/Frästeile, mit "
+            "Zeichnung, DXF und STEP; Rohrmaterial geht nie mit Dateien hinaus).")
     i.abschnitt("STEP-Merkmale prüfen", marke="step_merkmale")
     i.text("Jedes Rohrteil aus dem STEP-Import merkt sich, wie sicher die Messung die einzelnen Merkmale erkannt hat. "
            "Rechtsklick auf die Position → <b>STEP-Merkmale prüfen …</b> zeigt sie.", kurz=True)

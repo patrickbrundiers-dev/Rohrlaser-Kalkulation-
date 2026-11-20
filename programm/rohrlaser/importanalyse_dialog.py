@@ -104,6 +104,25 @@ def _zahl(x, st=1):
         return ""
 
 
+def zukauf_text(kategorien):
+    """Hinweis auf die Zukaufteile des Imports (Blech-, Fräs-, Drehteile) und wie sie angefragt werden."""
+    teile = [f"{kategorien[k]} {k}" for k in (ba.BLECH, ba.FRAES, ba.DREH) if kategorien.get(k)]
+    if not teile:
+        return ""
+    return ("Zukaufteile: " + ", ".join(teile) + " – nach dem Übernehmen mit <b>Materialanfrage</b> gesammelt "
+            "anfragen (Gruppen Blechteile bzw. Dreh-/Frästeile, mit Zeichnung, DXF und STEP; Rohrmaterial nie mit "
+            "Dateien).")
+
+
+def merkmal_bereich(x, rand=0.6):
+    """(z0, z1) längs zum Markieren im 3D (Netz: z = Abstand von Ende A) oder None."""
+    if x.get("x0") is not None and x.get("x1") is not None:
+        return float(x["x0"]) - rand, float(x["x1"]) + rand
+    if x.get("x") is not None:
+        return float(x["x"]) - rand, float(x["x"]) + rand
+    return None
+
+
 DATEI_SPALTEN = ("Datei", "Körper", "Volumenkörper", "Einheit", "Geometrie", "Anforderungen")
 
 
@@ -171,6 +190,11 @@ class ImportanalyseDialog(QDialog):
                       f"Baugruppe(n) · {kat}")
         info.setWordWrap(True)
         lay.addWidget(info)
+        zk = zukauf_text(self.summe["kategorien"])
+        if zk:          # Laserhub-Vergleich L5: Zukaufteile gesammelt über die vorhandene Materialanfrage
+            self.zukauf_hinweis = QLabel(zk)
+            self.zukauf_hinweis.setWordWrap(True)
+            lay.addWidget(self.zukauf_hinweis)
         self.reiter = QTabWidget()
         lay.addWidget(self.reiter, 1)
         self._bauteile_reiter()
@@ -226,11 +250,27 @@ class ImportanalyseDialog(QDialog):
         self.merkmale = QTableWidget(0, len(self.MERKMAL_SPALTEN))
         self.merkmale.setHorizontalHeaderLabels(self.MERKMAL_SPALTEN)
         self.merkmale.verticalHeader().setVisible(False)
+        self.merkmale.setSelectionBehavior(QTableWidget.SelectRows)
+        self.merkmale.setSelectionMode(QTableWidget.SingleSelection)
         self.merkmale.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.merkmale.horizontalHeader().setStretchLastSection(True)
-        ul.addWidget(self.merkmale)
+        self.merkmale.itemSelectionChanged.connect(self._merkmal_markieren)
+        # Merkmal im 3D (Laserhub-Vergleich L2, 20.11.2026): gewähltes Merkmal farbig, Bereich längs aus dem Umriss
+        from .ansicht3d import Ansicht3D
+        nebeneinander = QSplitter(Qt.Horizontal)
+        nebeneinander.addWidget(self.merkmale)
+        self.ansicht = Ansicht3D()
+        self.ansicht.setMinimumWidth(320)
+        nebeneinander.addWidget(self.ansicht)
+        nebeneinander.setSizes([760, 420])
+        ul.addWidget(nebeneinander, 1)
+        self.naechstes_knopf = QPushButton("Nächstes zu prüfen ▸")
+        self.naechstes_knopf.setToolTip("Springt zum nächsten Merkmal, das nicht sicher erkannt ist oder eine "
+                                        "Konstruktionsregel verletzt, und zeigt es im 3D.")
+        self.naechstes_knopf.clicked.connect(lambda: self.naechstes_pruefen())
+        ul.addWidget(self.naechstes_knopf, 0, Qt.AlignLeft)
         w.addWidget(unten)
-        w.setSizes([380, 260])
+        w.setSizes([240, 420])
         self.reiter.addTab(w, f"Bauteile ({len(self.zeilen)})")
         if self.zeilen:
             self.bauteile.selectRow(0)
@@ -242,6 +282,13 @@ class ImportanalyseDialog(QDialog):
         d, p = self.zeilen[r]
         a = ba.von(self.messwerte[p["indizes"][0]])
         liste = sorted(a.get("merkmale") or [], key=lambda x: x.get("merkmal") != ba.M_FERTIG)    # Verstöße zuerst
+        self.merkmal_liste = liste
+        m = self.messwerte[p["indizes"][0]]
+        try:
+            from . import step
+            self.ansicht.setzen(step.netz_der_art(m) if m.get("_netz") else None, p["bezeichnung"])
+        except Exception:       # noqa: BLE001 – 3D ist Zusatz
+            self.ansicht.setzen(None, p["bezeichnung"])
         k = a.get("kennzahlen") or {}
         self.merkmal_titel.setText(
             f"<b>Pos. {p['nr']} {p['bezeichnung']}</b>: {ba.kurztext(a)} · Wand {_zahl(k.get('wand'), 2)} mm, "
@@ -260,6 +307,36 @@ class ImportanalyseDialog(QDialog):
                      x.get("bearbeitung") or "", f"{x.get('konfidenz', 0)} %", x.get("hinweis") or "")
             for c, v in enumerate(werte):
                 self.merkmale.setItem(r_, c, _item(v, STUFE_FARBE.get(stufe) if c == 7 else None, c in (1, 5, 7)))
+
+    def _merkmal_markieren(self):
+        r = self.merkmale.currentRow()
+        liste = getattr(self, "merkmal_liste", [])
+        if r < 0 or r >= len(liste):
+            self.ansicht.markieren()
+            return None
+        bereich = merkmal_bereich(liste[r])
+        self.ansicht.markieren(z_bereich=bereich)
+        return bereich
+
+    def naechstes_pruefen(self):
+        """Nächstes Merkmal mit Konfidenz unter grün (oder Fertigbarkeit) nach der Auswahl, über alle Teile; True =
+        gefunden (Teil und Merkmal gewählt, im 3D markiert)."""
+        n = len(self.zeilen)
+        if not n:
+            return False
+        start_t, start_m = max(self.bauteile.currentRow(), 0), self.merkmale.currentRow()
+        for schritt in range(n + 1):
+            t = (start_t + schritt) % n
+            a = ba.von(self.messwerte[self.zeilen[t][1]["indizes"][0]])
+            liste = sorted(a.get("merkmale") or [], key=lambda x: x.get("merkmal") != ba.M_FERTIG)
+            ab = start_m + 1 if schritt == 0 else 0
+            for i in range(ab, len(liste)):
+                if liste[i].get("konfidenz", 100) < ba.GRUEN_AB:
+                    if t != self.bauteile.currentRow():
+                        self.bauteile.selectRow(t)
+                    self.merkmale.selectRow(i)
+                    return True
+        return False
 
     # ------------------------------------------------------------------ Baugruppen
     def _baugruppen_reiter(self):

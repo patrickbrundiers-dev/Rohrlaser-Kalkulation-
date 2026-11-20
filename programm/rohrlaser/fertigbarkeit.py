@@ -134,7 +134,8 @@ def scharfe_ecken(pk):
 
 
 # ---------------------------------------------------------------------------------------------- Prüfung
-def _befund(regel, text, d=None, wert=None, grenze=None):
+def _befund(regel, text, d=None, wert=None, grenze=None, bereich=None):
+    """bereich = (x0, x1) längs für die Markierung im 3D (Vorgabe: Ausdehnung der Kontur d)."""
     d = d or {}
     out = dict(regel=regel, text=text, wert=None if wert is None else round(wert, 2),
                grenze=None if grenze is None else round(grenze, 2))
@@ -142,6 +143,11 @@ def _befund(regel, text, d=None, wert=None, grenze=None):
         out["x"] = round(_f(d.get("z")), 1)
     if d.get("seite"):
         out["seite"] = str(d["seite"])
+    if bereich is None:
+        pk = _punkte(d)
+        bereich = (_box(pk)[2], _box(pk)[3]) if pk else None
+    if bereich:
+        out["x0"], out["x1"] = round(min(bereich), 1), round(max(bereich), 1)
     return out
 
 
@@ -194,7 +200,8 @@ def pruefen(m, maschine=None):
                 if e is not None and (e.get("form") or "gerade") == "gerade" and abs(_f(e.get("gehrung"))) < 0.05 \
                         and -1e-6 < rand < grenze - 1e-6:
                     out.append(_befund(STEG_ENDE, f"Steg zum {name} {_z(rand)} mm, kleiner als {_z(g['steg'])} × "
-                                       f"Wand {_z(wand)} mm", d, rand, grenze))
+                                       f"Wand {_z(wand)} mm", d, rand, grenze,
+                                       (0.0, x1) if name == "Ende A" else (x0, laenge)))
         if len(formen) <= MAX_KONTUREN_STEG:
             formen.sort(key=lambda t: t[2][2])
             for i, (d, pk, (u0, u1, x0, x1)) in enumerate(formen):
@@ -211,7 +218,8 @@ def pruefen(m, maschine=None):
                     if 1e-6 < s < grenze - 1e-6:
                         out.append(_befund(STEG, f"Steg {_z(s)} mm zwischen {d.get('art') or 'Kontur'} (x "
                                            f"{_z(d.get('z'))}) und {e.get('art') or 'Kontur'} (x {_z(e.get('z'))}), "
-                                           f"kleiner als {_z(g['steg'])} × Wand {_z(wand)} mm", d, s, grenze))
+                                           f"kleiner als {_z(g['steg'])} × Wand {_z(wand)} mm", d, s, grenze,
+                                           (min(x0, y0), max(x1, y1))))
     # scharfe Innenecken (nur mit Grenzwert)
     if g["eckradius"] > 0:
         for d in durch:
