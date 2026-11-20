@@ -20,7 +20,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QAbstractTableModel, QEvent, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
 from PySide6.QtCore import QBuffer, QByteArray, QPoint
 from PySide6.QtGui import QAction, QActionGroup, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
-from PySide6.QtWidgets import (QSizePolicy, 
+from PySide6.QtWidgets import (QFrame, QSizePolicy,
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QApplication, QFileDialog, QSpinBox, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QToolButton, QVBoxLayout, QWidget)
@@ -2805,9 +2805,23 @@ class StartSeite(QWidget):
             ("kacheln", self.kacheln), ("auftrag_kacheln", self.auftrag_kacheln),
             ("anfragen_kacheln", self.anfragen_kacheln), ("anfragen", self.anfragen.karte), ("angebote", angebote),
             ("heute", heute), ("schnellzugriffe", self.schnell), ("stammdaten", stamm), ("sicherung", sicherung))}
+        # Karten in einem Rollbereich: die Startseite verlangt so nie mehr Höhe als der Bildschirm hat, sonst wächst
+        # das maximierte Fenster beim Reiterwechsel über den Rand (Patrick 20.11.2026: „Maximierter Bildschirm darf
+        # sich nicht verändern“)
+        flaeche = QWidget()
+        fl = QVBoxLayout(flaeche)
+        fl.setContentsMargins(0, 0, 0, 0)
+        fl.setSpacing(10)
+        rollen_bereich = QScrollArea()
+        rollen_bereich.setObjectName("startseite_rollbereich")
+        rollen_bereich.setWidgetResizable(True)
+        rollen_bereich.setFrameShape(QFrame.NoFrame)
+        rollen_bereich.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        rollen_bereich.setWidget(flaeche)
+        lay.addWidget(rollen_bereich, 1)
         self.oben = QVBoxLayout()
         self.oben.setSpacing(10)
-        lay.addLayout(self.oben)
+        fl.addLayout(self.oben)
         links = QWidget()
         ll = QVBoxLayout(links)
         ll.setContentsMargins(0, 0, 0, 0)
@@ -2823,7 +2837,7 @@ class StartSeite(QWidget):
         raster.setColumnStretch(0, 3)
         raster.setColumnStretch(1, 2)
         self.links_spalte, self.rechts_spalte, self.raster = links, rechts, raster
-        lay.addLayout(raster, 1)
+        fl.addLayout(raster, 1)
         self.karten_anordnen()
         self.setAcceptDrops(True)
         self.neu_laden()

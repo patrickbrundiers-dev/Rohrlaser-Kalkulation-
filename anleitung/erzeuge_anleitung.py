@@ -1073,6 +1073,9 @@ def kapitel_start(i):
             "bleiben geschützt); <i>Arbeitsbereich löschen</i> entfernt eigene wieder.",
             "<i>Standardlayout wiederherstellen …</i> setzt Leiste, Dashboard, Schnellzugriffe und Info-Panel nach einer "
             "Rückfrage auf die Vorgabe zurück. Daten und Einstellungen der Kalkulation bleiben unverändert.",
+            "Maximiert bleibt maximiert: Beim Start, beim Wechsel von Reiter oder Arbeitsbereich, mit Info-Panel und "
+            "beim Öffnen von Dialogen behält das Fenster die Größe des Bildschirms (ab 1280 × 680 Pixel, Tablet ab "
+            "1280 × 800). Sind auf der Startseite mehr Karten gewählt, als in die Höhe passen, lässt sie sich rollen.",
             "Bildschirmgröße: Das Fenster passt Leiste und Karten der Breite an. Eine Browser- oder Smartphone-"
             "Fassung gibt es nicht, weil die Daten je PC gespeichert werden ([[admin_datenbank]]); der Arbeitsbereich "
             "<i>Tablet</i> ist für Windows-Tablets gedacht.", kurz=True)
@@ -6738,10 +6741,10 @@ def kapitel_optimieren(i):
             "<i>Nur Konturen</i>: nur die Schnittkonturen, das Rohr als feiner Hauch.",
             "Lange, schmale Dreiecke werden fürs Zeichnen ohne Grafikkarte geteilt: nichts scheint mehr durch eine "
             "Wand (z. B. beim L-Profil).",
-            "Seit 0.9.420 dazu <i>Realistisch</i>, <i>Technisch (CAD)</i> und <i>Prüfmodus Rohrlaser</i> "
+            "Seit 0.9.421 dazu <i>Realistisch</i>, <i>Technisch (CAD)</i> und <i>Prüfmodus Rohrlaser</i> "
             "([[kanten_3d]]).")
     i.abschnitt("Kanten, Innenkanten und Prüfmodus", marke="kanten_3d")
-    i.text("Seit 0.9.420 zeigt die 3D-Ansicht Kanten wie ein CAD und macht Innenkanten und Wandstärken von Rohren "
+    i.text("Seit 0.9.421 zeigt die 3D-Ansicht Kanten wie ein CAD und macht Innenkanten und Wandstärken von Rohren "
            "prüfbar. Alles ist nur Anzeige: Geometrie, Netz, Export und Kalkulation bleiben genau gleich.", kurz=True)
     i.liste("<b>Keine Linien mehr durch die Rohrwand</b>: jede Kante wird in kurze Stücke geteilt und je Stück geprüft, "
             "ob eine Fläche davor liegt. Verdeckte Stücke fallen weg oder erscheinen hell gestrichelt, Linien gehen nie "
