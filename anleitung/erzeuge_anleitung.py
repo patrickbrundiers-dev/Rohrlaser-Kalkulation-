@@ -4728,6 +4728,33 @@ def kapitel_step(i):
                                                            "übernommene Teil bekommt, z. B. Feuerverzinken"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_importprofile", "Einstellungen, Importprofile (STEP): je Kunde eine Zeile", hoehe=70 * mm)
+    i.abschnitt("Importanalyse: Kategorien, Konfidenz, Merkmale, ZIP", marke="importanalyse")
+    i.text("Seit 0.9.425 (Importengine nach dem Vergleich mit Laserhub) zeigt der Prüfdialog oben eine "
+           "<b>Schrittleiste</b>: ① Import › ② Analyse › ③ Ergebnis › ④ Kontrolle › ⑤ Korrektur › ⑥ Kalkulation, "
+           "mit Dateien, Teilen und den Zahlen der Ampel. Solange etwas gelb oder rot ist, steht der Ablauf bei "
+           "④ Kontrolle; ist alles sicher, bei ⑥ Kalkulation (<b>Übernehmen</b>).", kurz=True)
+    i.liste("<b>Dateien</b>: STEP, IGES und <b>ZIP-Archive</b> (auch ZIP in ZIP) im Dateidialog oder per Ziehen. "
+            "ZIPs werden entpackt. <b>SolidWorks (.SLDPRT/.SLDASM), CATIA (.CATPart/.CATProduct), Inventor, "
+            "Creo/NX, Parasolid</b> kann das Programm nicht lesen (Herstellerformate): sie stehen als rote Zeile "
+            "„nicht lesbar – bitte als STEP (AP214 oder AP242) speichern“ im Prüfdialog. Leere Dateien, Dateien "
+            "ohne STEP-Kopf und unvollständige STEP-Dateien werden gemeldet, Dateien mit gleichem Inhalt (auch unter "
+            "anderem Namen) nur einmal gemessen.",
+            "<b>Kategorie</b> je Teil: Rundrohr, Vierkantrohr, Rechteckrohr, <b>Ovalrohr</b> (Flachoval, "
+            "Halbflachoval, Elliptisch – werden jetzt erkannt und dem Profil der Stammdaten zugeordnet), "
+            "Sonderprofil, Offenes Profil, Rohrlaser-Baugruppe, Blechteil, Frästeil, Drehteil, Sonstiges Bauteil.",
+            "<b>Konfidenz</b> 0 … 100 %: erklärt die Ampel (grün ab 90 %, gelb 50 … 89 %, rot darunter) mit den "
+            "Gründen (z. B. „Wandstärke unsicher“, „Gewinde-Vorschlag prüfen“). Unsichere Teile bleiben gelb und "
+            "werden nie unbemerkt übernommen.",
+            "Im Infofeld unter der 3D-Ansicht steht <b>Erkennung:</b> Kategorie, Konfidenz und die erkannten "
+            "Bearbeitungen (z. B. „Vierkantrohr · 90 % sicher · 4 Runde Bohrung, 4 Gewinde (Vorschlag), 1 Gravur“).",
+            "Knopf <b>Importanalyse …</b>: Reiter <b>Bauteile</b> (jedes verschiedene Teil mit Anzahl, Kategorie, "
+            "Konfidenz, Profil, Länge, Bearbeitungen, Komplexität; darunter alle <b>Merkmale</b> des gewählten Teils "
+            "mit Lage x ab Ende A, Seite, Abmessung, Orientierung, Schnittlänge, Bearbeitung und Konfidenz), "
+            "<b>Baugruppen</b> (Struktur der STEP, gleiche Teile mit Stückzahl, Varianten = gleiches Profil mit anderer "
+            "Länge oder Bearbeitung, Schweißverbindungen mit Länge, Materialbedarf je Profil) und <b>Dateien</b> "
+            "(alle Befunde des Imports). <b>Bauteilliste als CSV …</b> speichert die Liste.",
+            "Die Analyse wird einmal beim Übernehmen mit der Position gespeichert (STEP-Merkmale); andere Teile des "
+            "Programms lesen sie dort und messen nicht neu.")
     i.abschnitt("STEP-Merkmale prüfen", marke="step_merkmale")
     i.text("Jedes Rohrteil aus dem STEP-Import merkt sich, wie sicher die Messung die einzelnen Merkmale erkannt hat. "
            "Rechtsklick auf die Position → <b>STEP-Merkmale prüfen …</b> zeigt sie.", kurz=True)
@@ -6904,7 +6931,48 @@ def kapitel_optimieren(i):
             "bis 2×. Jedes Teil rückt von der Mitte der Baugruppe weg. <b>Messen ist dabei gesperrt</b> (Abstände "
             "zwischen Teilen wären falsch); Explosion auf <i>Aus</i>, dann messen.",
             "<i>Ansicht als Bild/PDF speichern …</i> (in beiden Menüs) speichert die Ansicht, wie sie zu sehen ist, "
-            "als PNG oder als PDF (A4 quer, mit Titel und Hinweis).")
+            "als PNG oder als PDF (A4 quer, mit Titel und Hinweis).",
+            "Seit 0.9.426 lässt sich die Explosion genau einstellen, von Hand ändern, animieren und speichern "
+            "([[explosion_3d]]).")
+    i.abschnitt("Explosionsansicht einstellen", marke="explosion_3d")
+    i.text("Seit 0.9.426 öffnet <b>Explosion → Explosion einstellen …</b> (Pfeil am Knopf Explosion, in Baugruppe, "
+           "Satz und allen 3D-Fenstern) ein Seitenfenster. Jede Änderung wirkt sofort. Alles ist nur Anzeige: Netz, "
+           "Lage der Teile im Export (laut STEP) und Kalkulation bleiben genau gleich, die Verschiebungen werden als "
+           "eigene Anzeigedaten gespeichert.", kurz=True)
+    i.liste("<b>Auseinanderziehen</b>: <i>Stärke</i> (Schieber 0 bis 3×), <i>Richtung</i> (Frei (aus der Mitte), "
+            "Waagrecht, Senkrecht, Nur X, Nur Y, Nur Z), <i>Nach Unterbaugruppen (Ebenen)</i>: die Teile einer "
+            "Unterbaugruppe gehen zuerst als Ganzes von der Baugruppe weg und dann etwas auseinander, tiefere "
+            "Unterbaugruppen gehen mit ihrer oberen. <i>Überlappung vermeiden</i> schiebt Teile, deren Hüllen sich "
+            "noch schneiden, weiter auseinander.",
+            "<b>Verbindungslinien zur Einbaulage</b>: gestrichelte Linie von der Mitte jedes Teils in der Einbaulage "
+            "zur Lage in der Explosion.",
+            "<b>Beschriftung</b>: <i>Aus</i>, <i>Positionsnummer</i> (Ballon mit der Pos. aus der Stückliste der "
+            "Baugruppe bzw. des Satzes), <i>Nummer und Artikel</i> oder <i>Alle Angaben</i> (Artikel, Bezeichnung, "
+            "Werkstoff, Profil, Wand, Stückzahl). Fixierte Teile haben einen orangen Ballon. Ein Klick auf ein Teil "
+            "zeigt wie bisher seine Angaben und wählt es in der Liste.",
+            "<b>Teile von Hand</b>: <i>Teile mit der Maus ziehen</i> einschalten, dann ein Teil mit der linken "
+            "Maustaste ziehen (gewählte Teile gehen zusammen). Die Liste daneben wählt <i>Frei (in der Bildebene)</i> "
+            "oder <i>Nur X</i>/<i>Nur Y</i>/<i>Nur Z</i>. Beim Ziehen bleibt der Bildausschnitt stehen. Mit den "
+            "Feldern X, Y, Z und <i>Setzen</i> bekommen die gewählten Teile einen genauen Versatz in mm.",
+            "<i>Fixieren</i> / <i>Lösen</i>: fixierte Teile bleiben in der Einbaulage stehen. <i>Gewählte zurück</i> "
+            "nimmt den eigenen Versatz der gewählten Teile weg, <i>Alles zurücksetzen</i> den aller Teile samt "
+            "Stärke. <i>Rückgängig</i> und <i>Wiederholen</i> gehen über alle diese Schritte.",
+            "<b>Animation</b>: <i>Auseinander</i>, <i>Zusammen</i>, <i>Schrittweise</i> (Teil für Teil von außen nach "
+            "innen) und <i>Montagereihenfolge</i> (Teil für Teil zusammen bis zur Einbaulage). <i>Pause / Weiter</i> "
+            "hält an; <i>Dauer</i> stellt das Tempo ein (schrittweise je Teil). Auseinander, zusammen und "
+            "Montagereihenfolge auch direkt im Menü Explosion.",
+            "<b>Gespeicherte Ansichten</b>: Namen eingeben, <i>Speichern</i> merkt Stand und Blickrichtung (Drehung, "
+            "Zoom, Verschiebung, Perspektive); <i>Zeigen</i> holt sie wieder, <i>Löschen</i> entfernt sie. Die "
+            "Ansichten werden mit der Schweißbaugruppe bzw. dem Satz gespeichert (beim OK des Editors), mehrere je "
+            "Baugruppe sind möglich.",
+            "<b>Explosionszeichnung mit Stückliste</b>: <i>PDF/Bild speichern …</i> (auch im Menü Explosion) "
+            "erzeugt ein Blatt A4 quer mit dem Bild, wie es zu sehen ist, den Positionsnummern und der Stückliste "
+            "(Nr., Pos., Artikel, Bezeichnung, Werkstoff, Profil, Wand, Anzahl; gleiche Positionen zusammengefasst). "
+            "<i>In die Angebotsakte legen</i> legt die Zeichnung als PDF und PNG in den Ordner "
+            "<i>Angebotsakte\\Technische_Daten</i> des Angebots.",
+            "Im Menü Explosion außerdem <i>Gewählte Teile fixieren/lösen</i> und <i>Explosion zurücksetzen (alle "
+            "Teile)</i>. Ein Klick auf den Knopf <b>Explosion</b> schaltet aus und nimmt dabei auch den eigenen "
+            "Versatz weg (Rückgängig im Fenster).")
     i.abschnitt("3D-Einstellungen: Profile, Export, Selbsttest", marke="profile_3d")
     i.text("Auf der Einstellungsseite <i>3D-Ansicht und Navigation</i> stehen unter <i>Aussehen</i> (seit 0.9.416):",
            kurz=True)

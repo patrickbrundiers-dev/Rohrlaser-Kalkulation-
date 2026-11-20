@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.425", "<b>Anfragen: Mail-Art, Sachgebiet und technische Angaben erkennen</b> ([[anfrage_art]]). Jede Mail "
+    ["0.9.427", "<b>Anfragen: Mail-Art, Sachgebiet und technische Angaben erkennen</b> ([[anfrage_art]]). Jede Mail "
      "wird eingeordnet: neue Anfrage, Angebotsnachfrage, Angebotsänderung, Bestellung, Auftragsänderung, technische "
      "Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, allgemeine Mail oder Werbung, mit Sicherheit und "
      "Gründen. Dazu das Sachgebiet (Rohr, Blech, Profil, Schweißbaugruppe, Dreh-/Frästeil, Material) und technische "
@@ -30,6 +30,23 @@ NEUERUNGEN = [
      "<i>Mail-Art</i>. Ändern von Hand steht im Verlauf und dient dem Lernen. Werbung wird nur vorgeschlagen, nie von "
      "selbst aussortiert. Alles lokal, ohne KI-Dienst.",
      "Anfragen: Mail-Art (Anfrage, Bestellung, Reklamation …), Sachgebiet und technische Angaben erkennen"],
+    ["0.9.426", "<b>Explosionsansicht einstellen, von Hand ändern und speichern</b> ([[explosion_3d]]). Neues Fenster "
+     "<i>Explosion einstellen …</i>: Stärke bis 3×, Richtung (frei, waagrecht, senkrecht, nur X/Y/Z), nach "
+     "Unterbaugruppen, ohne Überlappung, Verbindungslinien zur Einbaulage, Positionsnummern aus der Stückliste und "
+     "Beschriftung. Teile mit der Maus ziehen (frei oder entlang einer Achse) oder per Zahl verschieben, fixieren, "
+     "zurücksetzen, Rückgängig/Wiederholen. Animation auseinander, zusammen, schrittweise und als "
+     "Montagereihenfolge. Mehrere Ansichten mit Namen und Blickrichtung je Baugruppe/Satz. Explosionszeichnung mit "
+     "Stückliste als PDF/Bild, auch in die Angebotsakte. Nur Anzeige, Lage im Export bleibt laut STEP.",
+     "Explosionsansicht: Richtungen, Ebenen, Teile ziehen, Nummern, Animation, gespeicherte Ansichten, Zeichnung"],
+    ["0.9.425", "<b>Importengine: ZIP-Import, Ovalrohre, Kategorien mit Konfidenz, Importanalyse</b> "
+                "([[importanalyse]]). Nach dem Vergleich mit Laserhub: ZIP-Archive (auch verschachtelt) werden "
+                "entpackt, SolidWorks-, CATIA-, Inventor- und andere Herstellerdateien als „nicht lesbar – bitte als "
+                "STEP speichern“ gemeldet, leere, defekte und doppelte Dateien erkannt. Flachoval-, Halbflachoval- und "
+                "elliptische Rohre werden erkannt (bisher Sonderprofil). Jedes Teil bekommt eine Kategorie (11 Arten) "
+                "und eine Konfidenz in % mit Gründen; der Prüfdialog zeigt oben die Schritte Import bis Kalkulation "
+                "und mit <b>Importanalyse …</b> alle Teile, ihre Merkmale mit Lage und Abmessung, Baugruppen mit "
+                "gleichen Teilen, Varianten, Schweißverbindungen und Materialbedarf (CSV).",
+     "STEP-Import: ZIP, Ovalrohre, Kategorie und Konfidenz je Teil, Fenster Importanalyse"],
     ["0.9.424", "<b>Outlook: Kunde sicher erkennen, Anfragen sammeln und zusammenführen</b> ([[herkunft_kunde]], "
      "[[anfragen_sammeln]]). Bei jeder Anfrage zeigt <i>Herkunft und Kunde</i> den ursprünglichen Absender, die "
      "Weiterleiter, das Postfach und den erkannten Kunden mit Stufe (eindeutig, wahrscheinlich, mehrdeutig, nicht "
