@@ -40,6 +40,15 @@ NEUERUNGEN = [
                 "ohne Installation und ohne Admin-Rechte) ist freiwillig. Es läuft nur auf diesem PC bzw. im "
                 "Firmennetz, Cloud-Modelle und Internet-Adressen sind gesperrt.",
      "Lokale KI: KI-Zentrale, KI-Assistent (Strg+Alt+K), KI-Prüfung im Angebots-Check, nur im eigenen Netz"],
+    ["0.9.437", "<b>Lernsystem aus TRUMPF-Produktionsdaten</b> ([[lernsystem]]): Ordner der gefertigten LST-Dateien "
+                "einstellen, dann <i>Datei → Produktionsdaten & Lernsystem …</i>. Das Programm liest jede LST einmal "
+                "(im Hintergrund), ordnet die Teile über PPEASE-Nummer, Artikelnummer oder gleiche Merkmale Angebot "
+                "und Position zu und vergleicht die an der Maschine gemessene Zeit mit unserer Laserzeit. Passt die "
+                "Geometrie nicht, steht das Teil unter „STEP-Messung prüfen“. Ab 10 Teilen aus 3 Programmen schlägt "
+                "es Faktoren vor (Maschine × Werkstoffgruppe, Wandbereich; Profil und Merkmale als Hinweis) mit "
+                "Preiswirkung; geändert wird nur mit „Freigeben“ (über 15 % mit zweiter Bestätigung), jede Freigabe "
+                "lässt sich zurücksetzen. Die Kalibrierung je Baustein lernt mit, das Einstechen getrennt.",
+     "Lernsystem: LST-Produktionsdaten, Vergleich und gelernte Faktoren"],
     ["0.9.436", "<b>Keine Linien mehr mitten über Rundrohre</b> in allen 3D-Ansichten (Prüfdialog, Importanalyse, "
      "Editoren). Die Vernetzung um ein Loch erzeugte lange schmale Dreiecke, die als Tangentenkante gezeichnet "
      "wurden. Bei STEP-Teilen gilt jetzt nur der Übergang zwischen zwei Flächen der STEP als Kante; ohne "

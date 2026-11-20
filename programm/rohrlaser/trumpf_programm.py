@@ -107,6 +107,50 @@ def _profil(tt, hinweise):
     return None, None, None, wand, None
 
 
+# TUBE_PART_TIMES: berechnet (TruTops) und gemessen (füllt die Maschine nach dem Lauf, Patrick 20.11.2026)
+ANTEILE = (("anschnitt", "First Cut"), ("konturen", "Contour"), ("abschnitt", "Cut Off"))
+
+
+def _zeitanteile(z):
+    """({anschnitt, konturen, abschnitt} berechnet, dasselbe gemessen oder None, Anzahl Messungen)."""
+    ber = {k: _zahl(z.get(f"Calculated {t} Machine Time")) for k, t in ANTEILE}
+    n = int(_zahl(z.get("Number Of Recorded Part Times")) or 0)
+    mittel = {k: _zahl(z.get(f"Average Measured {t} Machine Time")) for k, t in ANTEILE}
+    letzt = {k: _zahl(z.get(f"Last Program Run Measured {t} Machine Time")) for k, t in ANTEILE}
+    gem = mittel if n and any(mittel.values()) else letzt if any(letzt.values()) else None
+    return ({k: v for k, v in ber.items() if v is not None} or None), gem, n
+
+
+def _strahl(zeilen, teile):
+    """Strahl-Ein-Zeit [s] je Teil aus CONSUMPTION_TIMES (Verbrauchsgruppe 1 = Schneidgas, OnTime) oder None."""
+    s = sum(_zahl(z.get("OnTime")) or 0.0 for z in zeilen if str(z.get("ConsumptionGroup")).strip() == "1")
+    return round(s / max(teile, 1), 2) if s else None
+
+
+def qualitaet(t):
+    """Datenqualität eines gelesenen Teils fürs Lernen: (Stufe, [Gründe]); Stufe VOLL, TEIL oder UNPLAUSIBEL."""
+    gruende, unpl = [], []
+    for f, titel in (("profilform", "Profil"), ("laenge", "Länge"), ("schneidweg", "Schneidweg"),
+                     ("einstiche", "Einstiche"), ("zeiten_berechnet", "Zeiten")):
+        if not t.get(f):
+            gruende.append(f"{titel} fehlt")
+    if t.get("teile_im_programm", 1) > 1:
+        gruende.append("mehrere Teile in einem Programm (Schneidweg/Einstiche geteilt)")
+    if t.get("laenge") and t.get("a") and t.get("schneidweg"):
+        umfang = (3.14159 * t["a"]) if t.get("profilform") == "Rundrohr" else 2 * (t["a"] + (t.get("b") or t["a"]))
+        if t["schneidweg"] < 0.9 * umfang:
+            unpl.append(f"Schneidweg {t['schneidweg']:.0f} mm kleiner als ein Trennschnitt ({umfang:.0f} mm)")
+    zb = t.get("zeiten_berechnet") or {}
+    if zb and not zb.get("konturen") and not zb.get("abschnitt"):
+        unpl.append("Zeit 0")
+    if unpl:
+        return UNPLAUSIBEL, unpl + gruende
+    return (TEIL if gruende else VOLL), gruende
+
+
+VOLL, TEIL, UNPLAUSIBEL = "vollständig", "Teilwerte fehlen", "unplausibel"
+
+
 def lst_lesen(pfad=None, text=None, name=None):
     """Teile aus einer LST-Datei (ein Programm oder eine Job-Liste)."""
     if text is None:
@@ -156,6 +200,7 @@ def lst_lesen(pfad=None, text=None, name=None):
             zeit = sum(_zahl(z.get(k)) or 0.0 for k in ("Calculated First Cut Machine Time",
                                                        "Calculated Contour Machine Time",
                                                        "Calculated Cut Off Machine Time")) or None
+            berechnet, gemessen, messungen = _zeitanteile(z)
             if zeit is None and _zahl(info.get("Maschinenzeit")):
                 zeit = _zahl(info.get("Maschinenzeit")) * 60.0 / len(pt)
             teile.append(dict(
@@ -167,7 +212,13 @@ def lst_lesen(pfad=None, text=None, name=None):
                 einstiche=round(stiche / len(pt)) if stiche else None, zeit_s=round(zeit, 1) if zeit else None,
                 maschine=info.get("viewer name machine") or info.get("Maschine") or "",
                 stangenlaenge=_zahl(tt.get("Rohrlaenge")), kg_m=_zahl(tt.get("Mass Per Meter")),
-                datum=info.get("Datum") or "", hinweise=list(hinweise)))
+                datum=info.get("Datum") or "", hinweise=list(hinweise),
+                # Lernsystem (produktion_lst.py): Zeitanteile berechnet/gemessen, Strahl-Ein, Maschinenzeit
+                teil_nr=pt.index(t) + 1, teile_im_programm=len(pt), zeiten_berechnet=berechnet,
+                zeiten_gemessen=gemessen, messungen=messungen,
+                maschinenzeit_s=round(_zahl(info.get("Maschinenzeit")) * 60.0, 1)
+                if _zahl(info.get("Maschinenzeit")) else None,
+                strahl_s=_strahl(ab.get("CONSUMPTION_TIMES") or [], len(pt))))
     if not teile:
         raise TrumpfFehler(f"{name}: kein Teil im Programm gefunden.")
     return teile

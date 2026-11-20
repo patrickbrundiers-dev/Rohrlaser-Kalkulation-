@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, rahmenauftrag, reklamation, step_pruefung
-from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, ki_protokoll, onlinepreise, pg_lokal, teilen, vollmaterial, zukauf
+from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, ki_protokoll, lst_lernen, lst_vergleich, onlinepreise, pg_lokal, produktion_lst, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -221,13 +221,15 @@ STAFFEL = dict(tage=7, wochen=4, monate=12)
 SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Sicherung je Tag beim Beenden)
 ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE,
                                                                 POSITIONSVORLAGEN, lernen.GELERNT,
-                                                                bg_zeitlernen.BG_ZEITEN) + onlinepreise.TABELLEN
+                                                                bg_zeitlernen.BG_ZEITEN) + onlinepreise.TABELLEN + \
+    (lst_vergleich.ZUORDNUNG, lst_lernen.ENTSCHEIDUNGEN)
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
                 POSITIONSVORLAGEN.name: POSITIONSVORLAGEN,
                 KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
                 kennwerte.HISTORIE.name: kennwerte.HISTORIE, lernen.GELERNT.name: lernen.GELERNT,
                 bg_zeitlernen.BG_ZEITEN.name: bg_zeitlernen.BG_ZEITEN,
-                **{t.name: t for t in onlinepreise.TABELLEN}}
+                **{t.name: t for t in onlinepreise.TABELLEN}, lst_vergleich.ZUORDNUNG.name: lst_vergleich.ZUORDNUNG,
+                lst_lernen.ENTSCHEIDUNGEN.name: lst_lernen.ENTSCHEIDUNGEN}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
@@ -742,6 +744,7 @@ class Datenbank:
             auftraege.einrichten(self.con)
             rahmenauftrag.einrichten(self.con)
             onlinepreise.einrichten(self.con)
+            produktion_lst.einrichten(self.con)        # Lernsystem L1: Produktionsdaten aus TRUMPF-LST
             ki_protokoll.einrichten(self.con)
             db_verbindung.schema_version_setzen(self.con, SCHEMA_VERSION)
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
