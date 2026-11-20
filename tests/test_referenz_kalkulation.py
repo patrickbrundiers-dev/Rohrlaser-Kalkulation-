@@ -170,8 +170,31 @@ def kontur_mm(k, pid):
     if art == "Langloch":
         return 2 * (k["l"] - k["b"]) + math.pi * k["b"]
     if art == "Rechteck":
-        return 2 * (k["b"] + k["h"]) - 8 * k["r"] + 2 * math.pi * k["r"]
+        return rechteck_mm(k, pid)
     raise ValueError(art)
+
+
+def rechteck_mm(k, pid, n=20000):
+    """Rechteck mit Eckradius, mittig auf der oberen Wand. Reicht es quer über die ebene Wand in den Eckradius
+    (Patrick 20.11.2026), ist es dort außen breiter: innen maßhaltig (Bogen auf ri = r − Wand), radial nach außen
+    (Bogen auf r), also jeder Millimeter quer im Radius × r / ri. Ganz auf der Wand: 2 (b + h) − 8 r + 2 π r."""
+    b, h, rk = k["b"], k["h"], k["r"]
+    form, pa, _, wand, r = PROFILE[pid]
+    if form == "Rundrohr" or not r or h / 2 <= pa / 2 - r:
+        return 2 * (b + h) - 8 * rk + 2 * math.pi * rk
+    eben, f = pa / 2 - r, r / (r - wand)
+
+    def quer(q):
+        return math.copysign(min(abs(q), eben) + f * max(0.0, abs(q) - eben), q)
+    # Umriss: gerade Stücke + vier Eckbögen, jeder Punkt quer abgebildet, numerisch aufsummiert
+    pkt = []
+    for i in range(n):
+        w = 2 * math.pi * i / n
+        cx = math.copysign(b / 2 - rk, math.cos(w)) if abs(math.cos(w)) > 1e-12 else 0.0
+        cq = math.copysign(h / 2 - rk, math.sin(w)) if abs(math.sin(w)) > 1e-12 else 0.0
+        pkt.append((cx + rk * math.cos(w), cq + rk * math.sin(w)))
+    pkt = [(x, quer(q)) for x, q in pkt]
+    return sum(math.dist(p, q) for p, q in zip(pkt, pkt[1:] + pkt[:1]))
 
 
 def huelle(k):
