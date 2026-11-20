@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.415", "<b>Nichts still überschreiben</b> ([[admin_db_versionen]]): Jede Zeile in Angeboten, Positionen und "
+     "Stammdaten hat eine Versionsnummer. Hat ein Kollege dieselbe Zeile inzwischen geändert, fragt das Programm, ob "
+     "Ihre Eingabe gespeichert oder neu geladen werden soll. Gleichzeitig vergebene Angebotsnummern führen nicht mehr "
+     "zum Abbruch, das Programm nimmt die nächste freie.",
+     "Datenbank: Versionsnummern je Zeile, Rückfrage statt Überschreiben, sichere Angebotsnummer"],
     ["0.9.414", "<b>Design- und Layout-Update</b>: <b>Meine Werkzeugleiste</b> ([[meine_werkzeugleiste]]) mit eigenen "
      "Knöpfen und Knöpfen passend zur offenen Seite; Konfigurator mit Aktionsbibliothek (rund 75 Funktionen), "
      "Ziehen und Ablegen, eigenem Text, Symbol, Farbe und Tastenkürzel ([[werkzeugleiste_konfigurieren]]); Knöpfe, "
