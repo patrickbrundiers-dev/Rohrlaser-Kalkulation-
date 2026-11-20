@@ -88,8 +88,9 @@ def zeigen(f, dialog=None):
         if u["dateien"]:
             text += (f" Produktionsdaten: {u['dateien']} LST-Dateien, {u['teile']} Teile ({u['voll']} vollständig, "
                      f"{u['gemessen']} mit gemessener Zeit).")
-    except Exception:           # noqa: BLE001 – nur Anzeige
-        pass
+    except Exception as e:      # noqa: BLE001 – nur Anzeige
+        from . import protokoll
+        protokoll.warnung(f"Lernzentrale: Produktionsdaten nicht lesbar: {e}")
     d = TabellenDialog(f, "Lernzentrale", text, ("Bereich", "Kunde", "Was gelernt", "Stand", "Geändert"),
                        zeilen(eintraege),
                        [("Vergessen", lambda m: ausfuehren([r for r in m if eintraege[r]["vergessen"]],
