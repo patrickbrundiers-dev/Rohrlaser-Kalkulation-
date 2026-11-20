@@ -9261,6 +9261,18 @@ def kapitel_ausgabe(i, seiten, ablage):
             "€/Stück), <b>Seite 6 Zukauf und Normteile</b> (entfällt ohne Zukauf; nur Aufschlag, kein Gewinn) und "
             "<b>Seite 7 Gesamtkalkulation</b> mit allen Kostenarten, Deckungsbeitrag, Gewinn und Preis je Position. "
             "Interne Seiten tragen einen gelben Randstreifen, Kundenseiten einen blauen.",
+            "<b>Kundenangebot erweitert</b> (Angebotswesen P3): Das Kopffeld <i>Projekt / Bauvorhaben</i> im Angebot "
+            "steht im Kopf und unter dem Titel des Kundenangebots. Unter den Konditionen steht eine zweite Reihe mit "
+            "<b>Versand</b> (ab Werk oder frei Haus nach der Frachtart), <b>Verpackung</b> (wenn berechnet: im Preis "
+            "enthalten) und <b>Rabatt</b> (der Kundenrabatt in %, in den Preisen berücksichtigt), jeweils ohne "
+            "Beträge. Am Ende steht der Satz der Einstellung <i>Angebotsakte: Hinweis auf die AGB im Kundenangebot</i> "
+            "(Vorgabe „Es gelten unsere Allgemeinen Geschäftsbedingungen.“, leer = kein Satz).",
+            "<b>Termin-Staffel</b> (Preis nach Liefertermin): In <i>Einstellungen → Neue Angebote → Eilzuschlag</i> "
+            "nennt <i>Termin-Staffel: Preis je Liefertermin</i> Termine mit Zu- oder Abschlag auf den Netto-Preis, "
+            "z. B. „1 Woche: +15; 3 Wochen: 0; 8 Wochen: -3“. Das Kundenangebot zeigt dann eine Tabelle <i>Preis "
+            "nach Liefertermin</i> mit dem Netto-Preis je Termin, die Gesamtkalkulation (Seite 7) zusätzlich die "
+            "Marge je Termin. Ein Abschlag wird nur so weit gewährt, wie die Mindestmarge es erlaubt. Die Kalkulation "
+            "und die Stückpreise des Angebots ändern sich nicht; leer = keine Tabelle.",
             "<b>Seite 8 Technisches Kalkulationsblatt</b> (eigenes Dokument _Technik.pdf, für Arbeitsvorbereitung "
             "und Fertigung, nur intern): oben eine Übersicht aller Positionen mit Laserzeit, Herstell-, Selbstkosten, "
             "Preis und Marge je Stück; dann je Position Profil, Werkstoff, Maschine, Schneidgas und Herkunft der "

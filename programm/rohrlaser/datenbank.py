@@ -199,7 +199,8 @@ SCHEMA_VERSION = 98     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 97: Fertigbarkeit beim Import (20.11.2026): maschinen.fb_loch_faktor, fb_steg_faktor, fb_eckradius,
                         #     fb_gravur_tiefe (fertigbarkeit.py); leer = Vorgabe
                         # 98: Staffeln mit Mindestmarge (20.11.2026): staffeln.rabatt_proz, zukauf_ek, preis_hand mit Grund,
-                        #     Bearbeiter, Zeit und berechnetem Preis; staffel_stufen.rabatt_proz; leer = wie bisher
+                        #     Bearbeiter, Zeit und berechnetem Preis; staffel_stufen.rabatt_proz; leer = wie bisher;
+                        #     angebote.projekt (Projekt / Bauvorhaben im Kundenangebot)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),

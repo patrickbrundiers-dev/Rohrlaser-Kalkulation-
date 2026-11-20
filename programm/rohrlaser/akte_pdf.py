@@ -461,7 +461,7 @@ def _seite_kunde(a, einst, st):
     anschrift += [_p("\n".join(zeilen), ParagraphStyle("an", parent=st["text"], fontSize=9.6, leading=13))]
     ap = k.get("ansprechpartner") or {}
     info = [("Angebot", k.get("nummer")), ("Datum", datum(k.get("datum"))), ("Kunden-Nr.", k.get("kundennr")),
-            ("Ihre Anfrage", k.get("kundenreferenz")), ("Ansprechpartner", ap.get("name")),
+            ("Ihre Anfrage", k.get("kundenreferenz")), ("Projekt", k.get("projekt")), ("Ansprechpartner", ap.get("name")),
             ("Telefon", ap.get("telefon")), ("E-Mail", ap.get("email")),
             ("Gültig bis", datum(k.get("gueltig_bis")) if k.get("gueltig_bis") else "")]
     block = Table([[anschrift, _kv(info, st, (26 * mm, 46 * mm))]], colWidths=[BREITE - 74 * mm, 74 * mm],
@@ -469,7 +469,10 @@ def _seite_kunde(a, einst, st):
     block.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                                ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
     out += [block, Spacer(1, 6 * mm), _p(f"Angebot {k.get('nummer') or ''}", st["titel"])]
-    if k.get("kundenreferenz"):
+    if k.get("projekt"):
+        out.append(_p(f"Projekt: {k['projekt']}" + (f" · Ihre Anfrage: {k['kundenreferenz']}"
+                                                   if k.get("kundenreferenz") else ""), st["unter"]))
+    elif k.get("kundenreferenz"):
         out.append(_p(f"Projekt / Ihre Anfrage: {k['kundenreferenz']}", st["unter"]))
     out += [Spacer(1, 2.5 * mm), _p("Vielen Dank für Ihre Anfrage. Wir bieten Ihnen die folgenden Teile an:",
                                     st["text"]), Spacer(1, 3 * mm)]
@@ -512,14 +515,35 @@ def _seite_kunde(a, einst, st):
         gueltig = (gueltig + f", bis {datum(k['gueltig_bis'])}").strip(", ")
     felder = [("Lieferzeit", k.get("lieferzeit") or "nach Absprache"), ("Angebotsgültigkeit", gueltig or "–"),
               ("Zahlungsbedingungen", k.get("zahlung") or "–")]
+    # Angebotswesen P3: zweite Reihe Versand, Verpackung, Rabatt (nur wenn bekannt; ältere Akten ohne die Werte)
+    zweite = [(t, v) for t, v in (("Versand", k.get("versand")), ("Verpackung", k.get("verpackung")),
+                                  ("Rabatt", f"{_de(k['rabatt_satz'], 1)} % in den Preisen berücksichtigt"
+                                   if k.get("rabatt_satz") else "")) if v]
     fw = (BREITE - 2 * 2.5 * mm) / 3
-    kond = Table([sum(([[_p(t.upper(), st["label"]), _p(v, st["wert_t"])], ""] for t, v in felder), [])[:-1]],
-                 colWidths=[fw, 2.5 * mm, fw, 2.5 * mm, fw])
+    reihen = [felder] + ([zweite] if zweite else [])
+    zellen = []
+    for r in reihen:
+        r = list(r) + [None] * (3 - len(r))
+        zellen.append(sum(([[_p(t.upper(), st["label"]), _p(v, st["wert_t"])] if t else "", ""] for t, v in
+                           (x or (None, None) for x in r)), [])[:-1])
+    kond = Table(zellen, colWidths=[fw, 2.5 * mm, fw, 2.5 * mm, fw])
     kond.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("TOPPADDING", (0, 0), (-1, -1), 2.2 * mm),
                               ("BOTTOMPADDING", (0, 0), (-1, -1), 2.6 * mm), ("LEFTPADDING", (0, 0), (-1, -1), 3 * mm)]
-                             + [("BACKGROUND", (c, 0), (c, 0), FLAECHE) for c in (0, 2, 4)]))
+                             + [("BACKGROUND", (2 * c, r), (2 * c, r), FLAECHE) for r, reihe in enumerate(reihen)
+                                for c in range(len(reihe))]
+                             + ([("TOPPADDING", (0, 1), (-1, 1), 1.2 * mm)] if len(reihen) > 1 else [])))
     schluss = [Spacer(1, 4 * mm), aussen, Spacer(1, 6 * mm), kond, Spacer(1, 3 * mm)]
-    for t in [k.get("bedingungen")] + list(k.get("texte") or ()):
+    if k.get("termine"):
+        daten = [["Liefertermin", "Angebotspreis netto", "gegenüber diesem Angebot"]]
+        for t in k["termine"]:
+            d = t.get("differenz") or 0
+            daten.append([t["termin"], geld(t["netto"]), "–" if abs(d) < 0.005 else
+                          (("+" if d > 0 else "−") + geld(abs(d)))])
+        b = [None, 40 * mm, 46 * mm]
+        b[0] = BREITE - sum(x for x in b if x)
+        schluss += [KeepTogether([_p("Preis nach Liefertermin", st["h3"]),
+                                  _tabelle(daten, b, rechts=(1, 2), stil=st, wiederholen=False)]), Spacer(1, 3 * mm)]
+    for t in [k.get("bedingungen")] + list(k.get("texte") or ()) + [k.get("agb")]:
         if t:
             schluss.append(_p(t, st["text"]))
             schluss.append(Spacer(1, 1.2 * mm))
@@ -1116,6 +1140,19 @@ def _seite_gesamt(a, st):
                     ("Preisuntergrenze", f"kurzfristig {geld(g.get('untergrenze_kurz'))}, langfristig "
                                          f"{geld(g.get('untergrenze_lang'))}" if g.get("untergrenze_lang") else "")],
                    st, (38 * mm, None)))
+    if g.get("termine"):
+        out += _ueberschrift("Preis nach Liefertermin", st, "Termin-Staffel der Einstellungen; Abschläge höchstens bis "
+                                                            "zur Mindestmarge")
+        daten = [["Liefertermin", "Satz", "Netto", "Unterschied", "Marge"]]
+        for t in g["termine"]:
+            satz = prozent(t["satz_wirksam"])
+            if t.get("begrenzt"):
+                satz += f"\n(statt {prozent(t['satz'])}, Mindestmarge {prozent(g.get('mindestmarge'))})"
+            daten.append([t["termin"], satz, geld(t["netto"]), geld(t["differenz"]),
+                          prozent(t["marge"]) if t.get("marge") is not None else "–"])
+        b = [None, 40 * mm, 28 * mm, 26 * mm, 18 * mm]
+        b[0] = BREITE - sum(x for x in b if x)
+        out.append(_tabelle(daten, b, rechts=(1, 2, 3, 4), stil=st))
     je = g.get("je_pos") or []
     if je:
         out += _ueberschrift("Je Position", st)

@@ -139,7 +139,20 @@ def fingerabdruck(zeilen, summen, ang, ergebnis=None):
 
 
 # ------------------------------------------------------------------ Seite 1: Kundenangebot
-def _kunde(kopf, ang, einst, positionen, k):
+def versand_text(kopf, summen):
+    """Kurzer Versandhinweis für die Konditionen des Kundenangebots (ohne Beträge)."""
+    from . import fracht_angebot as fa
+    m = fa.modus(kopf)
+    if m == fa.KEINE:
+        return "ab Werk, Fracht nicht enthalten"
+    if m in (fa.ENTHALTEN, fa.BERECHNET) or _n((summen or {}).get("fracht")) > 0:
+        return "frei Haus, im Preis enthalten"
+    return "nach Absprache"
+
+
+def _kunde(kopf, ang, einst, positionen, k, summen=None):
+    from . import termin_staffel
+    summen = summen or {}
     bis = ausgabe.gueltig_bis(kopf, einst, positionen, k)
     ap = (ang or {}).get("ansprechpartner") or {}
     texte = [t for t in ((ang or {}).get(n) for n in ("rahmen", "beistellung", "muster", "mindestpreis", "fracht"))
@@ -160,7 +173,14 @@ def _kunde(kopf, ang, einst, positionen, k):
                 brutto=_n((ang or {}).get("brutto")), mwst_satz=_n((ang or {}).get("mwst_satz")),
                 lieferzeit=re.sub(r"^Lieferzeit:\s*", "", (ang or {}).get("lieferzeit") or "").rstrip(".") or "",
                 zahlung=(ang or {}).get("zahlung") or "", bedingungen=(ang or {}).get("bedingungen") or "",
-                texte=texte)
+                texte=texte, projekt=str(kopf.get("projekt") or "").strip(),
+                # Angebotswesen P3: Konditionen ohne interne Beträge, AGB-Hinweis, Preis je Liefertermin
+                versand=versand_text(kopf, summen),
+                verpackung=("im Preis enthalten" if _n(summen.get("verpackung")) > 0 else ""),
+                rabatt_satz=(_n(summen.get("rabatt_satz")) if _n(summen.get("rabatt")) else 0.0),
+                agb=str((einst or {}).get("agb_hinweis") or "").strip(),
+                termine=[dict(termin=t["termin"], netto=t["netto"], differenz=t["differenz"])
+                         for t in termin_staffel.rechnen_termine(einst, _n((ang or {}).get("netto")), summen)])
 
 
 # ------------------------------------------------------------------ Seite 2: Technik
@@ -455,6 +475,7 @@ def _zukauf(positionen, summen, fertigung):
 
 # ------------------------------------------------------------------ Seite 7: Gesamt
 def _gesamt(summen, zeilen, positionen, ang, einst):
+    from . import termin_staffel
     gruppen = []
     for titel, namen, stufe in GESAMT_GRUPPEN:
         betrag = sum(_n(summen.get(n)) for n in namen)
@@ -490,7 +511,9 @@ def _gesamt(summen, zeilen, positionen, ang, einst):
                 teile=teile, je_teil=verkauf / teile if teile else None, je_pos=je_pos,
                 verschnitt_eur=None, untergrenze_kurz=_n(summen.get("untergrenze_kurz")),
                 untergrenze_lang=_n(summen.get("untergrenze_lang")), skonto_satz=_n(summen.get("skonto_satz")),
-                mwst_satz=_n((ang or {}).get("mwst_satz")) or _n(einst.get("mwst")))
+                mwst_satz=_n((ang or {}).get("mwst_satz")) or _n(einst.get("mwst")),
+                termine=termin_staffel.rechnen_termine(einst, netto, summen),
+                mindestmarge=_n(einst.get("mindestmarge")))
 
 
 # ------------------------------------------------------------------ Seite 8: Technisches Kalkulationsblatt
@@ -614,7 +637,7 @@ def sammeln(kopf, positionen, ergebnis, k, tabellen, einst, zeilen, summen, ang,
     akte = dict(erstellt=jetzt.isoformat(timespec="minutes"), bearbeiter=bearbeiter or "",
                 nummer=kopf.get("nummer") or "", kunde_name=kopf.get("kunde") or "",
                 fingerabdruck=fingerabdruck(zeilen, summen, ang, ergebnis), fehler_seiten={})
-    teile = (("kunde", lambda: _kunde(kopf, ang, einst, positionen, k)),
+    teile = (("kunde", lambda: _kunde(kopf, ang, einst, positionen, k, summen)),
              ("technik", lambda: _technik(positionen, zeilen, k, bilder)),
              ("schnitt", lambda: _schnitt(ergebnis, kopf, positionen, k, tabellen, aktuell, zeilen)))
     for name, f in teile:

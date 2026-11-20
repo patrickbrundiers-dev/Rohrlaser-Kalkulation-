@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.429", "<b>Kundenangebot erweitert</b> ([[angebotsakte]]): Kopffeld <i>Projekt / Bauvorhaben</i>, "
+     "Konditionen mit Versand, Verpackung und Rabatt, Hinweis auf die AGB (Einstellung) und <b>Termin-Staffel</b>: "
+     "Preis je Liefertermin (z. B. Eilfertigung +15 %, 8 Wochen −3 %), Abschläge höchstens bis zur Mindestmarge, "
+     "intern mit Marge je Termin.",
+     "Kundenangebot: Projekt, Versand/Verpackung/Rabatt, AGB, Preis je Liefertermin"],
     ["0.9.429", "<b>Technisches Kalkulationsblatt</b> als drittes Dokument der Angebotsakte ([[angebotsakte]]): je "
      "Position Schneidwege mit Vorschub, Einstiche, alle Zeitanteile bis zur Laserzeit je Teil und die Kosten je Teil "
      "von Material bis zum Preis, genau aus derselben Kalkulation. Wählbar in <i>Angebotsdokument erstellen</i>, "

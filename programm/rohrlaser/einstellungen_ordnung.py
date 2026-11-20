@@ -101,10 +101,10 @@ SEITEN = (
            _a("Zahlung und Gültigkeit", "skonto skonto_tage zahlungsziel gueltigkeit gueltigkeit_kategorie bedingungen"),
            _a("Nummern", "letzte_angebotsnummer ab_nummer auftrag_letzte_nummer"),
            _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"),
-           _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"),     # Platz für CALC-020 (Zuschläge voll)
+           _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2 termin_staffel"),     # Platz für CALC-020 (Zuschläge voll)
            _a("Vergleich Sägen statt Lasern (Angebots-Check)", "saege_satz saege_s_schnitt saege_ruesten_min"))),
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
-          (_a("Angebot", "pdf_vorschau akte_automatisch beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
+          (_a("Angebot", "pdf_vorschau akte_automatisch agb_hinweis beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
            _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
            _a("Teilbestellung", "teilbestell_schwelle teilbestell_text"),      # OFFER-003
            _a("Auftragsbestätigung", "ab_text"),
