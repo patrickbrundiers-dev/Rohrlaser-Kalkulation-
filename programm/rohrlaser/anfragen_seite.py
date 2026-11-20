@@ -28,14 +28,19 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout,
                                QHBoxLayout,
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter,
-                               QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
+                               QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QToolButton, QVBoxLayout,
+                               QWidget)
 
 from . import anfrage_art as aa
+from . import anfrage_ki_lokal as ki
+from . import anfrage_lernen as al
+from . import anhang_analyse as an
 from . import protokoll
 from . import anfragen_akten as ak
 from . import anfragen_dokumente as adok
 from . import anfragen_sammeln as sa
 from . import mail_zuordnung as mz
+from . import anfrage_phase as ph
 from . import outlook_anfragen as ol
 from . import stil
 from . import virenpruefung as vp
@@ -74,6 +79,8 @@ class AnfragenSeite(QWidget):
         self.ordner = "neu"
         self.ampel_filter = ""          # Paket 6: Filter aus der Startseiten-Kachel (ueberfaellig, heute, meine)
         self._erkannt = {}
+        self._anhang_cache = {}      # 20.11.2026: Nr -> (Dateistand, anhang_analyse)
+        self._ang_phase = {}         # 20.11.2026 (anfrage_phase): Angebotsnummern -> Phase aus Angebot/Auftrag
         lay = QVBoxLayout(self)
         # Zählerleiste
         oben = QHBoxLayout()
@@ -150,10 +157,29 @@ class AnfragenSeite(QWidget):
         oben.addWidget(knopf)
         lay.addLayout(oben)
         lay.addLayout(filter_)
+        schnell = QHBoxLayout()         # 20.11.2026 (Plan K10): Schnellfilter, mehrere zugleich = alle müssen passen
+        schnell.setSpacing(4)
+        schnell.addWidget(QLabel("Schnellfilter:"))
+        self.schnell = {}
+        for k, (text, tipp) in SCHNELL.items():
+            b = QToolButton()
+            b.setText(text)
+            b.setToolTip(tipp)
+            b.setCheckable(True)
+            b.toggled.connect(lambda _an: self.liste_fuellen())
+            schnell.addWidget(b)
+            self.schnell[k] = b
+        schnell.addStretch(1)
+        lay.addLayout(schnell)
         self.hinweis = QLabel()
         self.hinweis.setWordWrap(True)
         self.hinweis.setVisible(False)
         lay.addWidget(self.hinweis)
+        self.ol_status = QLabel()           # 20.11.2026 (Plan K8): letzter Outlook-Abruf, wartende Mails
+        self.ol_status.setWordWrap(True)
+        self.ol_status.setVisible(False)
+        self.ol_status.linkActivated.connect(lambda _u: self.erneut_verarbeiten())
+        lay.addWidget(self.ol_status)
         zeile = QHBoxLayout()           # Paket 6: Filter aus der Startseite, mit „Filter aufheben“
         self.filter_hinweis = QLabel()
         zeile.addWidget(self.filter_hinweis)
@@ -375,6 +401,10 @@ class AnfragenSeite(QWidget):
             self.hinweis.setText(f"Anfragen nicht lesbar: {fehler_text(e)}")
             self.hinweis.setVisible(True)
         self._erkannt = {}
+        self._ang_phase = {}
+        self._modell_cache = None
+        if not takt:
+            self.ol_status_zeigen()
         self._zustaendige()
         self._ampeln_setzen()
         self._zaehler_setzen()
@@ -398,10 +428,67 @@ class AnfragenSeite(QWidget):
             erg = self.ablage().zustaendig_zuweisen(neu, self.db.zeilen("kunden"))
         except Exception:               # noqa: BLE001 – Zuweisung ist Komfort, nie ein Grund für einen Fehler
             return []
+        try:                            # 20.11.2026 (Plan K7): sichere Vorschläge nur mit Einstellung, Vorgabe aus
+            if (self.db.einstellung(ph.AUTO) or "nein") == "ja":
+                erg = list(erg or []) + ph.vorschlaege_zuweisen(self.ablage(), self.akten, self.db.zeilen("kunden"),
+                                                                list(self.mitarbeiter_liste()))
+        except Exception as fehler:     # noqa: BLE001 – Komfort, nie ein Fehler
+            protokoll.warnung(f"Anfragen: Bearbeiter-Vorschläge nicht zugewiesen ({type(fehler).__name__}: {fehler})")
         if erg:
             abl = self.ablage()
             self.akten = [abl.neu_lesen(a) if a.nr in dict(erg) else a for a in self.akten]
         return erg
+
+    def _modell(self):
+        """Freigegebenes Wortmodell der Mail-Art (anfrage_lernen) oder {} (je Laden einmal gelesen)."""
+        if getattr(self, "_modell_cache", None) is None:
+            try:
+                self._modell_cache = al.aktiv_lesen(self.ablage().wurzel)
+            except OSError:
+                self._modell_cache = {}
+        return self._modell_cache
+
+    def ki_fragen(self, senden=None):
+        """Optionale lokale KI (Einstellung anfragen_ki_lokal, Vorgabe aus): Vorschläge zu technischen Angaben, nur
+        Werte, die im Text stehen; nur Anzeige zum Prüfen."""
+        a = self.akte()
+        if a is None:
+            return None
+        if not ki.an(self.db):
+            self.f.meldung("Die lokale KI ist ausgeschaltet (Einstellung anfragen_ki_lokal).", fehler=True)
+            return None
+        url, modell = ki.einstellungen(self.db)
+        try:
+            werte = ki.vorschlaege(f"{a.betreff}\n{self._mailtext(a)}", url, modell,
+                                   senden=senden or getattr(self, "ki_senden", None))
+        except ValueError as e:
+            self.f.meldung(str(e), fehler=True)
+            return None
+        self.erkennung(a)["ki"] = werte
+        self._zeigen(a)
+        self.f.meldung(f"Lokale KI: {len(werte)} Vorschlag/Vorschläge, bitte prüfen.")
+        return werte
+
+    def phase(self, a):
+        """Phase der Akte (anfrage_phase) mit den verknüpften Angeboten und Aufträgen (je Laden zwischengespeichert)."""
+        n = tuple(a.stand.get("angebote") or ())
+        if n and n not in self._ang_phase:
+            try:
+                self._ang_phase[n] = ph.angebots_phase(self.db, n)
+            except Exception as fehler:     # noqa: BLE001
+                protokoll.warnung(f"Anfragen: Phase aus Angebot nicht bestimmt ({type(fehler).__name__}: {fehler})")
+                self._ang_phase[n] = ph.ANGEBOT
+        return ph.phase(a, self._ang_phase.get(n, ""))
+
+    def vorschlag(self, a):
+        """Bearbeiter-Vorschlag für eine neue Anfrage (anfrage_phase.vorschlag) oder None."""
+        if a is None or a.status != ak.NEU:
+            return None
+        try:
+            return ph.vorschlag(a, self.akten, self.db.zeilen("kunden"), list(self.mitarbeiter_liste()))
+        except Exception as fehler:     # noqa: BLE001 – Hilfe, nie ein Fehler
+            protokoll.warnung(f"Anfragen: kein Bearbeiter-Vorschlag ({type(fehler).__name__}: {fehler})")
+            return None
 
     def _ampeln_setzen(self, jetzt=None):
         """Ampel je Akte (Frist in Arbeitstagen nach Kundenvorgabe bzw. Einstellung anfrage_frist)."""
@@ -700,7 +787,31 @@ class AnfragenSeite(QWidget):
         art = self.filter_art.currentData() if hasattr(self, "filter_art") else ""
         if art:
             liste = [a for a in liste if _art_passt(a.einordnung, art)]
+        for k, b in getattr(self, "schnell", {}).items():
+            if b.isChecked():
+                liste = [a for a in liste if self.schnell_passt(a, k)]
         return liste
+
+    def schnell_passt(self, a, k):
+        """Schnellfilter k (SCHNELL) für die Akte a."""
+        if k == "ohne":
+            return a.status == ak.NEU and not a.stand.get("zugewiesen")
+        if k == "kunde":
+            return a.kunde_pruefen()
+        if k == "dringend":
+            return a.prioritaet in ("hoch", "eilt") or self.dringend(a)
+        if k == "ueberfaellig":
+            return (self.ampeln.get(a.nr) or (None,))[0] == "rot"
+        if k == "unklar":
+            ein = self.erkennung(a).get("einordnung") if a.status != ak.ERLEDIGT else a.einordnung
+            return bool(ein) and ein.get("sicherheit") == aa.UNKLAR
+        if k == "fehlt":
+            return a.status != ak.ERLEDIGT and bool(self.erkennung(a)["fehlt"])
+        if k == "doppelt":
+            return any(e.get("zweiter_weg") for e in a.verlauf)
+        if k == "anhaenge":
+            return _neue_anhaenge(a)
+        return True
 
     def liste_fuellen(self):
         alt = self._gewaehlt
@@ -732,6 +843,9 @@ class AnfragenSeite(QWidget):
                 kunde = "⚠ Kunde prüfen" + (f": {v['name']}?" if v else (f" ({kunde})" if kunde else ""))
             stufe, faellig, frist = self.ampeln.get(a.nr) or (None, None, "")
             status = ak.STATUS_TEXT[a.status]
+            p = self.phase(a)
+            if p not in (ph.NEU, ph.BEARBEITUNG, ph.ERLEDIGT, ph.NICHT_RELEVANT):
+                status = ph.text(p)     # 20.11.2026: Phase statt nur „In Bearbeitung“
             if a.stand.get("zusammengefuehrt_in"):
                 status = f"Zusammengeführt in {a.stand['zusammengefuehrt_in']}"
             elif a.aussortiert:
@@ -889,8 +1003,10 @@ class AnfragenSeite(QWidget):
         dateien = a.dateien()
         if dateien:
             li = []
+            rollen = {x["datei"]: x for x in self.anhaenge(a)}
             for d in dateien:
                 gr = f"{(d.get('groesse') or 0) / 1024:.0f} KB"
+                x = rollen.get(d.get("datei", d["name"]))
                 w = f" <span style='color:#B42318'>{e(d['warnung'])}</span>" if d["warnung"] else ""
                 if d.get("aus_mail"):
                     w += " <span style='color:#666'>(Anhang der Mail)</span>"
@@ -905,8 +1021,18 @@ class AnfragenSeite(QWidget):
                 if d.get("gesperrt"):
                     li.append(f"<li>{e(d['name'])}{w}</li>")
                     continue
+                rolle = ""
+                if x is not None:       # 20.11.2026 (anhang_analyse): Rolle, Revision, neuer Stand, Hinweise
+                    rolle = f"{x['rolle']}" + (f", Rev. {x['revision']}" if x["revision"] else "")
+                    if x["neuer_stand_von"]:
+                        w += f" <span style='color:#A66A00'>neuer Stand von {e(x['neuer_stand_von'])}</span>"
+                    if x["gruppe"]:
+                        w += " <span style='color:#666'>(STEP und Zeichnung zum selben Teil)</span>"
+                    for h in x["hinweise"]:
+                        w += f" <span style='color:#B42318'>{e(h)}</span>"
                 li.append(f"<li><a href='datei:{e(d.get('datei', d['name']))}'>{e(d['name'])}</a> "
-                          f"<span style='color:#666'>{ak.ART_TEXT[d['art']]}, {gr}</span>{w}</li>")
+                          f"<span style='color:#666'>{e(rolle) + ', ' if rolle else ''}{ak.ART_TEXT[d['art']]}, "
+                          f"{gr}</span>{w}</li>")
             teile.append(f"<p><b>Anhänge ({len(dateien)}):</b></p><ul>{''.join(li)}</ul>"
                          "<p><a href='ordner:'>Ordner der Anfrage öffnen</a></p>")
         text = self._mailtext(a)
@@ -1017,6 +1143,14 @@ class AnfragenSeite(QWidget):
             self.rueckfrage()
         elif art == "art" and a:
             self.art_aendern()
+        elif art == "phase" and a:
+            self.phase_setzen()
+        elif art == "ki" and a:
+            self.ki_fragen()
+        elif art == "vorschlag" and a:
+            self.zuweisen(wert)
+        elif art == "nachtrag_gesehen" and a:
+            self.nachtrag_gesehen()
         elif art == "antwort" and a:
             self.antwort_erhalten()
         elif art == "letztes" and a:
@@ -1148,8 +1282,71 @@ class AnfragenSeite(QWidget):
 
     def zuweisen(self, an=None):
         an = an if an is not None else (self.wahl_bearbeiter.currentData() or "")
-        return self._ausfuehren(lambda abl, a: abl.zuweisen(a, an),
+        a = self.akte()
+        v = self.vorschlag(a) if an and a is not None and not a.stand.get("zugewiesen") else None
+        akte = self._ausfuehren(lambda abl, x: abl.zuweisen(x, an),
                                 "Anfrage {nr} " + (f"für {an} vorgeschlagen." if an else "nicht mehr zugewiesen."))
+        if akte is not None and v:      # 20.11.2026: Vorschlag angenommen oder anders entschieden (Auswertung)
+            self._rueckmelden(a, "bearbeiter", v["kuerzel"], an)
+        return akte
+
+    def _rueckmelden(self, a, feld, auto, neu, **weitere):
+        from . import anfrage_lernen
+        try:
+            anfrage_lernen.rueckmelden(self.ablage().wurzel, feld, auto or "", neu or "", a.nr, self.ich(),
+                                       **weitere)
+        except OSError as fehler:
+            protokoll.warnung(f"Anfragen: Rückmeldung nicht gespeichert ({fehler})")
+
+    def phase_setzen(self, phase=None):
+        """Phase der gewählten Anfrage von Hand setzen ("" = wieder automatisch). Mit Phasen-Ordner wandert die Mail
+        beim nächsten Abruf dorthin."""
+        a = self.akte()
+        if a is None:
+            return None
+        if phase is None:
+            from PySide6.QtWidgets import QInputDialog
+            wahl = ["Automatisch (aus Status, Rückfrage, Angebot, Auftrag)"] + [ph.text(x) for x in ph.VON_HAND]
+            jetzt_ = a.stand.get("phase") or ""
+            t, ok = QInputDialog.getItem(self, "Phase ändern", f"Phase von {a.nr}:", wahl,
+                                         1 + ph.VON_HAND.index(jetzt_) if jetzt_ in ph.VON_HAND else 0, False)
+            if not ok:
+                return None
+            phase = next((x for x in ph.VON_HAND if ph.text(x) == t), "")
+        auto = ph.phase(a, self._ang_phase.get(tuple(a.stand.get("angebote") or ()), ""))
+        akte = self._ausfuehren(lambda abl, x: abl.phase_setzen(x, phase),
+                                "Anfrage {nr}: Phase " + (ph.text(phase) if phase else "automatisch") + ".")
+        if akte is not None and phase:
+            self._rueckmelden(a, "phase", auto, phase)
+        return akte
+
+    def erneut_verarbeiten(self):
+        """Mails, deren Übernahme fehlschlug, beim nächsten Abruf sofort wieder versuchen (und gleich abrufen)."""
+        try:
+            n = ol.erneut_verarbeiten(self.ablage())
+        except OSError as e:
+            self.f.meldung(f"Outlook: {fehler_text(e)}", fehler=True)
+            return 0
+        self.f.meldung(f"{n} Mail(s) werden erneut verarbeitet.")
+        if ol.an(self.db):
+            self.outlook_abrufen(immer=True, warten=self.f.stumm)
+        return n
+
+    def ol_status_zeigen(self):
+        try:
+            s = ol.abruf_status(self.ablage())
+        except OSError:
+            s = {}
+        if not s and not ol.an(self.db):
+            self.ol_status.setVisible(False)
+            return ""
+        t = html.escape(ol.status_text(s))
+        if s.get("wartet") or not s.get("outlook_erreicht", True):
+            t += " · <a href='erneut:'>Erneut verarbeiten</a>"
+        farbe = "#B42318" if not s.get("outlook_erreicht", True) else ("#A66A00" if s.get("fehler") else "#666")
+        self.ol_status.setText(f"<span style='color:{stil.farbe(farbe).name()}'>{t}</span>")
+        self.ol_status.setVisible(True)
+        return t
 
     def bearbeiter_aendern(self, an=None):
         an = an or self.wahl_bearbeiter.currentData()
@@ -1294,10 +1491,20 @@ class AnfragenSeite(QWidget):
                 if not ein:
                     namen = [d["name"] for d in a.dateien()]
                     ein = aa.kompakt(aa.einordnen(text, a.betreff, namen))
+                if not a.stand.get("art_korr"):     # freigegebenes gelerntes Modell (nur unsichere Fälle)
+                    ein = al.anwenden(self._modell(), ein, text, a.betreff)
                 technik = aa.technik(text)
             except Exception as fehler:     # noqa: BLE001 – Hilfe, nie ein Fehler
                 protokoll.warnung(f"Anfragen: Mail-Art/Werte nicht erkannt ({type(fehler).__name__}: {fehler})")
-            self._erkannt[a.nr] = dict(werte=werte, fehlt=fehlt, wiederholt=wieder, einordnung=ein, technik=technik)
+            nach = []
+            try:                        # 20.11.2026: was Nachträge anders sagen (nur Anzeige)
+                mails = self._mails(a)
+                if len(mails) > 1:
+                    nach = an.nachtraege(mails)
+            except Exception as fehler:     # noqa: BLE001 – Hilfe, nie ein Fehler
+                protokoll.warnung(f"Anfragen: Nachträge nicht verglichen ({type(fehler).__name__}: {fehler})")
+            self._erkannt[a.nr] = dict(werte=werte, fehlt=fehlt, wiederholt=wieder, einordnung=ein, technik=technik,
+                                       nachtraege=nach)
         return self._erkannt[a.nr]
 
     def _erkannt_html(self, a):
@@ -1305,6 +1512,31 @@ class AnfragenSeite(QWidget):
         e = html.escape
         erk = self.erkennung(a)
         teile = []
+        p = self.phase(a)               # 20.11.2026 (Plan K6): Phase bis zum Auftrag, von Hand änderbar
+        hand = a.stand.get("phase") or ""
+        teile.append(f"<p><b>Phase:</b> {e(ph.text(p))}"
+                     + (f" <span style='color:#666'>(von Hand, {e(a.stand.get('phase_von') or '?')})</span>"
+                        if hand and hand == p else " <span style='color:#666'>(automatisch)</span>")
+                     + ("" if p in (ph.ERLEDIGT, ph.NICHT_RELEVANT) else " · <a href='phase:'>ändern …</a>")
+                     + "</p>")
+        v = self.vorschlag(a) if not a.stand.get("zugewiesen") else None
+        if v:                           # 20.11.2026 (Plan K7): Vorschlag mit Gründen, zugewiesen wird nur auf Klick
+            teile.append(f"<p><b>Vorschlag Bearbeiter:</b> {e(v['kuerzel'])}"
+                         + (" (sicher)" if v["sicher"] else "")
+                         + f" · <a href='vorschlag:{e(v['kuerzel'])}'>zuweisen</a>"
+                         + f"<br><span style='color:#666'>{e('; '.join(v['gruende'][:4]))}</span></p>")
+        nach = erk.get("nachtraege") or []
+        if nach:                        # 20.11.2026: neue Angaben aus Nachträgen nie still übernehmen
+            neu = len(nach) > a.stand.get("nachtrag_gesehen", 0)
+            zeilen = "".join(
+                f"<tr><td><b>{e(x['titel'])}</b>&nbsp;</td><td>{e(str(x['alt']) or '–')} → <b>{e(str(x['neu']))}</b>"
+                f"&nbsp;</td><td style='color:#666'>{e(x['mail'])} {e(x['datum'])}: „{e(x['fundstelle'])}“</td></tr>"
+                for x in nach)
+            farbe_n = stil.farbe("#A66A00" if neu else "#666").name()
+            teile.append(f"<p style='color:{farbe_n}'><b>Geänderte Angaben aus Nachträgen</b> (nichts wurde "
+                         "automatisch übernommen" + ("; Angebot bitte prüfen" if a.stand.get("angebote") else "")
+                         + ")" + (" · <a href='nachtrag_gesehen:'>Gesehen</a>" if neu else " · gesehen")
+                         + f"</p><table>{zeilen}</table>")
         ein = erk.get("einordnung")
         if ein:                         # 20.11.2026: was für eine Mail, mit Gründen und Ändern
             farbe_s = {aa.SICHER_ART: "#2F7D4F", aa.WAHRSCHEINLICH: "#A66A00", aa.UNKLAR: "#B42318",
@@ -1322,6 +1554,14 @@ class AnfragenSeite(QWidget):
             if ein.get("art") == aa.WERBUNG and not a.aussortiert and a.status != ak.ERLEDIGT:
                 teile.append("<p style='color:#A66A00'>Sieht nach Werbung aus. "
                              "<a href='aussortieren:Werbung'>Als „Keine Anfrage“ aussortieren</a></p>")
+        if ki.an(self.db) or erk.get("ki"):     # 20.11.2026 (Plan K10): lokale KI, Vorgabe aus
+            zeilen = "".join(
+                f"<tr><td><b>{e(w['titel'])}</b>&nbsp;</td><td>{e(str(w['wert']))}&nbsp;</td>"
+                f"<td style='color:{stil.farbe('#A66A00').name()}'>KI lokal · prüfen&nbsp;</td>"
+                f"<td style='color:#666'>„{e(w['fundstelle'])}“</td></tr>" for w in erk.get("ki") or ())
+            teile.append("<p><b>Lokale KI</b> <span style='color:#666'>(eigener Rechner, nur Werte aus dem Text)</span>"
+                         + (" · <a href='ki:'>fragen …</a>" if ki.an(self.db) else "") + "</p>"
+                         + (f"<table>{zeilen}</table>" if zeilen else ""))
         if erk.get("technik"):
             farbe_t = {"sicher": stil.farbe("#2F7D4F").name(), "prüfen": stil.farbe("#A66A00").name()}
             zeilen = "".join(
@@ -1355,6 +1595,44 @@ class AnfragenSeite(QWidget):
             teile.append("<p><b>Wiederholteile:</b> <a href='letztes:'>Aus letztem Angebot</a></p><ul>"
                          + "".join(li) + "</ul>")
         return teile
+
+    def _mails(self, a):
+        """[(Name, Datum, Text)] aller Mails der Akte in Eingangsreihenfolge (Kopf zuerst, dann Nachträge)."""
+        from . import mail
+        out = []
+        for d in a.dateien():
+            if d["art"] != "mail" or d.get("gesperrt") or not d["pfad"].is_file():
+                continue
+            m = mail.lesen(d["pfad"])
+            if m is None:
+                continue
+            datum = m.datum.strftime("%d.%m. %H:%M") if m.datum else ""
+            out.append((d["name"], datum, m.text or ""))
+        return out
+
+    def anhaenge(self, a):
+        """Rolle, Revision und Hinweise je Datei (anhang_analyse), zwischengespeichert je Akte und Dateistand (liest
+        nur die ersten Bytes jeder Datei, nur wenn sich die Dateien geändert haben)."""
+        if a is None:
+            return []
+        dateien = a.dateien()
+        schl = (a.nr, tuple((d.get("datei", d["name"]), d.get("groesse")) for d in dateien))
+        if self._anhang_cache.get(a.nr, (None,))[0] != schl:
+            try:
+                liste = an.analyse(dateien)
+            except Exception as fehler:     # noqa: BLE001 – Hilfe, nie ein Fehler
+                protokoll.warnung(f"Anfragen: Anhänge nicht ausgewertet ({type(fehler).__name__}: {fehler})")
+                liste = []
+            self._anhang_cache[a.nr] = (schl, liste)
+        return self._anhang_cache[a.nr][1]
+
+    def nachtrag_gesehen(self):
+        a = self.akte()
+        if a is None:
+            return None
+        nach = self.erkennung(a).get("nachtraege") or []
+        return self._ausfuehren(lambda abl, x: abl.nachtrag_gesehen(x, nach),
+                                "Anfrage {nr}: Änderungen aus Nachträgen gesehen.")
 
     def art_aendern(self, art=None, sachgebiete=None):
         """Mail-Art und Sachgebiet der gewählten Anfrage von Hand setzen (Verlauf + Rückmeldung zum Lernen)."""
@@ -1425,9 +1703,13 @@ class AnfragenSeite(QWidget):
             except (OSError, ValueError) as e:
                 self.f.meldung(f"Regel nicht gespeichert: {e}", fehler=True)
         feld = "bestaetigt" if bestaetigen and not grund else "kunde"
-        return self._ausfuehren(lambda abl, x: abl.zuordnung_aendern(x, feld, nr, name, grund=grund,
+        auto = str((a.kopf.get("zuordnung") or {}).get("kundennr") or a.kopf.get("kundennr") or "")
+        akte = self._ausfuehren(lambda abl, x: abl.zuordnung_aendern(x, feld, nr, name, grund=grund,
                                                                       regel=r and mz.regel_text(r)),
                                 f"Anfrage {{nr}}: Kunde {nr} {name}".rstrip() + (" (als Regel gemerkt)." if r else "."))
+        if akte is not None:            # 20.11.2026: Rückmeldung zur Kunden-Erkennung (Auswertung)
+            self._rueckmelden(a, "kunde", auto, str(nr))
+        return akte
 
     def kunde_neu_anlegen(self, daten=None, trotzdem=False):
         """Neuen Kunden aus Absender und Signatur anlegen (Bemerkung „Kunde prüfen“) und zuordnen; vorher Dubletten im
@@ -1849,6 +2131,9 @@ class AnfragenSeite(QWidget):
             if self._ol_lauf is not None or self.db.nur_lesen or not (immer or ol.an(self.db)):
                 return False
             kunden = self.db.zeilen("kunden")
+            phasen = ph.ordner_einstellungen(self.db)
+            # Phase mit Angeboten/Aufträgen hier rechnen (Datenbank nur im Hauptfaden), der Abruf liest nur die Liste
+            phasen_je = {a.nr: self.phase(a) for a in self.akten if a.stand.get("angebote")} if phasen else {}
         except Exception:               # noqa: BLE001
             return False
         self._ol_pool = self._ol_pool or ThreadPoolExecutor(max_workers=1)
@@ -1856,7 +2141,8 @@ class AnfragenSeite(QWidget):
                                              getattr(self, "outlook_ausfuehren", None), None,
                                              ol.unter_pfade(self.db), ol.zuordnung(self.db),
                                              self.mitarbeiter_namen(), ol.ordner_ids(self.db),
-                                             self._eigene_domains(), self.db.einstellung("briefkopf_1") or "")
+                                             self._eigene_domains(), self.db.einstellung("briefkopf_1") or "",
+                                             phasen, lambda a: phasen_je.get(a.nr) or ph.phase(a))
         if warten:
             self._ol_lauf.result()
             self._outlook_pruefen()
@@ -1888,6 +2174,7 @@ class AnfragenSeite(QWidget):
         if erg["fehler"]:
             self.hinweis.setText("Outlook: " + "; ".join(erg["fehler"][:3]))
             self.hinweis.setVisible(True)
+        self.ol_status_zeigen()
         d = getattr(self, "_ol_dialog", None)
         if d is not None:
             d.anzeigen()
@@ -1917,7 +2204,7 @@ class AnfragenSeite(QWidget):
         return self.mitarbeiter_zeigen()
 
     def mitarbeiter_zeigen(self):
-        d = AuswertungDialog(self, self.auswertung(), self.mitarbeiter_liste())
+        d = AuswertungDialog(self, self.auswertung(), self.mitarbeiter_liste(), seite=self)
         if not self.f.stumm:
             d.exec()
         return d
@@ -1928,8 +2215,9 @@ class AuswertungDialog(QDialog):
     und je Mitarbeiter (offen, erledigt, vorgeschlagen, Ø bis Übernahme, Ø bis Angebot, Ø Bearbeitung, Angebote,
     beauftragt). self.tabelle = Mitarbeiter, self.wochen = Wochen."""
 
-    def __init__(self, parent, werte, namen):
+    def __init__(self, parent, werte, namen, seite=None):
         super().__init__(parent)
+        self.seite = seite
         self.setWindowTitle("Auswertung der Anfragen")
         lay = QVBoxLayout(self)
         mit, auftrag = werte["treffer"]
@@ -1965,10 +2253,94 @@ class AuswertungDialog(QDialog):
             for c, b in enumerate(breiten):
                 tab.setColumnWidth(c, b)
             lay.addWidget(tab, 1)
+        # 20.11.2026 (Plan K9/K11): Erkennung – Trefferquote je Feld, gelerntes Modell im Schatten, Freigabe
+        lay.addWidget(QLabel("<b>Erkennung</b> (aus den Korrekturen von Hand)"))
+        self.erkennung = QTextBrowser()
+        self.erkennung.setMaximumHeight(170)
+        lay.addWidget(self.erkennung)
+        zeile = QHBoxLayout()
+        self.k_trainieren = QPushButton("Modell prüfen")
+        self.k_trainieren.setToolTip("Aus allen Korrekturen ein Wortmodell rechnen und gegen die Regeln testen (nur "
+                                     "Schatten, ändert nichts)")
+        self.k_trainieren.clicked.connect(self.trainieren)
+        self.k_freigeben = QPushButton("Freigeben")
+        self.k_freigeben.setToolTip("Nur Admin: das geprüfte Modell wirkt ab jetzt bei unsicheren Mails")
+        self.k_freigeben.clicked.connect(self.freigeben)
+        self.k_zurueck = QPushButton("Freigabe zurücknehmen")
+        self.k_zurueck.clicked.connect(self.zuruecknehmen)
+        for k in (self.k_trainieren, self.k_freigeben, self.k_zurueck):
+            zeile.addWidget(k)
+        zeile.addStretch(1)
+        lay.addLayout(zeile)
+        self.erkennung_zeigen()
         knopf = QDialogButtonBox(QDialogButtonBox.Close)
         knopf.rejected.connect(self.reject)
         lay.addWidget(knopf)
-        self.resize(980, 560)
+        self.resize(980, 720)
+
+    def _wurzel(self):
+        return self.seite.ablage().wurzel if self.seite is not None else None
+
+    def erkennung_zeigen(self):
+        w = self._wurzel()
+        if w is None:
+            self.erkennung.setHtml("<i>keine Daten</i>")
+            return ""
+        try:
+            aus = al.auswertung(w, self.seite.akten)
+            schatten, aktiv = al.modell_lesen(w), al.aktiv_lesen(w)
+        except OSError as e:
+            self.erkennung.setHtml(f"<i>nicht lesbar: {html.escape(str(e))}</i>")
+            return ""
+        z = []
+        for f, x in aus["felder"].items():
+            v = "; ".join(f"{html.escape(a)} ({n}×)" for a, n in x["verwechselt"])
+            z.append(f"<tr><td>{html.escape(al.FELDER.get(f, f))}&nbsp;</td><td>{x['anzahl']}&nbsp;</td>"
+                     f"<td>{x['quote']} % bestätigt&nbsp;</td><td style='color:#666'>{v}</td></tr>")
+        t = ("<table><tr><th align=left>Feld</th><th align=left>Rückmeldungen</th><th align=left>Quote</th>"
+             "<th align=left>häufig korrigiert</th></tr>" + "".join(z) + "</table>") if z else \
+            "<p>Noch keine Korrekturen.</p>"
+        sich = ", ".join(f"{html.escape(k)} {n}" for k, n in sorted(aus["sicherheit"].items()))
+        p = (schatten or {}).get("pruefung") or {}
+        ok, grund = al.freigabe_moeglich(schatten)
+        m = (f"Schatten-Modell {schatten.get('version')}: {p.get('n')} Beispiele, im Test {p.get('modell')} % "
+             f"richtig, Regeln {p.get('regeln')} %. " if schatten else "Noch kein Modell geprüft. ")
+        m += (f"Freigegeben: Modell {aktiv.get('version')} ({html.escape(str(aktiv.get('freigegeben_von') or ''))})."
+              if aktiv else "Kein Modell freigegeben, es gelten nur die Regeln.")
+        self.erkennung.setHtml(t + (f"<p>Mail-Art-Sicherheit: {sich}</p>" if sich else "")
+                               + f"<p>{m}<br><span style='color:#666'>Freigabe: {html.escape(grund)}</span></p>")
+        self.k_freigeben.setEnabled(ok)
+        self.k_zurueck.setEnabled(bool(aktiv))
+        return self.erkennung.toPlainText()
+
+    def trainieren(self):
+        m = al.trainieren(self._wurzel())
+        self.erkennung_zeigen()
+        return m
+
+    def freigeben(self):
+        from . import admin_schutz
+        if not admin_schutz.ist_admin(self.seite.db):
+            self.seite.f.meldung("Nur ein Admin kann ein gelerntes Modell freigeben.", fehler=True)
+            return False
+        ok, text = al.freigeben(self._wurzel(), self.seite.ich())
+        self.seite.f.meldung(text, fehler=not ok)
+        self.seite._modell_cache = None
+        self.seite._erkannt = {}
+        self.erkennung_zeigen()
+        return ok
+
+    def zuruecknehmen(self):
+        from . import admin_schutz
+        if not admin_schutz.ist_admin(self.seite.db):
+            self.seite.f.meldung("Nur ein Admin kann die Freigabe zurücknehmen.", fehler=True)
+            return ""
+        t = al.zuruecknehmen(self._wurzel())
+        self.seite.f.meldung(t)
+        self.seite._modell_cache = None
+        self.seite._erkannt = {}
+        self.erkennung_zeigen()
+        return t
 
 
 class OutlookDialog(QDialog):
@@ -2013,13 +2385,25 @@ class OutlookDialog(QDialog):
             e.editingFinished.connect(lambda s_=schl, e_=e: self._pfad_setzen(s_, e_.text()))
             self.pfade[schl] = e
             zeilen.append((schl, name, e))
+        for p in ph.ORDNER_PHASEN:      # 20.11.2026 (Plan K6): weitere Ordner je Phase, leer = nicht benutzt
+            schl = "phase_" + p
+            e = QLineEdit(db.einstellung(ph.ORDNER_EINSTELLUNG + p) or "")
+            e.setPlaceholderText("leer: kein eigener Ordner (Mail bleibt in „"
+                                 + ol.UNTER[ph.ORDNER_PHASEN[p]] + "“)")
+            e.editingFinished.connect(lambda s_=schl, e_=e: self._pfad_setzen(s_, e_.text()))
+            self.pfade[schl] = e
+            zeilen.append((schl, ph.text(p), e))
         for r, (schl, name, feld) in enumerate(zeilen):
-            raster.addWidget(QLabel(name), r, 0)
-            raster.addWidget(feld, r, 1)
+            if r == 4:
+                raster.addWidget(QLabel("<i>Optional: eigener Ordner je Phase. Verschieben in Outlook setzt die "
+                                        "Phase, das Programm verschiebt beim Wechsel der Phase.</i>"), 50, 0, 1, 3)
+            z = r if r < 4 else 50 + r
+            raster.addWidget(QLabel(name), z, 0)
+            raster.addWidget(feld, z, 1)
             w = QPushButton("Wählen …")
             w.setToolTip("Ordner in Outlook auswählen (auch in einem anderen Postfach)")
             w.clicked.connect(lambda _=False, s_=schl: self.waehlen(s_))
-            raster.addWidget(w, r, 2)
+            raster.addWidget(w, z, 2)
         lay.addLayout(raster)
         kopf = QHBoxLayout()
         kopf.addWidget(QLabel("<b>Outlook-Kategorie → Mitarbeiter</b>"), 1)
@@ -2075,7 +2459,7 @@ class OutlookDialog(QDialog):
             pfad = ""                   # Neu = der Eingang selbst: Mails bleiben dort (kein eigener Ordner)
         andere = {ol.ordner(db)} | {self.pfade[k].text().strip() for k in self.pfade if k != schl}
         if pfad and schl != "eingang" and pfad in andere:
-            self.pfade[schl].setText(db.einstellung(ol.PFAD_EINSTELLUNG[schl]) or "")
+            self.pfade[schl].setText(db.einstellung(_einstellung(schl)) or "")
             self.seite.f.meldung("Dieser Ordner ist schon für einen anderen Zweck gewählt.", fehler=True)
             return "doppelt"
         if schl == "eingang":
@@ -2083,7 +2467,7 @@ class OutlookDialog(QDialog):
             db.einstellung_setzen(ol.ORDNER_EINSTELLUNG, pfad or ol.ORDNER_VORGABE)
         else:
             self.pfade[schl].setText(pfad)
-            db.einstellung_setzen(ol.PFAD_EINSTELLUNG[schl], pfad)
+            db.einstellung_setzen(_einstellung(schl), pfad)
         return ""
 
     def waehlen(self, schl):
@@ -2212,3 +2596,32 @@ def _art_passt(ein, wahl):
     if wahl == "andere":
         return ein.get("art") != aa.ANFRAGE
     return ein.get("art") == wahl
+
+
+def _einstellung(schl):
+    """Einstellung eines Ordners im Fenster „Outlook …“ (Grundordner oder Phasen-Ordner „phase_…“)."""
+    if schl.startswith("phase_"):
+        return ph.ORDNER_EINSTELLUNG + schl[len("phase_"):]
+    return ol.PFAD_EINSTELLUNG[schl]
+
+
+SCHNELL = {"ohne": ("Nicht zugeordnet", "Neue Anfragen ohne Bearbeiter"),
+           "kunde": ("Kunde prüfen", "Kunde nicht sicher erkannt"),
+           "dringend": ("Dringend", "Priorität hoch/eilt oder heute fällig bzw. überfällig"),
+           "fehlt": ("Angaben fehlen", "Es fehlen Angaben für die Kalkulation (Werkstoff, Stückzahl …)"),
+           "unklar": ("Unklar", "Mail-Art nicht sicher erkannt"),
+           "anhaenge": ("Neue Anhänge", "Seit der letzten eigenen Bearbeitung sind Dateien dazugekommen"),
+           "doppelt": ("Doppelt", "Dieselbe Mail kam auf zwei Wegen (z. B. direkt und weitergeleitet)"),
+           "ueberfaellig": ("Überfällig", "Antwortfrist überschritten")}
+
+
+def _neue_anhaenge(a):
+    """Dateien (keine Mail) kamen nach der letzten Aktion des Bearbeiters dazu (bei Neu: nach dem Eingang)."""
+    wer = a.bearbeiter or ""
+    seit = max((e.get("zeit", "") for e in a.verlauf if wer and e.get("kuerzel") == wer
+                and e.get("aktion") != ak.DATEI_DAZU), default="")
+    for e in a.verlauf:
+        if e.get("aktion") == ak.DATEI_DAZU and e.get("zeit", "") > seit and any(
+                ak.art(d.get("name", "")) != "mail" for d in e.get("dateien") or ()):
+            return True
+    return False

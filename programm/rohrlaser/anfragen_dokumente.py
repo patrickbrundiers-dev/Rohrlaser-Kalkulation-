@@ -47,7 +47,7 @@ class DokumentePanel(QWidget):
                                           " color: #667085; }")
         lay.addWidget(self.ablage_hinweis)
         self.baum = QTreeWidget()
-        self.baum.setHeaderLabels(["Dokument", "Von / Herkunft", "Datum", "Größe"])
+        self.baum.setHeaderLabels(["Dokument", "Rolle", "Von / Herkunft", "Datum", "Größe"])
         self.baum.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.baum.setAlternatingRowColors(True)
         self.baum.itemDoubleClicked.connect(lambda it, _c: self.oeffnen(it))
@@ -97,6 +97,7 @@ class DokumentePanel(QWidget):
         self.k_trennen.setVisible(da and any(z["aktiv"] for z in akte.stand.get("zusammen", [])))
         if not da:
             return
+        rollen = {x["datei"]: x for x in (self.seite.anhaenge(akte) if hasattr(self.seite, "anhaenge") else [])}
         for kat, liste in sa.nach_kategorie(akte, wurzel).items():
             knoten = QTreeWidgetItem([f"{kat} ({len(liste)})"])
             f = knoten.font(0)
@@ -112,8 +113,16 @@ class DokumentePanel(QWidget):
                 text = " · ".join(x for x in (von, quelle) if x)
                 if d.get("aus_mail"):
                     text = f"Anhang von {d['aus_mail']}"
-                it = QTreeWidgetItem([d["name"], text, _datum(h.get("datum") or h.get("zeit")),
+                x = rollen.get(d.get("datei", d["name"]))
+                rolle = ""
+                if x is not None:       # 20.11.2026 (anhang_analyse): Rolle, Revision, neuer Stand
+                    rolle = x["rolle"] + (f" · Rev. {x['revision']}" if x["revision"] else "") \
+                        + (" · neuer Stand" if x["neuer_stand_von"] else "") + (" ⚠" if x["hinweise"] else "")
+                it = QTreeWidgetItem([d["name"], rolle, text, _datum(h.get("datum") or h.get("zeit")),
                                       f"{(d.get('groesse') or 0) / 1024:.0f} KB"])
+                if x is not None and (x["hinweise"] or x["neuer_stand_von"]):
+                    it.setToolTip(1, "\n".join(([f"neuer Stand von {x['neuer_stand_von']}"]
+                                                 if x["neuer_stand_von"] else []) + x["hinweise"]))
                 it.setData(0, Qt.UserRole, d.get("datei", d["name"]))
                 it.setToolTip(0, f"{d['id']} · {ak.ART_TEXT.get(d['art'], '')}" + (f"\nBetreff: {h['betreff']}"
                                                                                     if h.get("betreff") else ""))
@@ -124,7 +133,7 @@ class DokumentePanel(QWidget):
             knoten = QTreeWidgetItem([f"Verschoben / getrennt ({len(weg)})"])
             self.baum.addTopLevelItem(knoten)
             for d in weg:
-                knoten.addChild(QTreeWidgetItem([d["name"], f"→ {d['weg']}", "", ""]))
+                knoten.addChild(QTreeWidgetItem([d["name"], "", f"→ {d['weg']}", "", ""]))
 
     def oeffnen(self, it):
         schl = it.data(0, Qt.UserRole)

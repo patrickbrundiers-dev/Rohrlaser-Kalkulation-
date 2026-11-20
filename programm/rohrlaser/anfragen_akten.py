@@ -68,6 +68,8 @@ AUFGEGANGEN = "aufgegangen"             # in der weiteren Anfrage: in die Haupta
 TRENNEN = "getrennt"                    # in der Hauptanfrage: Zusammenführung rückgängig
 GETRENNT = "wieder_eigenstaendig"       # in der weiteren Anfrage: wieder eigenständig
 ART_GEAENDERT = "art_geaendert"         # 20.11.2026 (anfrage_art): Mail-Art bzw. Sachgebiet von Hand korrigiert
+NACHTRAG_GESEHEN = "nachtrag_gesehen"   # 20.11.2026 (anhang_analyse): geänderte Angaben aus Nachträgen gesehen
+PHASE = "phase"                         # 20.11.2026 (anfrage_phase): Phase von Hand oder aus einem Outlook-Ordner
 ZUORDNUNG_FELDER = {"automatisch": "Kunde automatisch", "kunde": "Kunde geändert", "bestaetigt": "Kunde bestätigt",
                     "ansprechpartner": "Ansprechpartner geändert", "absender": "Absender korrigiert",
                     "ohne_kunde": "Intern (ohne Kunde)", "zuruecksetzen": "Zuordnung zurückgesetzt"}
@@ -80,7 +82,8 @@ AKTION_TEXT = {EINGEGANGEN: "Eingegangen", DATEI_DAZU: "Datei dazu", ZUGEWIESEN:
                ANTWORT_DA: "Antwort des Kunden erhalten", ZUORDNUNG: "Zuordnung", KATEGORIE: "Kategorie",
                DATEI_WEG: "Zu anderer Anfrage verschoben", ZUSAMMEN: "Anfragen zusammengeführt",
                AUFGEGANGEN: "Zusammengeführt in", TRENNEN: "Zusammenführung rückgängig",
-               GETRENNT: "Wieder eigenständig", ART_GEAENDERT: "Mail-Art geändert"}
+               GETRENNT: "Wieder eigenständig", ART_GEAENDERT: "Mail-Art geändert",
+               NACHTRAG_GESEHEN: "Änderungen aus Nachträgen gesehen", PHASE: "Phase"}
 AUSSORTIER_GRUENDE = ("Werbung", "Rechnung", "Lieferant / Einkauf", "Bewerbung", "Sonstiges")
 AUSSORTIER_VORSCHLAG = 2    # so oft vom selben Absender aussortiert: beim nächsten Mal „Keine Anfrage?“ vorschlagen
 AUTO = "Automatik"          # Kürzel-Zusatz im Verlauf für automatische Zuweisungen
@@ -206,7 +209,8 @@ def stand_aus_verlauf(ereignisse):
              vormessung_stempel="", versendet=[], rueckfrage="", rueckfrage_text="", antwort_am="",
              kunde=None, kunde_name="", kunde_bestaetigt=False, ohne_kunde=False, ansprechpartner=None,
              absender_korr=None, internet_ids=[], zuordnung_von="", weg={}, kategorien={}, zusammen=[],
-             zusammengefuehrt_in="", status_vor="", mids_weg=[], art_korr=None)
+             zusammengefuehrt_in="", status_vor="", mids_weg=[], art_korr=None, nachtrag_gesehen=0, phase="",
+             phase_von="")
     for e in sorted(ereignisse, key=lambda e: (e.get("zeit", ""), e.get("kuerzel", ""), e.get("nr", 0))):
         a, k, z = e.get("aktion"), e.get("kuerzel", ""), e.get("zeit", "")
         e["ungueltig"] = False
@@ -222,6 +226,10 @@ def stand_aus_verlauf(ereignisse):
             s["antworten"] += bool(e.get("antwort"))
             if e.get("antwort"):
                 s.update(antwort_am=z, rueckfrage="")
+        elif a == PHASE:
+            s["phase"], s["phase_von"] = e.get("neu") or "", k
+        elif a == NACHTRAG_GESEHEN:
+            s["nachtrag_gesehen"] = max(s["nachtrag_gesehen"], int(e.get("anzahl") or 0))
         elif a == ART_GEAENDERT:
             s["art_korr"] = dict(art=e.get("neu") or "", sachgebiete=list(e.get("sachgebiete") or []), von=k, zeit=z)
         elif a == KATEGORIE:
@@ -1009,6 +1017,26 @@ class OrdnerAblage:
         self.ereignis(akte, ART_GEAENDERT, alt=alt, neu=art, sachgebiete=sachgebiete, jetzt=jetzt)
         return self.neu_lesen(akte)
 
+    def phase_setzen(self, akte, phase, jetzt=None, outlook=""):
+        """Phase (anfrage_phase.PHASEN) von Hand setzen, leer = wieder automatisch; outlook: Ordner, aus dem die
+        Phase kommt (Mail dort hineingezogen). Steht im Verlauf. Ergebnis: Akte."""
+        from . import anfrage_phase as ap
+        if phase and phase not in ap.PHASE_TEXT:
+            raise AblageFehler(f"Unbekannte Phase: {phase}")
+        akte = self.neu_lesen(akte)
+        if (phase or "") != akte.stand.get("phase", ""):
+            w = dict(outlook=outlook) if outlook else {}
+            self.ereignis(akte, PHASE, alt=akte.stand.get("phase", ""), neu=phase or "", jetzt=jetzt, **w)
+        return self.neu_lesen(akte)
+
+    def nachtrag_gesehen(self, akte, aenderungen, jetzt=None):
+        """Geänderte Angaben aus Nachträgen (anhang_analyse.nachtraege) als gesehen vermerken; übernommen wird nichts,
+        der Verlauf nennt die Werte. Ergebnis: Akte."""
+        akte = self.neu_lesen(akte)
+        self.ereignis(akte, NACHTRAG_GESEHEN, anzahl=len(aenderungen), jetzt=jetzt,
+                      neu="; ".join(f"{x['titel']} {x['alt'] or '–'} → {x['neu']}" for x in aenderungen)[:300])
+        return self.neu_lesen(akte)
+
     def zuordnung_protokollieren(self, akte, jetzt=None):
         """Automatische Zuordnung beim Eingang in den Verlauf (Adresse, Weiterleitung, Kunde, Stufe, Kriterien,
         Message-ID)."""
@@ -1249,7 +1277,7 @@ def verlauf_text(e):
         t += f" für {neu}" if neu and neu != e.get("kuerzel") else ""
     elif a == RUECKFRAGE:
         t += ": " + " ".join(str(neu or "").split())[:80]
-    elif a in (NOTIZ, STAND, ANGEBOT, AUSSORTIERT, VORMESSUNG):
+    elif a in (NOTIZ, STAND, ANGEBOT, AUSSORTIERT, VORMESSUNG, NACHTRAG_GESEHEN):
         t += f": {neu}" if neu else ""
     elif a == VERSENDET:
         t += f": {neu}" + (f" an {e['an']}" if e.get("an") else "")
@@ -1271,6 +1299,10 @@ def verlauf_text(e):
         t += f": {neu} wieder eigenständig" if neu else ""
     elif a == GETRENNT:
         t += f" (von {alt} getrennt)" if alt else ""
+    elif a == PHASE:
+        from . import anfrage_phase as ap
+        t += f": {ap.text(alt) or 'automatisch'} → {ap.text(neu) or 'automatisch'}"
+        t += f" (in Outlook nach „{e['outlook']}“ gezogen)" if e.get("outlook") else ""
     elif a == ART_GEAENDERT:
         from . import anfrage_art as aa
         t += f": {aa.ARTEN.get(alt, alt or '–')} → {aa.ARTEN.get(neu, neu)}"
