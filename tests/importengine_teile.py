@@ -13,6 +13,11 @@ Dateinamen und in tests/test_importengine.py REFERENZ).
 - I07 Fertigbarkeit: QR 40 × 3 L 800 oben mit Loch Ø 1,5 (x 100), zwei Löchern Ø 10 mit 1 mm Steg (x 300/311),
   Loch Ø 8 mit 1 mm Steg zum Ende A (x 5), Gravur 20 × 5 × 0,8 mm tief (x 500), Ausschnitt 20 × 10 mit scharfen
   Ecken (x 650)
+- I08 Gravur/Einnietmutter: QR 40 × 3 L 600 oben Gravur 10 × 5 × 0,3 (x 300–305) mit Loch Ø 10 bei x 311 (1 mm
+  Abstand), Loch Ø 9 (M6-Einnietmutter) bei x 8 (3,5 mm zum Ende A), Loch Ø 9 bei x 450 (frei)
+- I09 Umfang offen: QR 40 × 3 L 400 oben fünf Fenster 34 × 16 an den Prüfpunkten (x 12, 100, 200, 300, 388):
+  Umfang an keinem der 5 Prüfpunkte geschlossen
+- I10 Rundrohr 40 × 2 L 300 oben Loch Ø 25 (x 150) und Ø 8 (x 250): bei XY zu groß bzw. in Ordnung
 """
 import math
 import os
@@ -188,6 +193,21 @@ def alle():
     klotz = BRepAlgoAPI_Cut(klotz, BRepPrimAPI_MakeBox(gp_Pnt(535, 10, 15), 20, 20, 20).Shape()).Shape()
     schreiben(verbund([qr, rr, blech, klotz]), "I06_Baugruppe_gemischt.step")
     fertigbarkeit_teil()
+    pruefregeln_teile()
+
+
+def pruefregeln_teile():
+    qr = kasten(40, 40, 3, 600)
+    qr = BRepAlgoAPI_Cut(qr, BRepPrimAPI_MakeBox(gp_Pnt(-5, 19.7, 300), 10, 5, 5).Shape()).Shape()
+    for z, d in ((311, 10), (8, 9), (450, 9)):
+        qr = bohrung(qr, z, d, 5)
+    schreiben(qr, "I08_QR40x3_L600_Gravur_Nietmutter.step")
+    qr = kasten(40, 40, 3, 400)
+    for z in (12, 100, 200, 300, 388):
+        qr = langloch(qr, z, 16, 34, 5)
+    schreiben(qr, "I09_QR40x3_L400_Umfang_offen.step")
+    rr = bohrung(bohrung(rund(40, 2, 300), 150, 25, 5), 250, 8, 5)
+    schreiben(rr, "I10_RR40x2_L300_Loch25.step")
 
 
 def fertigbarkeit_teil():

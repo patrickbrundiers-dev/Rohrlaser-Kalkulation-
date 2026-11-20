@@ -126,8 +126,24 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
             zf.append(i)
     if zf:
         out.append(Punkt(HINWEIS, f"{_n_pos(len(zf))}: Konstruktionsregel der Maschine nicht eingehalten (Loch, Steg, "
-                                  "Gravur, Länge oder Hüllkreis – Importanalyse)", f"pos:{zf[0]}",
-                         _pos_liste(zf, positionen)))
+                                  "Gravur, Umfang, Einnietmutter, Länge oder Hüllkreis – Importanalyse)",
+                         f"pos:{zf[0]}", _pos_liste(zf, positionen)))
+    # Schneidtechnik XY je Position (247TailorSteel-Vergleich, 20.11.2026): Loch im Rundrohr höchstens 0,5 × Rohr-Ø
+    from . import fertigbarkeit as _fb
+    zx = []
+    for i in aktiv:
+        if _fb.technik_von(None, positionen[i]) != _fb.XY:
+            continue
+        try:
+            zu_gross = _fb.xy_zu_gross(_ba.aus_position(positionen[i]))
+        except Exception:       # noqa: BLE001 – Check darf an alten Daten nie scheitern
+            zu_gross = []
+        if zu_gross:
+            zx.append(i)
+    if zx:
+        out.append(Punkt(HINWEIS, f"{_n_pos(len(zx))}: Schneidtechnik XY, aber Loch im Rundrohr größer als 0,5 × "
+                                  "Rohr-Ø (zylindrisch nicht schneidbar – 2,5D wählen oder prüfen)", f"pos:{zx[0]}",
+                         _pos_liste(zx, positionen)))
     # STEP-Merkmale „prüfen“/„nicht erkannt“ ohne Bestätigung (Wettbewerbsvergleich P0-3): nur Hinweis, die Position
     # meldet Fehler wie unbekanntes Profil selbst
     from . import step_pruefung
