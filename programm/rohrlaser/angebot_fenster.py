@@ -5387,8 +5387,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import (BLECH, DXF, LEER, PDF, RAHMEN, ROHR, ROHRZUG, SCHWEISS, UEBERNEHMEN, VORLAGE, ZUKAUF,
-                                    TypDialog)
+        from .neue_position import (BLECH, DXF, LEER, PDF, RAHMEN, ROHR, ROHRZUG, SCHWEISS, TRUMPF, UEBERNEHMEN, VORLAGE,
+                                    ZUKAUF, TypDialog)
         if typ is None:
             if self.f.stumm:
                 typ = LEER
@@ -5403,6 +5403,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return typ if self.blech_neu(dialog=dialog) else None
         if typ == DXF:
             return typ if self.blech_aus_dxf() else None
+        if typ == TRUMPF:
+            return typ if self.aus_trumpf() else None
         if typ == PDF:
             return typ if self.rohr_aus_pdf(dialog=dialog) else None
         if typ == ZUKAUF:
@@ -5847,6 +5849,74 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.f.meldung(f"Pos. {nr} angelegt: {kopf['bezeichnung']}, Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € "
                        "je Stück als EK (Zukaufteil)." + zusatz_text)
         return True
+
+    def aus_trumpf(self, pfade=None):
+        """Positionen aus TRUMPF-Rohrprogrammen (LST und TUBX, trumpf_programm; Patrick 20.11.2026): je Teil eine
+        Position mit Profil, Werkstoff, Länge, Stückzahl (Sollanzahl der Job-Liste), Schneidweg und Einstichen aus
+        dem Programm; die von TRUMPF berechnete Zeit je Teil wird Schneidzeit je Teil, wenn die Einstellung
+        trumpf_zeit = ja ist. Ergebnis: Anzahl angelegter Positionen."""
+        from . import step as step_mod
+        from . import trumpf_programm as tp
+        from .schnellzeile import werkstoff_finden
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        if not pfade:
+            pfade, _ = QFileDialog.getOpenFileNames(
+                self, "Aus TRUMPF-Programm", str(self.db.einstellung("trumpf_ordner") or ""),
+                "TRUMPF-Rohrprogramme (*.lst *.LST *.tubx *.TUBX);;Alle (*)")
+            if not pfade:
+                return 0
+            self.db.einstellung_setzen("trumpf_ordner", str(Path(pfade[0]).parent))
+        tubx = [p for p in pfade if str(p).lower().endswith(".tubx")]
+        if tubx:        # TUBX wie eine STEP messen (Patrick 20.11.2026): Netz, Bohrungen, Konturen, 3D, Prüfdialog
+            stämme = {Path(p).stem.lower() for p in tubx}
+            pfade = [p for p in pfade if p not in tubx and Path(p).stem.lower() not in stämme]
+            self.step_importieren([str(p) for p in tubx])
+            if not pfade:
+                return len(tubx)
+        teile, fehler = tp.lesen(pfade)
+        zeit_an = (self.db.einstellung("trumpf_zeit") or "ja") != "nein"
+        letzter = next((p.get("werkstoff_id") for p in reversed(self.positionen) if p.get("werkstoff_id")), None)
+        vorgabe = self.db.einstellung("step_werkstoff") or letzter
+        hinweise, n = [], 0
+        self.verlauf.pause += 1
+        try:
+            for t in teile:
+                m = dict(profilform=t["profilform"], abm_a=t["a"], abm_b=t["b"], wandstaerke=t["wand"])
+                pid = step_mod.finde_profil(m, self.k.profile) if t["profilform"] and t["a"] else None
+                wst = werkstoff_finden(tp.werkstoff_wort(t), self.k.werkstoffe, [vorgabe, letzter]) or \
+                    (vorgabe if vorgabe in self.k.werkstoffe else None)
+                werte = dict(pos=self._naechste_pos(), artikel=t["artikel"], profil_id=pid, werkstoff_id=wst,
+                             laenge=t["laenge"], stueck=t["stueck"] or 1, schneidweg=t["schneidweg"],
+                             einstiche=t["einstiche"])
+                if t["artikel"] != t["programm"]:
+                    werte["bezeichnung"] = t["programm"]
+                if zeit_an and t["zeit_s"]:
+                    werte["zeit_manuell"] = t["zeit_s"]
+                self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
+                self.positionen.append(dict(werte))
+                n += 1
+                fehlt = [x for x, w in (("Profil", pid), ("Werkstoff", wst)) if not w]
+                notiz = t["hinweise"] + ([f"{' und '.join(fehlt)} nicht gefunden ({tp.text(t)}, "
+                                          f"{t['werkstoff'] or '?'}): bitte wählen"] if fehlt else [])
+                if notiz:
+                    hinweise.append(f"Pos. {werte['pos']} {t['artikel']}: " + "; ".join(notiz))
+        finally:
+            self.verlauf.pause -= 1
+        bericht = ("Aus TRUMPF-Programm", "\n".join(
+            [f"{t['quelle']}: {t['artikel']} – {tp.text(t)}" for t in teile] + hinweise + fehler))
+        if n:
+            self.neu_laden()
+            text_ = f"{n} Position(en) aus TRUMPF-Programm angelegt"
+            text_ += f", {len(hinweise)} mit Hinweis (Bericht)." if hinweise else "."
+            if fehler:
+                text_ += " Nicht lesbar: " + "; ".join(fehler[:2])
+            self.rueckgaengig_anbieten(text_, bericht=bericht)
+        else:
+            self.f.meldung("Aus TRUMPF-Programm: " + ("; ".join(fehler[:3]) or "kein Teil gefunden."), fehler=True,
+                           bericht=bericht)
+        return n
 
     def blech_aus_dxf(self, pfade=None, dialog=None, rohr_dialog=None, zuordnung=None):
         """Bleche aus DXF-Dateien (3E-9): je Datei das Importfenster (alle Teile mit Haken), je angehaktem Teil eine
@@ -9729,8 +9799,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         return [p for p in pfade if str(p).lower().endswith(".dxf")]
 
     def dragEnterEvent(self, ereignis):
+        from . import trumpf_programm
         pfade = self._gezogene_pfade(ereignis)
-        if step.step_kandidaten(pfade) or self._dxf_pfade(pfade):   # ohne Ordnersuche, die stockt beim Ziehen
+        if step.step_kandidaten(pfade) or self._dxf_pfade(pfade) or trumpf_programm.lst_dateien(pfade):  # ohne Ordnersuche
             ereignis.acceptProposedAction()
             self._ablage_hervorheben(True)
 
@@ -9739,7 +9810,17 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
 
     def dropEvent(self, ereignis):
         self._ablage_hervorheben(False)
+        from . import trumpf_programm
         pfade = self._gezogene_pfade(ereignis)
+        tp_pfade = trumpf_programm.lst_dateien(pfade)   # TRUMPF-Programme LST (20.11.2026); TUBX wie STEP
+        if tp_pfade and not self.fremd():
+            pfade = [p for p in pfade if p not in tp_pfade]
+            dxf_ = self._dxf_pfade(pfade)
+            step_ = [p for p in pfade if p not in dxf_ and step.step_kandidaten([p])]
+            step_drop(self.f, ereignis, self, lambda: (self.aus_trumpf(tp_pfade),
+                                                       self._drop_importieren(step_) if step_ else 0,
+                                                       self.blech_aus_dxf(dxf_) if dxf_ else 0))
+            return
         dxf_pfade = self._dxf_pfade(pfade)
         rest = [p for p in pfade if p not in dxf_pfade]
         if dxf_pfade and not self.fremd() and not step.step_kandidaten(rest):    # DXF: je Datei Bleche (3E-9)
@@ -9757,11 +9838,17 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if dateien is None:
             dateien, _ = QFileDialog.getOpenFileNames(
                 self, "STEP- und DXF-Dateien wählen", str(step_ablage.start_ordner(self.db)),
-                "STEP, IGES und DXF (*.step *.stp *.igs *.iges *.STEP *.STP *.IGS *.IGES *.dxf *.DXF);;"
+                "STEP, IGES, DXF und TRUMPF (*.step *.stp *.igs *.iges *.STEP *.STP *.IGS *.IGES *.dxf *.DXF *.lst "
+                "*.LST *.tubx *.TUBX);;"
                 f"{step.CAD_FILTER};;"
-                "DXF-Dateien (*.dxf *.DXF)")
+                "DXF-Dateien (*.dxf *.DXF);;TRUMPF-Rohrprogramme (*.lst *.LST *.tubx *.TUBX)")
             if not dateien:
                 return None
+        from . import trumpf_programm
+        tp_pfade = trumpf_programm.lst_dateien(dateien)  # TRUMPF LST (20.11.2026); TUBX geht in den STEP-Import
+        if tp_pfade:
+            dateien = [p for p in dateien if p not in tp_pfade]
+            self.aus_trumpf(tp_pfade)
         dxf_pfade = self._dxf_pfade(dateien)
         step_pfade = [p for p in dateien if p not in dxf_pfade]
         if step_pfade:

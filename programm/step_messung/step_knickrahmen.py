@@ -229,10 +229,15 @@ def erkennen(solid):
     for i in range(len(out) if geschlossen else len(out) - 1):
         d1, d2 = out[i]["d"], out[(i + 1) % len(out)]["d"]
         betas.append(math.degrees(math.acos(max(-1.0, min(1.0, d1[0] * d2[0] + d1[1] * d2[1])))))
-    if max(betas) - min(betas) > TOL_WINKEL or min(betas) < 5 or max(betas) > 175:
+    if min(betas) < 5 or max(betas) > 175:
         return None
+    # Knickwinkel je Ecke (Supportpaket 20.11.2026, STEP 10186133: Rahmen 60 × 40 × 2 mit 55° und 35° wurde nicht
+    # erkannt, weil alle Ecken gleich sein mussten); beta = einer für alle, wenn sie gleich sind, sonst die Liste
+    gleich = max(betas) - min(betas) <= TOL_WINKEL
     return dict(ax3=ax3, zmin=zmin, zmax=zmax, schenkel=out, geschlossen=geschlossen,
-                beta=round(sum(betas) / len(betas), 1), s=s, h=h, b=b)
+                beta=round(sum(betas) / len(betas), 1) if gleich else [round(x, 1) for x in betas],
+                betas=[round(sum(betas) / len(betas), 1)] * len(betas) if gleich else [round(x, 1) for x in betas],
+                s=s, h=h, b=b)
 
 
 def _halbierende(d1, d2):
@@ -309,10 +314,16 @@ def _ecken_gehrung(t, r, i):
     a_am_anfang = z.Dot(gp_Vec(a_glob, e_glob)) > 0
     ecke = {"A" if a_am_anfang else "B": r["geschlossen"] or i > 0,
             "B" if a_am_anfang else "A": r["geschlossen"] or i < nr - 1}
-    halb = round(r["beta"] / 2, 2)
+    betas = r.get("betas") or [r["beta"]] * nr
+    # Ecke am Schenkelanfang = Ecke i − 1 (geschlossen: die letzte), am Schenkelende = Ecke i
+    winkel = {"A" if a_am_anfang else "B": betas[(i - 1) % len(betas)],
+              "B" if a_am_anfang else "A": betas[i % len(betas)]}
     for d in t.konturen_liste:
         e = d.get("art", "")[-1:] if d.get("art") in ("Ende A", "Ende B") else None
-        if not e or not ecke[e] or (d.get("form") == "Gehrung" and abs((d.get("gehrung") or 0) - halb) < 1.0):
+        if not e or not ecke[e]:
+            continue
+        halb = round(winkel[e] / 2, 2)
+        if d.get("form") == "Gehrung" and abs((d.get("gehrung") or 0) - halb) < 1.0:
             continue
         d.update(form="Gehrung", gehrung=halb, um_x=halb, um_y=0.0, richtung=richtung)
         for k in ("fase", "hinweis", "umriss"):
@@ -360,7 +371,8 @@ def messen(solid, datei="", koerper=1, netz=False):
     knicke = len(r["schenkel"]) - (0 if r["geschlossen"] else 1)
     out.hinweise.append(f"{HINWEIS}: {len(r['schenkel'])} Schenkel "
                         + " / ".join(f"{x['laenge']:.1f}".replace(".", ",") for x in r["schenkel"])
-                        + f" mm, {knicke} Ecken mit {r['beta']:.1f}°".replace(".", ",")
+                        + (f" mm, {knicke} Ecken mit {r['beta']:.1f}°" if not isinstance(r["beta"], list) else
+                           f" mm, {knicke} Ecken mit " + " / ".join(f"{x:.1f}°" for x in r["beta"])).replace(".", ",")
                         + (", geschlossen" if r["geschlossen"] else ", offen") + " – bitte prüfen")
     out.knick_schenkel = stuecke
     if netz:

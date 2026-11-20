@@ -47,6 +47,8 @@ BOHR_VOLL = 0.6         # Innenzylinder ab so viel des vollen Umfangs ist eine B
 GRAVURRING_BREITE = 5.0  # mm: so breit darf ein umlaufender Gravurring am Rohr sein (sonst Einstich/Absatz)
 SACK = 0.8              # Bohrung auf der Achse kürzer als so viel × Länge: Sackbohrung
 BODEN_TOL = 0.05        # Boden einer Sackbohrung: Kreisscheibe mit dieser Flächentoleranz
+BLOCK_DICKE = 20.0      # mm: „Blech“ ab dieser Dicke mit Bohrungen aus mehreren Richtungen (auch in den Seitenflächen)
+                        # ist ein Frästeil (Block 150 × 140 × 50 mit Querbohrungen, Supportpaket 20.11.2026)
 FORMEN_DREH = ("Rundstahl", "Rundrohr", "Sonderprofil", "offenes Sonderprofil", "")
 FORMEN_FRAES_VOLL = ("Vierkantstahl", "Flachstahl", "offenes Sonderprofil", "Sonderprofil", "")
 FORMEN_FRAES_OFFEN = ("U-Profil", "C-Profil", "L-Profil", "T-Profil", "I-/H-Träger")
@@ -648,9 +650,12 @@ def pruefen(solid, t, datei="", koerper=1, erzwingen=False):
             return t
         else:
             fl = flaechen(solid)
+    if blech and not erzwingen and t is not None and min(t.wandstaerke or 0.0, *(_huelle(solid) or [0.0])) >= BLOCK_DICKE \
+            and len(_bohr_richtungen(fl)) >= 2:
+        block = "Vierkantstahl"     # dicke Platte mit Querbohrungen: lasern geht nicht, Frästeil
     # Drehteil für jede Form (eine Rolle kann als Flachstahl/Blech, ein Flansch als T-Profil gemessen sein)
     info = drehteil(fl, t, streng=form not in FORMEN_DREH and not erzwingen) if block is None else None
-    if info is None and (not blech or erzwingen):
+    if info is None and (not blech or erzwingen or block):
         try:
             info = fraesteil(fl, t, _huelle_ebenen(solid, fl) or _huelle(solid), block,
                              achse=getattr(t, "achse_global", None))
