@@ -2019,6 +2019,8 @@ def kapitel_angebot(i):
                 "vorgewählt ([[schweissbaugruppe]])"],
                ["<b>Rahmen-Assistent</b>", "Rechteckrahmen oder Quader aus Rohr ohne STEP-Datei als Satz "
                 "([[rahmen_assistent]])"],
+               ["<b>Bauteil aus Text</b>", "Rohrrahmen, Gestell, Streben, Platten, Laschen, L-Winkel oder "
+                "Flanschring in eigenen Worten beschreiben ([[bauteil_aus_text]])"],
                ["<b>Leere Zeile</b>", "eine leere Zeile, alle Werte von Hand"]], [38, 132], kurz=True)
     i.genauer()
     i.tabelle(["Typ", "Was passiert"], [
@@ -6138,6 +6140,44 @@ def kapitel_optimieren(i):
             "B×H), ein vorhandener Name bekommt eine Nummer dazu.",
             "Die Rohre haben Einbaulage und Stöße wie aus dem STEP-Import: Längsnaht, Steckverbindungen, Vorschläge, "
             "Montagefolge, Montageblatt und STEP speichern gehen wie dort.")
+    i.abschnitt("Bauteil aus Text (seit 0.9.427)", marke="bauteil_aus_text")
+    i.text("<b>Neue Position → Bauteil aus Text</b> erstellt Teile aus einer Beschreibung in eigenen Worten, z. B. "
+           "<i>Rohrrahmen 1000 x 600 mm aus 40 x 40 x 3 mm Stahlrohr mit vier Querstreben und zwei "
+           "Befestigungsplatten</i>. <b>Erstellen</b> zeigt rechts das 3D und links die Teile, was erkannt wurde, die "
+           "<b>Annahmen</b> (orange, z. B. Plattendicke 8 mm, wenn keine genannt ist), Hinweise und Fehler (rot). "
+           "<b>Übernehmen</b> geht erst ohne Fehler. Das Programm liest den Text selbst, ohne Internet und ohne "
+           "Cloud-Dienst.", kurz=True)
+    i.genauer()
+    i.liste("<b>Was geht</b>: Rechteckrahmen und Gestelle (Quader, Breite × Tiefe × Höhe) aus Quadrat-, Rechteck- "
+            "oder Rundrohr wie im Rahmen-Assistenten ([[rahmen_assistent]]), dazu <b>Querstreben</b> (senkrecht "
+            "oder waagrecht im Rahmen, beim Gestell als Bodenstreben längs der Tiefe; eigenes Profil mit "
+            "<i>2 Querstreben aus 30 x 30 x 2</i>) und <b>Befestigungsplatten</b> (Fußplatten unten, mit "
+            "<i>Kopfplatten</i> oben; Maß mit <i>Platten 120 x 120 x 10</i>, Bohrungen mit <i>4 Bohrungen Ø 13</i> "
+            "oder <i>ohne Bohrungen</i>). Allein: <b>Lasche/Platte</b> (<i>Lasche 80 x 40 x 5 mit 2 Bohrungen "
+            "Ø 9</i>), <b>L-Winkel</b> (<i>L-Winkel 60 x 40 x 5, Länge 100</i>) und <b>Flanschring</b> "
+            "(<i>Flanschring Ø 200 x Ø 100 x 8 mit 6 Bohrungen Ø 11 auf Lochkreis 160</i>). Werkstoff (S235, "
+            "1.4301, Edelstahl, Alu) und Stückzahl (<i>5 Stück</i>) werden mitgelesen. Die Auswahl <i>Vorlage "
+            "wählen …</i> füllt typische Beschreibungen ein.",
+            "<b>Ändern per Satz</b>: im Feld neben <i>Erstellen</i> z. B. <i>Breite 1200</i>, <i>6 Querstreben</i>, "
+            "<i>Profil 50 x 50 x 4</i>, <i>stumpf</i>, <i>ohne Platten</i> eingeben und <b>Ändern</b>: nur das "
+            "Genannte ändert sich. Jede Änderung steht im Verlauf, <i>Letzte Änderung zurücknehmen</i> geht einen "
+            "Schritt zurück.",
+            "<b>Nicht verstanden</b>: Zahlen, die das Programm keiner Angabe zuordnen kann, stehen rot unter "
+            "<i>Nicht verstanden</i>; dann die Beschreibung genauer schreiben (z. B. <i>Breite 1200</i> statt nur "
+            "<i>1200</i>).",
+            "<b>Prüfung</b>: Rohr länger als die Stange des Angebots, kein Platz für Streben, Streben sehr dicht, "
+            "Platte kleiner als das Rohr, Platten passen nicht in die Breite, Bohrung zu nah am Rand oder unter dem "
+            "Rohr, Lochkreis passt nicht in den Flanschring, Streben aus Vierkant an Rundrohr. Fehlt ein Profil in "
+            "den Stammdaten, steht es rot da und <i>Fehlendes Profil anlegen …</i> öffnet <i>Neue Abmessung</i>.",
+            "<b>Übernehmen</b>: die Rohre werden Positionen eines <b>Satzes</b> mit Schneidweg, 3D, Einbaulage und "
+            "Stößen wie beim Rahmen-Assistenten; die Platten werden ein Blechteil (Richtpreis aus dem Blech-Editor als "
+            "EK, [[blech_editor]]) im selben Satz. Danach öffnet Satz in 3D ([[satz_3d]]); dort und im Rohr- bzw. "
+            "Blech-Editor ist alles weiter bearbeitbar. Ein Blechteil allein wird eine Position wie aus dem "
+            "Blech-Editor. Beschreibung, Änderungen und Annahmen stehen im Bericht der Meldung und bleiben beim Satz "
+            "bzw. Blechteil gespeichert.",
+            "<b>Grenzen</b>: keine Freiformen, keine Rohrbögen, kein Knickrahmen (dafür Rahmen-Assistent), keine "
+            "Gehrung am Gestell. Die Kalkulation rechnet die neuen Positionen wie jede andere; der Generator setzt "
+            "keine Preise.")
     i.abschnitt("Rohrzug aus Punkten (seit 0.9.298)", marke="rohrzug")
     i.text("<b>Neue Position → Rohrzug aus Punkten</b> baut einen Rohrzug (Geländer, Gestell, Rahmen) aus den "
            "XYZ-Punkten seiner Mittellinie ohne STEP-Datei: zwischen zwei Punkten ein gerades Rohr, an jedem Knick "

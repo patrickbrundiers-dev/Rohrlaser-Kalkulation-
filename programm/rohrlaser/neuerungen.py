@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.427", "<b>Bauteil aus Text</b> ([[bauteil_aus_text]]). Neue Position → <i>Bauteil aus Text</i>: "
+     "Rohrrahmen, Gestell, Querstreben, Befestigungsplatten, Lasche, L-Winkel oder Flanschring in eigenen Worten "
+     "beschreiben, z. B. „Rohrrahmen 1000 x 600 aus 40 x 40 x 3 mit vier Querstreben und zwei "
+     "Befestigungsplatten“. Das Programm zeigt Teile, 3D, Annahmen, Hinweise und Fehler, ändert per Satz („Breite "
+     "1200“, „6 Querstreben“, „ohne Platten“) mit Verlauf und legt die Teile erst nach „Übernehmen“ als Satz mit 3D "
+     "an. Ohne Internet, ohne Cloud.",
+     "Bauteil aus Text: Rahmen, Gestelle, Streben, Platten und Blechteile aus einer Beschreibung"],
     ["0.9.426", "<b>Explosionsansicht einstellen, von Hand ändern und speichern</b> ([[explosion_3d]]). Neues Fenster "
      "<i>Explosion einstellen …</i>: Stärke bis 3×, Richtung (frei, waagrecht, senkrecht, nur X/Y/Z), nach "
      "Unterbaugruppen, ohne Überlappung, Verbindungslinien zur Einbaulage, Positionsnummern aus der Stückliste und "
