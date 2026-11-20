@@ -4154,10 +4154,12 @@ def kapitel_step(i):
             "geraden Enden bleibt Vollmaterial ([[vollmaterial]]), ein Rohr mit Schrägschnitt oder Gehrung bleibt Rohr. "
             "Seit 0.9.240 auch: <b>Flansch</b> bzw. Scheibe mit Absatz und Lochkreis (Bohrungen parallel zur Achse), "
             "<b>Ring oder Buchse mit Lasche</b> (Dreh-Fräs-Teil: Rohling über die Lasche, die Lasche wird gefräst). "
-            "Eine glatte Scheibe mit Löchern bleibt Blech.",
+            "Eine glatte Scheibe mit Löchern bleibt Blech. Ein Bolzen mit kleiner Längsbohrung (Wand dicker als 30 % "
+            "des Durchmessers) gilt nie als Rohr mit angeschweißtem Blech, sondern als Drehteil (seit 0.9.422).",
             "<b>Frästeil</b>: ein gedrungener Körper (höchstens dreimal so lang wie breit) überwiegend aus Ebenen, "
             "der kein Blech, Rohr oder Rundstahl ist, mit Absatz, Tasche oder Fase, oder ein L-/U-/C-/T-Profil ohne "
-            "Normmaß mit sehr dicker Wand (ab einem Fünftel des kleineren Außenmaßes). Ein Quader mit Bohrungen "
+            "Normmaß mit sehr dicker Wand (ab einem Fünftel des kleineren Außenmaßes). Eine Platte ab 20 mm Dicke mit "
+            "Bohrungen aus mehreren Richtungen (auch in den Seitenflächen) ist ein Frästeil, kein Blech (seit 0.9.422). Ein Quader mit Bohrungen "
             "von einer Seite bleibt Vierkant bzw. Blech, Normprofile bleiben Profile. Ein Quader mit Bohrungen "
             "<b>aus mehreren Richtungen</b> (Verteilerblock, auch mit Längsbohrung, die sonst wie ein Vierkantrohr "
             "aussieht) ist ein Frästeil (seit 0.9.240).",
@@ -5873,7 +5875,8 @@ def kapitel_optimieren(i):
            "Körper</b> mit der gestreckten Länge; übernommen wird sie wie eine Knickverbindung "
            "([[knickverbindung]]). Prüfstatus immer <i>prüfen</i>. Bohrungen oder Ausschnitte nur in einer Wand "
            "(z. B. eine Lochreihe oben) stören die Erkennung seit 0.9.98 nicht mehr, eine gerundete Außenkante am "
-           "Knick seit 0.9.101.", kurz=True)
+           "Knick seit 0.9.101. Seit 0.9.422 dürfen die Ecken verschiedene Knickwinkel haben (z. B. 55° und 35°); "
+           "jede Ecke bekommt ihre eigene Gehrung.", kurz=True)
     i.bild("knickrahmen_koerper", "Knickrahmen aus einem Körper bearbeiten (Rechtsklick auf die Zeile)",
            hoehe=70 * mm,
            legende=[(1, "<b>Erster Schenkel</b>: dort liegt beim geschlossenen Rahmen der Stoß (Vorgabe: der erste "

@@ -270,3 +270,33 @@ assert mr[0].get("knick_schenkel") and "Fase" not in mr[0]["hinweise"], mr[0]["h
 assert kv.koerper_vorbereiten(mr[0], dict(k=0.5)), mr[0].get("_knick_fehler")
 assert mr[0]["_knickrahmen"]["beta"] == 90.0 and not mr[0]["_knickrahmen"]["geschlossen"]
 ok("R8 Außenkante der Ecke gerundet: Gehrung 45° an beiden Stücken, als Knickrahmen verbindbar")
+
+# ------------------------------------------------------------------ R9 verschiedene Knickwinkel (Support 20.11.)
+# Rahmen RE 60 × 40 × 2 mit 55° und 35° (STEP 10186133 aus dem Supportpaket 20.11.2026): alle Ecken mussten gleich
+# sein, sonst war der Körper „nicht messbar“. Jetzt Knickwinkel je Ecke, Gehrung je Ende mit der halben Ecke.
+
+
+def schenkel_w(L, a, h_, s, wa, wb):
+    """Rohr a (in der Ebene) × h_ (quer) × s entlang x, Außenseite y = 0, Gehrung wa/2 an x = 0, wb/2 an x = L."""
+    ta, tb = math.tan(math.radians(wa / 2)), math.tan(math.radians(wb / 2))
+    aussen = prisma([(0, 0), (L, 0), (L - a * tb, a), (a * ta, a)], 0, h_)
+    xa = (lambda y: y * ta) if wa else (lambda y: -1.0)        # gerades Ende: innen ganz durch
+    xb = (lambda y: L - y * tb) if wb else (lambda y: L + 1.0)
+    innen = prisma([(xa(s), s), (xb(s), s), (xb(a - s), a - s), (xa(a - s), a - s)], s, h_ - s)
+    return BRepAlgoAPI_Cut(aussen, innen).Shape()
+
+
+st1 = schenkel_w(2190.6, 60, 40, 2, 0, 55)
+st2 = schenkel_w(399.9, 60, 40, 2, 55, 35)
+st3 = schenkel_w(1007.4, 60, 40, 2, 35, 0)
+x2, y2 = 2190.6 + 399.9 * math.cos(math.radians(55)), 399.9 * math.sin(math.radians(55))
+SCHRAEG = koerper([st1, lage(st2, 55, 2190.6, 0), lage(st3, 90, x2, y2)])
+ms, _ = messen(speichern([SCHRAEG], "schraeg"))
+assert ms[0].get("knick_schenkel") and "2 Ecken mit 55,0° / 35,0°" in ms[0]["hinweise"], ms[0]["hinweise"]
+assert ms[0]["profilform"] == "Rechteckrohr" and len(kv.stuecke(ms[0])) == 3
+gehrungen = sorted(round(float(d.get("gehrung") or 0), 1) for t in kv.stuecke(ms[0])
+                   for d in json.loads(t["konturen_liste"]) if d.get("form") == "Gehrung")
+assert gehrungen == [17.5, 17.5, 27.5, 27.5], gehrungen
+assert kv.koerper_vorbereiten(ms[0], dict(k=0.5)), ms[0].get("_knick_fehler")
+assert ms[0]["_knickrahmen"]["beta"] == [55.0, 35.0] and not ms[0]["_knickrahmen"]["geschlossen"], ms[0]["_knickrahmen"]
+ok("R9 verschiedene Knickwinkel: RE 60 × 40 × 2 mit 55° und 35° erkannt, Gehrung je Ende halbe Ecke")

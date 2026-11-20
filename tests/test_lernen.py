@@ -58,7 +58,8 @@ ok("L2: je Angebot einmal gezählt, nach 3 gleichen Entscheidungen gelernt, ande
 for a in (11, 12, 13):
     lernen.entscheiden(db, lernen.ZUSATZ, K, "Pulverbeschichten", True, a)
 nacharbeit.merken(db, K, 21, "stange", 6500)
-db.einstellung_setzen(lernen.STEP_ART, {"10|20|30|4|6|12": "Blech", "11|20|30|4|6|12": "Blech"})
+# alter Eintrag nur Gruppe, neuer seit L3 [Gruppe, Datum] (Liste: Lernzentrale stürzte damit ab, Support 20.11.2026)
+db.einstellung_setzen(lernen.STEP_ART, {"10|20|30|4|6|12": "Blech", "11|20|30|4|6|12": ["Blech", "20.11.2026"]})
 db.einstellung_setzen(lernen.STEP_PROFIL, {K: {"QR 40x40x3": "QR 40x40x2,5"}})
 u = lernen.uebersicht(db)
 bereiche = [e["bereich"] for e in u]

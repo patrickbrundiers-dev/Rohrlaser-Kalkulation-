@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.422", "<b>Fehler aus den Supportpaketen vom 20.11. behoben</b>. Beim Beenden brach die Sicherung mit "
+     "„call stack is not deep enough“ ab und das Programm stürzte danach ab: ein Fehler beim Sichern hält das Beenden "
+     "nicht mehr auf, er steht nur im Protokoll. Die Lernzentrale öffnet wieder (gemerkte STEP-Teilearten mit Datum). "
+     "Anfragen-Seite und Anfragen-Karte der Startseite lesen alle 30 s nur noch, wenn sich im Ordner etwas geändert "
+     "hat (vorher hielt das Programm jedes Mal kurz an). STEP-Import ([[drehfraesteile]], [[knickrahmen_koerper]]): "
+     "Bolzen mit kleiner Längsbohrung ist Drehteil statt Rohr mit Blech, dicke Platte mit Querbohrungen ist "
+     "Frästeil, Knickrahmen mit verschiedenen Knickwinkeln werden erkannt.",
+     "Absturz beim Beenden und Lernzentrale behoben, kein Anhalten alle 30 s, STEP: Bolzen, Platte, Knickwinkel"],
     ["0.9.421", "<b>3D-Ansicht: Kanten wie im CAD, Innenkanten und Prüfmodus</b> ([[kanten_3d]]). Kanten gehen nicht "
      "mehr durch die Rohrwand oder durch andere Teile; verdeckte Kanten auf Wunsch hell gestrichelt. Innenkanten "
      "(Innenwand, Wandstärke, Bohrungsränder innen) sind blau. Kanten nur ab einstellbarem Knickwinkel, ohne "
