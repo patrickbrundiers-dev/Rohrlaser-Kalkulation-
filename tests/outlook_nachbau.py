@@ -31,10 +31,11 @@ class Outlook:
         self.aufrufe = []
         self.fehler = None
 
-    def mail(self, mid, betreff, text, absender, anhaenge=(), wo="", eingang=None, konversation="", kat=()):
+    def mail(self, mid, betreff, text, absender, anhaenge=(), wo="", eingang=None, konversation="", kat=(), roh=None):
+        """roh: fertige .msg (bytes) statt einer aus Betreff, Text und Absender."""
         eingang = eingang or datetime.datetime(2026, 11, 13, 7, 30)
         self.ordner[wo].append(dict(mid=mid, eingang=eingang, konversation=konversation, kat=list(kat),
-                                    daten=mail_testdateien.msg(
+                                    daten=roh or mail_testdateien.msg(
             betreff, text, absender.split("@")[0].title(), absender, eingang, list(anhaenge))))
 
     def wo(self, mid):

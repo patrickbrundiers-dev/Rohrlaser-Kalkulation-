@@ -82,15 +82,37 @@ def text(kopf, einst, kunde=None, netto=None):
 
 
 def empfaenger(kunde, anfrage=None):
-    """An: Absender der Anfrage-Mail, sonst die E-Mail des Kunden."""
+    """An: Absender der Anfrage-Mail (bzw. der Kunde in einer intern weitergeleiteten Mail, kunde_an), sonst die
+    E-Mail des Kunden."""
+    if anfrage is not None and getattr(anfrage, "keine_antwort", ""):
+        return getattr(anfrage, "kunde_an", "") or str((kunde or {}).get("email") or "").strip()
     if anfrage is not None and "@" in (anfrage.absender or ""):
         return anfrage.absender
     return str((kunde or {}).get("email") or "").strip()
 
 
-def antwort_moeglich(pfad):
-    """Nur eine .msg lässt sich in Outlook öffnen und beantworten (OpenSharedItem); .eml wird neue E-Mail."""
+def antwort_moeglich(pfad, anfrage=None):
+    """Nur eine .msg lässt sich in Outlook öffnen und beantworten (OpenSharedItem); .eml wird neue E-Mail. Nie bei
+    einer intern weitergeleiteten Mail bzw. internen Anfrage (anfrage.keine_antwort): ihr Verlauf enthält Notizen der
+    Kollegen, die nicht zum Kunden dürfen (19.11.2026)."""
+    if anfrage is not None and getattr(anfrage, "keine_antwort", ""):
+        return False
     return bool(pfad) and Path(pfad).suffix.lower() == ".msg"
+
+
+def anfrage_sicher(m, eigene=(), firma=""):
+    """Anfrage-Mail für „Angebot per E-Mail“: Kopie mit keine_antwort (Grund) und kunde_an, wenn sie intern
+    weitergeleitet bzw. eine interne Anfrage ist (mail_zuordnung.antwort_ziel)."""
+    import copy
+    from . import mail_zuordnung
+    if m is None:
+        return None
+    an, erlaubt, grund = mail_zuordnung.antwort_ziel(m, eigene, firma)
+    if erlaubt:
+        return m
+    k = copy.copy(m)
+    k.keine_antwort, k.kunde_an = grund, an
+    return k
 
 
 def eintrag(an, antwort=False, datei=None):

@@ -17,6 +17,8 @@ import struct
 import zipfile
 from pathlib import Path, PurePath
 
+from . import protokoll
+
 ENDUNGEN = {".msg", ".eml"}
 TIEFE = 3                   # weitergeleitete Mails bzw. ZIP-Archive ineinander: so tief wird ausgepackt
 ZIP_MAX = 200 * 2 ** 20     # größere entpackte ZIP-Inhalte werden übersprungen (Schutz vor ZIP-Bomben)
@@ -27,17 +29,28 @@ ABSENDER_NAME, ABSENDER_ADRESSE, ABSENDER_SMTP, ABSENDER_ART = 0x0C1A, 0x0C1F, 0
 KOPFZEILEN, ZEICHENSATZ = 0x007D, 0x3FFD
 GESENDET, ZUGESTELLT = 0x0039, 0x0E06
 ANHANG_NAME_LANG, ANHANG_NAME, ANHANG_DATEN, ANHANG_ANZEIGE = 0x3707, 0x3704, 0x3701, 0x3001
+# Empfänger und Kopfzeilen (Outlook-Kundenerkennung, Patrick 19.11.2026)
+EMPF_NAME, EMPF_SMTP, EMPF_ADRESSE, EMPF_ART = 0x3001, 0x39FE, 0x3003, 0x0C15
+INTERNET_ID, IN_REPLY_TO, REFERENZEN = 0x1035, 0x1042, 0x1039
 
 
 class Mail:
     """Eine gelesene E-Mail: absender_name, absender (Adresse, klein), datum (datetime oder None), betreff, text,
-    anhaenge [(Dateiname, bytes)]."""
+    anhaenge [(Dateiname, bytes)]. Dazu (19.11.2026) an und cc [(Name, Adresse)], antwort_an (Reply-To),
+    nachrichten_id (Internet-Message-ID ohne <>), in_reply_to und referenzen (Message-IDs der Mails davor)."""
 
     def __init__(self, absender_name="", absender="", datum=None, betreff="", text="", anhaenge=None):
         self.absender_name, self.absender = (absender_name or "").strip(), (absender or "").strip().lower()
         self.datum, self.betreff, self.text = datum, (betreff or "").strip(), text or ""
         self.anhaenge = list(anhaenge or [])
         self.datei_zeit = None      # Änderungszeit der Datei (lesen), falls kein Sendedatum
+        self.an, self.cc, self.antwort_an = [], [], ""
+        self.nachrichten_id, self.in_reply_to, self.referenzen = "", "", []
+        self.eingebettet = []       # als Anlage weitergeleitete Mails (nach dem Auspacken, alle Ebenen)
+
+    def empfaenger(self):
+        """Adressen aus An und CC (klein, ohne Doppel)."""
+        return list(dict.fromkeys(a for _, a in self.an + self.cc if a))
 
     @property
     def domain(self):
@@ -193,6 +206,15 @@ def _msg_lesen(ole, wurzel):
         if not datum:
             datum = _kopf_datum(k.get("Date"))
     m = Mail(str(e(ABSENDER_NAME) or ""), str(adresse or ""), datum, str(e(BETREFF) or ""), str(text or ""))
+    try:
+        _msg_empfaenger(ole, wurzel, m, zs)
+    except Exception as fehler:               # noqa: BLE001 – ohne Empfänger zählt der Rest der Mail trotzdem
+        protokoll.warnung(f"Mail: Empfänger nicht gelesen ({type(fehler).__name__}: {fehler})")
+    m.nachrichten_id = m.nachrichten_id or _mid(e(INTERNET_ID))
+    m.in_reply_to = m.in_reply_to or _mid(e(IN_REPLY_TO))
+    m.referenzen = m.referenzen or _mids(e(REFERENZEN))
+    if isinstance(kopf, str) and kopf.strip():
+        _kopf_uebernehmen(m, email.message_from_string(kopf, policy=email.policy.compat32))
     for eintrag in sorted({tuple(p[:len(wurzel) + 1]) for p in ole.listdir(streams=True, storages=True)
                            if len(p) > len(wurzel) and p[:len(wurzel)] == wurzel
                            and p[len(wurzel)].startswith("__attach_version1.0_")}):
@@ -201,6 +223,58 @@ def _msg_lesen(ole, wurzel):
         except Exception:           # kaputter Anhang: der Rest der Mail zählt trotzdem
             continue
     return m
+
+
+def _msg_empfaenger(ole, wurzel, m, zs):
+    """Empfängertabelle (__recip_version1.0_#…): Name, SMTP-Adresse (bei Exchange-Empfängern die SMTP-Eigenschaft,
+    sonst die Adresse; eine Exchange-Adresse ohne @ bleibt als „/o=…“ stehen und gilt als intern) und Art (1 An,
+    2 CC, 3 BCC)."""
+    for eintrag in sorted({tuple(p[:len(wurzel) + 1]) for p in ole.listdir(streams=True, storages=True)
+                           if len(p) > len(wurzel) and p[:len(wurzel)] == wurzel
+                           and p[len(wurzel)].startswith("__recip_version1.0_")}):
+        w = list(eintrag)
+        e = lambda nr: _eigenschaft(ole, w, nr, zs)     # noqa: E731
+        name = str(e(EMPF_NAME) or "").strip()
+        adresse = str(e(EMPF_SMTP) or "").strip()
+        if "@" not in adresse:
+            adresse = str(e(EMPF_ADRESSE) or adresse).strip()
+        art = _feste(ole, w, 8).get(EMPF_ART)
+        nr = struct.unpack_from("<I", art[1])[0] if art and art[0] == 0x0003 else 1
+        if not (name or adresse):
+            continue
+        ziel = m.cc if nr == 2 else m.an if nr == 1 else None
+        if ziel is not None:
+            ziel.append((name, adresse.lower()))
+
+
+def _mid(wert):
+    """Message-ID ohne spitze Klammern und Leerraum."""
+    t = str(wert or "").strip() if not isinstance(wert, bytes) else ""
+    g = re.search(r"<([^<>\s]+)>", t)
+    return (g.group(1) if g else t.split()[0] if t.split() else "").strip("<>").lower()
+
+
+def _mids(wert):
+    t = str(wert or "") if not isinstance(wert, bytes) else ""
+    return list(dict.fromkeys(x.lower() for x in re.findall(r"<([^<>\s]+)>", t))) or \
+        ([_mid(t)] if _mid(t) else [])
+
+
+def _adressliste(wert):
+    return [(str(n or "").strip(), str(a or "").strip().lower()) for n, a in email.utils.getaddresses([str(wert)])
+            if a or n] if wert else []
+
+
+def _kopf_uebernehmen(m, k):
+    """An/CC/Reply-To/Message-ID/In-Reply-To/References aus den Kopfzeilen, wo noch leer."""
+    m.an = m.an or _adressliste(k.get("To"))
+    m.cc = m.cc or _adressliste(k.get("Cc"))
+    if not m.antwort_an:
+        a = _adressliste(k.get("Reply-To"))
+        m.antwort_an = a[0][1] if a else ""
+    m.nachrichten_id = m.nachrichten_id or _mid(k.get("Message-ID"))
+    m.in_reply_to = m.in_reply_to or _mid(k.get("In-Reply-To"))
+    m.referenzen = m.referenzen or _mids(k.get("References"))
 
 
 def _msg_anhang(ole, wurzel, m, zs):
@@ -235,6 +309,10 @@ def _eml_lesen(nachricht):
             inhalt = (teil.get_payload(decode=True) or b"").decode("latin-1", "replace")
         text = html_text(inhalt) if teil.get_content_type() == "text/html" else inhalt
     m = Mail(name, adresse, _kopf_datum(nachricht.get("Date")), str(nachricht.get("Subject", "")), text)
+    try:
+        _kopf_uebernehmen(m, nachricht)
+    except Exception as fehler:               # noqa: BLE001 – kaputte Kopfzeile: der Rest der Mail zählt trotzdem
+        protokoll.warnung(f"Mail: Kopfzeilen nicht gelesen ({type(fehler).__name__}: {fehler})")
     for a in nachricht.iter_attachments():
         if a.get_content_type() == "message/rfc822":
             innen = a.get_payload()
@@ -287,8 +365,11 @@ def _auspacken(m, tiefe):
         if innen is not None:
             von = " ".join(x for x in (innen.absender_name, f"<{innen.absender}>" if innen.absender else "") if x)
             zeit = f"\nGesendet: {innen.datum.strftime('%d.%m.%Y %H:%M')}" if innen.datum else ""
-            m.text += (f"\n\n----- Weitergeleitete Nachricht -----\nVon: {von}{zeit}\nBetreff: {innen.betreff}\n\n"
-                       f"{innen.text}")
+            an = "; ".join(f"{n} <{a}>" if n and a and n != a else (a or n) for n, a in innen.an)
+            an = f"\nAn: {an}" if an else ""
+            m.text += (f"\n\n----- Weitergeleitete Nachricht -----\nVon: {von}{zeit}{an}\nBetreff: {innen.betreff}"
+                       f"\n\n{innen.text}")
+            m.eingebettet = m.eingebettet + [innen] + innen.eingebettet
             neu.extend(innen.anhaenge)
     m.anhaenge = neu
 
@@ -1026,6 +1107,7 @@ class _Ebene:
         self.name, self.absender = _von(felder.get("von", ""))
         self.datum = kopf_zeit(felder.get("zeit", ""))
         self.betreff = felder.get("betreff", "")
+        self.an = [v for v in (_von(x) for x in re.split(r"[;]|,(?=[^,]*@)", felder.get("an", ""))) if v[1]]
         self.text = text[ende:].lstrip("\n")
 
 
@@ -1044,7 +1126,7 @@ def ebenen(text):
         while j < len(zeilen) and (f := KOPF_FELD.match(zeilen[j])):
             art = f.group(1).lower()
             schl = {"von": "von", "from": "von", "gesendet": "zeit", "sent": "zeit", "datum": "zeit", "date": "zeit",
-                    "betreff": "betreff", "subject": "betreff"}.get(art, art)
+                    "betreff": "betreff", "subject": "betreff", "to": "an"}.get(art, art)
             felder.setdefault(schl, f.group(2))
             j += 1
         if "von" in felder and j - i >= 2 and ({"zeit", "betreff", "an", "to"} & set(felder)):
@@ -1065,8 +1147,34 @@ def _kollege_text(text, firma):
     return len(kern) >= 5 and kern in _kompakt(_signatur(text))
 
 
-def ist_intern(adresse, eigene=()):
-    return bool(adresse) and _domain(adresse) in set(eigene or ())
+# Zentrale Postfächer (Patrick 19.11.2026): Sammeladressen, hinter denen keine bestimmte Person steht – bei uns die
+# Eingänge der Anfragen, beim Kunden kein Ansprechpartner
+ZENTRAL = {"info", "anfrage", "anfragen", "vertrieb", "kalkulation", "office", "sales", "verkauf", "angebot",
+           "angebote", "kontakt", "contact", "mail", "post", "service", "einkauf", "purchasing", "order", "orders",
+           "bestellung", "auftrag", "auftraege", "technik", "zentrale", "buero", "team", "hello", "hallo", "noreply",
+           "no-reply", "support", "rechnung", "buchhaltung", "dispo", "versand", "logistik"}
+
+
+def ist_zentral(adresse):
+    """Sammelpostfach (info@, anfrage@, vertrieb@, kalkulation@, office@ …)?"""
+    lokal = str(adresse or "").strip().lower().partition("@")[0]
+    return bool(lokal) and "@" in str(adresse) and (lokal in ZENTRAL or lokal.split(".")[0] in ZENTRAL
+                                                   or lokal.split("-")[0] in ZENTRAL)
+
+
+def ist_exchange(adresse):
+    """Exchange-Adresse ohne @ („/o=ExchangeLabs/ou=…/cn=Recipients/cn=…“): kommt nur aus dem eigenen Haus."""
+    a = str(adresse or "").strip().lower()
+    return bool(a) and "@" not in a and ("/o=" in a or "/cn=" in a or a.startswith("ex:"))
+
+
+def ist_intern(adresse, eigene=(), intern=()):
+    """Eigene Adresse: Domain der eigenen Firma, gelernte interne Adresse (intern, z. B. Privatadresse eines
+    Kollegen) oder Exchange-Adresse ohne @."""
+    if not adresse:
+        return False
+    a = str(adresse).strip().lower()
+    return _domain(a) in set(eigene or ()) or a in {str(x).strip().lower() for x in intern or ()} or ist_exchange(a)
 
 
 class Weiterleitung:
@@ -1074,8 +1182,9 @@ class Weiterleitung:
     Anhänge der ganzen Mail) oder None (Kunde nicht erkennbar); weiterleiter = [(Name, Adresse, Datum)] der Kollegen,
     oberster zuerst; notiz = Text des obersten Kollegen ohne Gruß und Signatur."""
 
-    def __init__(self, original, weiterleiter, notiz):
+    def __init__(self, original, weiterleiter, notiz, empfaenger=()):
         self.original, self.weiterleiter, self.notiz = original, weiterleiter, notiz
+        self.empfaenger = list(empfaenger)      # eigene Postfächer, an die der Kunde geschrieben hat (info@ …)
 
     def text(self):
         """„weitergeleitet von Max Kollege am 28.10.2026 08:00, davor Eva Vertrieb“."""
@@ -1099,7 +1208,7 @@ def _notiz(text):
     return re.sub(r"\s+", " ", teil).strip(" -_")
 
 
-def weiterleitung(m, eigene=(), firma=""):
+def weiterleitung(m, eigene=(), firma="", intern=()):
     """Weiterleitung, wenn m von einem Kollegen kommt (Absender mit eigener Domain oder Signatur mit dem eigenen
     Firmennamen) und eine ältere Nachricht enthält bzw. mit WG:/FW: beginnt; sonst None. Die oberste ältere Nachricht
     von außen ist die des Kunden (der Kunde leitet selbst weiter: er bleibt Absender, F4 a); Nachrichten weiterer
@@ -1108,18 +1217,18 @@ def weiterleitung(m, eigene=(), firma=""):
         return None
     eigene = set(eigene or ())
     alle = ebenen(m.text)
-    if ist_intern(m.absender, eigene):
-        intern = True
+    if ist_intern(m.absender, eigene, intern):
+        vom_kollegen = True
     elif m.absender and _domain(m.absender) in FREEMAIL:
-        intern = False
+        vom_kollegen = False
     else:
-        intern = bool(alle) and _kollege_text(m.text, firma)
-    if not intern or not (alle or WEITERGELEITET.match(m.betreff or "")):
+        vom_kollegen = bool(alle) and _kollege_text(m.text, firma)
+    if not vom_kollegen or not (alle or WEITERGELEITET.match(m.betreff or "")):
         return None
     kollegen = [(m.absender_name, m.absender, m.datum)]
     namen = {_kompakt(m.absender_name)} - {""}
     for e in alle:
-        if ist_intern(e.absender, eigene) or (e.absender and _domain(e.absender) not in FREEMAIL
+        if ist_intern(e.absender, eigene, intern) or (e.absender and _domain(e.absender) not in FREEMAIL
                                               and _kollege_text(e.text, firma)):
             if e.absender:
                 eigene.add(_domain(e.absender))     # Kollege mit zweiter Domain: gilt für diese Mail als intern
@@ -1130,5 +1239,11 @@ def weiterleitung(m, eigene=(), firma=""):
             continue        # nur Name, und der eines Kollegen (Outlook zeigt interne Absender ohne Adresse)
         orig = Mail(e.name, e.absender, e.datum, e.betreff or betreff_ohne(m.betreff), e.text, m.anhaenge)
         orig.datei_zeit = m.datei_zeit
-        return Weiterleitung(orig, kollegen, _notiz(m.text))
+        orig.an = list(e.an)
+        innen = next((x for x in getattr(m, "eingebettet", None) or () if x.absender == e.absender and x.absender), None)
+        if innen is not None:           # als Anlage weitergeleitet: Kopfzeilen der Original-Mail sind bekannt
+            orig.an, orig.cc = innen.an or orig.an, innen.cc
+            orig.nachrichten_id, orig.antwort_an = innen.nachrichten_id, innen.antwort_an
+        empf = [a for _, a in orig.an + orig.cc if ist_intern(a, eigene, intern)]
+        return Weiterleitung(orig, kollegen, _notiz(m.text), empf)
     return Weiterleitung(None, kollegen, _notiz(m.text))

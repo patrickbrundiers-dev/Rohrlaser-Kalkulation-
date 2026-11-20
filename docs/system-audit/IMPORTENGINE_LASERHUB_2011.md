@@ -1,7 +1,7 @@
 # Importengine nach Laserhub-Vergleich (20.11.2026)
 
 Auftrag Patrick 20.11.2026: „Laserhub analysieren – CAD-Import, Bauteilerkennung und automatische Geometrieanalyse“.
-Umgesetzt in 0.9.424 (PR „Importengine“). Dieses Dokument enthält Phase 1 (Funktionsanalyse Laserhub), Phase 2
+Umgesetzt in 0.9.425 (PR „Importengine“). Dieses Dokument enthält Phase 1 (Funktionsanalyse Laserhub), Phase 2
 (Vergleich mit dem Stand der Rohrlaser-Kalkulation), Phase 3 (technisches Konzept), den umgesetzten Stand und die
 Testergebnisse.
 
@@ -35,9 +35,9 @@ ist ein Werkzeug der Arbeitsvorbereitung und liest diese Merkmale aus der Geomet
 
 ## 2. Vergleichsmatrix (Phase 2)
 
-Aufwand: S ≤ 1 Tag, M 1–3 Tage, L > 3 Tage. „Neu“ = in 0.9.424 umgesetzt.
+Aufwand: S ≤ 1 Tag, M 1–3 Tage, L > 3 Tage. „Neu“ = in 0.9.425 umgesetzt.
 
-| Bereich | Laserhub (sichtbar) | Eigene Software vorher | Fehlte | Lösung / Stand 0.9.424 | Aufwand |
+| Bereich | Laserhub (sichtbar) | Eigene Software vorher | Fehlte | Lösung / Stand 0.9.425 | Aufwand |
 |---|---|---|---|---|---|
 | CAD-Import | STEP, SLDPRT, CATPART | STEP und IGES (OpenCascade), Flächenmodelle genäht, Einheit, Geometrieprüfung, Zeitlimit je Körper, Cache, Vorab-Übersicht | Herstellerformate wurden still übergangen | **Neu**: SLDPRT/SLDASM, CATPart/CATProduct, IPT/IAM, PRT/ASM, X_T/X_B, SAT, JT, 3DM, F3D, STL/OBJ werden erkannt und als rote Zeile „nicht lesbar – bitte als STEP speichern“ gemeldet. Lesen dieser Formate braucht Herstellerkerne (Lizenz) – bewusst nicht | S |
 | Mehrfachimport | Drag & Drop, mehrere Dateien | Mehrfachauswahl, Drag & Drop von Dateien/Ordnern, alle Dateien in einer Liste | Dubletten mehrfach gemessen | **Neu**: gleicher Inhalt (SHA-256) wird einmal gemessen, Hinweis im Bericht | S |

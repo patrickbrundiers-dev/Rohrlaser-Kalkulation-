@@ -50,6 +50,7 @@ import tempfile
 from pathlib import Path
 
 from . import anfragen_akten as ak
+from . import mail_zuordnung as mz
 
 EIN = "outlook_abruf"            # ja/nein: dieser Rechner holt Anfragen aus Outlook (Vorgabe nein)
 ORDNER_EINSTELLUNG = "outlook_ordner"
@@ -371,6 +372,40 @@ $aus | ConvertTo-Json -Depth 3 -Compress | Set-Content -Encoding UTF8 -LiteralPa
 KATEGORIEN_PS = WAEHLEN_PS.replace("$f = $ns.PickFolder()", "$f = $null")
 
 
+# Markierte Mails im Outlook-Fenster als .msg sichern (20.11.2026, „Zu bestehender Anfrage hinzufügen“ und Ziehen aus
+# Outlook: Outlook übergibt beim Ziehen keine Datei, gezogen wird immer die Auswahl). Nichts wird verschoben/gelöscht.
+AUSWAHL_PS = r"""
+$ErrorActionPreference = 'Stop'
+$d = Get-Content -Raw -Encoding UTF8 -LiteralPath $args[0] | ConvertFrom-Json
+$o = New-Object -ComObject Outlook.Application
+$MID = 'http://schemas.microsoft.com/mapi/proptag/0x1035001F'
+$aus = @{ neu = @(); fehler = @() }
+$e = $o.ActiveExplorer()
+if (-not $e) { throw 'Kein Outlook-Fenster offen' }
+$nr = 0
+foreach ($m in @($e.Selection)) {
+    if ($m.Class -ne 43) { continue }
+    $nr++
+    $datei = Join-Path $d.ziel ('outlook_' + $nr + '.msg')
+    try {
+        $m.SaveAs($datei, 9)
+        $k = ''; try { $k = [string]$m.PropertyAccessor.GetProperty($MID) } catch { }
+        $aus.neu += @{ datei = $datei; mid = $k; betreff = [string]$m.Subject }
+    } catch { $aus.fehler += ([string]$m.Subject + ': ' + $_) }
+}
+$aus | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 -LiteralPath $args[1]
+"""
+
+
+def auswahl_sichern(ziel, ausfuehren=None):
+    """Markierte Outlook-Mails als .msg nach ziel. Ergebnis: ([Path], [Fehlertext])."""
+    erg, fehler = outlook_lauf(dict(ziel=str(ziel)), ausfuehren, timeout=120, skript=AUSWAHL_PS)
+    if erg is None:
+        return [], [fehler]
+    dateien = [Path(str(n.get("datei") or "")) for n in erg.get("neu") or [] if n.get("datei")]
+    return [p for p in dateien if p.is_file()], [str(f) for f in erg.get("fehler") or []]
+
+
 def ordner_waehlen(ausfuehren=None):
     """Outlook-Ordnerauswahl öffnen. Ergebnis: (Pfad oder "" bei Abbruch, Kategorien, Fehlertext, Kennung
     {"e": EntryID, "s": StoreID} oder {})."""
@@ -428,14 +463,14 @@ def _fehler_text(t):
 
 
 # ------------------------------------------------------------------ Akten
-def kopf_aus_mail(pfad, mid, eingang="", kunden=(), eigene=(), firma=""):
+def kopf_aus_mail(pfad, mid, eingang="", kunden=(), eigene=(), firma="", regeln=()):
     """Kopf der Akte aus der gesicherten Mail; intern weitergeleitet: Absender und Kunde aus der Mail des Kunden,
     nie der Kollege oder die eigene Domain (ak.mail_kopf)."""
     from . import mail
     m = mail.lesen(pfad)
     k = dict(quelle="outlook", nachrichten_id=mid, name=Path(pfad).stem)
     if m is not None:
-        ak.mail_kopf(k, m, kunden, eigene, firma)
+        ak.mail_kopf(k, m, kunden, eigene, firma, regeln=list(regeln or ()))
         k["betreff"] = k.get("betreff") or "Anfrage aus Outlook"
         if m.datum and not eingang:
             eingang = m.datum
@@ -458,11 +493,13 @@ def _mail_dateiname(kopf, i):
 def index(akten):
     """{Nachrichten-ID: Akte} der Akten aus Outlook, auch die Antworten des Kunden in der Akte (Paket 3)."""
     out = {}
-    for a in akten:
+    for a in akten:                     # erst die Mail, aus der die Akte entstand (nicht, wenn sie weiterzog) …
+        mid = a.kopf.get("nachrichten_id")
+        if mid and mid not in a.stand.get("mids_weg", ()):
+            out[mid] = a
+    for a in akten:                     # … dann Antworten, verschobene und zusammengeführte Mails (gewinnen)
         for mid in a.stand.get("mids", []):
             out[mid] = a
-        if a.kopf.get("nachrichten_id"):
-            out[a.kopf["nachrichten_id"]] = a
     return out
 
 
@@ -532,6 +569,7 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
     stand = stand_lesen(abl)
     alle = abl.alle()
     akten = index(alle)
+    regeln = mz.regeln_lesen(abl.wurzel)
     verschieben = [(mid, UNTER[akten[mid].status]) for mid, o in stand.items()
                    if mid in akten and UNTER[akten[mid].status] != o]
     nachholen = [mid for mid in stand if mid not in akten]
@@ -561,7 +599,7 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
             if not mid or not datei.exists() or mid in akten:
                 continue
             try:
-                kopf = kopf_aus_mail(datei, mid, n.get("eingang") or "", kunden, eigene, firma)
+                kopf = kopf_aus_mail(datei, mid, n.get("eingang") or "", kunden, eigene, firma, regeln)
             except Exception:           # noqa: BLE001 – unlesbare Mail: trotzdem Akte, Abruf läuft weiter
                 kopf = dict(quelle="outlook", nachrichten_id=mid, betreff="Mail nicht lesbar", kurz="",
                             eingang=datetime.datetime.now().replace(microsecond=0))
@@ -570,15 +608,28 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
             kopf["name"] = schoen.stem
             try:
                 datei.replace(schoen)
+                z = kopf.get("zuordnung") or {}
                 ziel = ak.antwort_zu(alle, kopf.get("betreff"), kopf.get("absender"), kopf["konversation"], jetzt,
-                                     eigene)
+                                     eigene, z.get("in_reply_to", ""), z.get("referenzen", ()))
+                doppelt, grund = (None, "") if ziel is not None else mz.dublette(alle, kopf)
+                if doppelt is not None:     # dieselbe Kundenmail auf zweitem Weg: keine zweite Akte
+                    abl.dateien_dazu(doppelt, [schoen], jetzt=jetzt, nachrichten_id=mid, zweiter_weg=grund,
+                                     internet_id=z.get("internet_id", ""))
+                    abl.schluessel_setzen(schluessel(mid), doppelt.nr)
+                    akten[mid] = abl.neu_lesen(doppelt)
+                    out.setdefault("doppelt", []).append(akten[mid])
+                    continue
                 if ziel is not None:    # Antwort des Kunden: in die vorhandene Akte, Mail wandert mit ihr
-                    abl.dateien_dazu(ziel, [schoen], jetzt=jetzt, antwort=True, nachrichten_id=mid)
+                    abl.dateien_dazu(ziel, [schoen], jetzt=jetzt, antwort=True, nachrichten_id=mid,
+                                     internet_id=z.get("internet_id", ""))
                     abl.schluessel_setzen(schluessel(mid), ziel.nr)
                     akten[mid] = abl.neu_lesen(ziel)
                     out["antworten"].append(akten[mid])
                     continue
                 akte, neu = abl.anlegen(kopf, [schoen], schluessel(mid), jetzt=jetzt)
+                if neu and akte is not None:
+                    abl.zuordnung_protokollieren(akte, jetzt=jetzt)
+                    akte = abl.neu_lesen(akte)
             except Exception as e:      # noqa: BLE001 – Mail bleibt in Outlook (Neu) und wird nachgeholt
                 out["fehler"].append(f"Akte nicht angelegt (wird beim nächsten Abruf nachgeholt): {e}")
                 continue
