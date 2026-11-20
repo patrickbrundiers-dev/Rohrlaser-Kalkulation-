@@ -27,6 +27,22 @@ from rohrlaser import db_verbindung, dokumente_sicherung, pg_abbild  # noqa: E40
 from rohrlaser.datenbank import Datenbank, SicherungFehler  # noqa: E402
 
 
+class _EigeneNamen:
+    """Merkt sich die Zufallsnamen der eigenen Probe-Datenbanken (abbild_xxxx): andere Tests im selben Prüfserver
+    legen gleichzeitig eigene an, gezählt werden nur die dieses Tests."""
+    def __init__(self, echt):
+        self.echt, self.namen = echt, []
+
+    def token_hex(self, n):
+        t = self.echt.token_hex(n)
+        self.namen.append(f"abbild_{t}")
+        return t
+
+
+eigene_proben = _EigeneNamen(pg_abbild.secrets)
+pg_abbild.secrets = eigene_proben
+
+
 def ok(text):
     print("OK     " + text)
 
@@ -109,8 +125,10 @@ try:
 except (SicherungFehler, OSError):
     pass
 assert db.angebot(aid)["kunde"] == "Abbild GmbH", "beschädigtes Abbild ändert nichts"
-reste = db.con.execute("SELECT count(*) FROM pg_database WHERE datname LIKE 'abbild_%'").fetchone()[0]
-assert reste == 0, "Probe-Datenbanken wieder gelöscht"
+assert eigene_proben.namen, "Wiederherstellen aus dem Abbild ging über eine Probe-Datenbank"
+reste = [n for (n,) in db.con.execute("SELECT datname FROM pg_database WHERE datname LIKE 'abbild_%'").fetchall()
+         if n in eigene_proben.namen]
+assert not reste, f"Probe-Datenbanken wieder gelöscht: {reste}"
 ok("Wiederherstellen aus dem PostgreSQL-Abbild: gleiche Daten, alter Stand gesichert; beschädigtes Abbild abgewiesen")
 
 # ------------------------------------------------------------------ Einstellung, Hintergrund, Aufräumen
