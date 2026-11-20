@@ -21,13 +21,22 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.428", "<b>Bauteil aus Text</b> ([[bauteil_aus_text]]). Neue Position → <i>Bauteil aus Text</i>: "
+    ["0.9.429", "<b>Bauteil aus Text</b> ([[bauteil_aus_text]]). Neue Position → <i>Bauteil aus Text</i>: "
      "Rohrrahmen, Gestell, Querstreben, Befestigungsplatten, Lasche, L-Winkel oder Flanschring in eigenen Worten "
      "beschreiben, z. B. „Rohrrahmen 1000 x 600 aus 40 x 40 x 3 mit vier Querstreben und zwei "
      "Befestigungsplatten“. Das Programm zeigt Teile, 3D, Annahmen, Hinweise und Fehler, ändert per Satz („Breite "
      "1200“, „6 Querstreben“, „ohne Platten“) mit Verlauf und legt die Teile erst nach „Übernehmen“ als Satz mit 3D "
      "an. Ohne Internet, ohne Cloud.",
      "Bauteil aus Text: Rahmen, Gestelle, Streben, Platten und Blechteile aus einer Beschreibung"],
+    ["0.9.428", "<b>Anfragen: Mail-Art, Sachgebiet und technische Angaben erkennen</b> ([[anfrage_art]]). Jede Mail "
+     "wird eingeordnet: neue Anfrage, Angebotsnachfrage, Angebotsänderung, Bestellung, Auftragsänderung, technische "
+     "Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, allgemeine Mail oder Werbung, mit Sicherheit und "
+     "Gründen. Dazu das Sachgebiet (Rohr, Blech, Profil, Schweißbaugruppe, Dreh-/Frästeil, Material) und technische "
+     "Angaben mit Fundstelle: Abmessung, Wandstärke, Blechdicke, Stückzahl, Zeichnungs-Nr., Revision, Angebotsfrist, "
+     "Verfahren und Anforderungen. In der Liste steht die Art vorn im Betreff (z. B. [Bestellung]), neuer Filter "
+     "<i>Mail-Art</i>. Ändern von Hand steht im Verlauf und dient dem Lernen. Werbung wird nur vorgeschlagen, nie von "
+     "selbst aussortiert. Alles lokal, ohne KI-Dienst.",
+     "Anfragen: Mail-Art (Anfrage, Bestellung, Reklamation …), Sachgebiet und technische Angaben erkennen"],
     ["0.9.427", "<b>Fertigbarkeit beim STEP-Import</b> ([[fertigbarkeit]]). Der Import prüft jedes Rohr gegen die "
                 "Konstruktionsregeln der Maschine: Loch oder Schlitz kleiner als 0,7 × Wand, Steg zwischen Konturen "
                 "oder zum Rohrende schmaler als 0,7 × Wand, Gravur tiefer als 0,5 mm, Länge und Hüllkreis außerhalb "

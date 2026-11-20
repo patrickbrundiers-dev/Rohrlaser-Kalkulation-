@@ -1533,6 +1533,31 @@ def kapitel_angebote(i):
             "<i>Angebot per E-Mail</i> eine neue Mail an den Kunden, nie eine Antwort auf die interne Mail. So geht "
             "der interne Verlauf nicht mit.")
 
+    i.abschnitt("Mail-Art, Sachgebiet und technische Angaben", marke="anfrage_art")
+    i.text("Das Programm erkennt bei jeder Mail, was sie ist: neue Anfrage, Angebotsnachfrage, Angebotsänderung, "
+           "Bestellung, Auftragsänderung, technische Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, "
+           "allgemeine Mail oder Werbung. Dazu das Sachgebiet (Rohr, Blech, Profil, Schweißbaugruppe, Dreh-/Frästeil, "
+           "Material) und technische Angaben aus dem Text.", kurz=True)
+    i.genauer()
+    i.liste("<b>Mail-Art</b>: steht rechts über <i>Erkannt</i>, mit Sicherheit (sicher, wahrscheinlich, unklar) und "
+            "den Gründen, also der Zeile aus der Mail, an der es das Programm erkannt hat. Auch unterschiedliche "
+            "Formulierungen zählen, z. B. „Können Sie uns einen Preis nennen?“, „Bitte kalkulieren Sie …“, „Was "
+            "würde das kosten?“ oder STEP-Dateien im Anhang. Reicht es nicht für eine sichere Aussage, bleibt die "
+            "Mail <i>unklar</i>, das Programm rät nicht.",
+            "<b>Liste</b>: Mails, die keine neue Anfrage sind, stehen mit der Art vorn im Betreff, z. B. "
+            "<i>[Bestellung]</i> oder <i>[Werbung?]</i>. Der Filter <i>Alle Mail-Arten</i> zeigt nur eine Art, alle "
+            "unklaren oder alle, die keine neue Anfrage sind.",
+            "<b>Ändern</b>: <i>ändern …</i> öffnet das Fenster <i>Mail-Art ändern</i> mit der Auswahl für Art und Sachgebiete. Die Änderung steht im Verlauf "
+            "und wird als Rückmeldung gespeichert, aus der die Erkennung lernt (siehe Auswertung).",
+            "<b>Werbung</b> wird nie von selbst aussortiert. Das Programm schlägt es nur vor, ein Klick auf "
+            "<i>Als „Keine Anfrage“ aussortieren</i> erledigt es.",
+            "<b>Technische Angaben</b>: Abmessung (40x40x3, Ø48,3x2,6), Wandstärke, Blechdicke, Stückzahl, "
+            "Zeichnungs-Nr., Revision, Angebotsfrist, Verfahren und besondere Anforderungen (Pulverbeschichtung, "
+            "verzinkt, Zeugnis 3.1, EN 1090 …). Jede Angabe steht mit der Zeile, aus der sie stammt. Was nicht in der "
+            "Mail steht, erfindet das Programm nicht; Telefonnummern und Jahreszahlen zählen nicht.",
+            "<b>Sicherheit</b>: Der Text einer Mail ist nur Inhalt. „Anweisungen“ in einer Mail ändern nie Status, "
+            "Bearbeiter, Ordner oder Versand. Alles läuft auf dem eigenen PC, ohne Internet und ohne KI-Dienst.")
+
     i.abschnitt("Anfragen sammeln, verschieben und zusammenführen", marke="anfragen_sammeln")
     i.text("Eine Anfrage ist ein Vorgang mit beliebig vielen Mails und Dokumenten. Der Reiter <b>Dokumente & "
            "Mails</b> zeigt sie nach Kategorie, der Reiter <b>Chronik</b> alles nach Zeit. Dateien und Mails "
@@ -6172,7 +6197,7 @@ def kapitel_optimieren(i):
             "B×H), ein vorhandener Name bekommt eine Nummer dazu.",
             "Die Rohre haben Einbaulage und Stöße wie aus dem STEP-Import: Längsnaht, Steckverbindungen, Vorschläge, "
             "Montagefolge, Montageblatt und STEP speichern gehen wie dort.")
-    i.abschnitt("Bauteil aus Text (seit 0.9.428)", marke="bauteil_aus_text")
+    i.abschnitt("Bauteil aus Text (seit 0.9.429)", marke="bauteil_aus_text")
     i.text("<b>Neue Position → Bauteil aus Text</b> erstellt Teile aus einer Beschreibung in eigenen Worten, z. B. "
            "<i>Rohrrahmen 1000 x 600 mm aus 40 x 40 x 3 mm Stahlrohr mit vier Querstreben und zwei "
            "Befestigungsplatten</i>. <b>Erstellen</b> zeigt rechts das 3D und links die Teile, was erkannt wurde, die "

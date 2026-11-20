@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter,
                                QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
 
+from . import anfrage_art as aa
 from . import protokoll
 from . import anfragen_akten as ak
 from . import anfragen_dokumente as adok
@@ -94,7 +95,7 @@ class AnfragenSeite(QWidget):
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Suchen: Kunde, Betreff, Text, Projekt-/Bestell-Nr., Datei, Mail, Angebot …")
         self.suche.setClearButtonEnabled(True)
-        self.suche.setMinimumWidth(320)
+        self.suche.setMinimumWidth(270)       # 20.11.2026: Platz für den Filter Mail-Art (Fenster bleibt maximiert)
         self.suche.textChanged.connect(lambda _t: self.liste_fuellen())
         filter_.addWidget(self.suche, 2)
         self.filter_bearbeiter = QComboBox()
@@ -114,6 +115,18 @@ class AnfragenSeite(QWidget):
         self.filter_daten.setToolTip("Ohne STEP: nur PDF-Zeichnung, nur DXF oder Mail ohne Anhang")
         self.filter_daten.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
         filter_.addWidget(self.filter_daten)
+        self.filter_art = QComboBox()       # 20.11.2026 (anfrage_art): nach Mail-Art filtern
+        self.filter_art.addItem("Alle Mail-Arten", "")
+        self.filter_art.addItem("Unklare Erkennung", "unklar")
+        self.filter_art.addItem("Keine neue Anfrage", "andere")
+        for art, titel in aa.ARTEN.items():
+            self.filter_art.addItem(titel, art)
+        self.filter_art.setToolTip("Was für eine Mail: Anfrage, Bestellung, Reklamation, Werbung … (erkannt beim "
+                                   "Eingang, von Hand änderbar)")
+        self.filter_art.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
+        self.filter_art.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.filter_art.setMinimumContentsLength(9)     # lange Arten gekürzt, das Fenster bleibt so breit wie bisher
+        filter_.addWidget(self.filter_art)
         self.filter_kunde = QComboBox()     # 20.11.2026: Filter nach Kunde (Projekt-/Bestell-Nr. über die Suche)
         self.filter_kunde.setToolTip("Nur Anfragen dieses Kunden")
         self.filter_kunde.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
@@ -684,6 +697,9 @@ class AnfragenSeite(QWidget):
         kunde = self.filter_kunde.currentData() if hasattr(self, "filter_kunde") else ""
         if kunde:
             liste = [a for a in liste if a.kunde == kunde]
+        art = self.filter_art.currentData() if hasattr(self, "filter_art") else ""
+        if art:
+            liste = [a for a in liste if _art_passt(a.einordnung, art)]
         return liste
 
     def liste_fuellen(self):
@@ -723,7 +739,12 @@ class AnfragenSeite(QWidget):
             elif frist:                 # kurz in der Liste, ganz im Tooltip und rechts im Kopf
                 status += " · " + ("überfällig" if stufe == "rot" and faellig else "heute" if stufe == "gelb"
                                    else f"bis {faellig:%d.%m.}" if faellig else frist)
-            werte = (a.nr, kunde, a.betreff, _zeit(a.eingang), anh, ak.PRIORITAET_TEXT.get(a.prioritaet, ""),
+            betreff = a.betreff
+            ein = a.einordnung
+            if ein and (ein.get("art") != aa.ANFRAGE or ein.get("sicherheit") == aa.UNKLAR):
+                betreff = f"[{aa.KURZ.get(ein.get('art'), '?')}{'?' if ein.get('sicherheit') == aa.UNKLAR else ''}] " \
+                    + betreff
+            werte = (a.nr, kunde, betreff, _zeit(a.eingang), anh, ak.PRIORITAET_TEXT.get(a.prioritaet, ""),
                      a.bearbeiter or (f"für {a.stand['zugewiesen']}" if a.stand["zugewiesen"] else ""), status)
             meine = ak.ist_meine(a, ich)
             for c, w in enumerate(werte):
@@ -732,8 +753,11 @@ class AnfragenSeite(QWidget):
                 if c == 7:
                     it.setToolTip(f"Antwort {frist}" if frist else "")
                     it.setForeground(stil.farbe(AMPEL_FARBE[stufe] if stufe in ("rot", "gelb") else FARBE[a.status]))
-                if c == 2 and a.stand.get("vormessung"):
-                    it.setToolTip(f"Vormessung: {a.stand['vormessung']}")
+                if c == 2 and (a.stand.get("vormessung") or ein):
+                    it.setToolTip("\n".join(x for x in (
+                        aa.kurztext(dict(ein, titel=aa.titel(ein.get("art"), ein.get("sachgebiete") or ())))
+                        if ein else "", f"Vormessung: {a.stand['vormessung']}" if a.stand.get("vormessung") else "")
+                        if x))
                 if c == 5 and a.prioritaet in PRIO_FARBE:
                     it.setForeground(QColor(PRIO_FARBE[a.prioritaet]))
                 if c == 0:
@@ -991,6 +1015,8 @@ class AnfragenSeite(QWidget):
             self.aussortieren(wert)
         elif art == "rueckfrage" and a:
             self.rueckfrage()
+        elif art == "art" and a:
+            self.art_aendern()
         elif art == "antwort" and a:
             self.antwort_erhalten()
         elif art == "letztes" and a:
@@ -1254,7 +1280,7 @@ class AnfragenSeite(QWidget):
         """{werte, fehlt, wiederholt} der Akte (zwischengespeichert bis zum nächsten Neu-Laden)."""
         from . import anfrage_erkennung as ae
         if a is None:
-            return dict(werte=[], fehlt=[], wiederholt=[])
+            return dict(werte=[], fehlt=[], wiederholt=[], einordnung=None, technik=[])
         if a.nr not in self._erkannt:
             text = self._mailtext(a)
             try:
@@ -1263,7 +1289,15 @@ class AnfragenSeite(QWidget):
                 wieder = ae.wiederholt(self.db, self.akten, a, text) if a.status != ak.ERLEDIGT else []
             except Exception:           # noqa: BLE001 – Hilfe, nie ein Fehler
                 werte, fehlt, wieder = [], [], []
-            self._erkannt[a.nr] = dict(werte=werte, fehlt=fehlt, wiederholt=wieder)
+            ein, technik = a.einordnung, []
+            try:                        # 20.11.2026: Mail-Art (ältere Akten: jetzt erkennen) und technische Werte
+                if not ein:
+                    namen = [d["name"] for d in a.dateien()]
+                    ein = aa.kompakt(aa.einordnen(text, a.betreff, namen))
+                technik = aa.technik(text)
+            except Exception as fehler:     # noqa: BLE001 – Hilfe, nie ein Fehler
+                protokoll.warnung(f"Anfragen: Mail-Art/Werte nicht erkannt ({type(fehler).__name__}: {fehler})")
+            self._erkannt[a.nr] = dict(werte=werte, fehlt=fehlt, wiederholt=wieder, einordnung=ein, technik=technik)
         return self._erkannt[a.nr]
 
     def _erkannt_html(self, a):
@@ -1271,6 +1305,31 @@ class AnfragenSeite(QWidget):
         e = html.escape
         erk = self.erkennung(a)
         teile = []
+        ein = erk.get("einordnung")
+        if ein:                         # 20.11.2026: was für eine Mail, mit Gründen und Ändern
+            farbe_s = {aa.SICHER_ART: "#2F7D4F", aa.WAHRSCHEINLICH: "#A66A00", aa.UNKLAR: "#B42318",
+                       "bestätigt": "#2F7D4F"}.get(ein.get("sicherheit"), "#666")
+            sg = ", ".join(aa.SACHGEBIETE.get(x, x) for x in ein.get("sachgebiete") or ())
+            gruende = "; ".join(f"{g}" + (f" („{z}“)" if z else "") for g, z in ein.get("gruende") or ())
+            if ein.get("sicherheit") == "bestätigt":
+                gruende = f"von Hand gesetzt ({ein.get('von') or '?'})"
+            teile.append(
+                f"<p><b>Mail-Art:</b> {e(aa.titel(ein.get('art'), ein.get('sachgebiete') or ()))} "
+                f"<span style='color:{stil.farbe(farbe_s).name()}'>({e(ein.get('sicherheit') or '?')})</span>"
+                + (f" · <b>Sachgebiet:</b> {e(sg)}" if sg else "")
+                + " · <a href='art:'>ändern …</a>"
+                + (f"<br><span style='color:#666'>{e(gruende)}</span>" if gruende else "") + "</p>")
+            if ein.get("art") == aa.WERBUNG and not a.aussortiert and a.status != ak.ERLEDIGT:
+                teile.append("<p style='color:#A66A00'>Sieht nach Werbung aus. "
+                             "<a href='aussortieren:Werbung'>Als „Keine Anfrage“ aussortieren</a></p>")
+        if erk.get("technik"):
+            farbe_t = {"sicher": stil.farbe("#2F7D4F").name(), "prüfen": stil.farbe("#A66A00").name()}
+            zeilen = "".join(
+                f"<tr><td><b>{e(w['titel'])}</b>&nbsp;</td><td>{e(str(w['wert']))}&nbsp;</td>"
+                f"<td style='color:{farbe_t.get(w['sicherheit'], '#666')}'>{e(w['sicherheit'])}&nbsp;</td>"
+                f"<td style='color:#666'>„{e(w['fundstelle'])}“</td></tr>" for w in erk["technik"])
+            teile.append("<p><b>Technische Angaben</b> <span style='color:#666'>(nur gelesen, nichts erfunden; "
+                         "jede mit Fundstelle)</span></p>" + f"<table>{zeilen}</table>")
         if erk["werte"] or erk["fehlt"]:
             farbe = {"sicher": stil.farbe("#2F7D4F").name(), "prüfen": stil.farbe("#A66A00").name(),
                      "unsicher": stil.farbe("#B42318").name()}
@@ -1296,6 +1355,33 @@ class AnfragenSeite(QWidget):
             teile.append("<p><b>Wiederholteile:</b> <a href='letztes:'>Aus letztem Angebot</a></p><ul>"
                          + "".join(li) + "</ul>")
         return teile
+
+    def art_aendern(self, art=None, sachgebiete=None):
+        """Mail-Art und Sachgebiet der gewählten Anfrage von Hand setzen (Verlauf + Rückmeldung zum Lernen)."""
+        from . import anfrage_lernen
+        a = self.akte()
+        if a is None:
+            return None
+        ein = self.erkennung(a).get("einordnung") or {}
+        if art is None:
+            from .anfragen_dokumente import ArtDialog
+            d = ArtDialog(self, ein.get("art") or aa.ANFRAGE, ein.get("sachgebiete") or [])
+            if not d.exec():
+                return None
+            art, sachgebiete = d.werte()
+        auto = (a.kopf.get("einordnung") or ein or {})
+        akte = self._ausfuehren(lambda abl, x: abl.art_aendern(x, art, sachgebiete or []),
+                                "Anfrage {nr}: Mail-Art " + aa.ARTEN.get(art, art) + ".")
+        if akte is None:
+            return None
+        try:
+            anfrage_lernen.rueckmelden(self.ablage().wurzel, "art", auto.get("art", ""), art, a.nr, self.ich(),
+                                       f"{a.betreff}\n{self._mailtext(a)}", sachgebiete_auto=auto.get("sachgebiete"),
+                                       sachgebiete=list(sachgebiete or []))
+        except OSError as fehler:
+            protokoll.warnung(f"Anfragen: Rückmeldung nicht gespeichert ({fehler})")
+        self._erkannt.pop(a.nr, None)
+        return akte
 
     def _kunde(self, a):
         try:
@@ -2115,3 +2201,14 @@ class OutlookDialog(QDialog):
             zeilen.append(f"Letzter Abruf {z:%H:%M}: {t}")
             zeilen += [f"Fehler: {f}" for f in e["fehler"][:3]]
         self.stand.setText("\n".join(zeilen))
+
+
+def _art_passt(ein, wahl):
+    """Filter „Mail-Art“: unklar, andere (keine neue Anfrage) oder genau eine Art."""
+    if not ein:
+        return wahl == "unklar"
+    if wahl == "unklar":
+        return ein.get("sicherheit") == aa.UNKLAR
+    if wahl == "andere":
+        return ein.get("art") != aa.ANFRAGE
+    return ein.get("art") == wahl

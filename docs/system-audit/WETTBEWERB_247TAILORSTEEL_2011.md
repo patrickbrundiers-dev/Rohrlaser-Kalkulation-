@@ -106,7 +106,7 @@ Bewertung 1 (niedrig) – 5 (hoch). Priorität A = jetzt, B = nächste Runde, C 
 | KI-Funktionen | Parts Builder (Cloud-KI), „KI-Steuerung“ der Anlagen | regelbasiert ohne Cloud: Erklärung Rechenweg, Lernen, Vorschläge, LST-Lernsystem (#597) | Bauteil aus Text regelbasiert, nachvollziehbar, offline | 4 | 3 | 3 | 2 | A (gebaut) |
 | Mehrbenutzer/Rechte | Firmenkonto, Rechte je Benutzer | PostgreSQL je PC + Abgleich, Rollen, Hauptadmin | 10–25 Benutzer laut Auftrag: braucht Server-Betrieb (Server-Sync auf Eis, Patrick 14.11.) | 4 | 5 | 3 | 4 | C (Entscheidung Patrick) |
 
-## 4. Umgesetzt in diesem Thread: Bauteil aus Text (0.9.428)
+## 4. Umgesetzt in diesem Thread: Bauteil aus Text (0.9.429)
 
 Warum zuerst: der Parts Builder ist die neueste 247-Funktion (16.11.2026) und genau dort, wo 247 aufhört (Rohre,
 Profile, Baugruppen), liegt unser Geschäft. Bei uns gab es Rahmen-Assistent und Rohrzug nur als Formulare.
