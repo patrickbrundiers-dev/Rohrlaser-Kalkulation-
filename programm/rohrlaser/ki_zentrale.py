@@ -13,7 +13,7 @@ Reiter
 Ändern (Modelle, Zurücknehmen) nur mit Admin-Recht, sobald ein Admin-Passwort gesetzt ist."""
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
-                               QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+                               QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QScrollArea,
                                QPushButton, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from . import ki_agenten, ki_lernhistorie, ki_modelle, ki_protokoll, ki_ressourcen, ki_wissen
@@ -100,11 +100,16 @@ class KiZentrale(QDialog):
         abox = QGroupBox("Fach-Agenten (alle Zahlen aus der Programmlogik)")
         al = QVBoxLayout(abox)
         self.agenten_tabelle = _tabelle(("Agent", "Aufgabe", "Quellen"))
+        self.agenten_tabelle.setMinimumHeight(220)
         _fuellen(self.agenten_tabelle, [[a.titel, a.aufgabe, ", ".join(a.quellen)] for a in ki_agenten.AGENTEN])
         al.addWidget(self.agenten_tabelle)
-        g.addWidget(abox, 0, 1)
-        g.setColumnStretch(1, 1)
-        self.reiter.addTab(w, "Übersicht")
+        g.addWidget(abox, 1, 0)
+        g.setRowStretch(1, 1)
+        rahmen = QScrollArea()          # kleine Bildschirme: blättern statt gequetschter Beschriftungen
+        rahmen.setWidgetResizable(True)
+        rahmen.setFrameShape(QFrame.NoFrame)
+        rahmen.setWidget(w)
+        self.reiter.addTab(rahmen, "Übersicht")
 
     def _ressourcen_setzen(self, immer=False):
         if not immer and not self.isVisible():      # Uhr: nur messen, solange das Fenster zu sehen ist
