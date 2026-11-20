@@ -1059,14 +1059,14 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
 # Zusatzarbeiten gleich hinter der Artikelnummer, mit den Gewinden davor (Plan Angebotsablauf V6: auch bei 1366 px
 # sichtbar, was an jedem Teil gemacht wird); Satz und Stück je Satz gleich hinter Pos. (Sätze abheben, 27.10.2026)
 SICHTBAR = ["pos", "satz", "je_satz", "art", "artikel", "zusatz", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche",
-            "laenge", "stueck", "muster", "geometrie", "wenden", "qualitaet", "offene_frage",
+            "laenge", "stueck", "muster", "geometrie", "wenden", "schneidtechnik", "qualitaet", "offene_frage",
             "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "maschine", "preis_m", "material_herkunft",
             "gewinde", "zukauf",
             "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "maschine", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
                      "zukauf", "ek_blech", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster",
-                     "geometrie", "wenden", "qualitaet", "offene_frage", "sicherheit")
+                     "geometrie", "wenden", "schneidtechnik", "qualitaet", "offene_frage", "sicherheit")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 # Profilwechsel einer STEP-Position in der Tabelle: diese Felder rechnet der Schneidweg-Rechner neu (profil_gewechselt)
 PROFILWECHSEL_FELDER = ("schneidweg", "einstiche", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade", "innen",
@@ -10313,6 +10313,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         for m in messwerte:             # Importprofil: Zusatzarbeiten für alle Teile (Plan Angebotsablauf V4)
             if self._step_zusatz:
                 m.setdefault("_zusatz", list(self._step_zusatz))
+        if any("nietmutter" in str(n).lower() for n in self._step_zusatz):     # Einnietmuttern prüfen (247-Vergleich)
+            from . import fertigbarkeit
+            fertigbarkeit.markieren(messwerte, rechnen.maschine(self.kopf, self.k))
         formular_bericht, pdf_neu = None, None
         if formulare:                   # Stückzahlen aus dem Anfrageformular (Plan W6b/W6c, Formular gilt)
             from . import pdf_art
@@ -10324,6 +10327,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 aktiv = [pdf_art.zusammen(f, wahl.get(f.get("datei"), f.get("wahl", pdf_art.AUTO))) if f.get("seiten") else f
                          for f in formulare]
                 erg = pdf_art.anwenden(messwerte, aktiv, ws_zeilen, ws_formular)
+                # Zeichnung/Formular kennen jetzt z. B. Einnietmuttern: Fertigbarkeit neu prüfen (nur Hinweis)
+                from . import fertigbarkeit
+                fertigbarkeit.markieren(messwerte, rechnen.maschine(self.kopf, self.k))
                 n, unsicher = erg["formular"], erg["unsicher"]
                 quelle = "der E-Mail" if all(f.get("mail") for f in formulare) else "dem Anfrageformular"
                 return (f"Stückzahlen aus {quelle}: {n} Teil(e)"

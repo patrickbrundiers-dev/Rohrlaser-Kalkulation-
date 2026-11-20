@@ -50,7 +50,7 @@ from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VO
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 98     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 99     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -198,7 +198,9 @@ SCHEMA_VERSION = 98     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     und Baugruppe mit Merkmalen, bg_zeitlernen.py; über den gemeinsamen Ordner geteilt); leer = nichts
                         # 97: Fertigbarkeit beim Import (20.11.2026): maschinen.fb_loch_faktor, fb_steg_faktor, fb_eckradius,
                         #     fb_gravur_tiefe (fertigbarkeit.py); leer = Vorgabe
-                        # 98: Rahmenaufträge und Abrufe (20.11.2026): Tabellen rahmen_ereignisse, rahmen_kopf
+                        # 98: Prüfregeln aus dem 247TailorSteel-Vergleich (20.11.2026): maschinen.fb_gravur_abstand,
+                        #     fb_umfang_offen, fb_nm_profil, fb_nm_wand, schneidtechnik, fb_xy_faktor; positionen.schneidtechnik
+                        # 99: Rahmenaufträge und Abrufe (20.11.2026): Tabellen rahmen_ereignisse, rahmen_kopf
                         #     (rahmenauftrag.py); neue Tabellen leer, Angebote unverändert
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)

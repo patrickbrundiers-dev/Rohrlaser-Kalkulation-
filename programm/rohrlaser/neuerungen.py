@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.433", "<b>Rahmenaufträge und Abrufe</b> ([[rahmenauftraege]]). Neue Seite <i>Rahmenaufträge</i> unter "
+    ["0.9.434", "<b>Rahmenaufträge und Abrufe</b> ([[rahmenauftraege]]). Neue Seite <i>Rahmenaufträge</i> unter "
      "Auftrag: Vertrag mit Gesamtmenge, Laufzeit, Mindest-/Höchstabruf, Lieferorten und Bedingungen; mehrere "
      "Positionen; Abrufe anlegen, verschieben, liefern, stornieren, alles im Protokoll. Wirtschaftlichkeit mit der "
      "zentralen Kalkulation: Los je Abruf, alles in einem Los oder optimierte Lose (mit Lager- und Kapitalkosten), "
@@ -31,6 +31,15 @@ NEUERUNGEN = [
      "(Kundenangebot ohne interne Zahlen). Im Angebot <i>Vorgang → Rahmenauftrag aus Angebot …</i>. Das Fenster <i>Abruf-/Rahmenangebot</i> rechnet "
      "mit derselben Rechnung: Varianten A/B/C, Materialvergleich, empfohlene Losgröße und Preisstaffel ([[abruf_angebot]]).",
      "Rahmenaufträge mit Abrufen, optimierten Losen, Material, Preisbindung mit Freigabe und Ampel"],
+    ["0.9.433", "<b>Weitere Prüfregeln beim STEP-Import, Schneidtechnik 2,5D/XY</b> ([[fertigbarkeit]]). Nach dem "
+                "Vergleich mit 247TailorSteel prüft der Import zusätzlich: Gravur zu nah an einer Schnittlinie "
+                "(Vorgabe 1,5 mm) oder berührt sie, Umfang an keinem der 5 Prüfpunkte (Enden, ¼, ½, ¾) geschlossen "
+                "(offenes Profil spannt nicht sicher), Einnietmuttern aus Zeichnung, Formular oder Zusatzarbeit (M4 "
+                "bis M8, nur Quadrat-/Rechteckrohr bis 150 mm, Wand 0,5 bis 3 mm, Loch 2 × Wand von Konturen und "
+                "Rohrende). Neu ist die Schneidtechnik als Standard der Maschine und je Position (Spalte "
+                "Schneidtechnik): bei XY meldet der Import Löcher im Rundrohr über 0,5 × Rohr-Ø, der Angebots-Check "
+                "ebenso. Alles nur Hinweis (gelb), das Teil bleibt wie in der STEP; Grenzwerte je Maschine.",
+     "STEP-Import prüft Gravurabstand, offenen Umfang, Einnietmuttern; Schneidtechnik 2,5D/XY je Position"],
     ["0.9.432", "<b>Anfragen: Anhänge mit Rolle und Revision, Nachträge als Änderung</b> ([[anhang_analyse]]). Jeder "
      "Anhang zeigt seine Rolle (3D-Modell, Zeichnung, Stückliste, Anfrageformular, Bild, Archiv, "
      "Unbekannt, Beschädigt, Zu groß), den Typ nach Inhalt und die Revision aus dem Dateinamen. Ein "

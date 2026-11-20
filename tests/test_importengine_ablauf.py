@@ -149,5 +149,21 @@ def _():
     assert any("Konstruktionsregel der Maschine" in t for t in texte), texte
 
 
+@fall("A5 Schneidtechnik XY je Position: Spalte in der Datenbank, Hinweis im Angebots-Check (247-Vergleich)")
+def _():
+    from rohrlaser import db_verbindung
+    assert "schneidtechnik" in set(db_verbindung.spalten(db.con, "positionen"))
+    vorher = len(db.positionen(aid))
+    seite.step_importieren([str(HIER / "step_importengine" / "I10_RR40x2_L300_Loch25.step")])
+    neu = db.positionen(aid)[vorher:]
+    assert len(neu) == 1 and ba.aus_position(neu[0])["kennzahlen"]["fertigbar"] is True, neu    # Maschine: 2,5D
+    texte = [p.text for p in seite.freigabe_punkte()]
+    assert not any("Schneidtechnik XY" in t for t in texte), texte
+    db.position_aendern(neu[0]["id"], "schneidtechnik", "XY")
+    seite.neu_laden()
+    texte = [p.text for p in seite.freigabe_punkte()]
+    assert any("Schneidtechnik XY" in t and "0,5 × Rohr-Ø" in t for t in texte), texte
+
+
 print("ALLE OK" if not fehler else f"{fehler} FEHLER")
 sys.exit(1 if fehler else 0)

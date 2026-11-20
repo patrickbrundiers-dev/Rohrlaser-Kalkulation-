@@ -51,9 +51,9 @@ def monatlich(n, start="2027-01-15"):
 
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
-assert SCHEMA_VERSION >= 98
+assert SCHEMA_VERSION >= 99
 assert {"rahmen_ereignisse", "rahmen_kopf"} <= set(db_verbindung.tabellen(db.con))
-ok("Schema 98: Tabellen rahmen_ereignisse und rahmen_kopf")
+ok("Schema 99: Tabellen rahmen_ereignisse und rahmen_kopf")
 
 # ------------------------------------------------------------------ 1: 100 Stück, ein Abruf
 a1 = abrufe(["2027-01-15"], 100)
@@ -354,13 +354,13 @@ alt = Path(tempfile.mkdtemp()) / "rohrlaser.db"
 d0 = Datenbank(alt)
 d0.con.execute("DROP TABLE rahmen_kopf")
 d0.con.execute("DROP TABLE rahmen_ereignisse")
-db_verbindung.schema_version_setzen(d0.con, 97)
+db_verbindung.schema_version_setzen(d0.con, 98)
 d0.con.commit()
 d0.con.close()
 d1 = Datenbank(alt)
-assert d1.sicherungen(zusatz="vor_Schema_98") and {"rahmen_ereignisse", "rahmen_kopf"} <= set(
+assert d1.sicherungen(zusatz="vor_Schema_99") and {"rahmen_ereignisse", "rahmen_kopf"} <= set(
     db_verbindung.tabellen(d1.con))
-ok("Umstellung von Schema 97: Sicherung vor_Schema_98, Rahmentabellen neu und leer")
+ok("Umstellung von Schema 98: Sicherung vor_Schema_99, Rahmentabellen neu und leer")
 
 # ------------------------------------------------------------------ Oberfläche
 from PySide6.QtWidgets import QApplication  # noqa: E402
