@@ -413,3 +413,4 @@ test_zukauf_schnell.py
 test_zukauf_verwaltung.py
 test_zukaufteile_step.py
 test_zusatz_3d.py
+test_anfrage_art.py

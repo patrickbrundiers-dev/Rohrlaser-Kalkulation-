@@ -113,6 +113,21 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
         out.append(Punkt(HINWEIS, f"{len(z)} Schweißbaugruppe{'n' if len(z) > 1 else ''}: Zeit von Hand prüfen, die "
                                   "Baugruppe hat sich seit der Vorgabe geändert (die Zeit bleibt bestehen)",
                          f"bg:{z[0]}", _pos_liste(z, positionen)))
+    # Fertigbarkeit beim STEP-Import (Laserhub-Vergleich L1, 20.11.2026): Konstruktionsregeln der Maschine verletzt
+    # (Loch, Steg, Gravur, Länge, Hüllkreis); nur Hinweis, das Teil bleibt wie in der STEP
+    from . import bauteil_analyse as _ba
+    zf = []
+    for i in aktiv:
+        try:
+            a = _ba.aus_position(positionen[i]) or {}
+        except Exception:       # noqa: BLE001 – Check darf an alten Daten nie scheitern
+            a = {}
+        if (a.get("kennzahlen") or {}).get("fertigbar") is False:
+            zf.append(i)
+    if zf:
+        out.append(Punkt(HINWEIS, f"{_n_pos(len(zf))}: Konstruktionsregel der Maschine nicht eingehalten (Loch, Steg, "
+                                  "Gravur, Länge oder Hüllkreis – Importanalyse)", f"pos:{zf[0]}",
+                         _pos_liste(zf, positionen)))
     # STEP-Merkmale „prüfen“/„nicht erkannt“ ohne Bestätigung (Wettbewerbsvergleich P0-3): nur Hinweis, die Position
     # meldet Fehler wie unbekanntes Profil selbst
     from . import step_pruefung

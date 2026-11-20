@@ -50,7 +50,7 @@ from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VO
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 96     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 97     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -196,6 +196,8 @@ SCHEMA_VERSION = 96     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 95: Bauteilbibliothek (19.11.2026): positionsvorlagen.kategorie und .favorit; leer = wie bisher
                         # 96: Schweißbaugruppen-Editor 2.0 (19.11.2026): Tabelle bg_zeiten (Zeiten von Hand je Angebot
                         #     und Baugruppe mit Merkmalen, bg_zeitlernen.py; über den gemeinsamen Ordner geteilt); leer = nichts
+                        # 97: Fertigbarkeit beim Import (20.11.2026): maschinen.fb_loch_faktor, fb_steg_faktor, fb_eckradius,
+                        #     fb_gravur_tiefe (fertigbarkeit.py); leer = Vorgabe
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),

@@ -13,7 +13,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
-from . import schneidweg as sw, skizze as sk, stangen_abwicklung as sa
+from . import abwicklung, schneidweg as sw, skizze as sk, stangen_abwicklung as sa
 
 RAND = 12 * mm                   # Druckrand je Seite
 SCHRITT_LISTE = 10.0             # mm am Umfang je Zeile der Koordinatenliste
@@ -33,17 +33,24 @@ def daten(p, profil):
     e = sw.aus_position(sw.lesen(p.get("technik")), p, profil)[0]
     form = sa.grundform(qs, e, L)
     t = sa.teil(qs, dict(ref=None, pos=p.get("pos"), artikel=p.get("artikel"), laenge=L, von=0.0, bis=L), e, form)
-    return dict(laenge=L, umfang=qs.umfang, umriss=t["umriss"], konturen=[k["punkte"] for k in t["konturen"]],
-                la=form[0], lb=form[1])
+    # echte Außenhaut (Eckradien) und geschnittene Konturen wie im 3D (abwicklung, seit 0.9.427): zum Umwickeln
+    # muss der Umfang des Papiers genau der des Rohrs sein
+    m = abwicklung.Mantel(qs)
+    konturen = [li["punkte"] for li in abwicklung.linien(qs, e, L, m) if li["kennung"].startswith("kontur:")]
+    return dict(laenge=L, umfang=m.umfang, umriss=[(x, m.t(s_)) for x, s_ in t["umriss"]], konturen=konturen,
+                la=form[0], lb=form[1], mantel=m)
 
 
 def koordinaten(d, schritt=SCHRITT_LISTE):
-    """[(s, Abstand Kante A vom Ende A, Abstand Kante B vom Ende B)] je schritt mm am Umfang."""
+    """[(t, Abstand Kante A vom Ende A, Abstand Kante B vom Ende B)] je schritt mm am Umfang (t auf der echten
+    Außenhaut)."""
     n = max(int(math.ceil(d["umfang"] / schritt)), 1)
+    m = d.get("mantel")
     out = []
     for i in range(n + 1):
-        s = min(i * schritt, d["umfang"])
-        out.append((s, sa._linie_bei(d["la"], s), sa._linie_bei(d["lb"], s)))
+        t = min(i * schritt, d["umfang"])
+        s = m.s(t) if m is not None else t
+        out.append((t, sa._linie_bei(d["la"], s), sa._linie_bei(d["lb"], s)))
     return out
 
 
