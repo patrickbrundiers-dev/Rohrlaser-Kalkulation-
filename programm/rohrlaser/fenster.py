@@ -2037,7 +2037,8 @@ class EinstellungenSeite(QScrollArea):
                                "ppease_ordner": "Hauptordner der PPEASE-Ablage wählen",
                                "csv_ordner": "Ordner für den CSV-Export wählen",
                                "anfrage_ordner": "Anfrage-Ordner wählen",
-                               "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen"}.get(e.name, "Standardordner wählen"),
+                               "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen",
+                               "lst_ordner": "Ordner der gefertigten LST-Dateien wählen"}.get(e.name, "Standardordner wählen"),
                               e.titel)
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
