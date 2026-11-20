@@ -21,26 +21,38 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.429", "<b>Angebotsvarianten A–E</b> ([[angebotsvarianten]]): Original und bis zu fünf Varianten nebeneinander "
+    ["0.9.430", "<b>Angebotsvarianten A–E</b> ([[angebotsvarianten]]): Original und bis zu fünf Varianten nebeneinander "
      "(Gewinn, Aufschläge, Rabatt, Rüst- und Programmierzeit, dazu Was-wäre-wenn bei Material, Stundensätzen und "
      "Zukauf), mit Selbstkosten, Verkaufspreis, Marge und Deckungsbeitrag. Das Angebot bleibt unverändert; eine "
      "Variante lässt sich als neue Fassung übernehmen.",
      "Angebotsvarianten A–E vergleichen und als Fassung übernehmen"],
-    ["0.9.429", "<b>Kundenangebot erweitert</b> ([[angebotsakte]]): Kopffeld <i>Projekt / Bauvorhaben</i>, "
+    ["0.9.430", "<b>Kundenangebot erweitert</b> ([[angebotsakte]]): Kopffeld <i>Projekt / Bauvorhaben</i>, "
      "Konditionen mit Versand, Verpackung und Rabatt, Hinweis auf die AGB (Einstellung) und <b>Termin-Staffel</b>: "
      "Preis je Liefertermin (z. B. Eilfertigung +15 %, 8 Wochen −3 %), Abschläge höchstens bis zur Mindestmarge, "
      "intern mit Marge je Termin.",
      "Kundenangebot: Projekt, Versand/Verpackung/Rabatt, AGB, Preis je Liefertermin"],
-    ["0.9.429", "<b>Technisches Kalkulationsblatt</b> als drittes Dokument der Angebotsakte ([[angebotsakte]]): je "
+    ["0.9.430", "<b>Technisches Kalkulationsblatt</b> als drittes Dokument der Angebotsakte ([[angebotsakte]]): je "
      "Position Schneidwege mit Vorschub, Einstiche, alle Zeitanteile bis zur Laserzeit je Teil und die Kosten je Teil "
      "von Material bis zum Preis, genau aus derselben Kalkulation. Wählbar in <i>Angebotsdokument erstellen</i>, "
      "abgelegt als _Technik.pdf.",
      "Angebotsakte: Technisches Kalkulationsblatt (Zeiten und Kosten je Teil)"],
-    ["0.9.429", "<b>Staffeln mit Mindestmarge</b>: Jede Stufe hält die Mindestmarge, größere Mengen werden nie "
+    ["0.9.430", "<b>Staffeln mit Mindestmarge</b>: Jede Stufe hält die Mindestmarge, größere Mengen werden nie "
      "billiger als erlaubt (Anhebung als eigener Posten). Je Stufe Deckungsbeitrag, Marge und Einsparung gegenüber "
      "der kleinsten Menge, Staffelrabatt [%], Zukauf-EK je Staffel (nur Aufschlag) und Preis von Hand mit Grund, "
      "Bearbeiter und Zeit ([[staffel_mindestmarge]]).",
      "Staffeln: Mindestmarge, Kennzahlen, Rabatt, Zukauf-EK, Preis von Hand"],
+    ["0.9.429", "<b>Exakte Rohrabwicklung mit Bemaßung, DXF und PDF, 3D und 2D verknüpft</b> ([[abwicklung_exakt]]). "
+     "Die Abwicklung zeigt die echte Außenhaut: beim Quadrat-/Rechteckrohr mit Eckradius ist der Umfang "
+     "2 × (B + H) − 8 r + 2 π r (60 × 40 × 3: 189,7 statt 200 mm), mit Radiuslinien und Seitenbreiten; Konturen "
+     "liegen genau wie im 3D und im Schnittkörper. Abwicklungsfenster: DXF (Layer AUSSENKONTUR, INNENKONTUR, KANTE, "
+     "RADIUS, GRAVUR, BESCHRIFTUNG), PDF, Original (Import) gestrichelt darüber, Gegenprobe der Konturlänge als "
+     "Hinweis. Maus über einer Kontur im 3D hebt sie in Skizze und Abwicklung hervor und umgekehrt; unsicher "
+     "erkannte Merkmale aus dem STEP-Import gelb. Abwicklung 1:1 drucken mit echtem Umfang. Neu im Rechtsklick: "
+     "<i>Rohr teilen …</i> (eine Rohrposition in zwei, nicht bei STEP-Teilen). Geänderte Rechnung (Patrick "
+     "20.11.): Konturen, die beim Quadrat-/Rechteckrohr bis in den Eckradius reichen, zählen mit ihrer Länge auf der "
+     "Außenhaut (außen breiter, z. B. 89,4 statt 80 mm); die Rundrohr-Bohrung wird in Abwicklung und 3D so breit "
+     "gezeichnet, wie die Rechnung sie zählt (Bolzen Ø d passt durch).",
+     "Abwicklung mit echter Außenhaut, DXF/PDF, Hover 3D↔2D, unsichere Merkmale gelb, Rohr teilen"],
     ["0.9.428", "<b>Anfragen: Mail-Art, Sachgebiet und technische Angaben erkennen</b> ([[anfrage_art]]). Jede Mail "
      "wird eingeordnet: neue Anfrage, Angebotsnachfrage, Angebotsänderung, Bestellung, Auftragsänderung, technische "
      "Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, allgemeine Mail oder Werbung, mit Sicherheit und "

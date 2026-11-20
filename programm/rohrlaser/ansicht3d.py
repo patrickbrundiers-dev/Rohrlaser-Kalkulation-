@@ -165,6 +165,9 @@ MESSEN = stil.farbe_fest("#B42318")
 FANG = stil.farbe_fest("#0070C0")            # Messen: gefangenes Element unter der Maus
 VORHER = stil.farbe_fest("#E07000")          # Vorher-Nachher: Stand beim Öffnen gestrichelt
 SCHNITT = stil.farbe_fest("#1F4E78")        # Querschnitt-Stelle (editor_schnitt)
+PRUEFEN = stil.farbe_fest("#F2C200")        # P3.1: unsicher erkanntes Merkmal (STEP-Import)
+PRUEFEN_TEXT = stil.farbe_fest("#1F3864")
+HOVER = stil.farbe_fest("#0070C0")         # P5.2: Kontur, über der die Maus in Skizze/Abwicklung steht
 FOLGE_AKTUELL = stil.farbe_fest("#E07000")  # Schneidvorschau: aktueller Schritt
 FOLGE_FERTIG = stil.farbe_fest("#9AA3AD")   # bereits geschnitten
 FOLGE_OFFEN = stil.farbe_fest("#2F6FB0")    # noch offen bzw. Übersicht
@@ -1488,6 +1491,9 @@ class Ansicht3D(QWidget):
     gemessen = Signal(object)       # Messen: Abstand [mm] nach dem zweiten Punkt
     messen_geaendert = Signal()     # Messen ein/aus bzw. Art gewechselt (gemeinsame Leiste stellt ihre Knöpfe)
     maus_punkt = Signal(object)     # A5: Modellpunkt (x, y, z) unter der Maus oder None (nur mit maus_koordinaten)
+    # P5.2 (20.11.2026): Linie unter der Maus (Hover) dict(id, punkt) bzw. None, nur mit maus_koordinaten und bei
+    # Wechsel; der Editor hebt dieselbe Kontur in Skizze und Abwicklung hervor
+    ueber = Signal(object)
     voll = None             # Modell mit allen Körpern (modell = das gezeigte, ohne die ausgeblendeten)
     _gl = None              # OpenGL-Fläche (ansicht3d_gl.GLFlaeche) oder None = QPainter
 
@@ -1503,6 +1509,8 @@ class Ansicht3D(QWidget):
         self.vorher_auto, self.vorher_netz, self.vorher_an, self._vorher_modell = False, None, False, None
         # Teile-Editor: hervorgehobene Linien (Merkmale bzw. Bereich längs der Rohrachse), Messen Punkt–Punkt
         self.markiert, self.markiert_z, self.messen, self.messpunkte = set(), None, False, []
+        self.hover_id, self._ueber_alt = None, None     # P5.2: Kennung, die von außen (Skizze) hervorgehoben ist
+        self.pruef_punkte = []      # P3.1: [(Punkt xyz, Text)] unsichere Merkmale der Importanalyse, gelb markiert
         self.kosten_linien, self.kosten_z, self.kosten_legende = {}, [], []    # CAD-005 Kostentreiber
         self.folge, self.folge_akt, self.folge_text = [], None, ""      # Schneidvorschau (schneidfolge.schritte)
         self.mess_treffer = []                  # Fangpunkte zu den Messpunkten (messen3d: Art, Punkt, Element)
@@ -1806,6 +1814,70 @@ class Ansicht3D(QWidget):
             self.maus_punkt.emit(self.punkt_unter(*self._maus_pos))
         except Exception:   # noqa: BLE001 – Anzeige der Koordinaten darf nie stören
             self.maus_punkt.emit(None)
+        try:
+            t = self.linie_unter(*self._maus_pos)
+        except Exception:   # noqa: BLE001 – Hover darf nie stören
+            t = None
+        schl = (t or {}).get("id") if t and t.get("id") else (t or {}).get("punkt")
+        if schl != self._ueber_alt:
+            self._ueber_alt = schl
+            self.ueber.emit(t)
+
+    def linie_unter(self, x, y, fang=8):
+        """Linie unter dem Bildpunkt (x, y) ohne Klick: dict(id = Kennung oder None, punkt) oder None."""
+        if self.modell is None or not self.modell.linien:
+            return None
+        bild = self.bildpunkt()
+        beste = None
+        for nr, (a, b, _, _) in enumerate(self.modell.linien):
+            pa, pb = bild(a), bild(b)
+            dx, dy = pb[0] - pa[0], pb[1] - pa[1]
+            lg = dx * dx + dy * dy
+            t = 0.0 if lg < 1e-9 else max(0.0, min(1.0, ((x - pa[0]) * dx + (y - pa[1]) * dy) / lg))
+            d = math.hypot(pa[0] + t * dx - x, pa[1] + t * dy - y)
+            if d <= fang and (beste is None or d < beste[0]):
+                beste = (d, nr, tuple(a[k] + t * (b[k] - a[k]) for k in range(3)))
+        if beste is None:
+            return None
+        ids = self.modell.linien_id
+        return dict(id=ids[beste[1]] if beste[1] < len(ids) else None, punkt=beste[2])
+
+    def hover_setzen(self, kennung):
+        """Kennung (z. B. 'kontur:3') von außen hervorheben (Hover in Skizze/Abwicklung) oder None."""
+        if kennung != self.hover_id:
+            self.hover_id = kennung
+            self.update()
+
+    def _pruef_zeichnen(self, p):
+        """P3.1: unsichere Merkmale (Konfidenz unter 90 %) als gelbe Marke mit Fragezeichen."""
+        if not self.pruef_punkte or self.modell is None:
+            return
+        bild = self.bildpunkt()
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        for pt, _ in self.pruef_punkte:
+            x, y, _t = bild(pt)
+            p.setPen(QPen(PRUEFEN.darker(140), 1.2))
+            p.setBrush(PRUEFEN)
+            p.drawEllipse(QPointF(x, y), 8, 8)
+            p.setPen(QPen(PRUEFEN_TEXT, 1))
+            p.drawText(QRectF(x - 8, y - 8, 16, 16), Qt.AlignCenter, "?")
+        p.restore()
+
+    def _hover_zeichnen(self, p):
+        if not self.hover_id or self.modell is None:
+            return
+        ids = self.modell.linien_id
+        bild = None
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setPen(QPen(HOVER, 3.2))
+        for nr, (a, b, _, _) in enumerate(self.modell.linien):
+            if nr < len(ids) and ids[nr] == self.hover_id:
+                bild = bild or self.bildpunkt()
+                pa, pb = bild(a), bild(b)
+                p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
+        p.restore()
 
     def leaveEvent(self, e):
         if self.maus_koordinaten:
@@ -2990,6 +3062,8 @@ class Ansicht3D(QWidget):
             p.restore()
         self.wahl.zeichnen(p)
         self._vorher_zeichnen(p)
+        self._hover_zeichnen(p)
+        self._pruef_zeichnen(p)
         if not (self.markiert or self.markiert_z or self.messpunkte or self.masse_fest or self.schnitt_linie or
                 self._schwebe or self.kosten_linien or self.kosten_z or self.folge):
             return
