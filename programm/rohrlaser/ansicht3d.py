@@ -155,6 +155,7 @@ WK_ARTEN = ("WB", "WL", "WR", "WA", "WG", "WU", "WV")
 KOERPER_EINSTELLUNG = "ansicht_schnittkoerper"
 BLASS = 0.72            # „nur Gewähltes hervorheben“: Rest so weit zu Weiß gemischt
 KANTEN_MAX = 300000     # Körperkanten bis zu so vielen Dreiecken (20.11.2026: auch große Baugruppen, vorher 60.000)
+TANGENTE_BREITE = 4.0   # mm: ohne Flächenkatalog ist eine schmalere „ebene Fläche“ ein Streifen einer Rundung
 KANTEN_WINKEL = 0.9     # cos des Knickwinkels: darüber gilt ein Übergang als glatt (keine Kante), etwa 25°
 # Kantenklassen (20.11.2026): Innenkanten = nur an der Innenwand (Innenecken, Lochränder innen) – eigene Farbe, einzeln
 # ausblendbar; alles mit einer Außenfläche ist außen
@@ -883,8 +884,28 @@ class Modell:
             for x, y in ((a, b), (b, c), (c, a)):
                 if x != y:
                     seiten.setdefault((x, y) if x < y else (y, x), []).append(nr)
+        flaeche_nr = self.dreiecke_f if len(self.dreiecke_f) == len(self.dreiecke) else None
+        breiten = {}
+
+        def breite(e, a, b):
+            """Breite der ebenen Fläche e quer zur Kante a-b: Fläche / Ausdehnung längs der Kante."""
+            r = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+            lg = math.sqrt(sum(c * c for c in r)) or 1.0
+            r = tuple(c / lg for c in r)
+            key = (id(e), round(r[0], 2), round(r[1], 2), round(r[2], 2))
+            if key not in breiten:
+                t = [sum(p[x][q] * r[q] for q in range(3)) for d in e["dreiecke"] for x in self.dreiecke[d][:3]]
+                breiten[key] = e["flaeche"] / max(max(t) - min(t), 1e-6)
+            return breiten[key]
         for (a, b), drei in seiten.items():
             ns = [self.dreiecke[d][4] for d in drei]
+            if len(ns) == 2 and flaeche_nr is not None and flaeche_nr[drei[0]] is not None \
+                    and flaeche_nr[drei[0]] == flaeche_nr[drei[1]]:
+                # 20.11.2026 (Patrick: Linien mitten im Rohr): zwei Dreiecke derselben STEP-Fläche (Flächenkatalog
+                # der Messung) – nie eine Kante, auch wenn die Vernetzung um ein Loch schmale Dreiecke mit
+                # abweichender Normale oder kleine „Ebenen“ neben langen Streifen erzeugt
+                glatte.append((a, b, ns[0], ns[1]))
+                continue
             if len(ns) == 2:
                 cos = sum(ns[0][q] * ns[1][q] for q in range(3))
                 e0, e1 = ebenen[nummer[drei[0]]], ebenen[nummer[drei[1]]]
@@ -892,6 +913,13 @@ class Modell:
                 # Quadratrohrs), wie die Kanten im CAD
                 f0, f1 = sorted((e0["flaeche"], e1["flaeche"]))
                 tangente = e0 is not e1 and cos < 0.99995 and f1 >= gross and f1 > 3 * f0
+                if tangente and flaeche_nr is None:
+                    # ohne Flächenkatalog (ältere Messung, Editor): nur wenn die ebene Fläche quer zur Kante
+                    # deutlich breiter ist als die Facette daneben – sonst ist es ein Streifen derselben Rundung
+                    # (Rundrohr: lange Facetten neben den kleinen um ein Loch)
+                    gr, kl = (e1, e0) if e1["flaeche"] >= e0["flaeche"] else (e0, e1)
+                    w = breite(gr, a, b)
+                    tangente = w >= TANGENTE_BREITE and w >= 3 * breite(kl, a, b)
                 if cos > grenze and not tangente:
                     glatte.append((a, b, ns[0], ns[1]))
                     continue
