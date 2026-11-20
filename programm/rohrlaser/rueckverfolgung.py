@@ -28,7 +28,7 @@ def suchen(db, text, nur_beauftragt=True, grenze=200):
         return []
     muster = f"%{t}%"
     sql = ("SELECT DISTINCT a.id, a.datum FROM positionen p JOIN angebote a ON a.id=p.angebot_id WHERE "
-           "(p.artikel LIKE ? OR p.bezeichnung LIKE ?) AND a.ergebnis IS NOT NULL"
+           "(suchtext(p.artikel) LIKE suchtext(?) OR suchtext(p.bezeichnung) LIKE suchtext(?)) AND a.ergebnis IS NOT NULL"
            + (" AND a.vorgang='Beauftragt'" if nur_beauftragt else "") + " ORDER BY a.datum DESC, a.id DESC")
     ids = [r[0] for r in db.con.execute(sql, (muster, muster)).fetchall()][:grenze]
     out, klein = [], t.lower()
