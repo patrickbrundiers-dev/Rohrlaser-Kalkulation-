@@ -2,16 +2,17 @@
 nebeneinander, Eingaben oben, Ergebnis darunter. Nichts ändert das Original; „Als Fassung übernehmen“ legt eine neue
 Fassung mit den Kalkulationswerten der gewählten Variante an (angebot_varianten.py)."""
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QMessageBox, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout)
 
 from . import angebot_varianten as av
+from . import stil
 from .stammdaten import zahl_als_text, zahl_aus_text
 
-GRAU = QColor("#5B6773")
-ROT = QColor("#B42318")
-GRUEN = QColor("#1E6B34")
+GRAU = stil.farbe_fest(stil.TEXT_GRAU)
+ROT = stil.farbe_fest(stil.ROT)
+GRUEN = stil.farbe_fest(stil.GRUEN)
 
 
 def _geld(x):
