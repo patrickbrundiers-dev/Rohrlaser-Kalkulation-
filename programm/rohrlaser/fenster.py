@@ -3227,6 +3227,7 @@ class Hauptfenster(QMainWindow):
         hilfe.einrichten(db)
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
+        db.dokumente_ablage = self.ablage       # Schritt 4: Angebotsdokumente mit jeder Sicherung spiegeln
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
         self.step_drop_laeuft = False   # STEP-Import nach Drag & Drop läuft (angebot_fenster.step_drop)
         self.offen = {}             # Angebots-ID -> AngebotSeite
@@ -3505,7 +3506,19 @@ class Hauptfenster(QMainWindow):
         if not lauf.fertig():
             QTimer.singleShot(1000, lambda: self.sicherung_beobachten(lauf))
         elif lauf.fehler is not None:
+            from . import protokoll
+            protokoll.warnung(f"Tägliche Sicherung fehlgeschlagen: {lauf.fehler}")
             self.meldung(f"Die tägliche Sicherung ist fehlgeschlagen: {lauf.fehler}", fehler=True)
+            if not self.stumm:              # Schritt 4: Benachrichtigung, nicht nur in der Statuszeile
+                QMessageBox.warning(self, "Datensicherung", "Die tägliche Sicherung ist fehlgeschlagen:\n\n"
+                                    f"{fehler_text(lauf.fehler)}\n\nBitte über Datei → Sicherung erstellen erneut "
+                                    "versuchen; hilft das nicht, das Supportpaket schicken.")
+        elif (lauf.info or {}).get("pg_abbild_fehler") or (lauf.info or {}).get("dokumente_fehler"):
+            i = lauf.info
+            teile = ([f"PostgreSQL-Abbild fehlt ({i['pg_abbild_fehler']})"] if i.get("pg_abbild_fehler") else []) + \
+                ([f"{len(i['dokumente_fehler'])} Angebotsdokumente nicht gesichert"] if i.get("dokumente_fehler")
+                 else [])
+            self.meldung("Tägliche Sicherung erstellt, aber: " + "; ".join(teile) + " (Protokoll).", fehler=True)
         elif lauf.pruefung is not None:         # Phase 7: wöchentliche Probe-Wiederherstellung
             from . import protokoll
             protokoll.info(lauf.pruefung.get("text", ""))
@@ -5353,7 +5366,7 @@ class Hauptfenster(QMainWindow):
         from .sicherung_dialog import WiederherstellenDialog
         d = WiederherstellenDialog(self)
         if d.exec() and d.gewaehlt:
-            self.daten_ersetzen(d.gewaehlt)
+            self.daten_ersetzen(d.gewaehlt, dokumente=d.dokumente)
 
     def datenspeicher_anzeigen(self):
         """Datei → Datenbank: wo die Daten liegen (PostgreSQL auf diesem PC, einzige Datenbank seit dem
@@ -5396,9 +5409,10 @@ class Hauptfenster(QMainWindow):
         if datei:
             self.daten_ersetzen(datei, zusatz="vor_Import")
 
-    def daten_ersetzen(self, quelle, zusatz="vor_Wiederherstellung"):
+    def daten_ersetzen(self, quelle, zusatz="vor_Wiederherstellung", dokumente=False):
         """Alle Daten durch eine Sicherung, Datendatei oder Export-Datei ersetzen (vorher Sicherung des jetzigen
-        Stands). Offene Angebote werden geschlossen und alles neu geladen. Ergebnis: info oder None."""
+        Stands). Offene Angebote werden geschlossen und alles neu geladen. dokumente: auch die Angebotsdokumente
+        auf den Stand der Sicherung bringen (Schritt 4, dokumente_sicherung.zurueckholen). Ergebnis: info oder None."""
         from .datenbank import datei_info
         if Path(quelle).resolve() == self.db.pfad.resolve():
             self.meldung("Das ist die Datendatei, mit der das Programm gerade arbeitet.", fehler=True)
@@ -5425,10 +5439,18 @@ class Hauptfenster(QMainWindow):
                 QMessageBox.warning(self, "Daten ersetzen", f"Die Daten wurden nicht ersetzt:\n\n{fehler_text(e)}")
             return None
         self.alles_neu_laden()
-        self.meldung(f"Daten ersetzt aus {Path(quelle).name}; der vorige Stand liegt in {vorher.name}.")
+        doku = ""
+        if dokumente:
+            from . import dokumente_sicherung
+            try:
+                doku = " " + dokumente_sicherung.text(dokumente_sicherung.zurueckholen(quelle, self.ablage()))
+            except OSError as e:
+                doku = f" Angebotsdokumente nicht zurückgeholt: {fehler_text(e)}"
+        self.meldung(f"Daten ersetzt aus {Path(quelle).name}; der vorige Stand liegt in {vorher.name}.{doku}")
         if not self.stumm:
             QMessageBox.information(self, "Daten ersetzt", f"Die Daten stammen jetzt aus\n{quelle}\n\n"
-                                    f"Der vorige Stand ist gesichert:\n{vorher}")
+                                    f"Der vorige Stand ist gesichert:\n{vorher}" + (f"\n\n{doku.strip()}" if doku
+                                                                                     else ""))
         return info
 
     def datenordner_oeffnen(self):

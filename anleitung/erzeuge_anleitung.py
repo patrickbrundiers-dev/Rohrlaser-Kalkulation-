@@ -14348,6 +14348,22 @@ def kapitel_admin_datenbank(i):
             "PostgreSQL zusätzlich in eine Probe-Datenbank. Das Ergebnis steht in <i>Datei → Sicherung "
             "wiederherstellen …</i>; misslingt die Probe, kommt eine rote Meldung.",
             "Empfehlung: den zweiten Sicherungsordner auf ein anderes Laufwerk oder ein NAS legen.")
+    i.abschnitt("Was eine Sicherung enthält", marke="admin_sicherung_inhalt")
+    i.liste("<b>Datendatei</b> <i>rohrlaser_&lt;Datum&gt;.db</i>: alle Daten als Datei, auf jedem PC lesbar und "
+            "geprüft (Anzahlen, Prüfsumme in der <i>.json</i> daneben).",
+            "<b>PostgreSQL-Abbild</b> <i>.pgdump</i> daneben: dieselben Daten im eigenen Format von PostgreSQL, "
+            "gleich nach dem Schreiben geprüft. Ist die Datendatei beschädigt, lässt sich über <i>Datei → Sicherung "
+            "wiederherstellen … → Andere Datei …</i> auch das Abbild wählen.",
+            "<b>Angebotsdokumente</b>: Die Ablage (PDFs, Angebotsakte, STEP-Kopien) wird nach "
+            "<i>Sicherung\\Dokumente</i> gespiegelt, nur geänderte Dateien werden kopiert. Ältere Stände geänderter "
+            "oder gelöschter Dateien bleiben 60 Tage unter <i>Dokumente\\alt</i>. Abschalten unter <i>Einstellungen → "
+            "Ablage und Teilen → Datensicherung</i> (Angebotsdokumente mit jeder Sicherung sichern).",
+            "Beim Wiederherstellen bringt der Haken <i>Angebotsdokumente auf den Stand dieser Sicherung bringen</i> "
+            "auch die Ablage zurück: fehlende Dateien kommen zurück, abweichende werden ersetzt (der abweichende "
+            "Stand liegt danach in <i>_vor_Wiederherstellung</i> der Ablage), später entstandene Dateien bleiben.",
+            "Schlägt die tägliche Sicherung fehl, erscheint ein Hinweisfenster; fehlt nur das Abbild oder sind "
+            "einzelne Dokumente nicht lesbar (z. B. gerade geöffnet), steht es rot in der Statuszeile und im "
+            "Protokoll.")
     i.abschnitt("Rohrlaser Auslastung: Datenspeicher", marke="auslastung_datenspeicher")
     i.text("Seit Rohrlaser Auslastung 3.13.0 gibt es dort dasselbe: <b>Einstellungen → Datenbank → Datenspeicher "
            "…</b> (nur Hauptadmin) stellt die Datei <i>Auslastung.db</i> auf PostgreSQL auf diesem PC um und zurück, "

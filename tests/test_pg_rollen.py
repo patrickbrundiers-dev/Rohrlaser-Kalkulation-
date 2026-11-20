@@ -63,6 +63,14 @@ try:
     ok("neue Installation: Programm als rohrlaser_app ohne Superuser (nur CREATEDB und session_replication_role), "
        "Eigentümer der Datenbank")
 
+    from rohrlaser import pg_abbild  # noqa: E402
+    gesichert = db.sicherung()                      # Schritt 4: Abbild und Rückweg auch ohne Superuser
+    assert pg_abbild.pfad(gesichert).is_file()
+    db.angebot_aendern(aid, "kunde", "Zwischendurch GmbH")
+    db.wiederherstellen(pg_abbild.pfad(gesichert))
+    assert db.angebot(aid)["kunde"] == "Rollen GmbH"
+    ok("Sicherung mit PostgreSQL-Abbild und Wiederherstellen daraus mit dem Programmkonto (ohne Superuser)")
+
     z = s.zugang()
     assert z["benutzer"] == pg_lokal.BENUTZER
     with psycopg.connect(host=z["host"], port=z["port"], user=pg_lokal.BENUTZER, password=s.passwort(),

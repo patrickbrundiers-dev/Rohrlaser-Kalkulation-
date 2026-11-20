@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.417", "<b>Sicherung vollständiger</b> ([[admin_sicherung_inhalt]]): Jede Sicherung enthält jetzt zusätzlich ein "
+     "geprüftes PostgreSQL-Abbild und die Angebotsdokumente aus dem Angebotsordner. Beim Wiederherstellen lassen sich "
+     "die Dokumente auf denselben Stand bringen, abweichende Dateien werden vorher beiseitegelegt. Klappt ein Teil der "
+     "Sicherung nicht, meldet das Programm es sofort.",
+     "Sicherung: PostgreSQL-Abbild und Angebotsdokumente, Wiederherstellen mit Dokumenten, Fehlermeldung"],
     ["0.9.416", "<b>Großes 3D-Visualisierungsupdate</b>: <b>Aussehen</b> ([[aussehen_3d]]) mit Material "
      "(Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, Hintergrund und weichem Schatten, "
      "Metall plastischer; zehn <b>Darstellungsarten</b> ([[darstellungen_3d]]) u. a. Flächentypen, Konturen betont, "
