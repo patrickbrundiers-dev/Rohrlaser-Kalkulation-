@@ -48,6 +48,7 @@ M_BOHRUNG, M_SACK, M_LANGLOCH, M_SCHLITZ, M_DURCHBRUCH, M_KONTUR, M_FREIFORM, M_
     "Gravur", "Fräsung")
 M_GERADE, M_GEHRUNG, M_SCHRAEG, M_STIRN = "Gerader Schnitt", "Gehrungsschnitt", "Schrägschnitt", "Stirnausschnitt"
 M_GEWINDE, M_SENKUNG, M_FLIESS, M_FASE = "Gewinde (Vorschlag)", "Senkung", "Fließloch", "Fase"
+M_FERTIG = "Fertigbarkeit"      # Verstoß gegen eine Konstruktionsregel der Maschine (fertigbarkeit.py)
 
 LASER, GRAVUR_LASER, GEWINDE, SENKEN, FRAESEN, FLOWDRILL = (
     "Laserschnitt", "Lasergravur", "Gewinde schneiden", "Senken", "Fräsen/Bohren (nicht lasern)", "Fließlochbohren")
@@ -244,6 +245,14 @@ def merkmale(m, gewinde_tabelle=None):
     b = _json(m.get("blech"), None)
     if isinstance(b, dict) and (m.get("profilform") or "") in ("Blech", "Blech gekantet"):
         out.extend(_blech_merkmale(b))
+    for f in m.get("_fertigbarkeit") or ():      # geprüft beim Import mit der Maschine des Angebots
+        e = dict(merkmal=M_FERTIG, art=f.get("regel") or "", abmessung=f.get("text") or "", bearbeitung="prüfen",
+                 konfidenz=70, hinweis="Konstruktionsregel der Maschine – Teil bleibt wie in der STEP")
+        if f.get("x") is not None:
+            e["x"] = f["x"]
+        if f.get("seite"):
+            e["seite"] = f["seite"]
+        out.append(e)
     for e in out:   # Maße wie im übrigen Programm mit Dezimalkomma
         if isinstance(e.get("abmessung"), str):
             e["abmessung"] = re.sub(r"(\d)\.(\d)", r"\1,\2", e["abmessung"])
@@ -269,7 +278,7 @@ def kennzahlen(m, liste=None):
         wand=_r(m.get("wandstaerke"), 2), laenge=_r(m.get("laenge")), querschnitt=_r(m.get("flaeche"), 1),
         volumen_cm3=round(vol / 1000, 2), gewicht_stahl_kg=round(vol * DICHTE_STAHL, 3),
         schneidweg=_r(m.get("schneidweg")), einstiche=int(_f(m.get("konturen"))), bohrungen=bohr,
-        ausschnitte=aussch, gravuren=gravur, merkmale=zaehl,
+        ausschnitte=aussch, gravuren=gravur, merkmale=zaehl, fertigbar=not zaehl.get(M_FERTIG),
         komplexitaet="einfach" if punkte < 2 else "mittel" if punkte < 6 else "komplex",
         komplexitaet_punkte=round(punkte, 1))
 
@@ -332,7 +341,7 @@ def analyse(m, gewinde_tabelle=None):
     kat, unter = kategorie(m)
     liste = merkmale(m, gewinde_tabelle)
     wert, stufe, uns = konfidenz(m, liste)
-    bearbeitungen = sorted({x["bearbeitung"] for x in liste if x.get("merkmal") != M_GERADE})
+    bearbeitungen = sorted({x["bearbeitung"] for x in liste if x.get("merkmal") not in (M_GERADE, M_FERTIG)})
     return dict(version=VERSION, kategorie=kat, unterart=unter, rohrlaser=kat in ROHRLASER, konfidenz=wert,
                 stufe=stufe, unsicherheiten=uns, merkmale=liste, bearbeitungen=bearbeitungen,
                 kennzahlen=kennzahlen(m, liste))

@@ -104,9 +104,48 @@ def _zahl(x, st=1):
         return ""
 
 
+DATEI_SPALTEN = ("Datei", "Körper", "Volumenkörper", "Einheit", "Geometrie", "Anforderungen")
+
+
+def datei_anforderungen(messwerte):
+    """Je gemessener Datei: Körper, Volumenkörper (oder aus Flächen genäht/offen), Einheit, Geometrieprüfung und eine
+    Bewertung wie bei Laserhub „Volumenkörper in mm“ (nur Anzeige, die Messung hat genäht bzw. umgerechnet)."""
+    je = {}
+    for m in messwerte or ():
+        if m.get("_import_befund"):
+            continue
+        je.setdefault(m.get("datei") or "", []).append(m)
+    out = []
+    for datei, liste in je.items():
+        arten = {}
+        for m in liste:
+            a = m.get("koerperart") or ("" if m.get("fehler") else "Volumenkörper")
+            if a:
+                arten[a] = arten.get(a, 0) + 1
+        einheiten = sorted({str(m.get("einheit")) for m in liste if m.get("einheit")})
+        ungueltig = sum(1 for m in liste if m.get("gueltig") in ("0", "False", "nein", False))
+        fehler = sum(1 for m in liste if m.get("fehler"))
+        hinweise = []
+        if any(a != "Volumenkörper" for a in arten):
+            hinweise.append("Flächenmodell: genäht – Ergebnis prüfen" if "Flächenmodell offen" not in arten
+                            else "offenes Flächenmodell: Volumen nicht messbar, bitte Volumenkörper anfordern")
+        if einheiten and any(e.lower() not in ("mm", "millimeter", "millimetre") for e in einheiten):
+            hinweise.append(f"Einheit {', '.join(einheiten)}: in mm umgerechnet")
+        if ungueltig:
+            hinweise.append(f"{ungueltig} Körper geometrisch ungültig")
+        if fehler:
+            hinweise.append(f"{fehler} Körper nicht messbar")
+        out.append(dict(datei=datei, koerper=len(liste),
+                        volumen=", ".join(f"{n}× {a}" if len(arten) > 1 else a for a, n in arten.items()),
+                        einheit=", ".join(einheiten) or "mm", gueltig="geprüft, gültig" if not ungueltig
+                        else f"{ungueltig} ungültig", ok=not hinweise,
+                        bewertung="; ".join(hinweise) or "erfüllt: Volumenkörper in mm"))
+    return out
+
+
 class ImportanalyseDialog(QDialog):
     BAUTEIL_SPALTEN = ("Datei", "Pos.", "Bezeichnung", "Anzahl", "Kategorie", "Konfidenz", "Profil", "Länge [mm]",
-                       "Bearbeitungen", "Komplexität", "Unsicherheiten")
+                       "Bearbeitungen", "Fertigbar", "Komplexität", "Unsicherheiten")
     MERKMAL_SPALTEN = ("Merkmal", "x [mm]", "Lage", "Abmessung", "Orientierung", "Schnittlänge [mm]", "Bearbeitung",
                        "Konfidenz", "Hinweis")
 
@@ -163,14 +202,17 @@ class ImportanalyseDialog(QDialog):
         self.bauteile.setRowCount(len(self.zeilen))
         for r, (d, p) in enumerate(self.zeilen):
             a = ba.von(self.messwerte[p["indizes"][0]])
-            bearb = ", ".join(f"{n}× {k}" for k, n in p["merkmale"].items() if k != ba.M_GERADE)
+            bearb = ", ".join(f"{n}× {k}" for k, n in p["merkmale"].items() if k not in (ba.M_GERADE, ba.M_FERTIG))
+            fb = self.messwerte[p["indizes"][0]].get("_fertigbarkeit")
+            fertig = "nicht geprüft" if fb is None else "ja" if not fb else f"prüfen ({len(fb)})"
             kat = p["kategorie"] + (f" ({p['unterart']})" if p["unterart"] else "")
             werte = (d["datei"], p["nr"], p["bezeichnung"], p["anzahl"], kat, f"{p['konfidenz']} % {p['stufe']}",
-                     p["profil"], _zahl(p["laenge"]), bearb, p["komplexitaet"],
+                     p["profil"], _zahl(p["laenge"]), bearb, fertig, p["komplexitaet"],
                      "; ".join(a.get("unsicherheiten") or ()) or p["fehler"])
             for c, v in enumerate(werte):
-                it = _item(v, STUFE_FARBE.get(p["stufe"]) if c == 5 else None, c in (1, 3, 7),
-                           tipp=str(v) if c in (8, 10) else None)
+                farbe = STUFE_FARBE.get(p["stufe"]) if c == 5 else STUFE_FARBE.get("prüfen") if c == 9 and fb else None
+                tipp = str(v) if c in (8, 11) else "\n".join(x.get("text", "") for x in fb) if c == 9 and fb else None
+                it = _item(v, farbe, c in (1, 3, 7), tipp=tipp)
                 self.bauteile.setItem(r, c, it)
         self.bauteile.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.bauteile.horizontalHeader().setStretchLastSection(True)
@@ -199,7 +241,7 @@ class ImportanalyseDialog(QDialog):
             return
         d, p = self.zeilen[r]
         a = ba.von(self.messwerte[p["indizes"][0]])
-        liste = a.get("merkmale") or []
+        liste = sorted(a.get("merkmale") or [], key=lambda x: x.get("merkmal") != ba.M_FERTIG)    # Verstöße zuerst
         k = a.get("kennzahlen") or {}
         self.merkmal_titel.setText(
             f"<b>Pos. {p['nr']} {p['bezeichnung']}</b>: {ba.kurztext(a)} · Wand {_zahl(k.get('wand'), 2)} mm, "
@@ -265,6 +307,22 @@ class ImportanalyseDialog(QDialog):
 
     # ------------------------------------------------------------------ Dateien
     def _dateien_reiter(self):
+        """Anforderungen je Datei (Laserhub L6: Volumenkörper, Einheit mm, Anzahl Körper; aus der vorhandenen
+        Messung) und darunter die Befunde des Imports (ZIP, Herstellerformate, Dubletten, defekte Dateien)."""
+        w = QSplitter(Qt.Vertical)
+        zeilen = datei_anforderungen(self.messwerte)
+        t1 = QTableWidget(len(zeilen), len(DATEI_SPALTEN))
+        t1.setHorizontalHeaderLabels(DATEI_SPALTEN)
+        t1.verticalHeader().setVisible(False)
+        for r, z in enumerate(zeilen):
+            werte = (z["datei"], z["koerper"], z["volumen"], z["einheit"], z["gueltig"], z["bewertung"])
+            for c, v in enumerate(werte):
+                farbe = (stil.GRUEN if z["ok"] else STUFE_FARBE["prüfen"]) if c == 5 else None
+                t1.setItem(r, c, _item(v, farbe, c == 1, tipp=str(v) if c == 5 else None))
+        t1.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        t1.horizontalHeader().setStretchLastSection(True)
+        self.datei_tabelle = t1
+        w.addWidget(t1)
         befunde = next((m["_import_befunde"] for m in self.messwerte if m.get("_import_befunde")), [])
         t = QTableWidget(len(befunde), 3)
         t.setHorizontalHeaderLabels(("Datei", "Stufe", "Befund"))
@@ -275,7 +333,9 @@ class ImportanalyseDialog(QDialog):
         t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         t.horizontalHeader().setStretchLastSection(True)
         self.befunde = t
-        self.reiter.addTab(t, f"Dateien ({len(befunde)} Befund{'e' if len(befunde) != 1 else ''})")
+        w.addWidget(t)
+        w.setSizes([300, 200])
+        self.reiter.addTab(w, f"Dateien ({len(zeilen)}, {len(befunde)} Befund{'e' if len(befunde) != 1 else ''})")
 
     def csv_speichern(self, pfad=None):
         if pfad is None:

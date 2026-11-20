@@ -4730,6 +4730,26 @@ def kapitel_step(i):
             "(alle Befunde des Imports). <b>Bauteilliste als CSV …</b> speichert die Liste.",
             "Die Analyse wird einmal beim Übernehmen mit der Position gespeichert (STEP-Merkmale); andere Teile des "
             "Programms lesen sie dort und messen nicht neu.")
+    i.abschnitt("Fertigbarkeit beim Import prüfen", marke="fertigbarkeit")
+    i.text("Seit 0.9.426 prüft der STEP-Import jedes Rohr gegen die <b>Konstruktionsregeln der Maschine</b> des "
+           "Angebots, bevor es ins Angebot geht. Ein Verstoß macht das Teil im Prüfdialog <b>gelb</b> mit dem Grund "
+           "„Fertigbarkeit: …“ (nie rot). Das Teil bleibt genau wie in der STEP; mit <b>Passt</b> bestätigen Sie es "
+           "wie jeden anderen Grund.", kurz=True)
+    i.liste("<b>Loch und Schlitz</b>: kleiner als Faktor × Wand (Vorgabe 0,7; Rohr 40 × 3: Loch unter Ø 2,1 mm). "
+            "Markierlöcher Ø 0,5 mm (Fließlochbohrung) zählen nicht.",
+            "<b>Steg</b>: schmaler als Faktor × Wand zwischen zwei Konturen auf derselben Seite oder zwischen Kontur "
+            "und geradem Rohrende (Vorgabe 0,7).",
+            "<b>Gravur</b> tiefer als die Maschine graviert (Vorgabe 0,5 mm): Hinweis „tiefer nur gefräst – prüfen“. "
+            "Das Rohr bleibt Rohr, es wird nie zum Frästeil.",
+            "<b>Innenecken ohne Radius</b>: nur, wenn ein kleinster Eckradius eingetragen ist (Vorgabe aus).",
+            "<b>Länge</b> über max. Stangenlänge − Endbeschnitt − Greiferrest oder unter <i>Kürzestes Teil</i>, "
+            "<b>Hüllkreis</b> außerhalb max./min. Hüllkreis-Ø der Maschine.",
+            "Die Grenzwerte stehen je Maschine unter Stammdaten → Maschinen, Gruppe <b>Fertigbarkeit beim Import</b>: "
+            "leer = Vorgabe, 0 = Prüfung aus.",
+            "In der <b>Importanalyse</b> zeigt die Spalte <b>Fertigbar</b> „ja“ oder „prüfen (Anzahl)“, die Merkmale "
+            "„Fertigbarkeit“ nennen Lage und Maß. Der Reiter <b>Dateien</b> zeigt je Datei Körper, Volumenkörper "
+            "(oder aus Flächen genäht), Einheit und ob die Anforderungen erfüllt sind. Der Angebots-Check nennt "
+            "Positionen mit Verstoß als Hinweis.")
     i.abschnitt("STEP-Merkmale prüfen", marke="step_merkmale")
     i.text("Jedes Rohrteil aus dem STEP-Import merkt sich, wie sicher die Messung die einzelnen Merkmale erkannt hat. "
            "Rechtsklick auf die Position → <b>STEP-Merkmale prüfen …</b> zeigt sie.", kurz=True)

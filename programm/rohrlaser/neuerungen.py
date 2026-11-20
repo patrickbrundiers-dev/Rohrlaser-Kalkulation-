@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.426", "<b>Fertigbarkeit beim STEP-Import</b> ([[fertigbarkeit]]). Der Import prüft jedes Rohr gegen die "
+                "Konstruktionsregeln der Maschine: Loch oder Schlitz kleiner als 0,7 × Wand, Steg zwischen Konturen "
+                "oder zum Rohrende schmaler als 0,7 × Wand, Gravur tiefer als 0,5 mm, Länge und Hüllkreis außerhalb "
+                "der Maschine, auf Wunsch Innenecken ohne Radius. Ein Verstoß macht das Teil gelb mit Grund, das Teil "
+                "bleibt wie in der STEP. Grenzwerte je Maschine (Stammdaten → Maschinen → Fertigbarkeit beim Import). "
+                "Importanalyse mit Spalte Fertigbar und Dateianforderungen (Volumenkörper, Einheit), Hinweis im "
+                "Angebots-Check.",
+     "STEP-Import prüft Loch, Steg, Gravur, Länge und Hüllkreis gegen die Maschine"],
     ["0.9.425", "<b>Importengine: ZIP-Import, Ovalrohre, Kategorien mit Konfidenz, Importanalyse</b> "
                 "([[importanalyse]]). Nach dem Vergleich mit Laserhub: ZIP-Archive (auch verschachtelt) werden "
                 "entpackt, SolidWorks-, CATIA-, Inventor- und andere Herstellerdateien als „nicht lesbar – bitte als "
