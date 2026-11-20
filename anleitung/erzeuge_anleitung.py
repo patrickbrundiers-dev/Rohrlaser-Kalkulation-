@@ -1193,7 +1193,9 @@ def kapitel_angebote(i):
            "Zahlungsbedingungen aus dem Kundenstamm mit; Positionen und Staffeln werden mitkopiert.",
            "Tastatur: <b>Eingabe</b> öffnet das markierte Angebot, <b>Strg+N</b> legt ein neues an, <b>Entf</b> löscht "
            "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es; die Liste filtert, sobald man kurz "
-           "mit dem Tippen aufhört. <b>Strg+Tab</b> wechselt zwischen "
+           "mit dem Tippen aufhört. Alle Suchfelder und Filter im Programm achten nicht auf Groß- und Kleinschreibung, "
+           "auch nicht bei Umlauten: „müller“, „MÜLLER“ und „Müller“ finden dasselbe (seit 0.9.422). "
+           "<b>Strg+Tab</b> wechselt zwischen "
            "offenen Angeboten, <b>Strg+W</b> schließt das aktuelle ([[tastenkuerzel]]).")
     i.abschnitt("Nachfassen und Wiedervorlage", marke="nachfassen")
     i.text("Verschickte Angebote ohne Antwort kommen nach einigen Tagen (Einstellung <i>Nachfassen: Wiedervorlage "
@@ -5877,7 +5879,7 @@ def kapitel_optimieren(i):
            "Körper</b> mit der gestreckten Länge; übernommen wird sie wie eine Knickverbindung "
            "([[knickverbindung]]). Prüfstatus immer <i>prüfen</i>. Bohrungen oder Ausschnitte nur in einer Wand "
            "(z. B. eine Lochreihe oben) stören die Erkennung seit 0.9.98 nicht mehr, eine gerundete Außenkante am "
-           "Knick seit 0.9.101. Seit 0.9.422 dürfen die Ecken verschiedene Knickwinkel haben (z. B. 55° und 35°); "
+           "Knick seit 0.9.101. Seit 0.9.423 dürfen die Ecken verschiedene Knickwinkel haben (z. B. 55° und 35°); "
            "jede Ecke bekommt ihre eigene Gehrung.", kurz=True)
     i.bild("knickrahmen_koerper", "Knickrahmen aus einem Körper bearbeiten (Rechtsklick auf die Zeile)",
            hoehe=70 * mm,

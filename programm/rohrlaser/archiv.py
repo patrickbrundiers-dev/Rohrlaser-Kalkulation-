@@ -224,13 +224,16 @@ def suchen(db, text="", grenze=500):
     out = []
     for jahr, pfad in sorted(dateien(db).items(), reverse=True):
         con = sqlite3.connect(pfad)
+        from .db_verbindung import suchtext_anmelden
+        suchtext_anmelden(con)              # Suche ohne Groß-/Kleinschreibung (20.11.2026)
         try:
             sql = ("SELECT a.id, a.nummer, a.kunde, a.kundennr, a.datum, a.vorgang, a.vk_netto, "
                    "(SELECT COUNT(*) FROM positionen p WHERE p.angebot_id = a.id) FROM angebote a")
             werte = []
             if text:
-                sql += (" WHERE a.nummer LIKE ? OR a.kunde LIKE ? OR a.kundennr LIKE ? OR a.bemerkung LIKE ? OR a.id IN "
-                        "(SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
+                sql += (" WHERE " + " OR ".join(f"suchtext(a.{s}) LIKE suchtext(?)" for s in (
+                            "nummer", "kunde", "kundennr", "bemerkung")) + " OR a.id IN (SELECT angebot_id FROM "
+                        "positionen WHERE suchtext(artikel) LIKE suchtext(?) OR suchtext(bezeichnung) LIKE suchtext(?))")
                 werte = [f"%{text}%"] * 6
             sql += " ORDER BY a.datum DESC, a.id DESC LIMIT ?"
             for i, nummer, kunde, kundennr, datum, vorgang, vk, n in con.execute(sql, werte + [grenze - len(out)]):
