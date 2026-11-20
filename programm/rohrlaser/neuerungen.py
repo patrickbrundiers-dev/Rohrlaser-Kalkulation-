@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.431", "<b>Rahmenaufträge und Abrufe</b> ([[rahmenauftraege]]). Neue Seite <i>Rahmenaufträge</i> unter "
+    ["0.9.432", "<b>Rahmenaufträge und Abrufe</b> ([[rahmenauftraege]]). Neue Seite <i>Rahmenaufträge</i> unter "
      "Auftrag: Vertrag mit Gesamtmenge, Laufzeit, Mindest-/Höchstabruf, Lieferorten und Bedingungen; mehrere "
      "Positionen; Abrufe anlegen, verschieben, liefern, stornieren, alles im Protokoll. Wirtschaftlichkeit mit der "
      "zentralen Kalkulation: Los je Abruf, alles in einem Los oder optimierte Lose (mit Lager- und Kapitalkosten), "
@@ -30,6 +30,18 @@ NEUERUNGEN = [
      "Freigabe. Übersicht mit Ampel und Filtern, Warnungen zum Vertragsende, Abschlussübersicht, sieben Dokumente "
      "(Kundenangebot ohne interne Zahlen). Im Angebot <i>Vorgang → Rahmenauftrag aus Angebot …</i>.",
      "Rahmenaufträge mit Abrufen, optimierten Losen, Material, Preisbindung mit Freigabe und Ampel"],
+    ["0.9.431", "<b>Bauteil aus Text</b> ([[bauteil_aus_text]]). Neue Position → <i>Bauteil aus Text</i>: "
+     "Rohrrahmen, Gestell, Querstreben, Befestigungsplatten, Lasche, L-Winkel oder Flanschring in eigenen Worten "
+     "beschreiben, z. B. „Rohrrahmen 1000 x 600 aus 40 x 40 x 3 mit vier Querstreben und zwei "
+     "Befestigungsplatten“. Das Programm zeigt Teile, 3D, Annahmen, Hinweise und Fehler, ändert per Satz („Breite "
+     "1200“, „6 Querstreben“, „ohne Platten“) mit Verlauf und legt die Teile erst nach „Übernehmen“ als Satz mit 3D "
+     "an. Ohne Internet, ohne Cloud. Fehlt eine wichtige Angabe, stellt das Fenster eine <b>Rückfrage</b> mit "
+     "Knöpfen (Vorschlag eingesetzt). Neu sind <b>Bohrungen in Rohren</b> („je 2 Bohrungen Ø 9 in den "
+     "Querstreben“, „im Handlauf“) als Konturen mit Prüfung, <b>Geländer</b> (Handlauf, Untergurt, Pfosten, "
+     "Füllstäbe) und <b>Tischgestelle</b> mit Mittelstrebe. Rechtsklick → <i>Satz per Text ändern …</i> öffnet einen "
+     "gespeicherten Satz wieder und ersetzt ihn nach der Änderung (Rückgängig möglich).",
+     "Bauteil aus Text: Rahmen, Geländer, Tische, Streben, Platten, Bohrungen und Blechteile aus einer "
+     "Beschreibung, mit Rückfragen und späterer Änderung"],
     ["0.9.430", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
