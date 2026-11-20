@@ -3,8 +3,9 @@ eintippen oder eine Vorlage wählen, „Erstellen“ zeigt Teile, 3D, erkannte A
 Fehler (rot). Änderungen per Satz („Breite 1200“, „6 Querstreben“) kommen in den Verlauf und lassen sich
 zurücknehmen. Übernehmen erst ohne Fehler; nach OK steht in self.ergebnis dict(plan, werkstoff_id,
 blech_werkstoff_id, saetze, name, text, verlauf)."""
-from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-                               QListWidget, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget)
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QHBoxLayout, QLabel,
+                               QLineEdit, QListWidget, QPlainTextEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from . import bauteil_generator as bg
 from .eingabe import RechenSpinGanz
@@ -100,8 +101,20 @@ class BauteilGeneratorDialog(QDialog):
         lay.addLayout(form)
         self.bericht = QLabel()
         self.bericht.setWordWrap(True)
-        self.bericht.setMaximumWidth(480)
-        lay.addWidget(self.bericht, 1)
+        self.bericht.setMaximumWidth(470)
+        self.bericht.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        rollen = QScrollArea()          # langer Bericht (viele Annahmen, Rückfragen darunter) bleibt lesbar
+        rollen.setWidget(self.bericht)
+        rollen.setWidgetResizable(True)
+        rollen.setFrameShape(QFrame.NoFrame)
+        rollen.setMinimumHeight(160)
+        lay.addWidget(rollen, 1)
+        # Rückfragen (Stufe 2): offene Punkte mit Knöpfen, ein Klick wirkt wie eine getippte Änderung
+        self.fragen = QWidget()
+        self.fragen_lay = QVBoxLayout(self.fragen)
+        self.fragen_lay.setContentsMargins(0, 0, 0, 0)
+        self.fragen_knoepfe = []            # [(Frage, Knopftext, QPushButton)] für Tests
+        lay.addWidget(self.fragen)
         self.profil_knopf = QPushButton("Fehlendes Profil anlegen …")
         self.profil_knopf.clicked.connect(lambda: self._profil_anlegen())
         self.profil_knopf.setVisible(False)
@@ -195,6 +208,7 @@ class BauteilGeneratorDialog(QDialog):
             _liste("Teile je Stück/Satz", teile) + _liste("Fehler (vor dem Übernehmen beheben)", p["fehler"], ROT)
             + _liste("Annahmen (bitte prüfen)", p["annahmen"], ORANGE) + _liste("Hinweise", p["hinweise"], ORANGE)
             + _liste("Erkannt", self.erkannt, GRAU) + _liste("Nicht verstanden", self.unklar, ROT))
+        self._fragen_zeigen(p.get("rueckfragen") or [])
         self.profil_knopf.setVisible(bool(p["fehlende_profile"] and self.profil_anlegen))
         self.knoepfe.button(QDialogButtonBox.Ok).setEnabled(not p["fehler"])
         if p["fehler"] and not p.get("erg") and not p.get("blech"):
@@ -203,6 +217,52 @@ class BauteilGeneratorDialog(QDialog):
         e = bg.blech_e(p, self.blech_werkstoff.currentText() or None)
         self.ansicht.setzen(bg.vorschau(p, e), self.satz_name(), "Vorschau in Einbaulage, gleiche Teile in gleicher "
                             "Farbe. Nach dem Übernehmen im Satz in 3D bzw. im Editor weiter bearbeitbar.")
+
+    def _fragen_zeigen(self, fragen):
+        while self.fragen_lay.count():
+            it = self.fragen_lay.takeAt(0)
+            if it.widget():
+                it.widget().hide()          # sofort weg (deleteLater wirkt erst in der Ereignisschleife)
+                it.widget().deleteLater()
+        self.fragen_knoepfe = []
+        if fragen:
+            kopf = QLabel(f"<b style='color:{ORANGE}'>Rückfragen</b> <span style='color:{GRAU}'>(eingesetzt ist der "
+                          "markierte Vorschlag; ein Klick ändert und kommt in den Verlauf)</span>")
+            kopf.setWordWrap(True)
+            kopf.setMaximumWidth(480)
+            self.fragen_lay.addWidget(kopf)
+        for f in fragen:
+            zeile = QWidget()
+            zl = QHBoxLayout(zeile)
+            zl.setContentsMargins(0, 0, 0, 0)
+            lab = QLabel(f["frage"])
+            lab.setWordWrap(True)
+            lab.setMaximumWidth(220)
+            zl.addWidget(lab, 1)
+            for o in f["optionen"]:
+                k = QPushButton(("✓ " if o["vorschlag"] else "") + o["text"])
+                k.setToolTip(f"Änderung: {o['satz']}")
+                k.clicked.connect(lambda _=False, satz=o["satz"]: self.aendern(satz))
+                zl.addWidget(k)
+                self.fragen_knoepfe.append((f["frage"], o["text"], k))
+            self.fragen_lay.addWidget(zeile)
+
+    def frage_beantworten(self, frage_anfang, knopf_text):
+        """Rückfrage per Knopf beantworten (Tests): erster Knopf, dessen Frage so beginnt und dessen Text passt."""
+        for f, t, k in self.fragen_knoepfe:
+            if f.startswith(frage_anfang) and t == knopf_text:
+                k.click()
+                return True
+        return False
+
+    def wiederherstellen(self, verlauf):
+        """Gespeicherten Verlauf (Beschreibung + Änderungen) erneut abspielen: „Satz per Text ändern“."""
+        if not verlauf:
+            return self.plan
+        self.erstellen(verlauf[0])
+        for t in verlauf[1:]:
+            self.aendern(t)
+        return self.plan
 
     def satz_name(self):
         return self.name.text().strip() or (bg.name_vorschlag(self.plan) if self.plan and not self.plan["fehler"]

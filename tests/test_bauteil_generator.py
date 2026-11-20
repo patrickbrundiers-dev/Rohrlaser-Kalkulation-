@@ -4,11 +4,15 @@
 - bauen: Rahmen + Querstreben (senkrecht, waagrecht, Bodenstreben) mit Stößen und richtigen Längen, Platten mit
   Lochbild und Lage, Annahmen gekennzeichnet, Fehler (Profil fehlt, zu lang, Platte zu klein, Rundrohr/Vierkant)
 - aendern: nur Genanntes ändert sich, „ohne …“, Verlauf im Fenster mit Zurücknehmen
+- Stufe 2: Rückfragen mit Knöpfen statt stiller Annahmen, Bohrungen in Rohren („2 Bohrungen Ø 9 in den
+  Querstreben“) als Konturen mit Prüfung, Geländer (Pfosten gesamt/zusätzlich) und Tischgestell mit Mittelstrebe,
+  gespeicherten Satz per Text ändern (alte Positionen ersetzt, Rückgängig), Beschreibung bleibt nach Satz in 3D
 - im Angebot: Neue Position → Bauteil aus Text legt Satz (Rohre mit Schneidweg, Netz, Stöße) und Platten (Blech im
   Satz) an, Satz in 3D zeigt alle Rohre; Blechteil allein wird eine Position; fehlendes Profil wird gemeldet
 
 Aufruf: python tests/test_bauteil_generator.py
 """
+import json
 import os
 import sys
 import tempfile
@@ -136,6 +140,91 @@ w5, _, _ = bg.aendern(w3, "Platten 150 x 150 x 10")
 assert w5["platte"] == dict(laenge=150, breite=150, dicke=10) and w5["streben"] == 6
 ok("aendern: nur Genanntes ändert sich, „ohne …“ entfernt Streben und Platten, Plattenmaß")
 
+# ------------------------------------------------------------------ Stufe 2
+PROFILE = {"QR 40x40x3": dict(form="Quadratrohr", a=40, b=40, wand=3),
+           "QR 40x40x4": dict(form="Quadratrohr", a=40, b=40, wand=4),
+           "QR 30x30x2": dict(form="Quadratrohr", a=30, b=30, wand=2),
+           "RR 48,3x2,6": dict(form="Rundrohr", a=48.3, b=None, wand=2.6)}
+
+
+def plan_aus(text, *aenderungen):
+    w_, _, u_ = bg.lesen(text)
+    for x in aenderungen:
+        w_, _, u2 = bg.aendern(w_, x)
+        u_ += u2
+    return bg.bauen(w_, PROFILE), u_
+
+
+def fragen(plan):
+    return {r["frage"]: r for r in plan["rueckfragen"]}
+
+
+pr, _ = plan_aus(BEISPIEL)
+fr = fragen(pr)
+assert set(fr) == {"Wie sollen die Ecken verbunden werden?", "Wie sollen die Querstreben laufen?",
+                   "Wie groß sollen die Befestigungsplatten sein?", "Welche Bohrungen bekommen die Platten?"}, fr
+assert [o["text"] for o in fr["Wie sollen die Ecken verbunden werden?"]["optionen"] if o["vorschlag"]] == ["Gehrung"]
+saetze_ = [o["satz"] for r in pr["rueckfragen"] for o in r["optionen"] if not o["vorschlag"]]
+for z in saetze_:           # jede Antwort ist ein gültiger Änderungssatz und beantwortet ihre Frage
+    pz, uz = plan_aus(BEISPIEL, z)
+    assert not uz and not pz["fehler"] and len(pz["rueckfragen"]) == 3, (z, uz, pz["fehler"], fragen(pz))
+pz, _ = plan_aus(BEISPIEL, "Ecken stumpf", "waagrechte Querstreben", "Platten 150 x 150 x 12", "4 Bohrungen Ø 11")
+assert not pz["rueckfragen"] and pz["werte"]["ecken"] == rahmen.STUMPF and pz["platten"]["werte"]["dicke"] == 12
+assert [t["name"] for t in pz["erg"]["teile"]][-1] == "Querstrebe waagrecht"
+pf, _ = plan_aus("Rohrrahmen 1000 x 600 aus 50 x 50 x 3")
+opt = fragen(pf)["QR 50x50x3 gibt es nicht. Welches vorhandene Profil?"]["optionen"]
+assert [o["text"] for o in opt] == ["QR 40x40x3", "QR 40x40x4", "QR 30x30x2"], opt
+assert not plan_aus("Rohrrahmen 1000 x 600 aus 50 x 50 x 3", opt[0]["satz"])[0]["fehler"]
+assert bg.naechste_profile(dict(form="Rundrohr", a=48.3, b=None, wand=2), PROFILE)[0]["a"] == 48.3
+ok("Rückfragen: Ecken, Strebenrichtung, Plattengröße, Plattenbohrungen und fehlendes Profil (nächste vorhandene) "
+   "mit Vorschlag; jede Antwort ist ein gültiger Änderungssatz und beantwortet genau ihre Frage")
+
+pb2, ub = plan_aus("Rohrrahmen 1000 x 600 aus 40 x 40 x 3 mit vier Querstreben, je 2 Bohrungen Ø 9 in den Querstreben")
+assert not ub and pb2["werte"]["streben"] == 4 and pb2["werte"]["bohrungen"] is None, (ub, pb2["werte"])
+qs = next(t for t in pb2["erg"]["teile"] if t["name"] == "Querstrebe")
+assert qs["eingaben"]["konturen"] == [dict(art="Bohrung", anzahl=2, d=9.0, x=173.3, abstand=173.3, seite="vorne",
+                                           q=0.0)], qs["eingaben"]
+assert all(not t["eingaben"]["konturen"] for t in pb2["erg"]["teile"] if t["name"] != "Querstrebe")
+assert "Von welcher Seite werden die Rohre gebohrt?" in fragen(pb2)
+pb3, _ = plan_aus("Rohrrahmen 1000 x 600 aus 40 x 40 x 3 mit vier Querstreben, je 2 Bohrungen Ø 9 in den Querstreben",
+                  "Bohrungen durchgehend", "3 Bohrungen Ø 11 im oberen Rohr")
+namen = {t["name"]: t for t in pb3["erg"]["teile"]}
+assert [k["seite"] for k in namen["Querstrebe"]["eingaben"]["konturen"]] == ["vorne", "hinten"]
+assert namen["Rahmen oben"]["eingaben"]["konturen"][0]["anzahl"] == 3 and not namen["Rahmen unten"]["eingaben"][
+    "konturen"] and len(namen["Rahmen oben"]["lagen"]) == 1, namen
+assert "Rahmen waagrecht" not in namen and pb3["erg"]["stoesse"] == pb2["erg"]["stoesse"]
+assert any("passt nicht in die Rohrseite" in x for x in plan_aus(
+    "Rohrrahmen 1000 x 600 aus 40 x 40 x 3, 2 Bohrungen Ø 36 in den Rahmenrohren")[0]["fehler"])
+assert any("gibt es in diesem Bauteil nicht" in x for x in plan_aus(
+    "Rohrrahmen 1000 x 600 aus 40 x 40 x 3, 2 Bohrungen Ø 9 in den Querstreben")[0]["fehler"])
+prr, _ = plan_aus("Rahmen aus Rundrohr Ø 48,3 x 2,6, Breite 1200, Höhe 800, 2 waagrechte Streben, 3 Bohrungen Ø 10 in "
+                  "den Streben von oben")
+assert next(t for t in prr["erg"]["teile"] if t["name"] == "Querstrebe waagrecht")["eingaben"]["konturen"][0][
+    "seite"] == "oben (0°)"
+assert bg.vorschau(pb3, None)
+ok("Bohrungen in Rohren: Querstreben, oberes Rohr getrennt, durch beide Wände, Rundrohr als Winkel, Prüfung Ø und "
+   "fehlende Rohre, Plattenbohrungen unberührt")
+
+pg, _ = plan_aus("Geländer Länge 3000, Höhe 1100 aus 40 x 40 x 3 mit 5 Pfosten")
+namen = {t["name"]: (len(t["lagen"]), t["laenge"]) for t in pg["erg"]["teile"]}
+assert namen == {"Handlauf": (1, 3000.0), "Untergurt": (1, 3000.0), "Endpfosten": (2, 1020.0),
+                 "Zwischenpfosten": (3, 1020.0)}, namen
+assert pg["werte"]["ecken"] == rahmen.STUMPF and "Sind die 5 Pfosten mit den beiden Endpfosten gezählt?" in fragen(pg)
+pg2, _ = plan_aus("Geländer Länge 3000, Höhe 1100 aus 40 x 40 x 3 mit 5 Pfosten", "5 Zwischenpfosten")
+assert {t["name"]: len(t["lagen"]) for t in pg2["erg"]["teile"]}["Zwischenpfosten"] == 5
+pg3, _ = plan_aus("Geländer Länge 3000, Höhe 1100 aus 40 x 40 x 3 mit 5 Pfosten",
+                  "5 Pfosten einschließlich Endpfosten")
+assert not any(r["frage"].startswith("Sind die") for r in pg3["rueckfragen"])
+pg4, _ = plan_aus("Geländer 2000 lang aus 40 x 40 x 3 mit 10 Füllstäben aus 30 x 30 x 2")
+assert "Geländer: Höhe fehlt („Höhe 1100“)." in pg4["fehler"] and "Wie hoch soll das Geländer werden?" in fragen(pg4)
+pg4, _ = plan_aus("Geländer Länge 2000 aus 40 x 40 x 3 mit 10 Füllstäben aus 30 x 30 x 2", "Höhe 1000")
+assert not pg4["fehler"] and {t["name"]: t.get("profil") for t in pg4["erg"]["teile"]}["Füllstab"] == "QR 30x30x2"
+pt, _ = plan_aus("Tischgestell 1200 x 800 x 750 aus 40 x 40 x 3 mit Mittelstrebe")
+namen = {t["name"]: (len(t["lagen"]), t["laenge"]) for t in pt["erg"]["teile"]}
+assert namen["Bein"] == (4, 670.0) and namen["Mittelstrebe"] == (1, 720.0) and pt["werte"]["form"] == rahmen.QUADER
+ok("Geländer: Endpfosten, Handlauf, Untergurt, Zwischenpfosten (5 Pfosten gesamt = 3 dazwischen, Rückfrage), "
+   "Füllstäbe mit eigenem Profil, Höhe als Rückfrage; Tischgestell mit Beinen und Mittelstrebe")
+
 # ------------------------------------------------------------------ im Angebot
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "generator.db")
@@ -199,5 +288,72 @@ vorher = len(db.positionen(a))
 assert seite.bauteil_aus_text(dialog=fenster("Rahmen 1000 x 600 aus 50 x 30 x 2")) is None
 assert not gesehen["ok"] and "fehlt in den Stammdaten" in gesehen["bericht"] and len(db.positionen(a)) == vorher
 ok("fehlendes Profil: Übernehmen gesperrt, Meldung mit „Profil anlegen“, nichts angelegt")
+
+GEL = "Geländer Länge 2000, Höhe 1000 aus 40 x 40 x 3 mit 4 Pfosten, je 2 Bohrungen Ø 9 im Handlauf"
+
+
+def gelaender(d):
+    d.erstellen(GEL)
+    gesehen["fragen"] = len(d.fragen_knoepfe)
+    assert d.frage_beantworten("Sind die 4 Pfosten", "ja, gesamt")
+    assert d.frage_beantworten("Von welcher Seite", "von oben")
+    gesehen["fragen_danach"] = [f for f, _, _ in d.fragen_knoepfe]
+    d._ok()
+    return d.result()
+
+
+vorher = {x["id"] for x in db.positionen(a)}
+name_g = seite.bauteil_aus_text(dialog=gelaender)
+assert name_g and gesehen["fragen"] >= 7 and gesehen["fragen_danach"] == ["Wie sollen die Ecken verbunden werden?"] * 3
+neu = [x for x in db.positionen(a) if x["id"] not in vorher]
+assert name_g == "Geländer 2000×1000"
+assert sorted((x["bezeichnung"][len(name_g) + 1:], x["je_satz"], x["laenge"]) for x in neu) == [
+    ("Endpfosten", 2, 920.0), ("Handlauf", 1, 2000.0), ("Untergurt", 1, 2000.0), ("Zwischenpfosten", 2, 920.0)], neu
+hl = next(x for x in neu if x["bezeichnung"].endswith("Handlauf"))
+k = json.loads(hl["technik"])["konturen"]
+assert k[0]["art"] == "Bohrung" and k[0]["seite"] == "oben" and k[0]["anzahl"] == 2 and hl["einstiche"] > \
+    next(x for x in neu if x["bezeichnung"].endswith("Untergurt"))["einstiche"], (k, hl)
+assert seite.satz_3d(satz=name_g, dialog=satz_ansehen) and gesehen["koerper"] == 6, gesehen
+gen = db.satz_daten(a)[name_g]["generator"]
+assert gen["verlauf"] == [GEL, "4 Pfosten einschließlich Endpfosten", "Bohrungen von oben"], gen
+ok("Angebot: Geländer mit Rückfragen per Knopf (Antwort kommt in den Verlauf), Bohrungen im Handlauf als Kontur mit "
+   "Einstichen, Beschreibung bleibt nach Satz in 3D erhalten")
+
+zeile = next(r for r, x in enumerate(seite.positionen) if x.get("satz") == name_g)
+seite.pos_ansicht.selectRow(zeile)
+seite._pos_menue_anpassen()
+assert seite.pos_aktionen["Satz per Text ändern …"].isVisible()
+zeile = next(r for r, x in enumerate(seite.positionen) if x.get("satz") == satz)
+seite.pos_ansicht.clearSelection()
+seite.pos_ansicht.selectRow(zeile)
+seite._pos_menue_anpassen()
+assert seite.pos_aktionen["Satz per Text ändern …"].isVisible()      # Rahmen von oben stammt auch aus dem Generator
+
+
+def laenger(d):
+    gesehen["wieder"] = [d.verlauf_liste.item(i).text() for i in range(d.verlauf_liste.count())]
+    gesehen["name"] = d.name.text()
+    gesehen["saetze_feld"] = d.saetze.value()
+    d.aendern("Länge 2500")
+    d.saetze.setValue(2)
+    d._ok()
+    return d.result()
+
+
+anzahl_vorher = len(db.positionen(a))
+alt_ids = {x["id"] for x in db.positionen(a) if x.get("satz") == name_g}
+assert seite.bauteil_aus_text(satz=name_g, dialog=laenger) == name_g
+assert gesehen["wieder"][0] == "Beschreibung: " + GEL and len(gesehen["wieder"]) == 3 and gesehen["name"] == name_g \
+    and gesehen["saetze_feld"] == 1, gesehen
+jetzt = [x for x in db.positionen(a) if x.get("satz") == name_g]
+assert not alt_ids & {x["id"] for x in jetzt} and len(db.positionen(a)) == anzahl_vorher
+assert sorted(x["laenge"] for x in jetzt if x["bezeichnung"].endswith(("Handlauf", "Untergurt"))) == [2500.0, 2500.0]
+assert all(x["stueck"] == 2 * x["je_satz"] for x in jetzt)
+assert db.satz_daten(a)[name_g]["generator"]["verlauf"][-1] == "Länge 2500"
+seite.rueckgaengig()
+assert {x["id"] for x in db.positionen(a) if x.get("satz") == name_g} == alt_ids
+assert seite.bauteil_aus_text(satz="gibt es nicht") is None
+ok("Satz per Text ändern: Menüeintrag nur bei Generator-Sätzen, Verlauf/Name/Sätze wieder da, neue Länge ersetzt die "
+   "alten Positionen, Rückgängig holt sie zurück, fremder Satz wird abgelehnt")
 db.schliessen()
 print("Bauteil aus Text: alle Tests bestanden.")

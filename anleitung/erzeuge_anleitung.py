@@ -6232,9 +6232,34 @@ def kapitel_optimieren(i):
             "Blech-Editor ist alles weiter bearbeitbar. Ein Blechteil allein wird eine Position wie aus dem "
             "Blech-Editor. Beschreibung, Änderungen und Annahmen stehen im Bericht der Meldung und bleiben beim Satz "
             "bzw. Blechteil gespeichert.",
+            "<b>Rückfragen</b> (Stufe 2): fehlt eine wichtige Angabe (Ecken, Richtung der Querstreben, "
+            "Plattengröße, Bohrungen der Platten, Seite der Rohrbohrungen, Pfosten gesamt oder zusätzlich, Höhe "
+            "des Geländers, Profil nicht in den Stammdaten), steht unter <i>Rückfragen</i> die Frage mit Knöpfen. "
+            "Der Vorschlag mit ✓ ist schon eingesetzt; ein Klick auf eine andere Antwort wirkt wie eine getippte "
+            "Änderung und kommt in den Verlauf. Für ein fehlendes Profil bietet das Fenster die drei nächsten "
+            "vorhandenen Profile gleicher Form an.",
+            "<b>Bohrungen in Rohren</b>: <i>je 2 Bohrungen Ø 9 in den Querstreben</i>, <i>3 Bohrungen Ø 11 im "
+            "Handlauf</i>, <i>im oberen Rohr</i>, <i>in den Pfosten</i>, <i>in allen Rohren</i>. Die Bohrungen "
+            "werden gleichmäßig über die Länge verteilt (Teilung Länge ÷ (Anzahl + 1)) und stehen als Konturen im "
+            "Rohr-Editor (Schneidweg, Einstiche). Seite mit <i>Bohrungen von oben</i> bzw. <i>von vorne</i>, "
+            "<i>durchgehend</i> bohrt durch beide Wände. Geprüft wird, ob der Ø in die Rohrseite passt und ob die "
+            "Bohrungen zu dicht oder zu nah am Ende sitzen. Bohrungen ohne <i>in den …</i> gehören wie bisher zu "
+            "den Platten bzw. zum Blechteil.",
+            "<b>Geländer</b>: <i>Geländer Länge 3000, Höhe 1100 aus 40 x 40 x 3 mit 5 Pfosten</i> ergibt "
+            "Handlauf, Untergurt, 2 Endpfosten und 3 Zwischenpfosten (Ecken stumpf). Die Rückfrage klärt, ob die "
+            "Pfosten mit den Endpfosten gezählt sind; <i>12 Füllstäbe aus 20 x 20 x 2</i> setzt Füllstäbe mit "
+            "eigenem Profil. <b>Tischgestell</b>: <i>Tischgestell 1200 x 800 x 750 aus 40 x 40 x 3 mit "
+            "Mittelstrebe</i> ergibt Beine, Zargen, Querrohre und eine Mittelstrebe am Boden. <i>Länge</i> bzw. "
+            "<i>2000 lang</i> gilt bei Rohrteilen als Breite.",
+            "<b>Satz per Text ändern</b>: Rechtsklick auf eine Position eines Satzes aus <i>Bauteil aus Text</i> → "
+            "<i>Satz per Text ändern …</i> öffnet das Fenster wieder mit Beschreibung, allen Änderungen, Name, "
+            "Werkstoff und Anzahl Sätze. Nach einer weiteren Änderung (z. B. <i>Länge 2500</i>) und "
+            "<b>Übernehmen</b> ersetzen die neuen Positionen die alten des Satzes (gleicher Name); <i>Rückgängig</i> "
+            "holt die alten zurück. Von Hand im Editor geänderte Werte der alten Positionen gehen dabei verloren – "
+            "das Fenster weist im Titel darauf hin, dass der Satz neu entsteht.",
             "<b>Grenzen</b>: keine Freiformen, keine Rohrbögen, kein Knickrahmen (dafür Rahmen-Assistent), keine "
-            "Gehrung am Gestell. Die Kalkulation rechnet die neuen Positionen wie jede andere; der Generator setzt "
-            "keine Preise.")
+            "Gehrung am Gestell, Bohrungen in Rohren nur gleichmäßig verteilt (genaue Lage im Rohr-Editor). Die "
+            "Kalkulation rechnet die neuen Positionen wie jede andere; der Generator setzt keine Preise.")
     i.abschnitt("Rohrzug aus Punkten (seit 0.9.298)", marke="rohrzug")
     i.text("<b>Neue Position → Rohrzug aus Punkten</b> baut einen Rohrzug (Geländer, Gestell, Rahmen) aus den "
            "XYZ-Punkten seiner Mittellinie ohne STEP-Datei: zwischen zwei Punkten ein gerades Rohr, an jedem Knick "

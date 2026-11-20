@@ -30,6 +30,25 @@ RAHMEN, BLECH = "Rohrrahmen", "Blechteil"
 PLATTE, WINKEL, FLANSCH = "Platte/Lasche", "L-Winkel", "Flanschring"
 SENKRECHT, WAAGRECHT = "senkrecht", "waagrecht"
 UNTEN, OBEN = "unten", "oben"
+GELAENDER, TISCH = "Geländer", "Tischgestell"
+DURCH = "durch"
+# Bohrungen in Rohren: Ziel → Teilenamen (None = alle Rohre); Wörter im Text → Ziel
+STREBEN_NAMEN = {"Querstrebe", "Querstrebe waagrecht", "Bodenstrebe", "Mittelstrebe", "Zwischenpfosten", "Füllstab"}
+ZIELE = {"streben": STREBEN_NAMEN,
+         "pfosten": {"Endpfosten", "Zwischenpfosten"},
+         "senkrecht": {"Rahmen senkrecht", "Endpfosten", "Bein"},
+         "waagrecht": {"Rahmen waagrecht", "Rahmen oben", "Rahmen unten", "Handlauf", "Untergurt", "Querrohr"},
+         "oben": {"Rahmen oben", "Handlauf"},
+         "unten": {"Rahmen unten", "Untergurt"},
+         "alle": None}
+ZIEL_TEXT = {"streben": "in den Streben", "pfosten": "in den Pfosten", "senkrecht": "in den senkrechten Rohren",
+             "waagrecht": "in den waagrechten Rohren", "oben": "im oberen Rohr", "unten": "im unteren Rohr",
+             "alle": "in allen Rohren"}
+ZIEL_WORTE = (("streben", r"\w*streb\w*|sprosse\w*|füllst\w*|fuellst\w*|stäbe\w*|staebe\w*|stab\w*|querrohr\w*"),
+              ("pfosten", r"\w*pfosten\w*"), ("senkrecht", r"senkrecht\w*|bein\w*|tischbein\w*"),
+              ("waagrecht", r"waagrecht\w*|holme\b|zarge\w*"),
+              ("oben", r"handlauf\w*|obergurt\w*|holm"), ("unten", r"untergurt\w*"),
+              ("alle", r"rahmen\w*|rohre[n]?\b|alle[n]?\b"))
 ZAHL = r"\d+(?:[.,]\d+)?"
 ZAHLWORTE = {"ein": 1, "eine": 1, "einen": 1, "einer": 1, "zwei": 2, "drei": 3, "vier": 4, "fünf": 5, "fuenf": 5,
              "sechs": 6, "sieben": 7, "acht": 8, "neun": 9, "zehn": 10, "elf": 11, "zwölf": 12, "zwoelf": 12,
@@ -39,8 +58,10 @@ WERKSTOFF_WORTE = r"(S235\w*|S355\w*|E235\w*|E355\w*|1\.4\d{3}|edelstahl|v2a|v4a
 # Schlüsselwörter: Klasse der folgenden Maßangabe
 KLASSEN = (("platte", r"befestigungsplatte\w*|fußplatte\w*|fussplatte\w*|kopfplatte\w*|montageplatte\w*|platte\w*|"
                       r"lasche\w*"),
-           ("strebe", r"querstrebe\w*|zwischenstrebe\w*|strebe\w*|querrohr\w*|traverse\w*"),
-           ("rahmen", r"\w*rahmen\w*|gestell\w*|quader\w*|außenma\w*|aussenma\w*|größe|groesse|abmessung\w*"),
+           ("strebe", r"querstrebe\w*|zwischenstrebe\w*|mittelstrebe\w*|strebe\w*|querrohr\w*|traverse\w*|"
+                      r"\w*pfosten|sprosse\w*|füllstab\w*|fuellstab\w*|stäbe|staebe|stab\b"),
+           ("rahmen", r"\w*rahmen\w*|gestell\w*|quader\w*|außenma\w*|aussenma\w*|größe|groesse|abmessung\w*|"
+                      r"geländer\w*|gelaender\w*|\w*tisch\w*"),
            ("winkel", r"l-winkel\w*|winkel\w*"),
            ("flansch", r"flansch\w*"),
            ("profil", r"aus|profil\w*|\w*rohr\b|\w*rohres|vierkant\w*|rundrohr\w*"))
@@ -52,6 +73,36 @@ def _f(s):
     return float(str(s).replace(",", "."))
 
 
+def _rohr_ziel(nach):
+    """Ziel der Bohrungen aus dem Text nach „… Bohrungen Ø 9“: „in den Querstreben“ → 'streben', „im oberen Rohr“ →
+    'oben' usw., sonst None (= Bohrungen der Platte bzw. des Blechteils)."""
+    m = re.match(r"\s*(?:mm\s*)?(?:je\s+)?(?:in|im|an|am|durch)\s+((?:\w+\s*){1,3})", nach)
+    if not m:
+        return None
+    worte = [x for x in m.group(1).split() if x not in ("den", "die", "der", "dem", "das", "jedem", "jeder", "jede")]
+    if any(re.fullmatch(r"oberen?|obere[ms]", x) for x in worte[:2]):
+        return "oben"
+    if any(re.fullmatch(r"unteren?|untere[ms]", x) for x in worte[:2]):
+        return "unten"
+    for x in worte[:2]:
+        for ziel, muster in ZIEL_WORTE:
+            if re.fullmatch(muster, x):
+                return ziel
+    return None
+
+
+def _treffer(muster, t, belegt):
+    """Wie re.finditer, aber auch überlappend („40 x 3 mit vier Querstreben“: die 3 gehört zum Profil, gezählt wird
+    vier) und ohne Zahlen, die schon belegt sind oder ein Ø sind („Bohrungen Ø 9 in den Querstreben“)."""
+    rx = re.compile(muster)
+    for v in re.finditer(rf"(?=(?:{muster}))", t):
+        m = rx.match(t, v.start())
+        if not m or any(a <= m.start() < b for a, b in belegt) or \
+                re.search(r"(ø|d\s*=|durchmesser|ø\s*\d+[.,]?\d*\s*x)\s*$", t[max(0, m.start() - 14):m.start()]):
+            continue
+        yield m
+
+
 def _anzahl(w):
     w = w.lower()
     return int(w) if w.isdigit() else ZAHLWORTE.get(w)
@@ -61,7 +112,8 @@ def vorgabe():
     """Leerer Stand: alles None = nicht genannt (bauen setzt dann eine gekennzeichnete Annahme oder meldet)."""
     return dict(art=None, form=None, b=None, h=None, t=None, profil=None, ecken=None, hochkant=None, streben=None,
                 streben_richtung=None, streben_profil=None, platten=None, platte=None, platten_lage=None,
-                bohrungen=None, werkstoff_wort=None, saetze=None, name=None, blech=None)
+                bohrungen=None, werkstoff_wort=None, saetze=None, name=None, blech=None, vorlage=None, pfosten=None,
+                pfosten_inkl=None, rohr_bohrungen=None, rohr_seite=None, streben_wort=None)
 
 
 def _profil(werte, rund):
@@ -123,7 +175,7 @@ def lesen(text, art=None):
         w["art"] = art
         if art == BLECH:
             w["blech"] = {}
-    elif re.search(r"rahmen|gestell|quader|tisch|regal", t):
+    elif re.search(r"rahmen|gestell|quader|tisch|regal|geländer|gelaender", t):
         w["art"] = RAHMEN
     elif re.search(r"flansch", t):
         w["art"], w["blech"] = BLECH, dict(typ=FLANSCH)
@@ -131,9 +183,15 @@ def lesen(text, art=None):
         w["art"], w["blech"] = BLECH, dict(typ=WINKEL)
     elif re.search(r"platte|lasche|blech", t) and not re.search(r"rohr", t):
         w["art"], w["blech"] = BLECH, dict(typ=PLATTE)
+    if w.get("art") == RAHMEN and re.search(r"geländer|gelaender", t):
+        w["vorlage"] = GELAENDER
+        erkannt.append("Vorlage Geländer (Endpfosten, Handlauf, Untergurt, Füllstäbe)")
+    elif w.get("art") == RAHMEN and re.search(r"tisch", t):
+        w["vorlage"] = TISCH
+        erkannt.append("Vorlage Tischgestell (Beine, Zargen, Bodenstreben)")
     if re.search(r"gestell|quader|würfel|wuerfel|tisch|regal|räumlich|raeumlich", t):
         w["form"] = rahmen.QUADER
-    elif re.search(r"\w*rahmen", t) and art != RAHMEN:
+    elif re.search(r"\w*rahmen|geländer|gelaender", t) and art != RAHMEN:
         w["form"] = rahmen.RAHMEN
     # ---- Maßgruppen a × b (× c)
     for m in DIM.finditer(t):
@@ -209,11 +267,22 @@ def lesen(text, art=None):
                 w["blech"] = dict(w.get("blech") or {}, laenge=v) if (w.get("blech") or {}).get("typ") != WINKEL \
                     else dict(w["blech"], kantlaenge=v)
                 merken(m, f"Länge {v:g} mm")
-            continue
+                continue
+            if (w.get("art") or art) != RAHMEN:
+                continue
+            name = "b"              # Geländer, Tisch, Rahmen: Länge = Breite (Maß längs)
         w[name] = v
         if name == "t":
             w.setdefault("form", rahmen.QUADER)
-        merken(m, f"{ {'b': 'Breite', 'h': 'Höhe', 't': 'Tiefe'}[name]} {v:g} mm")
+        merken(m, f"{ {'b': 'Breite' if m.group(1)[0] == 'b' else 'Länge', 'h': 'Höhe', 't': 'Tiefe'}[name]} {v:g} mm")
+    # „2000 lang“, „1100 hoch“, „600 breit“, „500 tief“ (Rohrteile)
+    for m in re.finditer(rf"\b({ZAHL})\s*(mm|cm|m)?\s+(lang|breit|hoch|tief)\b", t):
+        if any(a <= m.start() < b for a, b in belegt) or (w.get("art") or art) != RAHMEN:
+            continue
+        v = _f(m.group(1)) * {"m": 1000, "cm": 10}.get(m.group(2) or "", 1)
+        name = {"lang": "b", "breit": "b", "hoch": "h", "tief": "t"}[m.group(3)]
+        w[name] = v
+        merken(m, f"{ {'b': 'Länge', 'h': 'Höhe', 't': 'Tiefe'}[name]} {v:g} mm")
     # ---- Dicke (Platten, Blech): „8 mm dick“, „Dicke 8“, „t = 8“, „8 mm stark“
     for m in re.finditer(rf"(?:dicke|stärke|staerke|blechdicke)\D{{0,8}}?({ZAHL})|({ZAHL})\s*mm\s*(?:dick|stark)", t):
         if any(a <= m.start() < b for a, b in belegt):
@@ -225,13 +294,28 @@ def lesen(text, art=None):
             w["platte"] = dict(w.get("platte") or {}, dicke=v)
         merken(m, f"Dicke {v:g} mm")
     # ---- Anzahl Streben / Platten / Bohrungen, „ohne …“
-    for m in re.finditer(rf"\b{ANZAHL}\s+(?:\w+\s+){{0,2}}?(querstreb|zwischenstreb|streb|querrohr|traverse)", t):
+    for m in _treffer(rf"\b{ANZAHL}\s+(?:\w+\s+){{0,2}}?(querstreb|zwischenstreb|mittelstreb|streb|querrohr|"
+                         rf"traverse|zwischenpfost|pfost|sprosse|füllstab|fuellstab|füllstäb|fuellstaeb|stäbe|staebe|"
+                         rf"stab\b)", t, belegt):
         n = _anzahl(m.group(1))
-        if n is not None:
-            w["streben"] = n
-            merken(m, f"{n} Querstrebe{'n' if n != 1 else ''}")
-    for m in re.finditer(rf"\b{ANZAHL}\s+(?:\w+\s+){{0,2}}?(befestigungsplatt|fußplatt|fussplatt|kopfplatt|"
-                         rf"montageplatt|platte|platten|lasche)", t):
+        if n is None:
+            continue
+        if m.group(2) == "pfost":           # Pfosten gesamt (mit den Endpfosten) oder zusätzlich – Rückfrage
+            w["pfosten"], w["streben"] = n, None
+            if re.match(r"\w*\s+(einschließlich|einschliesslich|inklusive|inkl|mit den|samt)\b", t[m.end():]):
+                w["pfosten_inkl"] = True
+            elif re.match(r"\w*\s+(zusätzlich|zusaetzlich|ohne die|außer|ausser)\b", t[m.end():]):
+                w["pfosten"], w["streben"] = None, n
+            merken(m, f"{n} Pfosten")
+            continue
+        w["streben"], w["pfosten"] = n, None
+        w["streben_wort"] = "pfosten" if m.group(2) == "zwischenpfost" else "strebe"
+        merken(m, f"{n} Querstrebe{'n' if n != 1 else ''}")
+    if re.search(r"\bmittelstrebe\b", t) and w.get("streben") is None:
+        w["streben"] = 1
+        erkannt.append("1 Mittelstrebe")
+    for m in _treffer(rf"\b{ANZAHL}\s+(?:\w+\s+){{0,2}}?(befestigungsplatt|fußplatt|fussplatt|kopfplatt|"
+                         rf"montageplatt|platte|platten|lasche)", t, belegt):
         n = _anzahl(m.group(1))
         if n is not None and w.get("art") != BLECH:
             w["platten"] = n
@@ -242,17 +326,33 @@ def lesen(text, art=None):
     if re.search(r"(ohne|keine)\s+(\w+\s+)?(befestigungs|fuß|fuss|kopf)?platte", t):
         w["platten"] = 0
         erkannt.append("ohne Platten")
-    for m in re.finditer(rf"\b{ANZAHL}\s+(?:\w+\s+)?(bohrung|bohrungen|löcher|loecher|loch)\b"
-                         rf"(?:\s*(?:mit\s*)?(?:je\s*)?(?:ø|d\s*=?|durchmesser)?\s*({ZAHL})\s*(?:mm)?)?", t):
+    for m in _treffer(rf"\b{ANZAHL}\s+(?:\w+\s+)?(bohrung|bohrungen|löcher|loecher|loch)\b"
+                         rf"(?:\s*(?:mit\s*)?(?:je\s*)?(?:ø|d\s*=?|durchmesser)?\s*({ZAHL})\s*(?:mm)?)?", t, belegt):
         n = _anzahl(m.group(1))
         if n is None:
             continue
         d = _f(m.group(3)) if m.group(3) else None
+        ziel = _rohr_ziel(t[m.end():m.end() + 45])
+        if ziel:                            # Bohrungen in Rohren („in den Querstreben“, „im Handlauf“)
+            rb = [x for x in (w.get("rohr_bohrungen") or []) if x["ziel"] != ziel]
+            w["rohr_bohrungen"] = rb + [dict(anzahl=n, d=d, ziel=ziel)]
+            merken(m, f"{n} Bohrung{'en' if n != 1 else ''}" + (f" Ø {d:g} mm" if d else "") + f" {ZIEL_TEXT[ziel]}")
+            continue
         w["bohrungen"] = dict(anzahl=n, d=d)
         merken(m, f"{n} Bohrung{'en' if n != 1 else ''}" + (f" Ø {d:g} mm" if d else ""))
-    if re.search(r"(ohne|keine)\s+(bohrung|löcher|loecher)", t):
+    m = re.search(r"(ohne|keine)\s+(bohrung\w*|löcher|loecher)", t)
+    if m and _rohr_ziel(t[m.end():m.end() + 45]):
+        w["rohr_bohrungen"] = []
+        erkannt.append("ohne Bohrungen in den Rohren")
+    elif m:
         w["bohrungen"] = dict(anzahl=0, d=None)
         erkannt.append("ohne Bohrungen")
+    m = re.search(r"(?:bohrung\w*|löcher|loecher)\b[^.;]{0,70}?\b(?:von|ab)\s+(vorne|oben|unten|hinten)|"
+                  r"(?:bohrung\w*|löcher|loecher)\b[^.;]{0,70}?\b(durchgehend|beidseitig|durch beide)", t)
+    if m:
+        w["rohr_seite"] = m.group(1) or DURCH
+        erkannt.append("Rohrbohrungen " + ("durch beide Wände" if w["rohr_seite"] == DURCH else
+                                           f"von {w['rohr_seite']}"))
     m = re.search(rf"lochkreis\D{{0,6}}({ZAHL})", t)
     if m:
         w["blech"] = dict(w.get("blech") or {}, lochkreis=_f(m.group(1)))
@@ -312,9 +412,135 @@ def aendern(werte, text):
     for k, v in neu.items():
         if k in ("platte", "blech", "bohrungen") and isinstance(v, dict) and isinstance(out.get(k), dict):
             out[k] = dict(out[k], **{a: b for a, b in v.items() if b is not None})
+        elif k == "rohr_bohrungen" and v and out.get(k):      # je Ziel ersetzen, andere Ziele bleiben
+            ziele = {x["ziel"] for x in v}
+            out[k] = [x for x in out[k] if x["ziel"] not in ziele] + v
         else:
             out[k] = v
     return out, erkannt, unklar
+
+
+# ------------------------------------------------------------------ Rückfragen
+def _frage(plan, frage, optionen, vorschlag=None):
+    """Rückfrage statt stiller Annahme: optionen [(Knopftext, Änderungssatz)], der Satz geht wie eine getippte
+    Änderung durch aendern(); vorschlag = Knopftext bzw. Wert, der gerade eingesetzt ist."""
+    plan["rueckfragen"].append(dict(frage=frage, optionen=[dict(text=t, satz=z, vorschlag=vorschlag is not None and
+                                                                 t.lower() == str(vorschlag).lower())
+                                                            for t, z in optionen]))
+
+
+def _profil_satz(p):
+    z = lambda v: f"{v:g}".replace(".", ",")      # noqa: E731
+    if p["form"] == "Rundrohr":
+        return f"Ø {z(p['a'])} x {z(p['wand'])}"
+    return f"{z(p['a'])} x {z(p['b'])} x {z(p['wand'])}"
+
+
+def naechste_profile(p, profile, n=3):
+    """Bis zu n vorhandene Profile gleicher Form, die dem gewünschten am nächsten kommen (Außenmaß vor Wand)."""
+    kand = []
+    for pid, q in (profile or {}).items():
+        if q.get("form") != p["form"] or not q.get("a") or not q.get("wand"):
+            continue
+        a, b = max(q["a"], q.get("b") or q["a"]), min(q["a"], q.get("b") or q["a"])
+        if p["form"] == "Rundrohr":
+            b = None
+        abst = abs(a - p["a"]) + abs((b or 0) - (p.get("b") or 0) if b is not None else 0) + \
+            0.5 * abs(q["wand"] - p["wand"])
+        kand.append((abst, str(pid), dict(form=p["form"], a=a, b=b, wand=float(q["wand"]))))
+    kand.sort(key=lambda k: (k[0], k[1]))
+    out = []
+    for _, _, q in kand:
+        if q not in out:
+            out.append(q)
+    return out[:n]
+
+
+# ------------------------------------------------------------------ Vorlagen, Bohrungen in Rohren
+def _namen(erg, w):
+    """Teilenamen der Vorlage (Geländer: Endpfosten, Handlauf, Untergurt, Zwischenpfosten/Füllstab; Tisch: Bein,
+    Mittelstrebe) bzw. oberes/unteres Rahmenrohr getrennt, wenn Bohrungen nur in einem davon sitzen. Gleiche Rohre
+    mit gleichem Namen bleiben ein Teil."""
+    vorlage, h = w.get("vorlage"), w["h"] or 0
+    ziele = {x["ziel"] for x in (w.get("rohr_bohrungen") or [])}
+    trennen = bool(ziele & {"oben", "unten"})
+
+    def name(alt, lage):
+        oben = lage[2] > h / 2
+        if vorlage == GELAENDER:
+            return {"Rahmen senkrecht": "Endpfosten", "Rahmen waagrecht": "Handlauf" if oben else "Untergurt",
+                    "Querstrebe": "Zwischenpfosten" if w.get("pfosten") is not None or
+                    w.get("streben_wort") == "pfosten" else "Füllstab"}.get(alt, alt)
+        if vorlage == TISCH:
+            alt = {"Rahmen senkrecht": "Bein",
+                   "Bodenstrebe": "Mittelstrebe" if int(w.get("streben") or 0) == 1 else "Bodenstrebe"}.get(alt, alt)
+        if trennen and alt == "Rahmen waagrecht":
+            return "Rahmen oben" if oben else "Rahmen unten"
+        return alt
+    teile, schluessel = [], {}
+    for t in erg["teile"]:
+        for nr, lage in zip(t["koerper"], t["lagen"]):
+            nm = name(t["name"], lage)
+            key = (nm, t["laenge"], json.dumps(t["eingaben"], sort_keys=True), t.get("profil"))
+            if key not in schluessel:
+                schluessel[key] = len(teile)
+                teile.append(dict(t, name=nm, lagen=[], koerper=[]))
+            teile[schluessel[key]]["lagen"].append(lage)
+            teile[schluessel[key]]["koerper"].append(nr)
+    return dict(erg, teile=teile)
+
+
+RUND_SEITE = {"oben": "oben (0°)", "vorne": "vorne (90°)", "unten": "unten (180°)", "hinten": "hinten (270°)"}
+GEGEN = {"vorne": "hinten", "hinten": "vorne", "oben": "unten", "unten": "oben"}
+
+
+def _rohr_bohrungen(erg, w, plan):
+    """Bohrungen in Rohren als Konturen des Schneidweg-Rechners (art Bohrung, anzahl, d, x = erste Bohrung ab
+    Anfang, abstand, seite): gleichmäßig über die Länge (Teilung L / (n + 1)), durch eine Wand (Seite vorne,
+    Annahme mit Rückfrage) oder durch beide. Prüft Ø gegen die Rohrseite und den Abstand zu Ende und Nachbar."""
+    liste = w.get("rohr_bohrungen") or []
+    if not liste:
+        return
+    seite = w.get("rohr_seite")
+    if not seite:
+        seite = "vorne"
+        plan["annahmen"].append("Rohrbohrungen von vorne durch eine Wand (Seite nicht genannt)")
+        _frage(plan, "Von welcher Seite werden die Rohre gebohrt?",
+               [("von vorne", "Bohrungen von vorne"), ("von oben", "Bohrungen von oben"),
+                ("durch beide Wände", "Bohrungen durchgehend")], "von vorne")
+    seiten = ["vorne", "hinten"] if seite == DURCH else [seite]
+    for rb in liste:
+        n, d = int(rb.get("anzahl") or 0), rb.get("d")
+        if not n:
+            continue
+        if not d:
+            d = 9.0
+            plan["annahmen"].append(f"Bohrungen {ZIEL_TEXT[rb['ziel']]} Ø 9 mm (Ø nicht genannt)")
+        namen = ZIELE[rb["ziel"]]
+        treffer = [t for t in erg["teile"] if namen is None or t["name"] in namen]
+        if not treffer:
+            plan["fehler"].append(f"Bohrungen {ZIEL_TEXT[rb['ziel']]}: solche Rohre gibt es in diesem Bauteil nicht.")
+            continue
+        for t in treffer:
+            p = w["streben_profil"] if t.get("profil") and w.get("streben_profil") else w["profil"]
+            rund = p["form"] == "Rundrohr"
+            seite_mass = p["a"] if rund else min(p["a"], p.get("b") or p["a"])
+            if d > seite_mass - 2 * p["wand"] - 2:
+                plan["fehler"].append(f"{t['name']}: Bohrung Ø {d:g} passt nicht in die Rohrseite "
+                                      f"({seite_mass:g} mm, Wand {p['wand']:g} mm).")
+                continue
+            teilung = t["laenge"] / (n + 1)
+            if teilung - d < d:
+                plan["hinweise"].append(f"{t['name']}: Bohrungen sehr dicht (Steg {teilung - d:.0f} mm < Ø {d:g}).")
+            if teilung - d / 2 < seite_mass:
+                plan["hinweise"].append(f"{t['name']}: erste Bohrung nur {teilung:.0f} mm vom Ende (Stoß/Naht "
+                                        "prüfen).")
+            konturen = list(t["eingaben"].get("konturen") or [])
+            for s_ in seiten:
+                konturen.append(dict(art="Bohrung", anzahl=n, d=float(d), x=round(teilung, 1),
+                                     abstand=round(teilung, 1) if n > 1 else 0.0,
+                                     seite=RUND_SEITE[s_] if rund else s_, q=0.0))
+            t["eingaben"] = dict(t["eingaben"], konturen=konturen)
 
 
 # ------------------------------------------------------------------ Geometrie
@@ -495,8 +721,8 @@ def bauen(werte, profile=None, stange=6000.0):
     profile: Stammdaten {ID: Zeile}; fehlt ein Profil dort, steht es unter fehlende_profile (anlegen anbieten)."""
     from . import step
     w = dict(vorgabe(), **{k: v for k, v in (werte or {}).items() if v is not None})
-    plan = dict(fehler=[], hinweise=[], annahmen=[], art=w["art"], erg=None, profil_id=None, streben_profil_id=None,
-                fehlende_profile=[], platten=None, blech=None, werte=w)
+    plan = dict(fehler=[], hinweise=[], annahmen=[], rueckfragen=[], art=w["art"], erg=None, profil_id=None,
+                streben_profil_id=None, fehlende_profile=[], platten=None, blech=None, werte=w)
     if not w["art"]:
         if w.get("profil") or w.get("b"):
             w["art"] = plan["art"] = RAHMEN
@@ -507,10 +733,17 @@ def bauen(werte, profile=None, stange=6000.0):
             return plan
     if w["art"] == BLECH:
         return _bauen_blech(w, plan)
+    if w["vorlage"] == GELAENDER:
+        w["form"] = rahmen.RAHMEN
+        if not w["h"]:
+            plan["fehler"].append("Geländer: Höhe fehlt („Höhe 1100“).")
+            _frage(plan, "Wie hoch soll das Geländer werden?", [("1000 mm", "Höhe 1000"), ("1100 mm", "Höhe 1100")])
+    elif w["vorlage"] == TISCH:
+        w["form"] = rahmen.QUADER
     if not w["profil"]:
         plan["fehler"].append("Profil fehlt: z. B. „aus 40 x 40 x 3“ (Quadratrohr), „aus 60 x 40 x 3“ (Rechteckrohr) "
                               "oder „aus Ø 48,3 x 2,6“ (Rundrohr).")
-    if not w["b"] or not w["h"]:
+    if (not w["b"] or not w["h"]) and not (w["vorlage"] == GELAENDER and w["b"]):
         plan["fehler"].append("Außenmaße fehlen: z. B. „1000 x 600 mm“ (Breite × Höhe) oder für ein Gestell "
                               "„1200 x 800 x 900“ (Breite × Tiefe × Höhe).")
     if plan["fehler"]:
@@ -520,12 +753,27 @@ def bauen(werte, profile=None, stange=6000.0):
     if w["form"] == rahmen.QUADER and not w["t"]:
         plan["fehler"].append("Gestell: Tiefe fehlt („Tiefe 500“ oder „1200 x 500 x 900“).")
         return plan
+    if w["vorlage"] == GELAENDER:
+        w["streben_richtung"] = SENKRECHT
+        if w["pfosten"] is not None:
+            w["streben"] = max(0, int(w["pfosten"]) - 2)
+            if not w["pfosten_inkl"]:
+                plan["annahmen"].append(f"{w['pfosten']} Pfosten einschließlich der beiden Endpfosten → "
+                                        f"{w['streben']} Zwischenpfosten")
+                _frage(plan, f"Sind die {w['pfosten']} Pfosten mit den beiden Endpfosten gezählt?",
+                       [("ja, gesamt", f"{w['pfosten']} Pfosten einschließlich Endpfosten"),
+                        (f"nein, {w['pfosten']} zusätzlich", f"{w['pfosten']} Zwischenpfosten")])
     if not w["ecken"]:
-        w["ecken"] = rahmen.GEHRUNG if w["form"] == rahmen.RAHMEN else rahmen.STUMPF
+        w["ecken"] = rahmen.GEHRUNG if w["form"] == rahmen.RAHMEN and w["vorlage"] != GELAENDER else rahmen.STUMPF
         plan["annahmen"].append(f"Ecken: {w['ecken']} (nicht genannt)")
+        _frage(plan, "Wie sollen die Ecken verbunden werden?",
+               [("Gehrung", "Ecken mit Gehrung"), ("stumpf", "Ecken stumpf"),
+                ("stumpf mit Steckverbindung", "Ecken mit Steckverbindung")], w["ecken"])
     if w["streben"] and not w["streben_richtung"] and w["form"] == rahmen.RAHMEN:
         w["streben_richtung"] = SENKRECHT
         plan["annahmen"].append("Querstreben senkrecht zwischen oberem und unterem Rohr (nicht genannt)")
+        _frage(plan, "Wie sollen die Querstreben laufen?",
+               [("senkrecht", "senkrechte Querstreben"), ("waagrecht", "waagrechte Querstreben")], SENKRECHT)
     if w["form"] == rahmen.QUADER and w["streben"]:
         plan["annahmen"].append("Gestell: Querstreben als Bodenstreben längs der Tiefe")
     if not w["saetze"]:
@@ -541,6 +789,11 @@ def bauen(werte, profile=None, stange=6000.0):
             plan["fehlende_profile"].append(profil_text(p))
             plan["fehler"].append(f"Profil {profil_text(p)} fehlt in den Stammdaten: „Profil anlegen“ oder ein "
                                   "vorhandenes Profil nennen.")
+            nahe = naechste_profile(p, profile)
+            if nahe:
+                vor = "Streben aus " if schluessel == "streben_profil" else "Profil "
+                _frage(plan, f"{profil_text(p)} gibt es nicht. Welches vorhandene Profil?",
+                       [(profil_text(q), vor + _profil_satz(q)) for q in nahe])
     ecken = w["ecken"]
     if ecken == rahmen.KNICK:
         plan["fehler"].append("Knickrahmen bitte über den Rahmen-Assistenten anlegen.")
@@ -553,6 +806,8 @@ def bauen(werte, profile=None, stange=6000.0):
     except ValueError as x:
         plan["fehler"].append(str(x).replace("Rahmen-Assistent", "Bauteil-Generator"))
         return plan
+    erg = _namen(erg, w)
+    _rohr_bohrungen(erg, w, plan)
     plan["erg"] = erg
     for t_ in erg["teile"]:
         if t_["laenge"] > (stange or 6000.0):
@@ -569,6 +824,11 @@ def bauen(werte, profile=None, stange=6000.0):
             seite = max(100.0, math.ceil((max(d, tief) + 60) / 10) * 10)
             pl.update(laenge=seite, breite=seite)
             plan["annahmen"].append(f"Plattengröße {seite:g} × {seite:g} mm (nicht genannt)")
+            dk = pl.get("dicke") or 8
+            _frage(plan, "Wie groß sollen die Befestigungsplatten sein?",
+                   [(f"{a:g} × {a:g} × {s_:g}", f"Platten {a:g} x {a:g} x {s_:g}".replace(".", ","))
+                    for a, s_ in ((seite, dk), (seite + 20, max(dk, 10)), (seite + 50, max(dk, 12)))],
+                   f"{seite:g} × {seite:g} × {dk:g}")
         if not pl.get("dicke"):
             pl["dicke"] = 8.0
             plan["annahmen"].append("Plattendicke 8 mm (nicht genannt)")
@@ -583,6 +843,9 @@ def bauen(werte, profile=None, stange=6000.0):
             bo = dict(anzahl=4, d=13.0)
             plan["annahmen"].append("Je Platte 4 Bohrungen Ø 13 mm für M12 (nicht genannt; „ohne Bohrungen“ "
                                     "entfernt sie)")
+            _frage(plan, "Welche Bohrungen bekommen die Platten?",
+                   [("4 × Ø 13 (M12)", "4 Bohrungen Ø 13"), ("4 × Ø 11 (M10)", "4 Bohrungen Ø 11"),
+                    ("2 × Ø 13", "2 Bohrungen Ø 13"), ("keine", "ohne Bohrungen")], "4 × Ø 13 (M12)")
         elif bo.get("anzahl") and not bo.get("d"):
             bo = dict(bo, d=13.0)
             plan["annahmen"].append("Bohrungen Ø 13 mm (Ø nicht genannt)")
@@ -711,6 +974,10 @@ def name_vorschlag(plan):
     w = plan["werte"]
     if plan.get("blech"):
         return plan["blech"]["werte"]["typ"].split("/")[0]
+    if w.get("vorlage") == GELAENDER:
+        return f"Geländer {w['b']:g}×{w['h']:g}"
+    if w.get("vorlage") == TISCH:
+        return f"Tischgestell {w['b']:g}×{w['t']:g}×{w['h']:g}"
     if w.get("form") == rahmen.QUADER:
         return f"Gestell {w['b']:g}×{w['t']:g}×{w['h']:g}"
     return f"Rahmen {w['b']:g}×{w['h']:g}"

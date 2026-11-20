@@ -134,13 +134,30 @@ Tests: `tests/test_bauteil_generator.py` (in `tests/alle.py`), angepasst `tests/
 Lokal grün: test_bauteil_generator, test_rahmen_assistent, test_satz3d, test_paket_k, test_blech_editor,
 test_baugruppe_vorschlaege, test_schneidweg, test_anleitung. Gesamtsuite läuft im CI-Check `tests`.
 
+### 4b. Stufe 2 (Patrick 20.11.2026 18:05 UTC „Alles einbauen nach Empfehlungen“)
+
+- **Rückfragen** (`plan["rueckfragen"]`): Ecken, Strebenrichtung, Plattengröße, Plattenbohrungen, Seite der
+  Rohrbohrungen, Pfosten gesamt/zusätzlich, Geländerhöhe, fehlendes Profil (`naechste_profile`: 3 nächste
+  vorhandene gleicher Form). Jede Antwort ist ein Änderungssatz und läuft durch `aendern` (Verlauf).
+- **Bohrungen in Rohren**: „je 2 Bohrungen Ø 9 in den Querstreben / im Handlauf / im oberen Rohr / in allen Rohren“,
+  „von oben“, „durchgehend“ → Konturen `{art: Bohrung, anzahl, d, x, abstand, seite, q}`; Teilung L / (n + 1);
+  Prüfung Ø gegen Rohrseite − 2 × Wand − 2 mm, Steg < Ø, Abstand zum Ende. Oberes/unteres Rahmenrohr werden dann
+  getrennte Positionen.
+- **Geländer** (Handlauf, Untergurt, Endpfosten, Zwischenpfosten/Füllstäbe, Ecken stumpf) und **Tischgestell**
+  (Beine, Mittelstrebe). „Länge“ bzw. „2000 lang“ = Breite bei Rohrteilen.
+- **Satz per Text ändern** (Rechtsklick, nur Sätze mit `satz_daten[Satz].generator`): Verlauf wird abgespielt,
+  Übernehmen ersetzt die Positionen des Satzes (gleicher Name, Rückgängig). Satz in 3D behält jetzt die
+  Generator-Daten beim Speichern.
+- Grenzen: Rahmen/Geländer liegen in der Vorschau wie im Rahmen-Assistenten; Bohrungen nur gleichmäßig verteilt;
+  Handänderungen an alten Positionen gehen beim Ersetzen verloren (Titel des Fensters sagt es, Rückgängig möglich).
+
 ## 5. Entwicklungsplan (nächste 1 – 3 Schritte)
 
-1. **Bauteil aus Text Stufe 2** (dieser Thread, nach Rückmeldung): Rückfragen statt Annahmen bei wichtigen Lücken,
+1. **Bauteil aus Text Stufe 2** (GEBAUT, siehe 4b; offen nur Leiter, Platten seitlich/Wandmontage): Rückfragen statt Annahmen bei wichtigen Lücken,
    weitere Formen (Rohrzug/Geländer per Text über rohrzug.py, Leiter, Tischgestell mit Mittelstrebe), Platten
    seitlich/Wandmontage, Bohrungen in Rohren per Text („2 Bohrungen Ø 9 im Querrohr“), Generator-Satz später erneut
    öffnen und per Satz ändern.
-2. **Prüfideen an den Import-/Fertigbarkeits-Thread** (gemeldet 20.11.): Blindnietmuttern-Regeln, U-Profil-
+2. **Prüfideen an den Import-/Fertigbarkeits-Thread** (gebaut dort in PR #604): Blindnietmuttern-Regeln, U-Profil-
    Prüfpunkte, Gravurabstand/Schnittlinie, Lochgrenze Rundrohr; Schneidtechnik 2,5D/XY je Position.
 3. **Ideen an den Angebots-Thread**: Preis je Liefertermin (Termin-Staffel), Spezifikationen als Anlage zum Angebot.
 

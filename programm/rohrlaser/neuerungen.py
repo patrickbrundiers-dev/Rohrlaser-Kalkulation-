@@ -26,8 +26,13 @@ NEUERUNGEN = [
      "beschreiben, z. B. „Rohrrahmen 1000 x 600 aus 40 x 40 x 3 mit vier Querstreben und zwei "
      "Befestigungsplatten“. Das Programm zeigt Teile, 3D, Annahmen, Hinweise und Fehler, ändert per Satz („Breite "
      "1200“, „6 Querstreben“, „ohne Platten“) mit Verlauf und legt die Teile erst nach „Übernehmen“ als Satz mit 3D "
-     "an. Ohne Internet, ohne Cloud.",
-     "Bauteil aus Text: Rahmen, Gestelle, Streben, Platten und Blechteile aus einer Beschreibung"],
+     "an. Ohne Internet, ohne Cloud. Fehlt eine wichtige Angabe, stellt das Fenster eine <b>Rückfrage</b> mit "
+     "Knöpfen (Vorschlag eingesetzt). Neu sind <b>Bohrungen in Rohren</b> („je 2 Bohrungen Ø 9 in den "
+     "Querstreben“, „im Handlauf“) als Konturen mit Prüfung, <b>Geländer</b> (Handlauf, Untergurt, Pfosten, "
+     "Füllstäbe) und <b>Tischgestelle</b> mit Mittelstrebe. Rechtsklick → <i>Satz per Text ändern …</i> öffnet einen "
+     "gespeicherten Satz wieder und ersetzt ihn nach der Änderung (Rückgängig möglich).",
+     "Bauteil aus Text: Rahmen, Geländer, Tische, Streben, Platten, Bohrungen und Blechteile aus einer "
+     "Beschreibung, mit Rückfragen und späterer Änderung"],
     ["0.9.428", "<b>Anfragen: Mail-Art, Sachgebiet und technische Angaben erkennen</b> ([[anfrage_art]]). Jede Mail "
      "wird eingeordnet: neue Anfrage, Angebotsnachfrage, Angebotsänderung, Bestellung, Auftragsänderung, technische "
      "Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, allgemeine Mail oder Werbung, mit Sicherheit und "
