@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.426", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.427", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -35,6 +35,14 @@ NEUERUNGEN = [
                 "S235 EN 10210 gibt es nicht und ist entfernt (Verweise gehen auf S235 EN 10219); neu sind S275 "
                 "EN 10219, S195T EN 10255 und P235TR2 EN 10216-1.",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.426", "<b>Explosionsansicht einstellen, von Hand ändern und speichern</b> ([[explosion_3d]]). Neues Fenster "
+     "<i>Explosion einstellen …</i>: Stärke bis 3×, Richtung (frei, waagrecht, senkrecht, nur X/Y/Z), nach "
+     "Unterbaugruppen, ohne Überlappung, Verbindungslinien zur Einbaulage, Positionsnummern aus der Stückliste und "
+     "Beschriftung. Teile mit der Maus ziehen (frei oder entlang einer Achse) oder per Zahl verschieben, fixieren, "
+     "zurücksetzen, Rückgängig/Wiederholen. Animation auseinander, zusammen, schrittweise und als "
+     "Montagereihenfolge. Mehrere Ansichten mit Namen und Blickrichtung je Baugruppe/Satz. Explosionszeichnung mit "
+     "Stückliste als PDF/Bild, auch in die Angebotsakte. Nur Anzeige, Lage im Export bleibt laut STEP.",
+     "Explosionsansicht: Richtungen, Ebenen, Teile ziehen, Nummern, Animation, gespeicherte Ansichten, Zeichnung"],
     ["0.9.425", "<b>Importengine: ZIP-Import, Ovalrohre, Kategorien mit Konfidenz, Importanalyse</b> "
                 "([[importanalyse]]). Nach dem Vergleich mit Laserhub: ZIP-Archive (auch verschachtelt) werden "
                 "entpackt, SolidWorks-, CATIA-, Inventor- und andere Herstellerdateien als „nicht lesbar – bitte als "

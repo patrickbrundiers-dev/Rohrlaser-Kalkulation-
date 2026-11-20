@@ -6906,7 +6906,48 @@ def kapitel_optimieren(i):
             "bis 2×. Jedes Teil rückt von der Mitte der Baugruppe weg. <b>Messen ist dabei gesperrt</b> (Abstände "
             "zwischen Teilen wären falsch); Explosion auf <i>Aus</i>, dann messen.",
             "<i>Ansicht als Bild/PDF speichern …</i> (in beiden Menüs) speichert die Ansicht, wie sie zu sehen ist, "
-            "als PNG oder als PDF (A4 quer, mit Titel und Hinweis).")
+            "als PNG oder als PDF (A4 quer, mit Titel und Hinweis).",
+            "Seit 0.9.426 lässt sich die Explosion genau einstellen, von Hand ändern, animieren und speichern "
+            "([[explosion_3d]]).")
+    i.abschnitt("Explosionsansicht einstellen", marke="explosion_3d")
+    i.text("Seit 0.9.426 öffnet <b>Explosion → Explosion einstellen …</b> (Pfeil am Knopf Explosion, in Baugruppe, "
+           "Satz und allen 3D-Fenstern) ein Seitenfenster. Jede Änderung wirkt sofort. Alles ist nur Anzeige: Netz, "
+           "Lage der Teile im Export (laut STEP) und Kalkulation bleiben genau gleich, die Verschiebungen werden als "
+           "eigene Anzeigedaten gespeichert.", kurz=True)
+    i.liste("<b>Auseinanderziehen</b>: <i>Stärke</i> (Schieber 0 bis 3×), <i>Richtung</i> (Frei (aus der Mitte), "
+            "Waagrecht, Senkrecht, Nur X, Nur Y, Nur Z), <i>Nach Unterbaugruppen (Ebenen)</i>: die Teile einer "
+            "Unterbaugruppe gehen zuerst als Ganzes von der Baugruppe weg und dann etwas auseinander, tiefere "
+            "Unterbaugruppen gehen mit ihrer oberen. <i>Überlappung vermeiden</i> schiebt Teile, deren Hüllen sich "
+            "noch schneiden, weiter auseinander.",
+            "<b>Verbindungslinien zur Einbaulage</b>: gestrichelte Linie von der Mitte jedes Teils in der Einbaulage "
+            "zur Lage in der Explosion.",
+            "<b>Beschriftung</b>: <i>Aus</i>, <i>Positionsnummer</i> (Ballon mit der Pos. aus der Stückliste der "
+            "Baugruppe bzw. des Satzes), <i>Nummer und Artikel</i> oder <i>Alle Angaben</i> (Artikel, Bezeichnung, "
+            "Werkstoff, Profil, Wand, Stückzahl). Fixierte Teile haben einen orangen Ballon. Ein Klick auf ein Teil "
+            "zeigt wie bisher seine Angaben und wählt es in der Liste.",
+            "<b>Teile von Hand</b>: <i>Teile mit der Maus ziehen</i> einschalten, dann ein Teil mit der linken "
+            "Maustaste ziehen (gewählte Teile gehen zusammen). Die Liste daneben wählt <i>Frei (in der Bildebene)</i> "
+            "oder <i>Nur X</i>/<i>Nur Y</i>/<i>Nur Z</i>. Beim Ziehen bleibt der Bildausschnitt stehen. Mit den "
+            "Feldern X, Y, Z und <i>Setzen</i> bekommen die gewählten Teile einen genauen Versatz in mm.",
+            "<i>Fixieren</i> / <i>Lösen</i>: fixierte Teile bleiben in der Einbaulage stehen. <i>Gewählte zurück</i> "
+            "nimmt den eigenen Versatz der gewählten Teile weg, <i>Alles zurücksetzen</i> den aller Teile samt "
+            "Stärke. <i>Rückgängig</i> und <i>Wiederholen</i> gehen über alle diese Schritte.",
+            "<b>Animation</b>: <i>Auseinander</i>, <i>Zusammen</i>, <i>Schrittweise</i> (Teil für Teil von außen nach "
+            "innen) und <i>Montagereihenfolge</i> (Teil für Teil zusammen bis zur Einbaulage). <i>Pause / Weiter</i> "
+            "hält an; <i>Dauer</i> stellt das Tempo ein (schrittweise je Teil). Auseinander, zusammen und "
+            "Montagereihenfolge auch direkt im Menü Explosion.",
+            "<b>Gespeicherte Ansichten</b>: Namen eingeben, <i>Speichern</i> merkt Stand und Blickrichtung (Drehung, "
+            "Zoom, Verschiebung, Perspektive); <i>Zeigen</i> holt sie wieder, <i>Löschen</i> entfernt sie. Die "
+            "Ansichten werden mit der Schweißbaugruppe bzw. dem Satz gespeichert (beim OK des Editors), mehrere je "
+            "Baugruppe sind möglich.",
+            "<b>Explosionszeichnung mit Stückliste</b>: <i>PDF/Bild speichern …</i> (auch im Menü Explosion) "
+            "erzeugt ein Blatt A4 quer mit dem Bild, wie es zu sehen ist, den Positionsnummern und der Stückliste "
+            "(Nr., Pos., Artikel, Bezeichnung, Werkstoff, Profil, Wand, Anzahl; gleiche Positionen zusammengefasst). "
+            "<i>In die Angebotsakte legen</i> legt die Zeichnung als PDF und PNG in den Ordner "
+            "<i>Angebotsakte\\Technische_Daten</i> des Angebots.",
+            "Im Menü Explosion außerdem <i>Gewählte Teile fixieren/lösen</i> und <i>Explosion zurücksetzen (alle "
+            "Teile)</i>. Ein Klick auf den Knopf <b>Explosion</b> schaltet aus und nimmt dabei auch den eigenen "
+            "Versatz weg (Rückgängig im Fenster).")
     i.abschnitt("3D-Einstellungen: Profile, Export, Selbsttest", marke="profile_3d")
     i.text("Auf der Einstellungsseite <i>3D-Ansicht und Navigation</i> stehen unter <i>Aussehen</i> (seit 0.9.416):",
            kurz=True)
@@ -12679,7 +12720,7 @@ def kapitel_stammdaten(i):
             "Rohrnormen (DIN 2458, EN 10217, EN 10255, DIN 1615 = EN 10219) und „nahtlos“ (EN 10216, DIN 2448 = "
             "EN 10210); eine besondere Güte im Text (P235GH, P235TR1, E235+C) geht vor dem S235 aus der "
             "Artikelnummer, bei Doppelzeugnis (S235/S275) zählt die erste Güte. S235 EN 10210 gibt es nicht; "
-            "seit 0.9.426 ist es aus den Werkstoffen entfernt (Preise, Lieferlängen und Positionen gehen auf S235 "
+            "seit 0.9.427 ist es aus den Werkstoffen entfernt (Preise, Lieferlängen und Positionen gehen auf S235 "
             "EN 10219), dazu kamen S275 EN 10219, S195T EN 10255 und P235TR2 EN 10216-1.",
             "<b>Prüfliste ERP-Artikel</b>: je Artikel Profil, Werkstoff und Oberfläche aus der Bezeichnung. Grün = "
             "eindeutig. Gelb = Werkstoff wählen (S355J2H passt zu EN 10219 und EN 10210; steht die Norm in der "
