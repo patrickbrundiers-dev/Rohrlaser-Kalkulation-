@@ -18,6 +18,7 @@ EIGENE = "ansicht3d_eigene_profile"        # JSON {Name: {Einstellung: Wert}} �
 DATEI_ART = "rohrlaser-3d-einstellungen"
 DATEI_VERSION = 1
 STANDARD = "Standard (Vorgaben)"
+GRENZE_MS = 3000          # Selbsttest: ein Prüfbild (420 × 260, Software-Weg) darf so lange dauern, auch auf vollem PC
 inv, sw, creo = list(navigation3d.MAUSBELEGUNGEN)[1:4]
 # Feste Profile: nur die genannten Werte ändern sich, alles andere bleibt
 PROFILE = {
@@ -204,7 +205,7 @@ def selbsttest(breite=420, hoehe=260):
         for dar in ansicht3d.DARSTELLUNGEN:
             a.darstellung_setzen(dar)
             gut, ms, _ = bild(dar)
-            ergebnis.append((f"Darstellung „{dar}“", gut and ms < 1500, f"{ms:.0f} ms"))
+            ergebnis.append((f"Darstellung „{dar}“", gut and ms < GRENZE_MS, f"{ms:.0f} ms"))
         a.darstellung_setzen(ansicht3d.MIT_KANTEN)
         for mat in visualisierung.MATERIALIEN:
             visualisierung.setzen({**alt_aussehen, "ansicht3d_material": mat})

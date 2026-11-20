@@ -2060,9 +2060,11 @@ class EinstellungenSeite(QScrollArea):
         """Seite 3D-Ansicht: Profile (fest und eigene), Export/Import als Datei und Selbsttest unter „Aussehen“."""
         from PySide6.QtWidgets import QMenu
         from . import ansicht3d_profile as ap
+        from PySide6.QtWidgets import QGridLayout
         zeile = QWidget()
-        hl = QHBoxLayout(zeile)
+        hl = QGridLayout(zeile)        # 2 × 2, damit die Zeile die Seite auch bei 1280 px nicht verbreitert
         hl.setContentsMargins(0, 0, 0, 0)
+        hl.setColumnStretch(2, 1)
         profil = QToolButton()
         profil.setText("Profil")
         profil.setPopupMode(QToolButton.InstantPopup)
@@ -2083,7 +2085,9 @@ class EinstellungenSeite(QScrollArea):
                     lm.addAction(name, lambda n=name: (ap.loeschen(self.db, n), self.meldung(f"Profil „{n}“ gelöscht.")))
         menue.aboutToShow.connect(fuellen)
         profil.setMenu(menue)
-        hl.addWidget(profil)
+        profil.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        profil.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        hl.addWidget(profil, 0, 0)
         for text, tipp, tun in (("Exportieren …", "3D-Einstellungen und eigene Profile als Datei (JSON) sichern",
                                  lambda: self.einst_3d_exportieren()),
                                 ("Importieren …", "3D-Einstellungen aus einer Datei übernehmen (geprüft)",
@@ -2094,8 +2098,8 @@ class EinstellungenSeite(QScrollArea):
             k = QPushButton(text)
             k.setToolTip(tipp)
             k.clicked.connect(lambda _=False, tun=tun: tun())
-            hl.addWidget(k)
-        hl.addStretch(1)
+            pos = len(zeile.findChildren(QPushButton)) + 1     # 0 = Profil
+            hl.addWidget(k, pos // 2, pos % 2)
         box = next(b for e, _, _, b in self.zeilen if e.name == "ansicht3d_material")
         leer = QLabel("")
         self._formulare[id(box)][2].append((None, leer, zeile))
