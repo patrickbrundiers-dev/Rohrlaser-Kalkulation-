@@ -552,7 +552,17 @@ MASCHINEN = Tabelle(
      *[Feld(f"faktor_{b}_{kurz}", f"Kalibrierung {kat}: Faktor {text} (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75)
        for kat, kurz in (("Edelstahl", "es"), ("Aluminium", "alu"), ("Buntmetall", "bunt"))
        for b, text in (("schneiden", "Schneiden"), ("einstechen", "Einstechen"), ("ecken", "Ecken und Radien"),
-                       ("bewegen", "Verfahren, Drehen, Kopfhub"), ("neben", "Nebenzeit, Messen, Entnahme"))]),
+                       ("bewegen", "Verfahren, Drehen, Kopfhub"), ("neben", "Nebenzeit, Messen, Entnahme"))],
+     # Fertigbarkeit beim STEP-Import (Laserhub-Vergleich L1/L3, Patrick 20.11.2026, fertigbarkeit.py): leer =
+     # Vorgabe, 0 = Prüfung aus; nur Hinweis (gelb), ändert nichts am Teil
+     Feld("fb_loch_faktor", "Fertigbarkeit: kleinstes Loch/Schlitz [× Wand] (leer = 0,7)", "zahl", 0, 10, stellen=2,
+          breite=85),
+     Feld("fb_steg_faktor", "Fertigbarkeit: schmalster Steg [× Wand] (leer = 0,7)", "zahl", 0, 10, stellen=2,
+          breite=85),
+     Feld("fb_eckradius", "Fertigbarkeit: kleinster Innen-Eckradius [mm] (leer = aus)", "zahl", 0, 50, stellen=2,
+          breite=85),
+     Feld("fb_gravur_tiefe", "Fertigbarkeit: tiefste Lasergravur [mm] (leer = 0,5)", "zahl", 0, 20, stellen=2,
+          breite=85)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "

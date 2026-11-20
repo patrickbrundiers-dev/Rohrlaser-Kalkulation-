@@ -4732,6 +4732,38 @@ def kapitel_step(i):
             "(alle Befunde des Imports). <b>Bauteilliste als CSV …</b> speichert die Liste.",
             "Die Analyse wird einmal beim Übernehmen mit der Position gespeichert (STEP-Merkmale); andere Teile des "
             "Programms lesen sie dort und messen nicht neu.")
+    i.abschnitt("Fertigbarkeit beim Import prüfen", marke="fertigbarkeit")
+    i.text("Seit 0.9.427 prüft der STEP-Import jedes Rohr gegen die <b>Konstruktionsregeln der Maschine</b> des "
+           "Angebots, bevor es ins Angebot geht. Ein Verstoß macht das Teil im Prüfdialog <b>gelb</b> mit dem Grund "
+           "„Fertigbarkeit: …“ (nie rot). Das Teil bleibt genau wie in der STEP; mit <b>Passt</b> bestätigen Sie es "
+           "wie jeden anderen Grund.", kurz=True)
+    i.liste("<b>Loch und Schlitz</b>: kleiner als Faktor × Wand (Vorgabe 0,7; Rohr 40 × 3: Loch unter Ø 2,1 mm). "
+            "Markierlöcher Ø 0,5 mm (Fließlochbohrung) zählen nicht.",
+            "<b>Steg</b>: schmaler als Faktor × Wand zwischen zwei Konturen auf derselben Seite oder zwischen Kontur "
+            "und geradem Rohrende (Vorgabe 0,7).",
+            "<b>Gravur</b> tiefer als die Maschine graviert (Vorgabe 0,5 mm): Hinweis „tiefer nur gefräst – prüfen“. "
+            "Das Rohr bleibt Rohr, es wird nie zum Frästeil.",
+            "<b>Innenecken ohne Radius</b>: nur, wenn ein kleinster Eckradius eingetragen ist (Vorgabe aus).",
+            "<b>Länge</b> über max. Stangenlänge − Endbeschnitt − Greiferrest oder unter <i>Kürzestes Teil</i>, "
+            "<b>Hüllkreis</b> außerhalb max./min. Hüllkreis-Ø der Maschine.",
+            "Die Grenzwerte stehen je Maschine unter Stammdaten → Maschinen, Gruppe <b>Fertigbarkeit beim Import</b>: "
+            "leer = Vorgabe, 0 = Prüfung aus.",
+            "In der <b>Importanalyse</b> zeigt die Spalte <b>Fertigbar</b> „ja“ oder „prüfen (Anzahl)“, die Merkmale "
+            "„Fertigbarkeit“ nennen Lage und Maß. Der Reiter <b>Dateien</b> zeigt je Datei Körper, Volumenkörper "
+            "(oder aus Flächen genäht), Einheit und ob die Anforderungen erfüllt sind. Der Angebots-Check nennt "
+            "Positionen mit Verstoß als Hinweis.")
+    i.text("Außerdem zeigt die Importanalyse rechts neben den Merkmalen eine <b>3D-Ansicht</b> des gewählten "
+           "Teils: ein Klick auf ein Merkmal (auch auf einen Fertigbarkeits-Befund) färbt seinen Bereich im 3D. "
+           "<b>Nächstes zu prüfen ▸</b> springt über alle Teile zum nächsten Merkmal, das nicht sicher erkannt ist "
+           "oder eine Regel verletzt.", kurz=True)
+    i.liste("<b>Gewinde, Senkungen, Fließlöcher mit Zeichnung</b>: liegt zum Teil eine Zeichnung oder ein Formular "
+            "vor, gleicht die Analyse den Gewinde-Vorschlag aus dem Kernloch damit ab. Stimmt Größe und Anzahl, gilt er "
+            "als sicher („bestätigt durch Zeichnung“); weicht die Anzahl ab, bleibt er zu prüfen mit beiden Werten; "
+            "steht etwas nur in der Zeichnung, erscheint es als Merkmal „nur in der Zeichnung“. Die Kosten bleiben "
+            "€ je Stück wie bisher.",
+            "<b>Zukaufteile</b> des Imports (Blech-, Fräs-, Drehteile) nennt die Importanalyse oben: nach dem "
+            "Übernehmen fragt die <b>Materialanfrage</b> sie gesammelt an (Gruppen Blechteile bzw. Dreh-/Frästeile, mit "
+            "Zeichnung, DXF und STEP; Rohrmaterial geht nie mit Dateien hinaus).")
     i.abschnitt("STEP-Merkmale prüfen", marke="step_merkmale")
     i.text("Jedes Rohrteil aus dem STEP-Import merkt sich, wie sicher die Messung die einzelnen Merkmale erkannt hat. "
            "Rechtsklick auf die Position → <b>STEP-Merkmale prüfen …</b> zeigt sie.", kurz=True)
@@ -6140,7 +6172,7 @@ def kapitel_optimieren(i):
             "B×H), ein vorhandener Name bekommt eine Nummer dazu.",
             "Die Rohre haben Einbaulage und Stöße wie aus dem STEP-Import: Längsnaht, Steckverbindungen, Vorschläge, "
             "Montagefolge, Montageblatt und STEP speichern gehen wie dort.")
-    i.abschnitt("Bauteil aus Text (seit 0.9.427)", marke="bauteil_aus_text")
+    i.abschnitt("Bauteil aus Text (seit 0.9.428)", marke="bauteil_aus_text")
     i.text("<b>Neue Position → Bauteil aus Text</b> erstellt Teile aus einer Beschreibung in eigenen Worten, z. B. "
            "<i>Rohrrahmen 1000 x 600 mm aus 40 x 40 x 3 mm Stahlrohr mit vier Querstreben und zwei "
            "Befestigungsplatten</i>. <b>Erstellen</b> zeigt rechts das 3D und links die Teile, was erkannt wurde, die "
@@ -12871,6 +12903,10 @@ def kapitel_stammdaten(i):
         ["Kalibrierung: Faktor Schneiden, Kalibrierung: Faktor Einstechen, Kalibrierung: Faktor Ecken und Radien, "
          "Kalibrierung: Faktor Verfahren, Drehen, Kopfhub, Kalibrierung: Faktor Nebenzeit, Messen, Entnahme",
          "Faktor je Baustein der Laserzeit aus der Kalibrierung mit Ist-Zeiten ([[laserzeit_bausteine]]); leer = 1"],
+        ["Fertigbarkeit: kleinstes Loch/Schlitz [× Wand], Fertigbarkeit: schmalster Steg [× Wand], Fertigbarkeit: "
+         "kleinster Innen-Eckradius [mm], Fertigbarkeit: tiefste Lasergravur [mm]",
+         "Konstruktionsregeln für die Prüfung beim STEP-Import ([[fertigbarkeit]]); leer = Vorgabe (0,7 × Wand, "
+         "Eckradius aus, Gravur 0,5 mm), 0 = Prüfung aus"],
         ["Ausklinkung offener Profile ohne Einstich", "ja = eine Ausklinkung am Rand eines U-, C-, L-, T-Profils, "
          "Flachstahls oder Trägers beginnt an der freien Kante: je Ausklinkung eine Einstechzeit weniger"],
         ["3D: Winkel über Schwenkwinkel", "begrenzen (WARNUNG) = der Winkel wird auf den Schwenkwinkel begrenzt "

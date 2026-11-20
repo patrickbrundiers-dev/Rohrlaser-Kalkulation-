@@ -21,13 +21,24 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.427", "<b>Bauteil aus Text</b> ([[bauteil_aus_text]]). Neue Position → <i>Bauteil aus Text</i>: "
+    ["0.9.428", "<b>Bauteil aus Text</b> ([[bauteil_aus_text]]). Neue Position → <i>Bauteil aus Text</i>: "
      "Rohrrahmen, Gestell, Querstreben, Befestigungsplatten, Lasche, L-Winkel oder Flanschring in eigenen Worten "
      "beschreiben, z. B. „Rohrrahmen 1000 x 600 aus 40 x 40 x 3 mit vier Querstreben und zwei "
      "Befestigungsplatten“. Das Programm zeigt Teile, 3D, Annahmen, Hinweise und Fehler, ändert per Satz („Breite "
      "1200“, „6 Querstreben“, „ohne Platten“) mit Verlauf und legt die Teile erst nach „Übernehmen“ als Satz mit 3D "
      "an. Ohne Internet, ohne Cloud.",
      "Bauteil aus Text: Rahmen, Gestelle, Streben, Platten und Blechteile aus einer Beschreibung"],
+    ["0.9.427", "<b>Fertigbarkeit beim STEP-Import</b> ([[fertigbarkeit]]). Der Import prüft jedes Rohr gegen die "
+                "Konstruktionsregeln der Maschine: Loch oder Schlitz kleiner als 0,7 × Wand, Steg zwischen Konturen "
+                "oder zum Rohrende schmaler als 0,7 × Wand, Gravur tiefer als 0,5 mm, Länge und Hüllkreis außerhalb "
+                "der Maschine, auf Wunsch Innenecken ohne Radius. Ein Verstoß macht das Teil gelb mit Grund, das Teil "
+                "bleibt wie in der STEP. Grenzwerte je Maschine (Stammdaten → Maschinen → Fertigbarkeit beim Import). "
+                "Importanalyse mit Spalte Fertigbar und Dateianforderungen (Volumenkörper, Einheit), Hinweis im "
+                "Angebots-Check. Rechts neben den Merkmalen zeigt die Importanalyse das Teil in 3D, ein Klick färbt "
+                "den Bereich des Merkmals; „Nächstes zu prüfen“ springt zu unsicheren Merkmalen und Regelverstößen. "
+                "Gewinde, Senkungen und Fließlöcher aus Modell und Zeichnung werden abgeglichen (bestätigt, Anzahl "
+                "abweichend, nur in der Zeichnung).",
+     "STEP-Import prüft Loch, Steg, Gravur, Länge und Hüllkreis; Importanalyse mit 3D, Gewinde mit Zeichnung"],
     ["0.9.426", "<b>Explosionsansicht einstellen, von Hand ändern und speichern</b> ([[explosion_3d]]). Neues Fenster "
      "<i>Explosion einstellen …</i>: Stärke bis 3×, Richtung (frei, waagrecht, senkrecht, nur X/Y/Z), nach "
      "Unterbaugruppen, ohne Überlappung, Verbindungslinien zur Einbaulage, Positionsnummern aus der Stückliste und "

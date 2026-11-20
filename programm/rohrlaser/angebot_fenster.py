@@ -9990,7 +9990,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 return None
             step_ablage.ordner_merken(self.db, dateien)
         # Importengine (20.11.2026): ZIP entpacken, Herstellerformate/leere/defekte/doppelte Dateien melden
-        from . import cad_import
+        from . import cad_import, fertigbarkeit
         vorbereitung = cad_import.vorbereiten(dateien)
         self.import_vorbereitung = vorbereitung
         if not vorbereitung.dateien:
@@ -10031,6 +10031,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             messwerte += cad_import.fehler_zeilen(vorbereitung, messwerte[0] if messwerte else None)
             if messwerte and vorbereitung.befunde:
                 messwerte[0]["_import_befunde"] = list(vorbereitung.befunde)
+            # Konstruktionsregeln der Maschine des Angebots (Laserhub-Vergleich L1): nur Hinweis im Prüfdialog
+            fertigbarkeit.markieren(messwerte, rechnen.maschine(self.kopf, self.k))
             json_ablage = self._messung_ablegen(ergebnis) if mit_ablage and laufend is None else None
         finally:
             if laufend is None:
