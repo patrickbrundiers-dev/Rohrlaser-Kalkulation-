@@ -49,6 +49,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from . import anfrage_phase as ap
 from . import anfragen_akten as ak
 from . import mail_zuordnung as mz
 
@@ -68,6 +69,9 @@ LEASE_S = 300
 ERLEDIGT_TAGE = 90               # Erledigt-Ordner nur so weit zurück auflisten
 HOECHSTENS = 50                  # neue Mails je Abruf (der Rest beim nächsten Mal)
 STAMM = "_outlook"
+# Zuverlässiger Abruf (20.11.2026, Plan K8): eine Mail, die nicht übernommen werden konnte, wird beim nächsten Abruf,
+# dann nach 5 und danach alle 30 Minuten erneut versucht (nie aufgegeben, nie gelöscht); „Erneut verarbeiten“ sofort.
+WARTEN_MIN = (0, 5, 30)
 
 
 def an(db):
@@ -98,7 +102,7 @@ def ordner_ids(db):
 
 def ordner_id_merken(db, pfad, entry_id, store_id=""):
     """Kennung zu einem gewählten Ordner speichern; nicht mehr benutzte Pfade fallen dabei heraus."""
-    benutzt = {ordner(db), *unter_pfade(db), str(pfad)}
+    benutzt = {ordner(db), *unter_pfade(db), *ap.ordner_einstellungen(db).values(), str(pfad)}
     z = {k: v for k, v in ordner_ids(db).items() if k in benutzt}
     if entry_id:
         z[str(pfad)] = dict(e=str(entry_id), s=str(store_id or ""))
@@ -287,12 +291,14 @@ for ($i = 0; $i -lt $d.unter.Count; $i++) {
     if ($u.EntryID -eq $a.EntryID) { throw ("Outlook-Ordner '" + $n + "' ist derselbe wie der Eingang") }
     $unter[$n] = $u
 }
-$aus = @{ neu = @(); liste = @(); verschoben = @(); fehler = @(); kat_gesetzt = @(); kategorien = @(); andere = 0 }
+$aus = @{ neu = @(); liste = @(); verschoben = @(); fehler = @(); fehl_mid = @(); kat_gesetzt = @(); kategorien = @(); andere = 0 }
 try { $aus.kategorien = @(foreach ($c in $ns.Categories) { [string]$c.Name }) } catch { }
 $wunsch = @{}; foreach ($v in $d.verschieben) { $wunsch[$v.mid] = $v.nach }
 $katw = @{}; foreach ($v in $d.kategorien) { $katw[$v.mid] = $v }
 $hol = @{}; foreach ($k in $d.nachholen) { $hol[$k] = 1 }
 $bek = @{}; foreach ($k in $d.bekannt) { $bek[$k] = 1 }
+$spaeter = @{}; foreach ($k in $d.spaeter) { $spaeter[$k] = 1 }
+$begrenzt = @{}; foreach ($n in $d.begrenzt) { $begrenzt[$n] = 1 }
 $grenze = (Get-Date).AddDays(-[int]$d.tage)
 $nr = 0
 function Sichern($m, $k) {
@@ -333,29 +339,68 @@ foreach ($m in @($a.Items)) {
     if ($aus.neu.Count -ge [int]$d.max) { break }
     $k = Mid $m
     if ($hier -and $bek.ContainsKey($k)) { continue }               # schon Akte: bleibt im Eingang (= Neu)
-    try { Sichern $m $k; if (-not $hier) { [void]$m.Move($unter[$d.unter[0]]) } } catch { $aus.fehler += ($k + ': ' + $_) }
+    if ($spaeter.ContainsKey($k)) { continue }                      # zuletzt fehlgeschlagen: wartet bis zum nächsten Versuch
+    try { Sichern $m $k; if (-not $hier) { [void]$m.Move($unter[$d.unter[0]]) } } catch { $aus.fehler += ($k + ': ' + $_); $aus.fehl_mid += $k }
 }
-# 3. Unterordner auflisten (Erledigt nur die letzten Tage), fehlende Akten nachholen
+# 3. Unterordner auflisten (Erledigt / Nicht relevant nur die letzten Tage, von Outlook gefiltert), fehlende Akten nachholen
 foreach ($n in $d.unter) {
-    foreach ($m in @($unter[$n].Items)) {
+    $items = $unter[$n].Items
+    if ($begrenzt.ContainsKey($n)) { try { $items = $items.Restrict("[ReceivedTime] >= '" + $grenze.ToString('g') + "'") } catch { } }
+    foreach ($m in @($items)) {
         if ($m.Class -ne 43) { continue }
-        if ($n -eq $d.unter[2] -and $m.ReceivedTime -lt $grenze) { continue }
+        if ($begrenzt.ContainsKey($n) -and $m.ReceivedTime -lt $grenze) { continue }
         $k = Mid $m
         $aus.liste += @{ mid = $k; ordner = $n; kat = @(Kats $m) }
-        if ($hol.ContainsKey($k) -and $aus.neu.Count -lt [int]$d.max) { try { Sichern $m $k } catch { $aus.fehler += ($k + ': ' + $_) } }
+        if ($hol.ContainsKey($k) -and -not $spaeter.ContainsKey($k) -and $aus.neu.Count -lt [int]$d.max) { try { Sichern $m $k } catch { $aus.fehler += ($k + ': ' + $_); $aus.fehl_mid += $k } }
     }
 }
 $aus | ConvertTo-Json -Depth 4 -Compress | Set-Content -Encoding UTF8 -LiteralPath $args[1]
 """
 
 
-def ps_daten(ordner_, ziel, verschieben=(), nachholen=(), pfade=None, kategorien=(), ids=None, bekannt=()):
-    return dict(ordner=ordner_, ziel=str(ziel), unter=[UNTER[ak.NEU], UNTER[ak.BEARBEITUNG], UNTER[ak.ERLEDIGT]],
-                unter_pfade=list(pfade or ["", "", ""]), ids=dict(ids or {}),
+def ps_daten(ordner_, ziel, verschieben=(), nachholen=(), pfade=None, kategorien=(), ids=None, bekannt=(),
+             phasen=None, spaeter=()):
+    """Daten für ABRUF_PS. phasen: {Phase: Outlook-Pfad} der gewählten Phasen-Ordner (anfrage_phase); sie kommen als
+    weitere Ordner dazu (Name = Phase). spaeter: Nachrichten-IDs, die bis zum nächsten Versuch warten."""
+    unter, pf = [UNTER[ak.NEU], UNTER[ak.BEARBEITUNG], UNTER[ak.ERLEDIGT]], list(pfade or ["", "", ""])
+    for p, pfad in phasen_ordner(phasen, pf).items():
+        unter.append(ap.text(p))
+        pf.append(pfad)
+    begrenzt = [UNTER[ak.ERLEDIGT]] + ([ap.text(ap.NICHT_RELEVANT)] if ap.text(ap.NICHT_RELEVANT) in unter else [])
+    return dict(ordner=ordner_, ziel=str(ziel), unter=unter, unter_pfade=pf, ids=dict(ids or {}),
                 verschieben=[dict(mid=m, nach=n) for m, n in verschieben], nachholen=list(nachholen),
-                bekannt=sorted(bekannt),
+                bekannt=sorted(bekannt), spaeter=sorted(spaeter), begrenzt=begrenzt,
                 kategorien=[dict(mid=m, setzen=k, weg=list(w)) for m, k, w in kategorien],
                 tage=ERLEDIGT_TAGE, max=HOECHSTENS)
+
+
+def phasen_ordner(phasen, pfade=("", "", "")):
+    """Gültige Phasen-Ordner {Phase: Pfad}: nur Phasen aus ap.ORDNER_PHASEN, jeder Pfad nur einmal und keiner der
+    drei Grundordner (sonst läge eine Mail in zwei Ordnern zugleich)."""
+    belegt, out = {str(x).strip().casefold() for x in pfade if x}, {}
+    for p in ap.ORDNER_PHASEN:
+        pfad = str((phasen or {}).get(p) or "").strip()
+        if pfad and pfad.casefold() not in belegt:
+            belegt.add(pfad.casefold())
+            out[p] = pfad
+    return out
+
+
+def ordner_status(phasen=None):
+    """{Ordnername: Status} der Grundordner und der gewählten Phasen-Ordner."""
+    out = dict(STATUS_ZU)
+    for p in phasen_ordner(phasen):
+        out[ap.text(p)] = ap.ORDNER_PHASEN[p]
+    return out
+
+
+def ziel_ordner(akte, phasen=None, phase=None):
+    """Outlook-Ordner (Name), in den die Mail der Akte gehört: Ordner ihrer Phase, wenn einer gewählt ist, sonst der
+    Ordner ihres Status. phase: schon gerechnete Phase (sonst aus der Akte)."""
+    p = phase or ap.phase(akte)
+    if p in phasen_ordner(phasen):
+        return ap.text(p)
+    return UNTER[akte.status]
 
 
 # Ordner wählen: die Ordnerauswahl von Outlook selbst (auch andere Postfächer); Ergebnis der Outlook-Pfad
@@ -447,7 +492,7 @@ def outlook_lauf(daten, ausfuehren=None, timeout=180, skript=None):
             erg = json.loads(aus.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError) as e:
             return None, f"Antwort von Outlook unlesbar: {e}"
-    for k in ("neu", "liste", "verschoben", "fehler", "kat_gesetzt", "kategorien"):
+    for k in ("neu", "liste", "verschoben", "fehler", "fehl_mid", "kat_gesetzt", "kategorien"):
         if k not in erg and skript:
             continue
         v = erg.get(k) or []
@@ -503,11 +548,23 @@ def index(akten):
     return out
 
 
-def folgen(abl, akte, ordner_, jetzt=None):
-    """Outlook -> Programm: Akte in den Status des Outlook-Ordners bringen. Ergebnis: Text oder ''."""
-    soll = STATUS_ZU.get(ordner_)
-    if soll is None or akte.status == soll:
+def folgen(abl, akte, ordner_, jetzt=None, phasen=None):
+    """Outlook -> Programm: Akte in den Status (und bei einem Phasen-Ordner in die Phase) des Outlook-Ordners
+    bringen; nichts wird zurückgedreht, alles steht im Verlauf. Ergebnis: Text oder ''."""
+    zu = ordner_status(phasen)
+    soll = zu.get(ordner_)
+    if soll is None:
         return ""
+    phase = next((p for p in phasen_ordner(phasen) if ap.text(p) == ordner_), "")
+    if phase:
+        return _phase_folgen(abl, akte, ordner_, phase, soll, jetzt)
+    if akte.status == soll:
+        if akte.stand.get("phase") in phasen_ordner(phasen):    # aus einem Phasen-Ordner zurückgezogen
+            abl.phase_setzen(akte, "", jetzt=jetzt, outlook=ordner_)
+            return f"{akte.nr}: {UNTER[soll]} (in Outlook verschoben)"
+        return ""
+    if akte.stand.get("phase") in phasen_ordner(phasen):
+        akte = abl.phase_setzen(akte, "", jetzt=jetzt, outlook=ordner_)
     if soll == ak.BEARBEITUNG:
         if akte.status == ak.NEU:
             abl.uebernehmen(akte, akte.stand["zugewiesen"] or None, jetzt=jetzt)
@@ -523,6 +580,25 @@ def folgen(abl, akte, ordner_, jetzt=None):
         abl.zurueckgeben(akte, jetzt=jetzt)
     abl.notiz(abl.neu_lesen(akte), f"In Outlook nach „{ordner_}“ verschoben", jetzt=jetzt)
     return f"{akte.nr}: {UNTER[soll]} (in Outlook verschoben)"
+
+
+def _phase_folgen(abl, akte, ordner_, phase, soll, jetzt):
+    if phase == ap.NICHT_RELEVANT:
+        if akte.aussortiert:
+            return ""
+        if akte.status == ak.ERLEDIGT:
+            akte = abl.wieder_oeffnen(akte, jetzt=jetzt)
+        abl.aussortieren(akte, "Sonstiges", jetzt=jetzt)
+        abl.notiz(abl.neu_lesen(akte), f"In Outlook nach „{ordner_}“ verschoben", jetzt=jetzt)
+        return f"{akte.nr}: {ordner_} (in Outlook verschoben)"
+    if akte.status == ak.ERLEDIGT:
+        akte = abl.wieder_oeffnen(akte, jetzt=jetzt)
+    if akte.status == ak.NEU:
+        akte = abl.uebernehmen(akte, akte.stand["zugewiesen"] or None, jetzt=jetzt)
+    if akte.stand.get("phase") == phase:
+        return ""
+    abl.phase_setzen(akte, phase, jetzt=jetzt, outlook=ordner_)
+    return f"{akte.nr}: {ordner_} (in Outlook verschoben)"
 
 
 def _soll(akte):
@@ -554,12 +630,28 @@ def kategorie_folgen(abl, akte, alt, neu, zu, mitarbeiter, jetzt=None):
 
 
 def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None, pfade=None, zu=None,
-            mitarbeiter=None, ids=None, eigene=(), firma=""):
+            mitarbeiter=None, ids=None, eigene=(), firma="", phasen=None, phase_von=None):
     """Ein Abruf. pfade: Outlook-Pfade [Neu, In Bearbeitung, Erledigt] (Neu leer = Mails bleiben im Eingang,
     sonst leer = Unterordner); ids: feste Kennungen
     der gewählten Ordner {Pfad: {"e", "s"}} (ordner_ids); zu: Zuordnung
     {Kategorie: Kürzel}; mitarbeiter: {Kürzel: Name} für die automatische Zuordnung. Ergebnis: dict(neu=[Akte],
-    gefolgt=[Text], verschoben=n, fehler=[Text], anderer=Marke|None, antworten=[Akte], kategorien=n)."""
+    gefolgt=[Text], verschoben=n, fehler=[Text], anderer=Marke|None, antworten=[Akte], kategorien=n).
+    phasen: {Phase: Outlook-Pfad} (anfrage_phase.ordner_einstellungen); phase_von(akte): Phase mit Angeboten und
+    Aufträgen (sonst nur aus der Akte). Am Ende steht das Ergebnis in _outlook/abruf_status.json (abruf_status)."""
+    beginn = datetime.datetime.now()
+    out = _abrufen(abl, ordner_, kunden, ausfuehren, jetzt, pfade, zu, mitarbeiter, ids, eigene, firma, phasen,
+                   phase_von)
+    if out.get("anderer") is None:
+        try:
+            status_schreiben(abl, out, beginn, jetzt)
+        except OSError as e:
+            from . import protokoll
+            protokoll.warnung("Outlook-Abrufstatus nicht geschrieben", e)
+    return out
+
+
+def _abrufen(abl, ordner_, kunden, ausfuehren, jetzt, pfade, zu, mitarbeiter, ids, eigene, firma, phasen,
+             phase_von):
     out = dict(neu=[], gefolgt=[], verschoben=0, fehler=[], anderer=None, antworten=[], kategorien=0, andere=0)
     zu, mitarbeiter = zu or {}, mitarbeiter or {}
     ok, m = marke_nehmen(abl, jetzt=jetzt)
@@ -570,9 +662,24 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
     alle = abl.alle()
     akten = index(alle)
     regeln = mz.regeln_lesen(abl.wurzel)
-    verschieben = [(mid, UNTER[akten[mid].status]) for mid, o in stand.items()
-                   if mid in akten and UNTER[akten[mid].status] != o]
+    phasen = phasen_ordner(phasen, pfade or ("", "", ""))
+    verschieben = []
+    for mid, o in stand.items():
+        if mid not in akten:
+            continue
+        a = akten[mid]
+        try:
+            p = phase_von(a) if phase_von and phasen else None
+        except Exception as e:          # noqa: BLE001 – ohne Phase: Ordner nach Status
+            from . import protokoll
+            protokoll.warnung("Phase für Outlook nicht bestimmt", e)
+            p = None
+        z = ziel_ordner(a, phasen, p) if phasen else UNTER[a.status]
+        if z != o:
+            verschieben.append((mid, z))
     nachholen = [mid for mid in stand if mid not in akten]
+    fehl = fehler_lesen(abl)
+    spaeter = {mid for mid, f in fehl.items() if not _faellig(f, jetzt)}
     kat_pfad = Path(abl.wurzel) / STAMM / "kategorien_stand.json"
     kat_stand = _json_lesen(kat_pfad, {})
     bekannte = kategorien_lesen(abl)
@@ -587,12 +694,15 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
             kat_wunsch.append((mid, soll, [k for k in ma if k != soll]))
     with tempfile.TemporaryDirectory() as ziel:
         erg, fehler = outlook_lauf(ps_daten(ordner_, ziel, verschieben, nachholen, pfade, kat_wunsch, ids,
-                                            set(akten) | set(stand)),
+                                            set(akten) | set(stand), phasen, spaeter),
                                    ausfuehren)
         if erg is None:
             out["fehler"].append(fehler)
+            out["outlook_fehlt"] = True
             return out
         out["fehler"] += [str(f) for f in erg["fehler"]]
+        fehl_neu = [(str(m), "", next((str(f)[len(str(m)) + 2:] for f in erg["fehler"] if str(f).startswith(f"{m}: ")),
+                                      "")) for m in erg.get("fehl_mid") or []]
         # neue Mails (und nachgeholte) als Akte
         for n in erg["neu"]:
             mid, datei = str(n.get("mid") or ""), Path(str(n.get("datei") or ""))
@@ -632,8 +742,10 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
                     akte = abl.neu_lesen(akte)
             except Exception as e:      # noqa: BLE001 – Mail bleibt in Outlook (Neu) und wird nachgeholt
                 out["fehler"].append(f"Akte nicht angelegt (wird beim nächsten Abruf nachgeholt): {e}")
+                fehl_neu.append((mid, kopf.get("betreff") or "", str(e)))
                 continue
             if akte is not None:
+                fehl.pop(mid, None)
                 akten[mid] = akte
                 alle.append(akte)
                 stand.pop(mid, None)    # nachgeholt: die Akte folgt dem Outlook-Ordner, in dem die Mail liegt
@@ -652,10 +764,22 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
             kategorien_schreiben(abl, kat_liste(erg["kategorien"]))
         except OSError:
             pass
+    for mid in list(fehl):
+        if mid in akten:
+            fehl.pop(mid)
+    for mid, betreff, text in fehl_neu:
+        fehl[mid] = _fehler_merken(fehl.get(mid), betreff, text, jetzt)
+    out["wartet"] = len(fehl)
+    try:
+        _json_schreiben(_fehler_pfad(abl), fehl)
+    except OSError as e:
+        from . import protokoll
+        protokoll.warnung("Outlook-Fehlerliste nicht geschrieben", e)
+    zu_status = ordner_status(phasen)
     neu_stand, neu_kat = {}, {}
     for e in erg["liste"]:
         mid, o = str(e.get("mid") or ""), str(e.get("ordner") or "")
-        if not mid or o not in STATUS_ZU:
+        if not mid or o not in zu_status:
             continue
         neu_stand[mid] = o
         neu_kat[mid] = kat_liste(e.get("kat"))
@@ -674,7 +798,7 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
         letzt = stand.get(mid)
         if letzt != o:                  # in Outlook verschoben (sonst: Programm führt, Verschieben beim nächsten Mal)
             try:
-                t = folgen(abl, abl.neu_lesen(akte), o, jetzt=jetzt)
+                t = folgen(abl, abl.neu_lesen(akte), o, jetzt=jetzt, phasen=phasen)
             except (ak.AblageFehler, ak.SchonUebernommen, OSError) as x:
                 t = ""
                 out["fehler"].append(f"{akte.nr}: {x}")
@@ -686,3 +810,93 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
     except OSError:
         pass
     return out
+
+
+# ------------------------------------------------------------------ Zuverlässigkeit (Plan K8)
+def _fehler_pfad(abl):
+    return Path(abl.wurzel) / STAMM / "fehler.json"
+
+
+def fehler_lesen(abl):
+    """Mails, die nicht übernommen werden konnten: {Nachrichten-ID: dict(anzahl, zuletzt, naechster, betreff, text)}."""
+    return {str(k): v for k, v in _json_lesen(_fehler_pfad(abl), {}).items() if isinstance(v, dict)}
+
+
+def _fehler_merken(alt, betreff, text, jetzt=None):
+    jetzt = jetzt or datetime.datetime.now()
+    n = int((alt or {}).get("anzahl") or 0) + 1
+    warte = WARTEN_MIN[min(n, len(WARTEN_MIN)) - 1]
+    return dict(anzahl=n, zuletzt=ak._jetzt(jetzt), naechster=ak._jetzt(jetzt + datetime.timedelta(minutes=warte)),
+                betreff=str(betreff or (alt or {}).get("betreff") or "")[:200], text=str(text or "")[:400])
+
+
+def _faellig(f, jetzt=None):
+    try:
+        return datetime.datetime.fromisoformat(str(f.get("naechster") or "")) <= (jetzt or datetime.datetime.now())
+    except ValueError:
+        return True
+
+
+def erneut_verarbeiten(abl, mids=None):
+    """„Erneut verarbeiten“: wartende Mails (alle oder mids) beim nächsten Abruf sofort wieder versuchen. Die Mails
+    selbst liegen unverändert in Outlook. Ergebnis: Anzahl."""
+    fehl = fehler_lesen(abl)
+    n = 0
+    for mid, f in fehl.items():
+        if mids is None or mid in mids:
+            f["naechster"] = ""
+            n += 1
+    _json_schreiben(_fehler_pfad(abl), fehl)
+    return n
+
+
+def _status_pfad(abl):
+    return Path(abl.wurzel) / STAMM / "abruf_status.json"
+
+
+def abruf_status(abl):
+    """Letzter Abruf (alle Plätze sehen ihn): dict(zeit, platz, kuerzel, ok, neu, antworten, gefolgt, fehler=[…],
+    wartet, dauer_s, letzter_erfolg, fehlversuche) oder {}."""
+    return _json_lesen(_status_pfad(abl), {})
+
+
+def status_schreiben(abl, out, beginn=None, jetzt=None):
+    alt = abruf_status(abl)
+    jetzt_z = ak._jetzt(jetzt)
+    ok = not out.get("fehler")
+    s = dict(zeit=jetzt_z, platz=abl.platz, kuerzel=abl.kuerzel, ok=ok, neu=len(out.get("neu") or ()),
+             antworten=len(out.get("antworten") or ()), gefolgt=len(out.get("gefolgt") or ()),
+             fehler=[str(f)[:300] for f in (out.get("fehler") or ())[:10]], wartet=int(out.get("wartet") or 0),
+             dauer_s=round((datetime.datetime.now() - beginn).total_seconds(), 1) if beginn else None,
+             outlook_erreicht=not out.get("outlook_fehlt", False),
+             letzter_erfolg=jetzt_z if ok else alt.get("letzter_erfolg", ""),
+             fehlversuche=0 if ok else int(alt.get("fehlversuche") or 0) + 1)
+    _json_schreiben(_status_pfad(abl), s)
+    return s
+
+
+def status_text(s, jetzt=None):
+    """Eine Zeile für das Anfrage-Center: wann zuletzt, was kam, was hängt."""
+    if not s:
+        return "Outlook: noch kein Abruf."
+    try:
+        z = datetime.datetime.fromisoformat(s.get("zeit", ""))
+        zt = f"{z:%d.%m. %H:%M}"
+    except ValueError:
+        zt = "?"
+    if not s.get("outlook_erreicht", True):
+        t = f"Outlook nicht erreichbar ({zt}, {s.get('fehlversuche') or 1}× hintereinander)"
+        if s.get("letzter_erfolg"):
+            try:
+                t += f", zuletzt geklappt {datetime.datetime.fromisoformat(s['letzter_erfolg']):%d.%m. %H:%M}"
+            except ValueError:
+                pass
+        return t
+    t = f"Outlook zuletzt {zt} ({s.get('platz', '')}): {s.get('neu', 0)} neu"
+    if s.get("antworten"):
+        t += f", {s['antworten']} Antwort(en)"
+    if s.get("fehler"):
+        t += f", {len(s['fehler'])} Fehler"
+    if s.get("wartet"):
+        t += f", {s['wartet']} Mail(s) warten auf erneuten Versuch"
+    return t

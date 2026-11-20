@@ -123,7 +123,7 @@ seite = fenster.anfragen_seite
 ou2 = Outlook(pfade={"Neu": "\\\\Team\\Offen"}, kategorien=["Patrick", "Wichtig"])
 seite.outlook_ausfuehren = ou2
 d = seite.outlook_zeigen()
-assert set(d.pfade) == {"neu", "bearbeitung", "erledigt"} and not d.pfade["neu"].text()
+assert {"neu", "bearbeitung", "erledigt"} <= set(d.pfade) and not d.pfade["neu"].text()   # + Phasen-Ordner
 ou2.gewaehlt = "\\\\Team\\Offen"
 assert d.waehlen("neu") == "\\\\Team\\Offen" and ol.unter_pfade(db) == ["\\\\Team\\Offen", "", ""]
 assert d.waehlen("bearbeitung") == "" and ol.unter_pfade(db)[1] == ""     # derselbe Ordner zweimal: abgewiesen
