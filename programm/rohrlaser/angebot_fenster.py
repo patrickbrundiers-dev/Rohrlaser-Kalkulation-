@@ -2599,6 +2599,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.pos_modell = PositionenModell(self)
         self.pos_modell.geaendert.connect(self.neu_laden)
         self.pos_ansicht = _tabelle(self.pos_modell, sortieren=False)
+        self.pos_ansicht.auto_groesse.ohne_spaltenwahl()     # eigene Spaltenwahl „Weitere Spalten“
         self.pos_modell.modelReset.connect(lambda: hasattr(self, "pos_info") and self._pos_info_zeigen())
         self.pos_ansicht.setItemDelegate(_AuswahlUnter(self.pos_modell, self.pos_ansicht))
         # ✓/✗ in der Zelle: Vorschläge dieser Position übernehmen bzw. ablehnen (Patrick 04.11.2026)
