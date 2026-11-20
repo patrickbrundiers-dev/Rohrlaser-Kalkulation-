@@ -1496,6 +1496,74 @@ def kapitel_angebote(i):
             "Ausschalten: Einstellung <i>anfragen_verwaltung</i> = nein (dann wie bisher nur die Karte auf der "
             "Startseite).")
 
+    i.abschnitt("Herkunft und Kunde: wer hat angefragt, für welchen Kunden", marke="herkunft_kunde")
+    i.text("Rechts bei jeder Anfrage steht oben der Kasten <b>Herkunft und Kunde</b>. Er zeigt, wer die Anfrage "
+           "geschickt hat und über welches Postfach sie kam. Ist sie weitergeleitet, steht dort von wem. Und er "
+           "zeigt, welchen Kunden das Programm erkannt hat und woran. Grundregel: lieber zur Prüfung vorlegen als "
+           "einen falschen Kunden setzen.", kurz=True)
+    i.genauer()
+    i.liste("<b>Stufen</b>: <i>eindeutig</i> setzt den Kunden. Das ist der Fall, wenn die Absenderadresse beim "
+            "Kunden steht, eine Regel sie nennt oder Domain und Signatur zusammenpassen (Firmenname, Telefon). "
+            "<i>Wahrscheinlich</i> heißt, nur ein Merkmal passt, zum Beispiel die Domain. <i>Mehrdeutig</i> heißt, "
+            "mehrere Kunden passen. <i>Nicht erkannt</i> heißt, kein Kunde passt. In diesen drei Fällen bleibt der "
+            "Kunde leer und die Liste zeigt <b>⚠ Kunde prüfen</b>, meist mit Vorschlag. Ein Klick auf "
+            "<i>übernehmen</i> bestätigt den Vorschlag. Der Filter <i>Kunde prüfen</i> zeigt alle offenen Fälle.",
+            "<b>Weitergeleitet</b>: Der Kunde kommt immer aus der Mail des Kunden, nie aus der Adresse des "
+            "Kollegen. Das gilt auch bei mehrfach weitergeleiteten Mails und bei Mails, die als Anlage weitergeleitet "
+            "wurden. Die Weiterleiter stehen getrennt (Name, Adresse, Zeit), dazu das eigene Postfach (info@, "
+            "anfrage@, vertrieb@ …).",
+            "<b>Interne Anfrage</b>: Schreibt ein Kollege selbst, wird er nie Kunde oder Ansprechpartner. Nennt er "
+            "einen Kunden im Text (Name, Kundennummer), steht dieser als Vorschlag da. Sonst wählst du den Kunden, oder "
+            "du nimmst <i>Intern (ohne Kunde)</i>, zum Beispiel für eigene Teile.",
+            "<b>Sammelpostfach des Kunden</b> (info@kunde.de): Der Kunde wird erkannt, ein Ansprechpartner aber "
+            "nicht gesetzt.",
+            "<b>Korrigieren</b>: <i>Kunde ändern …</i> (Suche, mit <i>Als Regel merken</i>), <i>Neuen Kunden anlegen "
+            "…</i> (zeigt vorher passende vorhandene Kunden, legt mit Bemerkung „Kunde prüfen“ an), "
+            "<i>Ansprechpartner …</i>, <i>Absender korrigieren …</i>, <i>Angebot verknüpfen …</i>, "
+            "<i>Intern (ohne Kunde)</i> und <i>Zurücksetzen</i> (wieder wie beim Eingang erkannt). Den Mitarbeiter "
+            "wählst du wie bisher mit Zuweisen bzw. Übernehmen. Jede Änderung steht mit Kürzel und Zeit im Verlauf. "
+            "Beim Kalkulieren gilt der hier bestätigte Kunde.",
+            "<b>Regeln</b>: Mit <i>Als Regel merken</i> gehört die Adresse (auf Wunsch die ganze Domain) künftig immer "
+            "zu diesem Kunden. Die Regeln stehen im Fenster <i>Outlook …</i> unter <i>Zuordnungsregeln</i> und lassen "
+            "sich dort löschen. Der Kundenstamm wird dabei nie geändert.",
+            "<b>Doppelt und Antworten</b>: Kommt dieselbe Kundenmail auf zwei Wegen (direkt und weitergeleitet), "
+            "entsteht keine zweite Anfrage. Antworten erkennt das Programm auch an den Kopfzeilen der Mail, ohne AW: im "
+            "Betreff.",
+            "<b>Interne Notizen bleiben intern</b>: Ist die Anfrage intern weitergeleitet, öffnen <i>Rückfrage</i> und "
+            "<i>Angebot per E-Mail</i> eine neue Mail an den Kunden, nie eine Antwort auf die interne Mail. So geht "
+            "der interne Verlauf nicht mit.")
+
+    i.abschnitt("Anfragen sammeln, verschieben und zusammenführen", marke="anfragen_sammeln")
+    i.text("Eine Anfrage ist ein Vorgang mit beliebig vielen Mails und Dokumenten. Der Reiter <b>Dokumente & "
+           "Mails</b> zeigt sie nach Kategorie, der Reiter <b>Chronik</b> alles nach Zeit. Dateien und Mails "
+           "ziehst du einfach hinein, auch direkt aus Outlook.", kurz=True)
+    i.genauer()
+    i.liste("<b>Hinzufügen</b>: Dateien aus dem Explorer oder markierte Mails aus dem klassischen Outlook auf den "
+            "Reiter oder auf eine Zeile der Liste ziehen. Oder <i>Hinzufügen …</i> (Mehrfachauswahl) bzw. "
+            "<i>Outlook-Auswahl</i> nehmen. Anhänge einer Mail werden einzeln übernommen. Gleiche Dateien erkennt das "
+            "Programm am Inhalt, auch unter anderem Namen, und speichert sie nur einmal.",
+            "<b>Kategorien</b>: Kundenanfrage, E-Mail-Verlauf, Technische Zeichnungen, Stücklisten, Materialanfragen, "
+            "Angebote, Nachträge und Sonstige Dokumente. Das Programm schlägt eine Kategorie vor. Mit <i>Kategorie</i> "
+            "änderst du sie für die markierten Dokumente, und mit <i>Neue Kategorie …</i> legst du eigene an. Jedes "
+            "Dokument hat eine Dokumenten-ID (D-…), und die Herkunft steht daneben (Absender, Quelle, alte Anfrage).",
+            "<b>Zu anderer Anfrage …</b>: Markierte Mails bzw. Dateien einer anderen Anfrage zuweisen. In der alten "
+            "Anfrage stehen sie unter <i>Verschoben</i>. Die Outlook-Zuordnung zieht mit.",
+            "<b>Zusammenführen …</b>: Weitere Anfragen in die gewählte übernehmen. Vorschläge (gleiche Datei, gleiche "
+            "Projekt- oder Bestellnummer, gleicher Kunde mit ähnlichem Betreff) sind schon markiert, du kannst aber "
+            "jede Anfrage wählen. Vorher steht eine Übersicht aller Mails, Dateien, Doppel und Warnungen da (zum "
+            "Beispiel verschiedene Kunden). Erst <i>Zusammenführen</i> führt aus. Die übernommenen Anfragen stehen "
+            "unter Erledigt als <i>Zusammengeführt in A-…</i> und bleiben lesbar. Antworten auf sie kommen in die "
+            "Hauptanfrage. Automatisch wird nie zusammengeführt.",
+            "<b>Zusammenführung rückgängig</b>: trennt die zuletzt zusammengeführten Anfragen wieder. Gelöscht wird "
+            "nichts, die Originaldateien bleiben unverändert.",
+            "<b>Sicherheit</b>: Zusammenführen dürfen der Bearbeiter und der Admin, eine neue Anfrage darf jeder "
+            "zusammenführen. Eine Sperre verhindert, dass zwei Plätze gleichzeitig dieselben Anfragen zusammenführen. "
+            "Ein Journal sorgt dafür, dass ein Absturz oder Netzabbruch mittendrin beim nächsten Start sauber zu Ende "
+            "geführt wird. Beim Hinzufügen wird jede Datei erst vollständig kopiert und geprüft. Jeder Import steht im "
+            "Protokoll (_outlook/import_protokoll.jsonl), und die Akten kommen mit in die Datensicherung.",
+            "<b>Suche und Filter</b>: Die Suche findet auch Betreff und Absender aller Mails der Anfrage sowie "
+            "Projekt- und Bestellnummern im Text. Neu ist der Filter <i>Kunde</i>.")
+
     i.abschnitt("Anhänge in der Vorschau ansehen", marke="anhang_vorschau")
     i.text("Ein Klick auf einen Anhang einer Anfrage öffnet ihn in einem eigenen Vorschaufenster im Programm, "
            "nicht im externen Programm. Das Fenster kann neben der Anfrage offen bleiben.", kurz=True)
@@ -8073,7 +8141,7 @@ def kapitel_zukauf_angebot(i):
            "Zehntel genau). Gebogene Teile stehen in der TUBX schon als gerades Rohr mit Ausklinkungen, so wie der "
            "Laser sie schneidet. Liegt eine LST mit gleichem Namen dabei, wird sie nicht zusätzlich eingelesen. "
            "Rückgängig nimmt alle eingelesenen Positionen auf einmal zurück.")
-    i.text("<b>Produktionsdaten fürs Lernen</b> (seit 0.9.425): In den Einstellungen (STEP-Import, "
+    i.text("<b>Produktionsdaten fürs Lernen</b> (seit 0.9.426): In den Einstellungen (STEP-Import, "
            "TRUMPF-Programme) die Einstellung <i>TRUMPF-Programme: Ordner der gefertigten LST-Dateien fürs Lernen (leer = "
            "aus)</i> setzen; am besten einen gemeinsamen "
            "Ordner, in den die Maschine die LST nach dem Lauf speichert. Gelesen werden alle LST-Dateien auch in "

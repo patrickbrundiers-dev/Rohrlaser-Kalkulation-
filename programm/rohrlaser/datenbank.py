@@ -3524,6 +3524,14 @@ class Datenbank:
             except OSError as e:
                 info["dokumente_fehler"] = [str(e)]
                 protokoll.warnung(f"Sicherung {ziel.name}: Angebotsdokumente nicht gesichert ({e})")
+        try:                            # Anfrage-Akten (Mails, Dokumente, Verlauf) mitsichern (20.11.2026)
+            from . import anfragen_akten
+            akten = anfragen_akten.wurzel(self)
+            if akten.is_dir():
+                z = dokumente_sicherung.spiegeln(akten, ziel.parent, ordner=dokumente_sicherung.ANFRAGEN)
+                info["anfragen"] = dokumente_sicherung.text(z)
+        except Exception as e:          # noqa: BLE001 – Sicherung der Datenbank darf daran nie scheitern
+            protokoll.warnung(f"Sicherung {ziel.name}: Anfrage-Akten nicht gesichert ({e})")
         return info
 
     @liest

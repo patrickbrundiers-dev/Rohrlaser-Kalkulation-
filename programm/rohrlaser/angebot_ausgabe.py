@@ -195,7 +195,13 @@ class AusgabeMixin:
         from . import anfragen_akten
         for p in angebot_mail.anfrage_mails(ordner) + [anfragen_akten.anfrage_mail(self.db, self.id)]:
             m = mail_.lesen(p) if p else None      # Paket 5: sonst die Original-Mail aus der Anfrage
-            if m is not None:
+            if m is not None:                       # intern weitergeleitet: neue Mail an den Kunden (19.11.2026)
+                try:
+                    from . import anfragen as _anf
+                    m = angebot_mail.anfrage_sicher(m, _anf.eigene_domains(self.db),
+                                                    self.db.einstellung("briefkopf_1") or "")
+                except Exception as fehler:           # noqa: BLE001
+                    protokoll.warnung(f"Angebot: Anfrage-Mail nicht geprüft ({type(fehler).__name__}: {fehler})")
                 anfrage = (p, m)
                 break
         from . import ausgabe as _ausgabe        # OFFER-018: Gültigkeit nach Werkstoff-Kategorie wie im PDF

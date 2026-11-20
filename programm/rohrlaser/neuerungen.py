@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.425", "<b>Lernsystem aus TRUMPF-Produktionsdaten</b> ([[lernsystem]]): Ordner der gefertigten LST-Dateien "
+    ["0.9.426", "<b>Lernsystem aus TRUMPF-Produktionsdaten</b> ([[lernsystem]]): Ordner der gefertigten LST-Dateien "
                 "einstellen, dann <i>Datei → Produktionsdaten & Lernsystem …</i>. Das Programm liest jede LST einmal "
                 "(im Hintergrund), ordnet die Teile über PPEASE-Nummer, Artikelnummer oder gleiche Merkmale Angebot "
                 "und Position zu und vergleicht die an der Maschine gemessene Zeit mit unserer Laserzeit. Passt die "
@@ -30,6 +30,18 @@ NEUERUNGEN = [
                 "Preiswirkung; geändert wird nur mit „Freigeben“ (über 15 % mit zweiter Bestätigung), jede Freigabe "
                 "lässt sich zurücksetzen. Die Kalibrierung je Baustein lernt mit, das Einstechen getrennt.",
      "Lernsystem: LST-Produktionsdaten, Vergleich und gelernte Faktoren"],
+    ["0.9.424", "<b>Outlook: Kunde sicher erkennen, Anfragen sammeln und zusammenführen</b> ([[herkunft_kunde]], "
+     "[[anfragen_sammeln]]). Bei jeder Anfrage zeigt <i>Herkunft und Kunde</i> den ursprünglichen Absender, die "
+     "Weiterleiter, das Postfach und den erkannten Kunden mit Stufe (eindeutig, wahrscheinlich, mehrdeutig, nicht "
+     "erkannt) und Begründung. Nur eindeutig setzt den Kunden, sonst steht <i>⚠ Kunde prüfen</i> mit Vorschlag in "
+     "der Liste. Interne Anfragen von Kollegen, Sammelpostfächer, mehrfach und als Anlage weitergeleitete Mails werden "
+     "erkannt. Korrekturen von Hand stehen im Verlauf, auf Wunsch als Regel. Dieselbe Mail auf zwei Wegen ergibt keine "
+     "zweite Anfrage. Neu sind die Reiter <i>Dokumente & Mails</i> (nach Kategorie, Hineinziehen auch aus Outlook) "
+     "und <i>Chronik</i>, dazu <i>Zu anderer Anfrage …</i> und <i>Zusammenführen …</i> mit Übersicht, Rückgängig "
+     "und Wiederherstellung nach Absturz. Auf intern weitergeleitete Mails wird nie geantwortet: interne Notizen "
+     "bleiben intern.",
+     "Outlook: Kunde nur eindeutig gesetzt sonst „Kunde prüfen“, interne Anfragen, Dokumente & Mails, Zusammenführen "
+     "mit Rückgängig"],
     ["0.9.423", "<b>Fehler aus den Supportpaketen vom 20.11. behoben</b>. Beim Beenden brach die Sicherung mit "
      "„call stack is not deep enough“ ab und das Programm stürzte danach ab: ein Fehler beim Sichern hält das Beenden "
      "nicht mehr auf, er steht nur im Protokoll. Die Lernzentrale öffnet wieder (gemerkte STEP-Teilearten mit Datum). "

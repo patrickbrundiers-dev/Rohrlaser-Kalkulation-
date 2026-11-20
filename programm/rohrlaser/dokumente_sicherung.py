@@ -21,6 +21,7 @@ from pathlib import Path
 
 ORDNER = "Dokumente"
 AKTUELL, ALT = "aktuell", "alt"
+ANFRAGEN = "Anfragen"           # Spiegel der Anfrage-Akten (Mails, Dokumente, Verlauf), Anfragen zusammenführen
 LISTE = ".dokumente.json"
 ALT_TAGE = 60                   # ältere Stände so lange aufheben
 VOR_WIEDERHERSTELLUNG = "_vor_Wiederherstellung"
@@ -77,10 +78,11 @@ def _kopieren(quelle, ziel):
     os.replace(neu, ziel)
 
 
-def spiegeln(ablage, sicherungsordner, liste_fuer=None, heute=None):
+def spiegeln(ablage, sicherungsordner, liste_fuer=None, heute=None, ordner=ORDNER):
     """Ablage in <sicherungsordner>/Dokumente spiegeln. liste_fuer: Pfad der Datenbank-Sicherung, neben die die Liste
-    <name>.dokumente.json kommt. Ergebnis: dict(neu=…, geaendert=…, weg=…, dateien=…, bytes=…, fehler=[…])."""
-    ablage, basis = Path(ablage), Path(sicherungsordner) / ORDNER
+    <name>.dokumente.json kommt. ordner: anderer Spiegel-Ordner (ANFRAGEN: die Anfrage-Akten, 20.11.2026).
+    Ergebnis: dict(neu=…, geaendert=…, weg=…, dateien=…, bytes=…, fehler=[…])."""
+    ablage, basis = Path(ablage), Path(sicherungsordner) / ordner
     aktuell = basis / AKTUELL
     heute = heute or datetime.date.today()
     alt = basis / ALT / heute.isoformat()
@@ -112,7 +114,7 @@ def spiegeln(ablage, sicherungsordner, liste_fuer=None, heute=None):
         ziel = listenpfad(liste_fuer)
         ziel.write_text(json.dumps(dict(ablage=str(ablage), erstellt=datetime.datetime.now().isoformat(
             timespec="seconds"), dateien=jetzt), ensure_ascii=False), encoding="utf-8")
-    aufraeumen(sicherungsordner, heute)
+    aufraeumen(sicherungsordner, heute, ordner)
     return z
 
 
@@ -121,10 +123,10 @@ def listenpfad(sicherung):
     return p.with_name(p.stem + LISTE)
 
 
-def aufraeumen(sicherungsordner, heute=None):
+def aufraeumen(sicherungsordner, heute=None, ordner=ORDNER):
     """Ältere Stände nach ALT_TAGE Tagen löschen."""
     heute = heute or datetime.date.today()
-    alt = Path(sicherungsordner) / ORDNER / ALT
+    alt = Path(sicherungsordner) / ordner / ALT
     if not alt.is_dir():
         return
     for o in alt.iterdir():
