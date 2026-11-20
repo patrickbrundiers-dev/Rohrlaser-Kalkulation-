@@ -138,6 +138,10 @@ def auswahl_menue(menue, ansicht, vorher=None):
     iso = menue.addAction("Isolieren" + "\tI", lambda: tun("isolieren"))
     iso.setToolTip("Nur die gewählten Körper zeigen, alle anderen ausblenden")
     alle = menue.addAction("Alle einblenden" + "\tUmschalt+H", lambda: tun("alle_einblenden"))
+    durch = menue.addAction("Durchsichtig schalten" + "\tT", lambda: tun("durchsichtig_schalten"))
+    durch.setToolTip("Die gewählten Teile durchsichtig (bzw. wieder deckend): Innenkanten, Bohrungsränder und Teile "
+                     "dahinter werden sichtbar. Nur Anzeige")
+    deckend = menue.addAction("Alle deckend" + "\tUmschalt+T", lambda: tun("alle_deckend"))
     zur = menue.addAction("Sichtbarkeit: Rückgängig", lambda: tun("sicht_zurueck"))
     vor = menue.addAction("Sichtbarkeit: Wiederholen", lambda: tun("sicht_vor"))
     menue.setToolTipsVisible(True)
@@ -151,8 +155,9 @@ def auswahl_menue(menue, ansicht, vorher=None):
         gewaehlt = bool(w is not None and w.an and w.gewaehlt)
         for x in (zoom, auf):
             x.setEnabled(gewaehlt)
-        for x in (aus, iso):
+        for x in (aus, iso, durch):
             x.setEnabled(bool(gewaehlt and w.koerper_ids()))
+        deckend.setEnabled(bool(w is not None and w.durchsichtig))
         alle.setEnabled(bool(w is not None and w.versteckt))
         alle_w.setEnabled(bool(w is not None and w.elemente() is not None and len(w.elemente().koerper) > 1))
         umk.setEnabled(alle_w.isEnabled() and bool(w.an))
@@ -325,18 +330,54 @@ def aussehen_menue(menue):
     schatten.setCheckable(True)
     schatten.toggled.connect(lambda an: ansicht3d.aussehen_setzen({"ansicht3d_schatten": "ja" if an else "nein"},
                                                                  merken=True))
+    # Kanten und Durchsicht (Auftrag Kantenvisualisierung, 20.11.2026): dieselben Einstellungen wie Einstellungen →
+    # 3D-Ansicht und Navigation → Kanten und Durchsicht
+    km = menue.addMenu("Kanten und Durchsicht")
+    schalter = {}
+    for name, text, tipp in (
+            ("ansicht3d_kanten", "Körperkanten zeigen", "Kanten aus dem Knickwinkel der Flächen (keine Netzdreiecke)"),
+            ("ansicht3d_verdeckt", "Verdeckte Kanten gestrichelt",
+             "In allen Darstellungen mit Kanten: was hinter einer Wand liegt, hell gestrichelt statt weggelassen"),
+            ("ansicht3d_innenkanten", "Innenkanten blau",
+             "Kanten der Rohr-Innenwand (Wandstärke, Bohrungsränder innen) blau, damit sie sich von außen abheben")):
+        act = km.addAction(text)
+        act.setCheckable(True)
+        act.setToolTip(tipp)
+        act.toggled.connect(lambda an, n=name: ansicht3d.aussehen_setzen({n: "ja" if an else "nein"}, merken=True))
+        schalter[name] = act
+    km.addSeparator()
+    for titel, name, werte in (("Kantenfarbe", "ansicht3d_kantenfarbe", visualisierung.KANTENFARBEN),
+                               ("Kantenstärke", "ansicht3d_kantenstaerke", visualisierung.KANTENSTAERKEN),
+                               ("Kantenwinkel", "ansicht3d_kantenwinkel", {f"{w}°": float(w) for w in KANTENWINKEL}),
+                               ("Deckkraft durchsichtiger Teile", "ansicht3d_deckkraft",
+                                {f"{w} %": float(w) for w in DECKKRAFT})):
+        um = km.addMenu(titel)
+        gruppe = QActionGroup(um)
+        for text, wert in werte.items():
+            w = text if name in ("ansicht3d_kantenfarbe", "ansicht3d_kantenstaerke") else wert
+            act = um.addAction(text, lambda n=name, w=w: ansicht3d.aussehen_setzen({n: w}, merken=True))
+            act.setCheckable(True)
+            gruppe.addAction(act)
+            aktionen[(name, w)] = act
+    km.setToolTipsVisible(True)
 
     def vor_dem_zeigen():
         jetzt = visualisierung.aktuell()
         for (name, wert), act in aktionen.items():
-            act.setChecked(jetzt[name] == wert)
+            act.setChecked(jetzt[name] == wert if isinstance(wert, str) else abs(float(jetzt[name]) - wert) < 0.01)
         schatten.blockSignals(True)
         schatten.setChecked(visualisierung.schatten_an())
         schatten.blockSignals(False)
+        for name, act in schalter.items():
+            act.blockSignals(True)
+            act.setChecked(jetzt[name] == "ja")
+            act.blockSignals(False)
     menue.aboutToShow.connect(vor_dem_zeigen)
     return menue
 
 
+KANTENWINKEL = (10, 15, 20, 25, 30, 40, 50, 60)
+DECKKRAFT = (15, 25, 32, 50, 70)
 SCHNELL_SCHNITTE = (("Quer zur Rohrachse (Mitte)", "Z"), ("Längs senkrecht (Mitte)", "X"),
                     ("Längs waagrecht (Mitte)", "Y"))
 EXPLOSION_STUFEN = (0.0, 0.5, 1.0, 1.5, 2.0)

@@ -9,7 +9,7 @@ die Puffer werden mit array('f') gefüllt.
 import math
 from array import array
 
-from PySide6.QtGui import QOffscreenSurface, QOpenGLContext, QPainter, QSurfaceFormat
+from PySide6.QtGui import QColor, QOffscreenSurface, QOpenGLContext, QPainter, QSurfaceFormat
 from PySide6.QtOpenGL import QOpenGLBuffer, QOpenGLShader, QOpenGLShaderProgram
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtCore import Qt
@@ -145,18 +145,21 @@ def _farbe(c):
     return (c.redF(), c.greenF(), c.blueF())
 
 
-def puffer_daten(modell, farben, linien_farben, kanten=False, arten=None):
-    """Modell -> (Dreiecke, Linien, Körperkanten) als array('f') je Ecke: Ort (3), Normale (3), Farbe (3). arten: je
-    Dreieck eine andere Farbart (Darstellung Flächentypen) oder None."""
+def puffer_daten(modell, farben, linien_farben, kanten=False, arten=None, klar=None):
+    """Modell -> (Dreiecke, Linien, Körperkanten außen, Körperkanten innen, durchsichtige Dreiecke) als array('f') je
+    Ecke: Ort (3), Normale (3), Farbe (3). arten: je Dreieck eine andere Farbart (Darstellung Flächentypen) oder None.
+    klar(nr, art) -> True: Dreieck durchsichtig (Teil durchsichtig geschaltet, Prüfmodus Rohrlaser) – eigener Puffer,
+    der nach den deckenden mit Mischung gezeichnet wird."""
     p = modell.punkte
-    dreiecke = array("f")
+    dreiecke, durch = array("f"), array("f")
     glatt = modell.glatte_normalen()            # Rundungen glatt: Normale je Ecke (große Netze flach)
     for nr, (i, j, k, art, n) in enumerate(modell.dreiecke):
         c = farben.get(arten[nr] if arten is not None else art) or farben["K"]
+        ziel = durch if klar is not None and klar(nr, art) else dreiecke
         for e, x in enumerate((i, j, k)):
-            dreiecke.extend(p[x])
-            dreiecke.extend(glatt[nr][e] if glatt else n)
-            dreiecke.extend(c)
+            ziel.extend(p[x])
+            ziel.extend(glatt[nr][e] if glatt else n)
+            ziel.extend(c)
     linien = array("f")
     for a, b, art, n in modell.linien:
         c = linien_farben.get(art) or linien_farben["K"]
@@ -164,15 +167,18 @@ def puffer_daten(modell, farben, linien_farben, kanten=False, arten=None):
             linien.extend(q)
             linien.extend(n)
             linien.extend(c)
-    kante = array("f")
+    kante, kante_i = array("f"), array("f")
     if kanten:                  # Farbe aus dem Programm (kfarbe), hier der Weg längs der Kante für die Strichelung
-        for a, b, n in modell.kanten():
+        from .ansicht3d import KANTE_INNEN
+        klassen = modell.kanten_klassen()
+        for nr, (a, b, n) in enumerate(modell.kanten()):
+            ziel = kante_i if nr < len(klassen) and klassen[nr] == KANTE_INNEN else kante
             lg = math.dist(a, b)
             for q, w in ((a, 0.0), (b, lg)):
-                kante.extend(q)
-                kante.extend(n)
-                kante.extend((w, 0.0, 0.0))
-    return dreiecke, linien, kante
+                ziel.extend(q)
+                ziel.extend(n)
+                ziel.extend((w, 0.0, 0.0))
+    return dreiecke, linien, kante, kante_i, durch
 
 
 def koerper_daten(koerper, gewaehlt, farben, linien_farben):
@@ -259,8 +265,14 @@ class GLFlaeche(QOpenGLWidget):
                     farben[a] = tuple(c + (1.0 - c) * h for c in farben[a])
         arten = ansicht3d.flaechentyp_arten(modell) if modus == "typen" else None
         linien = {a: _farbe(c) for a, c in ansicht3d.LINIE.items()}
-        for name, daten in zip(("dreiecke", "linien", "kanten"),
-                               puffer_daten(modell, farben, linien, kanten, arten)):
+        durch = getattr(modell, "durch", None) or frozenset()
+        pruef = self.ansicht.darstellung == ansicht3d.PRUEFMODUS
+
+        def klar(nr, art):
+            return nr in durch or (pruef and art in ansicht3d.PRUEF_DURCH)
+        for name, daten in zip(("dreiecke", "linien", "kanten", "kanten_i", "dreiecke_d"),
+                               puffer_daten(modell, farben, linien, kanten, arten,
+                                            klar if durch or pruef else None)):
             if not daten:
                 continue
             b = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
@@ -279,8 +291,12 @@ class GLFlaeche(QOpenGLWidget):
         return "typen" if dar == ansicht3d.FLAECHENTYPEN else "betont" if dar == ansicht3d.KONTUREN_BETONT else ""
 
     def _farben_schluessel(self):
-        from . import visualisierung
-        return visualisierung.aktuell()["ansicht3d_material"], self._modus()
+        from . import ansicht3d, visualisierung
+        a = self.ansicht
+        m = a.modell
+        # Kantenwinkel (andere Kanten), Durchsicht je Teil und Prüfmodus (andere Puffer) laden neu
+        return (visualisierung.aktuell()["ansicht3d_material"], self._modus(), visualisierung.kanten_stil()["cos"],
+                id(getattr(m, "durch", None)), a.darstellung == ansicht3d.PRUEFMODUS)
 
     def paintGL(self):
         if self.fehler:
@@ -422,8 +438,15 @@ class GLFlaeche(QOpenGLWidget):
             self._hochladen(modell, kanten)
         roentgen = dar in ansicht3d.ROENTGEN_ARTEN
         draht = dar in ansicht3d.DRAHT_ARTEN
-        strich = dar == ansicht3d.VERDECKT
-        weiss = ansicht3d.VERDECKT_HELL if strich else ansicht3d.WEISS_ANTEIL.get(dar, 0.0)
+        stil_k = ansicht3d.visualisierung.kanten_stil()
+        pruef = dar == ansicht3d.PRUEFMODUS
+        # verdeckte Kanten gestrichelt: Verdeckt gestrichelt, Technisch, Prüfmodus immer, sonst nach der Einstellung
+        strich = not draht and not roentgen and (dar in ansicht3d.IMMER_VERDECKT or (
+            stil_k["verdeckt"] and dar not in ansicht3d.OHNE_VERDECKT))
+        weiss = ansicht3d.VERDECKT_HELL if dar == ansicht3d.VERDECKT else ansicht3d.WEISS_ANTEIL.get(dar, 0.0)
+        kanten_an = stil_k["an"] or draht or dar in (ansicht3d.TECHNISCH, ansicht3d.PRUEFMODUS)
+        innen_an = (stil_k["innen"] or pruef) and dar != ansicht3d.REALISTISCH
+        dezent = dar == ansicht3d.REALISTISCH
         betont = dar == ansicht3d.KONTUREN_BETONT
         m = ansicht3d._drehung(a.gier, a.nick, getattr(a, "roll", 0.0))
         w, hh = max(1, self.width()), max(1, self.height())
@@ -442,7 +465,8 @@ class GLFlaeche(QOpenGLWidget):
         for name, wert in (("r0", m[0]), ("r1", m[1]), ("r2", m[2]), ("mitte", modell.mitte),
                            ("licht", l1), ("licht2", l2),
                            ("kfarbe", _farbe(ansicht3d.HAUCH_FARBE if dar == ansicht3d.NUR_KONTUREN
-                                             else ansicht3d.KANTE))):
+                                             else QColor(ansicht3d.TECHNISCH_KANTE) if dar == ansicht3d.TECHNISCH
+                                             else QColor(stil_k["farbe"])))):
             pr.setUniformValue(pr.uniformLocation(name), *map(float, wert))
         for name, wert in zip(("grund", "neigung", "fuell", "glanz", "glanz_exp", "metall", "himmel", "horizont", "boden"),
                               licht_zahlen):
@@ -461,19 +485,51 @@ class GLFlaeche(QOpenGLWidget):
         if draht:               # Drahtgitter: alle Kanten und Konturen, ohne Verdeckung
             fn.glDisable(GL_DEPTH_TEST)
         naht = set(modell.arten) & set(ansicht3d.NAEHTE)
+        kfarbe = _farbe(ansicht3d.HAUCH_FARBE if dar == ansicht3d.NUR_KONTUREN else
+                        QColor(ansicht3d.TECHNISCH_KANTE) if dar == ansicht3d.TECHNISCH else QColor(stil_k["farbe"]))
+        ifarbe = _farbe(QColor(stil_k["innen_farbe"]))
+        kbreite = stil_k["breite"]
         for name, art, ist_linie in (("dreiecke", GL_TRIANGLES, 0.0), ("kanten", GL_LINES, 1.0),
-                                     ("linien", GL_LINES, 1.0)):
+                                     ("kanten_i", GL_LINES, 1.0), ("linien", GL_LINES, 1.0)):
             if name not in self.puffer or (draht and name == "dreiecke"):
+                continue
+            if name.startswith("kanten") and not kanten_an or name == "kanten_i" and not (innen_an or draht):
                 continue
             b, n = self.puffer[name]
             wert1("linie", ist_linie)
-            wert1("kante", 1.0 if name == "kanten" else 0.0)
+            wert1("kante", 1.0 if name.startswith("kanten") else 0.0)
+            pr.setUniformValue(pr.uniformLocation("kfarbe"), *(ifarbe if name == "kanten_i" else kfarbe))
             wert1("blass", max(blass, weiss) if name == "dreiecke" else blass)
-            wert1("alpha", ansicht3d.ALPHA if roentgen and not ist_linie else 1.0)
+            dez = dezent and name == "kanten"
+            wert1("alpha", ansicht3d.ALPHA if roentgen and not ist_linie else 0.47 if dez else 1.0)
+            if dez and not roentgen:
+                fn.glEnable(GL_BLEND)
+                fn.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
             if ist_linie:
-                fn.glLineWidth(1.1 if name == "kanten" else ansicht3d.NAHT_BREITE if naht else
+                fn.glLineWidth(kbreite * (0.75 if dez else 0.9 if name == "kanten_i" else 1.0)
+                               if name.startswith("kanten") else ansicht3d.NAHT_BREITE if naht else
                                ansicht3d.BETONT_BREITE if betont else 2.2)
             self._puffer_zeichnen(pr, b, art, n, fn)
+            if dez and not roentgen:
+                fn.glDisable(GL_BLEND)
+        pr.setUniformValue(pr.uniformLocation("kfarbe"), *kfarbe)
+        if "dreiecke_d" in self.puffer and not draht:
+            # durchsichtige Teile (Durchsicht je Teil, Prüfmodus: Außenwand/Schnitte): nach den deckenden, gemischt,
+            # ohne in den Tiefenpuffer zu schreiben – Innenwand, Bohrungsränder und Kanten dahinter bleiben sichtbar
+            b, n = self.puffer["dreiecke_d"]
+            fn.glEnable(GL_BLEND)
+            fn.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            fn.glDepthMask(False)
+            wert1("linie", 0.0)
+            wert1("kante", 0.0)
+            wert1("alle", 1.0)
+            wert1("blass", max(blass, weiss))
+            wert1("alpha", stil_k["alpha"])
+            self._puffer_zeichnen(pr, b, GL_TRIANGLES, n, fn)
+            wert1("alle", 1.0 if roentgen or draht else 0.0)
+            if not roentgen:
+                fn.glDepthMask(True)
+                fn.glDisable(GL_BLEND)
         self._koerper_zeichnen(fn, pr, wert1, modell, blass, draht, roentgen)
         if dar in ansicht3d.UMRISS_ARTEN:     # Umriss der Rundungen hängt von der Blickrichtung ab
             # V3: beim Drehen den letzten Umriss zeigen, erst in Ruhe neu rechnen (Python-Schleife je Kante)
@@ -502,21 +558,30 @@ class GLFlaeche(QOpenGLWidget):
                 wert1("kante", 1.0)
                 wert1("alle", 1.0)
                 wert1("blass", blass)
-                fn.glLineWidth(1.1)
+                fn.glLineWidth(kbreite)
                 self._puffer_zeichnen(pr, b, GL_LINES, self._umriss_n, fn)
-        if strich and "kanten" in self.puffer:      # verdeckte Kanten: hinter den Flächen, hell und gestrichelt
-            b, n = self.puffer["kanten"]
+        if strich and kanten_an:        # verdeckte Kanten: hinter den Flächen, hell und gestrichelt (innen blau)
             fn.glDepthFunc(GL_GREATER)
             fn.glDepthMask(False)
-            pr.setUniformValue(pr.uniformLocation("kfarbe"), *_farbe(ansicht3d.VERDECKT_FARBE))
+            fn.glEnable(GL_BLEND)
+            fn.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
             wert1("alle", 1.0)
             wert1("kante", 1.0)
             wert1("linie", 1.0)
             wert1("blass", blass)
             wert1("strich", s / 7.0)            # ein Strich je 7 px
-            fn.glLineWidth(1.0)
-            self._puffer_zeichnen(pr, b, GL_LINES, n, fn)
+            for name, farbe, alpha in (("kanten", _farbe(ansicht3d.VERDECKT_FARBE), 1.0),
+                                       ("kanten_i", ifarbe, 0.6)):
+                if name not in self.puffer or name == "kanten_i" and not innen_an:
+                    continue
+                b, n = self.puffer[name]
+                pr.setUniformValue(pr.uniformLocation("kfarbe"), *farbe)
+                wert1("alpha", alpha)
+                fn.glLineWidth(max(0.8, kbreite * 0.8))
+                self._puffer_zeichnen(pr, b, GL_LINES, n, fn)
             wert1("strich", 0.0)
+            wert1("alpha", 1.0)
+            fn.glDisable(GL_BLEND)
             fn.glDepthMask(True)
             fn.glDepthFunc(GL_LEQUAL)
         pr.release()

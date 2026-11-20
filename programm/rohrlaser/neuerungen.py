@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.421", "<b>3D-Ansicht: Kanten wie im CAD, Innenkanten und Prüfmodus</b> ([[kanten_3d]]). Kanten gehen nicht "
+     "mehr durch die Rohrwand oder durch andere Teile; verdeckte Kanten auf Wunsch hell gestrichelt. Innenkanten "
+     "(Innenwand, Wandstärke, Bohrungsränder innen) sind blau. Kanten nur ab einstellbarem Knickwinkel, ohne "
+     "Netzlinien. Neue Darstellungen <i>Realistisch</i>, <i>Technisch (CAD)</i> und <i>Prüfmodus Rohrlaser</i>; "
+     "gewählte Teile lassen sich durchsichtig schalten (Taste T). Kantenfarbe, -stärke, -winkel und Deckkraft unter "
+     "Aussehen → Kanten und Durchsicht. Nur Anzeige, Geometrie und Export bleiben gleich.",
+     "3D-Ansicht: keine Kanten durch Wände, Innenkanten blau, Technisch und Prüfmodus Rohrlaser, Teile durchsichtig"],
     ["0.9.420", "<b>Maximiertes Fenster bleibt maximiert</b> ([[arbeitsbereiche]]). Seit 0.9.414 verlangte die "
      "Startseite mit den Schnellzugriffen mehr Höhe als ein Laptop-Bildschirm hat; beim Wechsel der Reiter wuchs das "
      "Fenster dann über den Rand. Die Karten der Startseite liegen jetzt in einem Rollbereich, das Info-Panel ist "

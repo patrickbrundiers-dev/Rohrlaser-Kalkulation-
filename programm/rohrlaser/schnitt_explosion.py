@@ -16,7 +16,8 @@ SCHNITT_ART = "SC"
 RICHTUNGEN = {"quer (Rohrachse)": "Z", "längs senkrecht": "X", "längs waagrecht": "Y"}
 MAX_EBENEN = 3
 WAND_ARTEN = ("A", "I", "BL")      # Außenwand, Innenwand, Blech: daraus die Wandstärke
-_CACHES = ("sicht_grenzen", "_grob", "_grob_je", "_glatt", "_ebenen", "_kanten", "_glatt_kanten", "_typen")
+_CACHES = ("sicht_grenzen", "_grob", "_grob_je", "_glatt", "_ebenen", "_kanten", "_glatt_kanten", "_kanten_klassen",
+           "_kanten_grenze", "_typen", "durch")
 
 
 def ebene(modell, achse, anteil, neigung_grad=0.0, umkehren=False):

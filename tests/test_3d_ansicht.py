@@ -114,7 +114,7 @@ ansicht3d.speicher_setzen(None)
 ok("A2 Perspektive: Umschalter, Vorgabe orthogonal, je Benutzer gemerkt, Fangen trifft auch perspektivisch")
 
 # ------------------------------------------------------------------ A3 Darstellungen
-assert ansicht3d.DARSTELLUNGEN[3:5] == (ansicht3d.DRAHTGITTER, ansicht3d.VERDECKT) and len(ansicht3d.DARSTELLUNGEN) == 10
+assert ansicht3d.DARSTELLUNGEN[3:5] == (ansicht3d.DRAHTGITTER, ansicht3d.VERDECKT) and len(ansicht3d.DARSTELLUNGEN) == 13
 mo = ansicht3d.Modell(rohr3d.netz(EING, QR, 500))
 laengs = {(round(p[0], 2), round(p[1], 2)) for p, q, _ in mo.kanten()
           if p[0] == q[0] and p[1] == q[1] and abs(p[2] - q[2]) > 50}
