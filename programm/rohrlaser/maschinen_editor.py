@@ -57,10 +57,12 @@ GRUPPEN = (
       "ruestzeit", "ruest_form", "ruest_sonder", "schicht_stunden", "sperrtage", "mannlos_ab", "mannlos_satz")),
     ("fertigbarkeit", "Fertigbarkeit beim Import",
      "Konstruktionsregeln, die der STEP-Import prüft: kleinstes Loch und schmalster Steg als Vielfaches der Wand, "
-     "Innen-Eckradius und tiefste Lasergravur. Ein Verstoß macht das Teil im Prüfdialog gelb mit Grund (nie rot, das "
-     "Teil bleibt wie in der STEP). Leer = Vorgabe, 0 = Prüfung aus. Länge und Hüllkreis prüft er mit den Werten "
-     "unter „Stange und Spannen“.",
-     ("fb_loch_faktor", "fb_steg_faktor", "fb_eckradius", "fb_gravur_tiefe")),
+     "Innen-Eckradius, tiefste Lasergravur und ihr Abstand zur Schnittlinie, offener Umfang (Teil spannt nicht "
+     "sicher), Einnietmuttern (Profil, Wand, Abstand) und die Lochgrenze im Rundrohr bei Schneidtechnik XY. Ein "
+     "Verstoß macht das Teil im Prüfdialog gelb mit Grund (nie rot, das Teil bleibt wie in der STEP). Leer = "
+     "Vorgabe, 0 = Prüfung aus. Länge und Hüllkreis prüft er mit den Werten unter „Stange und Spannen“.",
+     ("fb_loch_faktor", "fb_steg_faktor", "fb_eckradius", "fb_gravur_tiefe", "fb_gravur_abstand", "fb_umfang_offen",
+      "fb_nm_profil", "fb_nm_wand", "schneidtechnik", "fb_xy_faktor")),
     ("kalibrierung", "Kalibrierung je Werkstoff",
      "Faktoren je Baustein der Laserzeit: allgemein (Stahl) und zusätzlich je Werkstoffgruppe (wirkt auf allgemein); "
      "Vorschläge aus den Ist-Zeiten der Nachkalkulation (Kalibrieren in den Schneiddaten); leer = 1. Aluminium ist "

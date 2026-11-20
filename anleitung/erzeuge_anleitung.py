@@ -4908,6 +4908,22 @@ def kapitel_step(i):
             "<b>Zukaufteile</b> des Imports (Blech-, Fräs-, Drehteile) nennt die Importanalyse oben: nach dem "
             "Übernehmen fragt die <b>Materialanfrage</b> sie gesammelt an (Gruppen Blechteile bzw. Dreh-/Frästeile, mit "
             "Zeichnung, DXF und STEP; Rohrmaterial geht nie mit Dateien hinaus).")
+    i.text("Seit 0.9.433 prüft der Import zusätzlich (Ideen aus dem Vergleich mit 247TailorSteel, Grenzwerte "
+           "eigene je Maschine):", kurz=True)
+    i.liste("<b>Gravur zur Schnittlinie</b>: eine Gravur liegt mindestens den eingestellten Abstand (Vorgabe "
+            "1,5 mm) von jeder Kontur und vom geraden Rohrende entfernt und berührt keine Schnittlinie.",
+            "<b>Umfang offen</b>: ist der Umfang an keinem der 5 Prüfpunkte (10 mm von beiden Enden, ¼, ½, ¾ der "
+            "Länge) geschlossen, weil Ausschnitte dort mindestens den eingestellten Anteil (Vorgabe 15 %) wegnehmen, "
+            "ist das Teil ein offenes Profil und spannt nicht sicher.",
+            "<b>Einnietmuttern</b> (aus Zeichnung oder Formular, z. B. „2x Einnietmutter M6“, oder Zusatzarbeit "
+            "<i>Einnietmuttern setzen</i> im Importprofil): M4 bis M8, nur Quadrat- oder Rechteckrohr bis zur "
+            "eingestellten Profilgröße (Vorgabe 150 mm), Wand 0,5 mm bis Grenze (Vorgabe 3 mm). Mit Größe prüft er "
+            "auch die Seite (Loch + 2 × 2 × Wand) und dass jedes passende Loch (M4 Ø 6, M5 Ø 7, M6 Ø 9, M8 Ø 11) "
+            "mindestens 2 × Wand von anderen Konturen und dem Rohrende entfernt ist.",
+            "<b>Schneidtechnik</b>: Standard je Maschine (Feld <i>Schneidtechnik Standard</i>, leer = 2,5D) und je "
+            "Position in der Spalte <b>Schneidtechnik</b> (leer = Standard der Maschine). Bei <b>XY</b> werden Löcher "
+            "im Rundrohr zylindrisch geschnitten; ein Loch über Faktor × Rohr-Ø (Vorgabe 0,5) meldet der Import und "
+            "der Angebots-Check. 2,5D hat diese Grenze nicht. Die Wahl ändert die Laserzeit nicht.")
     i.abschnitt("STEP-Merkmale prüfen", marke="step_merkmale")
     i.text("Jedes Rohrteil aus dem STEP-Import merkt sich, wie sicher die Messung die einzelnen Merkmale erkannt hat. "
            "Rechtsklick auf die Position → <b>STEP-Merkmale prüfen …</b> zeigt sie.", kurz=True)
@@ -13178,6 +13194,11 @@ def kapitel_stammdaten(i):
          "kleinster Innen-Eckradius [mm], Fertigbarkeit: tiefste Lasergravur [mm]",
          "Konstruktionsregeln für die Prüfung beim STEP-Import ([[fertigbarkeit]]); leer = Vorgabe (0,7 × Wand, "
          "Eckradius aus, Gravur 0,5 mm), 0 = Prüfung aus"],
+        ["Fertigbarkeit: Gravur Mindestabstand zur Schnittlinie [mm], Fertigbarkeit: Umfang gilt als offen ab [% des "
+         "Umfangs], Fertigbarkeit: Einnietmuttern bis Profilgröße [mm], Fertigbarkeit: Einnietmuttern bis Wand [mm], "
+         "Schneidtechnik Standard, Fertigbarkeit: Loch im Rundrohr bei XY bis [× Rohr-Ø]",
+         "weitere Prüfregeln beim STEP-Import ([[fertigbarkeit]]); leer = Vorgabe (1,5 mm, 15 %, 150 mm, 3 mm, 2,5D, "
+         "0,5), 0 = Prüfung aus"],
         ["Ausklinkung offener Profile ohne Einstich", "ja = eine Ausklinkung am Rand eines U-, C-, L-, T-Profils, "
          "Flachstahls oder Trägers beginnt an der freien Kante: je Ausklinkung eine Einstechzeit weniger"],
         ["3D: Winkel über Schwenkwinkel", "begrenzen (WARNUNG) = der Winkel wird auf den Schwenkwinkel begrenzt "

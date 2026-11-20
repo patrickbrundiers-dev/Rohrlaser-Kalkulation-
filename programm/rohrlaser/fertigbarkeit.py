@@ -16,6 +16,18 @@ Grenzwerte der Maschine (Stammdaten → Maschinen, Gruppe „Fertigbarkeit“); 
 Dazu die vorhandenen Maschinenfelder: Länge (max. Stange − Endbeschnitt − Greiferrest, kürzestes Teil min_teil) und
 Hüllkreis (max./min. Hüllkreis-Ø).
 
+Prüfregeln aus dem 247TailorSteel-Vergleich (Patrick 20.11.2026 „Alles einbauen nach Empfehlungen“; nur die Ideen
+aus öffentlichen Infos, Grenzwerte eigene je Maschine):
+  fb_gravur_abstand  Gravur mindestens so weit von jeder Schnittlinie (Kontur, gerades Rohrende), berührt sie nie
+                     (Vorgabe 1,5 mm)
+  fb_umfang_offen    Umfang offen ab diesem Anteil [%] (Vorgabe 15): ist der Umfang an keinem der 5 Prüfpunkte (beide
+                     Enden, ¼, ½, ¾) geschlossen, ist das Teil ein offenes Profil und spannt nicht sicher
+  fb_nm_profil/_wand Einnietmuttern (aus Zeichnung/Formular oder Zusatzarbeit) M4–M8 nur in Quadrat-/Rechteckrohr bis
+                     Profilgröße 150 mm, Wand 0,5 bis 3 mm; Seite mindestens Loch + 2 × 2 × Wand, Loch mindestens
+                     2 × Wand von anderen Konturen und dem Rohrende
+  schneidtechnik     Standard der Maschine (2,5D oder XY), je Position abweichend; bei XY Loch im Rundrohr höchstens
+  fb_xy_faktor       Faktor × Rohr-Ø (Vorgabe 0,5)
+
 Ergebnis je Teil in m["_fertigbarkeit"]: [{regel, text, x, seite, wert, grenze}]; step.ampel nimmt die Texte als
 Gründe, bauteil_analyse als Merkmale „Fertigbarkeit“.
 """
@@ -27,13 +39,28 @@ GRAVUR_TIEFE = 0.5
 MARKIERLOCH = 0.5       # Markierloch Ø0,5 (Fließlochbohrung) ist gewollt kleiner als die Wand
 ECKE_KNICK = 30.0       # Grad: ab so viel Richtungsänderung ohne Bogen gilt eine Ecke als scharf
 ECKE_SEGMENT = 1.0      # mm: beide Kanten an der Ecke mindestens so lang (sonst ist es ein angenäherter Bogen)
+GRAVUR_ABSTAND = 1.5
+UMFANG_OFFEN = 15.0     # % des Umfangs
+PRUEF_ENDE = 10.0       # mm: Prüfpunkt „Ende“ so weit vom Rohrende (höchstens ein Zehntel der Länge)
+XY_FAKTOR = 0.5
+NM_PROFIL = 150.0
+NM_WAND = 3.0
+NM_WAND_MIN = 0.5
+NM_ABSTAND = 2.0        # × Wand
+NM_LOCH = {"M4": 6.0, "M5": 7.0, "M6": 9.0, "M8": 11.0}     # Bohrung für Einnietmuttern (Flachrundkopf, Rundschaft)
+NM_LOCH_TOL = 0.3
+XY, ZWEIEINHALB_D = "XY", "2,5D"
+GESCHLOSSEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Flachoval", "Halbflachoval", "Elliptisch")
 MAX_BEFUNDE = 50        # je Teil (Rest als Zahl)
 MAX_KONTUREN_STEG = 400  # mehr Konturen: Stegprüfung nur zum Rohrende (sonst zu langsam)
 
 LOCH, SCHLITZ, STEG, STEG_ENDE, ECKE, GRAVUR, LAENGE, KURZ, HUELLE = (
     "Loch", "Schlitz", "Steg", "Steg zum Ende", "Innenecke", "Gravur", "Länge", "Kürzestes Teil", "Hüllkreis")
+GRAVUR_RAND, UMFANG, XY_LOCH, NIETMUTTER = ("Gravur zur Schnittlinie", "Umfang offen", "Loch im Rundrohr (XY)",
+                                            "Einnietmutter")
 
-FELDER = ("fb_loch_faktor", "fb_steg_faktor", "fb_eckradius", "fb_gravur_tiefe")
+FELDER = ("fb_loch_faktor", "fb_steg_faktor", "fb_eckradius", "fb_gravur_tiefe", "fb_gravur_abstand",
+          "fb_umfang_offen", "fb_nm_profil", "fb_nm_wand", "schneidtechnik", "fb_xy_faktor")
 
 
 def _f(x, vorgabe=0.0):
@@ -63,7 +90,19 @@ def grenzen(maschine):
     return dict(loch=wert("fb_loch_faktor", LOCH_FAKTOR), steg=wert("fb_steg_faktor", STEG_FAKTOR),
                 eckradius=wert("fb_eckradius", 0.0), gravur=wert("fb_gravur_tiefe", GRAVUR_TIEFE),
                 max_laenge=max_l, min_laenge=_f(m.get("min_teil")), max_hk=_f(m.get("max_huellkreis")),
-                min_hk=_f(m.get("min_huellkreis")), maschine=str(m.get("maschinen_id") or ""))
+                min_hk=_f(m.get("min_huellkreis")), maschine=str(m.get("maschinen_id") or ""),
+                gravur_abstand=wert("fb_gravur_abstand", GRAVUR_ABSTAND), umfang=wert("fb_umfang_offen", UMFANG_OFFEN),
+                nm_profil=wert("fb_nm_profil", NM_PROFIL), nm_wand=wert("fb_nm_wand", NM_WAND),
+                xy=wert("fb_xy_faktor", XY_FAKTOR), technik=technik_von(m))
+
+
+def technik_von(maschine, position=None):
+    """Schneidtechnik: Position, sonst Standard der Maschine, sonst 2,5D."""
+    for q in (position, maschine):
+        t = str((q or {}).get("schneidtechnik") or "").strip().upper().replace(".", ",")
+        if t in ("XY", "2,5D"):
+            return XY if t == "XY" else ZWEIEINHALB_D
+    return ZWEIEINHALB_D
 
 
 # ---------------------------------------------------------------------------------------------- Geometrie (u, x)
@@ -156,11 +195,14 @@ def _ist_rohr(m):
         (m.get("profilform") or "") not in ("Blech", "Blech gekantet", "Drehteil", "Frästeil", "Normteil")
 
 
-def pruefen(m, maschine=None):
-    """Befunde eines gemessenen Teils (Liste, leer = fertigbar)."""
+def pruefen(m, maschine=None, technik=None):
+    """Befunde eines gemessenen Teils (Liste, leer = fertigbar). technik = Schneidtechnik der Position (leer =
+    Standard der Maschine)."""
     if m.get("fehler") or not _ist_rohr(m):
         return []
     g = grenzen(maschine)
+    if technik:
+        g["technik"] = technik_von(None, dict(schneidtechnik=technik))
     wand = _f(m.get("wandstaerke"))
     laenge = _f(m.get("laenge"))
     try:
@@ -236,6 +278,10 @@ def pruefen(m, maschine=None):
                 out.append(_befund(GRAVUR, f"Gravur {_z(d.get('tiefe'))} mm tief: der Laser markiert bis "
                                    f"{_z(g['gravur'])} mm, tiefer nur gefräst – prüfen", d, _f(d.get("tiefe")),
                                    g["gravur"]))
+    out += _gravur_abstand(innen, durch, konturen, laenge, g)
+    out += _umfang(m, durch, laenge, g)
+    out += _xy_loecher(m, durch, g)
+    out += _nietmuttern(m, durch, konturen, laenge, wand, g)
     # Länge und Hüllkreis gegen die Maschine
     if g["max_laenge"] > 0 and laenge > g["max_laenge"] + 1e-6:
         out.append(_befund(LAENGE, f"Teil {_z(laenge)} mm länger als die Maschine aus einer Stange schneidet "
@@ -254,6 +300,186 @@ def pruefen(m, maschine=None):
         rest = len(out) - MAX_BEFUNDE
         out = out[:MAX_BEFUNDE] + [dict(regel="mehr", text=f"… und {rest} weitere Befunde")]
     return out
+
+
+def _gerade_enden(konturen):
+    return {d.get("art") for d in konturen if d.get("art") in ("Ende A", "Ende B")
+            and (d.get("form") or "gerade") == "gerade" and abs(_f(d.get("gehrung"))) < 0.05}
+
+
+def _naechste(pk, box, durch, ausser=None):
+    """(Abstand, Kontur) zur nächsten Schnittkontur, nur für Konturen in der Nähe (Hüllbox ± 50 mm)."""
+    u0, u1, x0, x1 = box
+    best, wer = math.inf, None
+    for d in durch:
+        if d is ausser:
+            continue
+        qk = _punkte(d)
+        if len(qk) < 3:
+            continue
+        v0, v1, y0, y1 = _box(qk)
+        if y0 - x1 > 50 or x0 - y1 > 50 or v0 - u1 > 50 or u0 - v1 > 50:
+            continue
+        s = abstand(pk, qk)
+        if s < best:
+            best, wer = s, d
+    return best, wer
+
+
+def _gravur_abstand(innen, durch, konturen, laenge, g):
+    """Gravur mit Mindestabstand zu jeder Schnittlinie; berührt sie nie (247TailorSteel-Vergleich)."""
+    out, ga = [], g["gravur_abstand"]
+    if ga <= 0:
+        return out
+    gerade = _gerade_enden(konturen)
+    for d in innen:
+        pk = _punkte(d)
+        if d.get("art") != "Gravur" or len(pk) < 3:
+            continue
+        box = _box(pk)
+        s, wer = _naechste(pk, box, durch)
+        name = f"{wer.get('art') or 'Kontur'} (x {_z(wer.get('z'))})" if wer is not None else ""
+        for ende, rand in (("Ende A", box[2]), ("Ende B", laenge - box[3])):
+            if ende in gerade and rand < s:
+                s, name = max(rand, 0.0), f"dem {ende}"
+        if s < ga - 1e-6:
+            text = (f"Gravur berührt die Schnittlinie von {name}" if s <= 0.05 else
+                    f"Gravur {_z(s)} mm neben {name}, mindestens {_z(ga)} mm")
+            out.append(_befund(GRAVUR_RAND, text, d, s, ga))
+    return out
+
+
+def umfang_mm(m):
+    """Umfang des Profils [mm] (Rundrohr π·D, sonst 2·(A + B), Ovale angenähert)."""
+    a, b = _f(m.get("abm_a")), _f(m.get("abm_b"))
+    if a <= 0:
+        return 0.0
+    form = m.get("profilform") or ""
+    if form == "Rundrohr" or (b <= 0 and form != "Quadratrohr"):
+        return math.pi * a
+    b = b if b > 0 else a
+    if form in ("Flachoval", "Elliptisch", "Halbflachoval"):
+        return 2 * (a - b) + math.pi * b if a >= b else 2 * (b - a) + math.pi * a
+    return 2 * (a + b)
+
+
+def pruefpunkte(laenge):
+    """Die 5 Prüfpunkte längs: beide Enden (PRUEF_ENDE, höchstens L/10), ¼, ½, ¾."""
+    e = min(PRUEF_ENDE, laenge / 10)
+    return [e, laenge / 4, laenge / 2, 3 * laenge / 4, laenge - e]
+
+
+def _umfang(m, durch, laenge, g):
+    """Offenes Profil: an keinem der 5 Prüfpunkte ist der Umfang geschlossen (247TailorSteel-Vergleich: U-Profile und
+    Schalen spannen nur, wenn der Umfang irgendwo geschlossen ist)."""
+    if g["umfang"] <= 0 or (m.get("profilform") or "") not in GESCHLOSSEN or laenge <= 0:
+        return []
+    u = umfang_mm(m)
+    if u <= 0:
+        return []
+    boxen = [_box(pk) for pk in (_punkte(d) for d in durch) if len(pk) >= 3]
+    offen = []
+    for x in pruefpunkte(laenge):
+        breite = sum(b[1] - b[0] for b in boxen if b[2] < x < b[3])
+        offen.append(breite)
+        if breite < g["umfang"] / 100 * u - 1e-6:
+            return []
+    return [_befund(UMFANG, f"Umfang an keinem der 5 Prüfpunkte geschlossen (Enden, ¼, ½, ¾; mind. "
+                    f"{round(min(offen) / u * 100):d} % offen): offenes Profil, spannt nicht sicher – prüfen", None,
+                    min(offen) / u * 100, g["umfang"], (0.0, laenge))]
+
+
+def _xy_loecher(m, durch, g):
+    """Schneidtechnik XY: Löcher im Rundrohr zylindrisch, höchstens Faktor × Rohr-Ø (247TailorSteel-Vergleich)."""
+    if g["technik"] != XY or g["xy"] <= 0 or (m.get("profilform") or "") != "Rundrohr":
+        return []
+    big_d = _f(m.get("abm_a"))
+    grenze = g["xy"] * big_d
+    out = []
+    for d in durch:
+        if d.get("art") != "Bohrung":
+            continue
+        dm = _f(d.get("durchmesser")) or _f(d.get("huellmass"))
+        if big_d > 0 and dm > grenze + 1e-6:
+            out.append(_befund(XY_LOCH, f"Loch Ø {_z(dm)} mm größer als {_z(g['xy'])} × Rohr-Ø {_z(big_d)} mm: mit "
+                               "XY nicht zylindrisch schneidbar – 2,5D wählen oder prüfen", d, dm, grenze))
+    return out
+
+
+def nietmuttern(m):
+    """Einnietmuttern des Teils: [(Gewinde oder None, Anzahl oder None, Quelle)] aus Zeichnung/Formular
+    (m["_zeichnung_text"]) und Zusatzarbeiten des Imports (m["_zusatz"])."""
+    out = []
+    if m.get("_zeichnung_text"):
+        from . import zeichnung_hinweise as zh
+        for h in zh.lesen(m["_zeichnung_text"]):
+            if h.get("art") == zh.NIETMUTTER:
+                out.append((h.get("gewinde"), h.get("anzahl"), m.get("_zeichnung_quelle") or "Zeichnung"))
+    if not out:
+        for z in m.get("_zusatz") or ():
+            name = z.get("name") if isinstance(z, dict) else z
+            if "nietmutter" in str(name or "").lower():
+                out.append((None, None, f"Zusatzarbeit {name}"))
+                break
+    return out
+
+
+def _nietmuttern(m, durch, konturen, laenge, wand, g):
+    """Einnietmuttern: M4–M8, nur Quadrat-/Rechteckrohr bis Profilgröße, Wand 0,5 bis Grenze, Seite hoch genug, Loch
+    2 × Wand von Konturen und Rohrende (247TailorSteel-Vergleich; eigene Grenzwerte je Maschine)."""
+    nm = nietmuttern(m)
+    if not nm:
+        return []
+    out, form = [], m.get("profilform") or ""
+    a, b = _f(m.get("abm_a")), _f(m.get("abm_b")) or _f(m.get("abm_a"))
+    quelle = nm[0][2]
+    if form not in ("Quadratrohr", "Rechteckrohr"):
+        out.append(_befund(NIETMUTTER, f"Einnietmuttern ({quelle}) nur in Quadrat- oder Rechteckrohr, hier {form} – "
+                           "prüfen"))
+    elif g["nm_profil"] > 0 and max(a, b) > g["nm_profil"] + 1e-6:
+        out.append(_befund(NIETMUTTER, f"Einnietmuttern nur bis Profil {_z(g['nm_profil'])} mm, hier "
+                           f"{_z(a)} × {_z(b)} mm – prüfen", None, max(a, b), g["nm_profil"]))
+    if g["nm_wand"] > 0 and wand > 0 and not NM_WAND_MIN - 1e-6 <= wand <= g["nm_wand"] + 1e-6:
+        out.append(_befund(NIETMUTTER, f"Einnietmuttern nur für Wand {_z(NM_WAND_MIN)} bis {_z(g['nm_wand'])} mm, hier "
+                           f"{_z(wand)} mm – prüfen", None, wand, g["nm_wand"]))
+    for gew, _n, _q in nm:
+        if gew and gew not in NM_LOCH:
+            out.append(_befund(NIETMUTTER, f"Einnietmutter {gew}: nur M4 bis M8 – prüfen"))
+            continue
+        loch = NM_LOCH.get(gew or "")
+        if not loch or wand <= 0:
+            continue
+        rand = NM_ABSTAND * wand
+        if form in ("Quadratrohr", "Rechteckrohr") and min(a, b) < loch + 2 * rand - 1e-6:
+            out.append(_befund(NIETMUTTER, f"Einnietmutter {gew}: Seite {_z(min(a, b))} mm zu schmal (Loch Ø "
+                               f"{_z(loch)} + 2 × {_z(rand)} mm Rand)", None, min(a, b), loch + 2 * rand))
+        gerade = _gerade_enden(konturen)
+        for d in durch:
+            dm = _f(d.get("durchmesser")) or _f(d.get("huellmass"))
+            pk = _punkte(d)
+            if d.get("art") != "Bohrung" or abs(dm - loch) > NM_LOCH_TOL or len(pk) < 3:
+                continue
+            box = _box(pk)
+            s, wer = _naechste(pk, box, durch, ausser=d)
+            name = f"{wer.get('art') or 'Kontur'} (x {_z(wer.get('z'))})" if wer is not None else ""
+            for ende, r in (("Ende A", box[2]), ("Ende B", laenge - box[3])):
+                if ende in gerade and r < s:
+                    s, name = max(r, 0.0), f"zum {ende}"
+            if s < rand - 1e-6:
+                out.append(_befund(NIETMUTTER, f"Einnietmutter {gew} (Loch Ø {_z(dm)}): {_z(s)} mm "
+                                   f"{'' if name.startswith('zum') else 'bis '}{name}, mindestens 2 × Wand = "
+                                   f"{_z(rand)} mm", d, s, rand))
+    return out
+
+
+def xy_zu_gross(analyse, faktor=XY_FAKTOR):
+    """Bohrungen der gespeicherten Analyse eines Rundrohrs, die bei XY zu groß sind (Ø > faktor × Rohr-Ø)."""
+    k = (analyse or {}).get("kennzahlen") or {}
+    big_d = _f(k.get("abm_a"))
+    if k.get("profilform") != "Rundrohr" or big_d <= 0 or faktor <= 0:
+        return []
+    return [_f(x.get("d")) for x in (analyse or {}).get("merkmale") or ()
+            if x.get("art") == "Bohrung" and _f(x.get("d")) > faktor * big_d + 1e-6]
 
 
 def huellkreis(m):

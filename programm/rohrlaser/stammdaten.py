@@ -562,7 +562,21 @@ MASCHINEN = Tabelle(
      Feld("fb_eckradius", "Fertigbarkeit: kleinster Innen-Eckradius [mm] (leer = aus)", "zahl", 0, 50, stellen=2,
           breite=85),
      Feld("fb_gravur_tiefe", "Fertigbarkeit: tiefste Lasergravur [mm] (leer = 0,5)", "zahl", 0, 20, stellen=2,
-          breite=85)),
+          breite=85),
+     # 247TailorSteel-Vergleich (Patrick 20.11.2026 „Alles einbauen nach Empfehlungen“): eigene Grenzwerte, leer =
+     # Vorgabe, 0 = Prüfung aus
+     Feld("fb_gravur_abstand", "Fertigbarkeit: Gravur Mindestabstand zur Schnittlinie [mm] (leer = 1,5)", "zahl", 0,
+          50, stellen=2, breite=85),
+     Feld("fb_umfang_offen", "Fertigbarkeit: Umfang gilt als offen ab [% des Umfangs] (leer = 15)", "zahl", 0, 100,
+          stellen=1, breite=85),
+     Feld("fb_nm_profil", "Fertigbarkeit: Einnietmuttern bis Profilgröße [mm] (leer = 150)", "zahl", 0, 1000,
+          stellen=1, breite=85),
+     Feld("fb_nm_wand", "Fertigbarkeit: Einnietmuttern bis Wand [mm] (leer = 3)", "zahl", 0, 50, stellen=2,
+          breite=85),
+     Feld("schneidtechnik", "Schneidtechnik Standard (leer = 2,5D)", "auswahl", auswahl="schneidtechnik",
+          breite=80),
+     Feld("fb_xy_faktor", "Fertigbarkeit: Loch im Rundrohr bei XY bis [× Rohr-Ø] (leer = 0,5)", "zahl", 0, 1,
+          stellen=2, breite=85)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -2284,7 +2298,7 @@ class Kontext:
                                            "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
                          "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "drehart": ["frei (alle Achsen)", "Drehteller (Hochachse bleibt)"], "drehzentrum": ["Punkt unter der Maus", "Modellmitte", "Gewähltes (Auswahl)"], **visualisierung.AUSWAHL, "mausbelegung": list(navigation3d.MAUSBELEGUNGEN), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schwenkueber": ["begrenzen (WARNUNG)", "FEHLER"], "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
-                         "nahtquelle": list(naht.QUELLEN), "geometrie": list(_geometrie.WERTE), "querschnittlage": list(naht.LAGEN),
+                         "nahtquelle": list(naht.QUELLEN), "geometrie": list(_geometrie.WERTE), "schneidtechnik": ["2,5D", "XY"], "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
                          "zukauflieferant": list(self.zukauf_lieferanten),
