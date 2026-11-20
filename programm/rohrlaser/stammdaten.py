@@ -1725,6 +1725,9 @@ EINSTELLUNGEN = (
                 "anteil", 0.03, 0, 1),
     Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)", "Angebot", "anteil",
                 0.0, 0, 1),
+    # Angebotswesen P1 (Patrick 20.11.2026): Mindestmarge als Preisuntergrenze jeder Staffel (Anhebung als eigener Posten)
+    Einstellung("mindestmarge_staffel", "Staffeln: Preis auf die Mindestmarge anheben", "Angebot", "auswahl", "ja",
+                auswahl="janein"),
     # Plan Kalkulation 11.11.2026 A1 (preisluecke.py): Warnung, wenn ein Profil ohne eigenen Preis mit dem Tonnenpreis
     # um mehr als diesen Anteil billiger rechnet als ein ähnliches Profil mit Preis
     Einstellung("preisluecke_schwelle", "Angebots-Check: Preislücke beim Tonnenpreis ab [%] (0 = aus)", "Angebot",
@@ -1806,6 +1809,9 @@ EINSTELLUNGEN = (
                 "auswahl", "ja", auswahl="janein"),
     # Angebotsakte (18.11.2026): beim Angebots-PDF die Akte (Kunden- und internes Dokument) still erneuern, wenn
     # sich die Kalkulation seit der letzten Akte geändert hat
+    # Angebotswesen P3 (20.11.2026): Satz zu den AGB am Ende des Kundenangebots der Angebotsakte (leer = keiner)
+    Einstellung("agb_hinweis", "Angebotsakte: Hinweis auf die AGB im Kundenangebot (leer = keiner)", "Angebots-PDF",
+                "text", "Es gelten unsere Allgemeinen Geschäftsbedingungen."),
     Einstellung("akte_automatisch", "Angebotsakte mit dem Angebots-PDF erneuern", "Angebots-PDF", "auswahl", "ja",
                 auswahl="janein"),
     Einstellung("ab_text", "Auftragsbestätigung: Text über den Positionen", "Angebots-PDF", "mehrzeilig",
@@ -1986,6 +1992,10 @@ EINSTELLUNGEN = (
                 "Lager und Fertigung", "ganz", 3, 0, 120),
     # Eilzuschlag (Vorschlag K2, Patrick 02.11.2026): Vorschlag bei „Termin prüfen …“, wenn der Wunschtermin vor dem
     # frühesten freien Termin liegt; gilt erst, wenn er im Angebot übernommen ist
+    # Angebotswesen P3 (20.11.2026): Preis des Angebots je Liefertermin im Kundenangebot der Angebotsakte
+    # (termin_staffel.py), z. B. „1 Woche: +15; 3 Wochen: 0; 6 Wochen: -3“; leer = aus. Ändert keine Kalkulation.
+    Einstellung("termin_staffel", "Termin-Staffel: Preis je Liefertermin (Termin: Zu-/Abschlag %; …, leer = aus)",
+                "Kalkulation", "text", ""),
     Einstellung("eil_tage", "Eilzuschlag: Stufe 1 bis so viele Arbeitstage zu früh", "Kalkulation", "ganz", 2, 1, 60),
     Einstellung("eil_zuschlag_1", "Eilzuschlag Stufe 1 (auf die Fertigung)", "Kalkulation", "anteil", 0.15, 0, 5),
     Einstellung("eil_zuschlag_2", "Eilzuschlag Stufe 2 (mehr Arbeitstage zu früh)", "Kalkulation", "anteil", 0.30, 0,

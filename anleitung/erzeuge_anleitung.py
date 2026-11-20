@@ -7780,9 +7780,36 @@ def kapitel_staffeln(i):
         ["Verpackung / Nebenkosten", "€/Einheit und Nebenkosten pauschal € für die Stufe; zählen zu den "
                                      "Selbstkosten"],
         ["Rabatt erlaubt", "ja = negativer Materialzuschlag und negativer Gewinn sind erlaubt (sonst abgelehnt)"],
+        ["Staffelrabatt [%]", "Rabatt auf die Ware der Stufe (Selbstkosten + Gewinn, ohne Fracht); höchstens so "
+                              "weit, wie die Mindestmarge reicht ([[staffel_mindestmarge]])"],
         ["Lieferlänge je Stufe wählen", "ja = empfohlene Lieferlänge für die Mengen der Stufe (leer = Lieferlängen "
                                         "des Angebots)"],
     ], [55 * mm, 200 * mm])
+    i.abschnitt("Mindestmarge, Kennzahlen und Preis von Hand je Stufe", marke="staffel_mindestmarge")
+    i.text("Jede Stufe hält die <b>Mindestmarge</b> (Einstellungen → Angebot, <i>Angebots-Check: Mindestmarge</i>): "
+           "liegt die Marge einer größeren Menge darunter, hebt das Programm den Stückpreis genau auf die "
+           "Mindestmarge an. Je Stufe stehen Deckungsbeitrag, Marge und die Einsparung gegenüber der kleinsten "
+           "Menge.", kurz=True)
+    i.genauer()
+    i.liste("<b>Mindestmarge</b>: Marge = Gewinn am Warenwert (Selbstkosten + Gewinn, ohne Fracht und Skonto), wie "
+            "im Angebots-Check. Anhebung auf die Ware = Mindestmarge × Selbstkosten ÷ (1 − Mindestmarge) − Gewinn − "
+            "Anhebung auf den Mindestpreis; sie steht in der Kalkulation der Stufe als <i>Anhebung auf die "
+            "Mindestmarge</i>, der Stückpreis wird auf den Cent aufgerundet. Mit <i>Staffeln: Preis auf die "
+            "Mindestmarge anheben</i> = nein (Einstellungen → Angebot) meldet nur der Angebots-Check; Mindestmarge 0 "
+            "= aus.",
+            "<b>Kennzahlen je Stufe</b> im Reiter Staffelpreise: Selbstkosten, Gewinn, <i>Gewinnmarge (vom "
+            "Warenwert)</i>, <i>Deckungsbeitrag (Warenwert − variable Kosten)</i> mit <i>Deckungsbeitragsquote</i> "
+            "(variabel: Material, Fertigung je Stück, Fremdleistung, Zukauf-Einstand, Verpackung je Einheit; fix: "
+            "Rüsten, Programmierung, Pauschalen) und <i>Einsparung je Einheit gegenüber der kleinsten Menge</i>.",
+            "<b>Positionen und Mengen</b> im Fenster der Stufe haben dazu die Spalten <i>Zukauf-EK [€/Einheit]</i> "
+            "(Einstand der Zukaufteile je Satz bzw. Stück in dieser Stufe, leer = Preis des Angebots; der Aufschlag "
+            "ändert sich im selben Verhältnis, Gewinn gibt es auf Zukauf nie), <i>Preis von Hand [€/Einheit]</i> "
+            "und <i>Grund (Preis von Hand)</i>.",
+            "<b>Preis von Hand</b> ersetzt den Stückpreis der Stufe; der Unterschied zum berechneten Preis geht auf "
+            "den Gewinn. Ohne Grund lehnt das Fenster ab (<i>Bitte einen Grund für den Preis von Hand "
+            "eintragen.</i>). Gespeichert werden Bearbeiter, Zeit und der berechnete Preis (Tooltip der Zelle, "
+            "Protokoll). Liegt der Preis unter der Mindestmarge, steht in der Zeile Hinweis rot „WARNUNG: Marge … "
+            "unter der Mindestmarge“. Feld leeren nimmt den Preis von Hand zurück.")
     i.abschnitt("Blechteile je Stufe")
     i.text("Blech- und Kantteile bekommen in jeder Stufe den Preis für deren Stückzahl.", kurz=True)
     i.genauer()
@@ -9458,8 +9485,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "dann öffnet sich das PDF wie früher im PDF-Programm. Angebot per E-Mail erstellt das PDF ohne Vorschau.")
     i.abschnitt("Angebotsdokument und Angebotsakte", marke="angebotsakte")
     i.text("<i>Ausgaben → Angebotsdokument erstellen …</i> erzeugt ein neues Dokument aus Kundenangebot und interner "
-           "Kalkulation: <b>Kundenangebot</b> (Seiten 1–2), <b>Interne Kalkulation</b> (Seiten 3–7) oder "
-           "<b>Komplettes Dokument</b> (alle Seiten). Es wird mit Version im Unterordner <i>Angebotsakte</i> des "
+           "Kalkulation: <b>Kundenangebot</b> (Seiten 1–2), <b>Interne Kalkulation</b> (Seiten 3–7), <b>Technisches "
+           "Kalkulationsblatt</b> (Seite 8) oder <b>Komplettes Dokument</b> (alle Seiten). Es wird mit Version im Unterordner <i>Angebotsakte</i> des "
            "Angebotsordners abgelegt ([[angebotsordner]]); die bisherigen PDFs bleiben unverändert.", kurz=True)
     i.genauer()
     i.liste("<b>Seite 1 Kundenangebot</b>: Anschrift, Angebotsdaten, Positionen mit Menge, Stück- und Gesamtpreis, "
@@ -9475,21 +9502,61 @@ def kapitel_ausgabe(i, seiten, ablage):
             "€/Stück), <b>Seite 6 Zukauf und Normteile</b> (entfällt ohne Zukauf; nur Aufschlag, kein Gewinn) und "
             "<b>Seite 7 Gesamtkalkulation</b> mit allen Kostenarten, Deckungsbeitrag, Gewinn und Preis je Position. "
             "Interne Seiten tragen einen gelben Randstreifen, Kundenseiten einen blauen.",
+            "<b>Kundenangebot erweitert</b> (Angebotswesen P3): Das Kopffeld <i>Projekt / Bauvorhaben</i> im Angebot "
+            "steht im Kopf und unter dem Titel des Kundenangebots. Unter den Konditionen steht eine zweite Reihe mit "
+            "<b>Versand</b> (ab Werk oder frei Haus nach der Frachtart), <b>Verpackung</b> (wenn berechnet: im Preis "
+            "enthalten) und <b>Rabatt</b> (der Kundenrabatt in %, in den Preisen berücksichtigt), jeweils ohne "
+            "Beträge. Am Ende steht der Satz der Einstellung <i>Angebotsakte: Hinweis auf die AGB im Kundenangebot</i> "
+            "(Vorgabe „Es gelten unsere Allgemeinen Geschäftsbedingungen.“, leer = kein Satz).",
+            "<b>Termin-Staffel</b> (Preis nach Liefertermin): In <i>Einstellungen → Neue Angebote → Eilzuschlag</i> "
+            "nennt <i>Termin-Staffel: Preis je Liefertermin</i> Termine mit Zu- oder Abschlag auf den Netto-Preis, "
+            "z. B. „1 Woche: +15; 3 Wochen: 0; 8 Wochen: -3“. Das Kundenangebot zeigt dann eine Tabelle <i>Preis "
+            "nach Liefertermin</i> mit dem Netto-Preis je Termin, die Gesamtkalkulation (Seite 7) zusätzlich die "
+            "Marge je Termin. Ein Abschlag wird nur so weit gewährt, wie die Mindestmarge es erlaubt. Die Kalkulation "
+            "und die Stückpreise des Angebots ändern sich nicht; leer = keine Tabelle.",
+            "<b>Seite 8 Technisches Kalkulationsblatt</b> (eigenes Dokument _Technik.pdf, für Arbeitsvorbereitung "
+            "und Fertigung, nur intern): oben eine Übersicht aller Positionen mit Laserzeit, Herstell-, Selbstkosten, "
+            "Preis und Marge je Stück; dann je Position Profil, Werkstoff, Maschine, Schneidgas und Herkunft der "
+            "Schneiddaten, die Schneidwege mit Vorschub [mm/min] und Zeit, die Einstiche, alle weiteren Zeitanteile "
+            "bis zur genutzten Laserzeit je Teil und die Kosten je Teil und je Position von Material bis zum Preis. "
+            "Die Kostenzeilen ergeben genau Herstellkosten, Selbstkosten und Preis je Teil der Kalkulation; weicht der "
+            "Stückpreis im Angebot ab (Rundung, Preis von Hand), steht er darunter.",
             "Alle Werte kommen aus derselben Rechnung wie Angebot und Kalkulation (keine zweite Rechnung, gleiche "
             "Rundung); die <b>Prüfliste</b> im Fenster meldet fehlende oder widersprüchliche Angaben (z. B. kein "
             "Preis, Position nicht eingeplant, Summe weicht ab) vor dem Erstellen.",
             "Im Fenster lassen sich einzelne Seiten abwählen; <i>Vorschau vor dem Speichern zeigen</i> schaltet die "
             "<b>Vorschau</b> ein und aus (<i>Speichern</i>, <i>Speichern und drucken</i>, <i>Abbrechen</i>).",
-            "<b>Ablage</b>: <i>Angebotsakte/PDF</i> (Angebot_&lt;Nr&gt;_Gesamt.pdf, _Kunde.pdf, _Intern.pdf, immer die "
+            "<b>Ablage</b>: <i>Angebotsakte/PDF</i> (Angebot_&lt;Nr&gt;_Gesamt.pdf, _Kunde.pdf, _Intern.pdf, _Technik.pdf, "
+            "immer die "
             "neueste Version), <i>PDF/Versionen</i> (ältere Versionen mit Nummer und Zeit, nichts wird "
             "überschrieben), <i>Technische_Daten</i> (3D-Bilder), <i>Schnittschemata</i> und "
             "<i>Kalkulationsdaten</i> (alle Werte je Version als Datei).",
             "In der <b>Angebotsübersicht</b> zeigt das Kontextmenü <i>Angebotsakte</i> die letzte Version und ob sie "
-            "zur Kalkulation passt; dort lassen sich Gesamt-, Kunden- und internes Dokument öffnen und drucken, "
+            "zur Kalkulation passt; dort lassen sich Gesamt-, Kunden- und internes Dokument sowie das technische "
+            "Kalkulationsblatt öffnen und drucken, "
             "<i>Erstellen / neu erzeugen …</i> öffnet das Fenster, <i>Ordner der Akte öffnen</i> zeigt die Ablage.",
             "Ändert sich die Kalkulation, ist die Akte <i>veraltet</i>; mit der Einstellung <i>Angebotsakte mit dem "
             "Angebots-PDF erneuern</i> (Einstellungen → Angebots-PDF, Vorgabe ja) wird sie beim nächsten Angebots-PDF "
             "automatisch neu erzeugt.")
+    i.abschnitt("Angebotsvarianten A–E", marke="angebotsvarianten")
+    i.text("<i>Ausgaben → Angebotsvarianten A–E …</i> stellt das Angebot (Original) und bis zu fünf Varianten "
+           "nebeneinander. Eine Variante ändert nur die eingetragenen Werte, das Angebot selbst bleibt unverändert.",
+           kurz=True)
+    i.genauer()
+    i.liste("Je Variante lassen sich eine Bezeichnung und Kalkulationswerte eintragen: Gewinn, Gewinn auf Material, "
+            "Zuschlag Fremdleistung, Aufschläge für Zukaufteile und Bleche, Rabatt, Eilzuschlag, Rüstzeit je "
+            "Abmessung, Programmierzeit je Position, Faktor Laserzeit und Angebotsaufschlag. Dazu kommen "
+            "Was-wäre-wenn-Preise: Materialpreise aller Werkstoffe [%], Maschinenstundensatz [± €/h], weitere "
+            "Stundensätze [%] und Einkaufspreise Zukauf [%]. Leer bedeutet: wie im Angebot.",
+            "<i>Vergleichen</i> rechnet jede Variante mit der vollen Kalkulation und dem Schnittplan des Angebots. "
+            "Darunter stehen je Spalte Herstellkosten, Selbstkosten, Gewinn, Verkaufspreis, Gewinnmarge, "
+            "Deckungsbeitrag und der Unterschied zum Original. Eine Marge unter der Mindestmarge ist rot.",
+            "<i>Varianten speichern</i> legt die Varianten im Angebot ab (Kopffeld <i>Varianten A–E (Vergleich)</i>); "
+            "beim nächsten Öffnen stehen sie wieder da.",
+            "<i>Als Fassung übernehmen …</i> legt mit der gewählten Variante eine neue Fassung des Angebots an "
+            "(Nummer -2, -3 …, [[neue_fassung]]) und trägt dort ihre Kalkulationswerte ein. Das bisherige Angebot steht "
+            "danach auf „Ersetzt“, bleibt aber unverändert. Was-wäre-wenn-Preise werden nicht übernommen; die "
+            "Meldung nennt sie.")
     i.abschnitt("Dokumentenablage nach PPEASE-Angebotsnummer", marke="ppease_ablage")
     i.text("<i>Ausgaben → Dokumentenablage / PPEASE-Verknüpfung …</i> (auch im Menü <i>Datei</i> und im Kontextmenü "
            "der Angebotsübersicht) legt ausgewählte Dokumente der Kalkulation im Ordner des <b>PPEASE-Angebots</b> "

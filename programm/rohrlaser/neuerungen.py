@@ -30,6 +30,26 @@ NEUERUNGEN = [
                 "Preiswirkung; geändert wird nur mit „Freigeben“ (über 15 % mit zweiter Bestätigung), jede Freigabe "
                 "lässt sich zurücksetzen. Die Kalibrierung je Baustein lernt mit, das Einstechen getrennt.",
      "Lernsystem: LST-Produktionsdaten, Vergleich und gelernte Faktoren"],
+    ["0.9.434", "<b>Angebotsvarianten A–E</b> ([[angebotsvarianten]]): Original und bis zu fünf Varianten nebeneinander "
+     "(Gewinn, Aufschläge, Rabatt, Rüst- und Programmierzeit, dazu Was-wäre-wenn bei Material, Stundensätzen und "
+     "Zukauf), mit Selbstkosten, Verkaufspreis, Marge und Deckungsbeitrag. Das Angebot bleibt unverändert; eine "
+     "Variante lässt sich als neue Fassung übernehmen.",
+     "Angebotsvarianten A–E vergleichen und als Fassung übernehmen"],
+    ["0.9.434", "<b>Kundenangebot erweitert</b> ([[angebotsakte]]): Kopffeld <i>Projekt / Bauvorhaben</i>, "
+     "Konditionen mit Versand, Verpackung und Rabatt, Hinweis auf die AGB (Einstellung) und <b>Termin-Staffel</b>: "
+     "Preis je Liefertermin (z. B. Eilfertigung +15 %, 8 Wochen −3 %), Abschläge höchstens bis zur Mindestmarge, "
+     "intern mit Marge je Termin.",
+     "Kundenangebot: Projekt, Versand/Verpackung/Rabatt, AGB, Preis je Liefertermin"],
+    ["0.9.434", "<b>Technisches Kalkulationsblatt</b> als drittes Dokument der Angebotsakte ([[angebotsakte]]): je "
+     "Position Schneidwege mit Vorschub, Einstiche, alle Zeitanteile bis zur Laserzeit je Teil und die Kosten je Teil "
+     "von Material bis zum Preis, genau aus derselben Kalkulation. Wählbar in <i>Angebotsdokument erstellen</i>, "
+     "abgelegt als _Technik.pdf.",
+     "Angebotsakte: Technisches Kalkulationsblatt (Zeiten und Kosten je Teil)"],
+    ["0.9.434", "<b>Staffeln mit Mindestmarge</b>: Jede Stufe hält die Mindestmarge, größere Mengen werden nie "
+     "billiger als erlaubt (Anhebung als eigener Posten). Je Stufe Deckungsbeitrag, Marge und Einsparung gegenüber "
+     "der kleinsten Menge, Staffelrabatt [%], Zukauf-EK je Staffel (nur Aufschlag) und Preis von Hand mit Grund, "
+     "Bearbeiter und Zeit ([[staffel_mindestmarge]]).",
+     "Staffeln: Mindestmarge, Kennzahlen, Rabatt, Zukauf-EK, Preis von Hand"],
     ["0.9.433", "<b>Weitere Prüfregeln beim STEP-Import, Schneidtechnik 2,5D/XY</b> ([[fertigbarkeit]]). Nach dem "
                 "Vergleich mit 247TailorSteel prüft der Import zusätzlich: Gravur zu nah an einer Schnittlinie "
                 "(Vorgabe 1,5 mm) oder berührt sie, Umfang an keinem der 5 Prüfpunkte (Enden, ¼, ½, ¾) geschlossen "
