@@ -84,6 +84,7 @@ db.position_neu(a, dict(pos=2, artikel="Vordach_Rohr-2", bezeichnung="Träger 90
                         gewinde="4xM6"))
 s = fenster.angebot_oeffnen(a)
 assert s.optimieren()
+db.einstellung_setzen(export.CSV_FORMAT, export.BISHER)    # C1-C8: bisheriges Format, C9: PROfirst-Vorlage
 
 # ------------------------------------------------------------------ C1/C2 Kopf, Spalten, Positionen
 vorher = db.positionen(a), {k: v for k, v in db.angebot(a).items() if k != "versand"}
@@ -237,5 +238,36 @@ for kaputt in (dict(lieferzeit_art="nur Text", lieferzeit_zusatz="ca. 2 Wochen")
     kz = export.kopf_zeile(dict(kaputt or {}, kundennr="1"), [], {}, {}, [], fenster.db.kontext())
     assert kz["Lieferzeit"] == "", kz["Lieferzeit"]
 ok("C8 Zahlenspalten nur Zahlen (Lieferzeit in Wochen, Marge/Verschnitt ohne %), Freitext-Lieferzeit leer statt Fehler")
+
+
+# ------------------------------------------------------------------ C9 PROfirst-Vorlage (Patrick 20.11.2026)
+# Nachbau von 2613000479.CSV / 2613000479_HEADER.CSV: Namen, Windows-1252 ohne BOM, ';' am Zeilenende, CRLF,
+# Datum mit Uhrzeit, Pos. 1, Format leer, Rabatt 0, Preis im Kopf = Summe der Positionen
+db.einstellung_setzen(export.CSV_FORMAT, "")                # Vorgabe = PROfirst
+db.con.execute("UPDATE angebote SET angelegt='2026-10-29T11:18:38' WHERE id=?", (a,))
+db.con.commit()
+s = fenster.angebot_oeffnen(a)
+assert s.optimieren()
+(tmp / "pf").mkdir()
+pf = s.csv_export(ordner=str(tmp / "pf"))
+assert [p.name for p in pf] == ["2613000461_HEADER.CSV", "2613000461.CSV"], pf
+for p in pf:
+    roh = p.read_bytes()
+    assert roh[:3] != b"\xef\xbb\xbf" and roh.endswith(b";\r\n") and b";\r\n" in roh.split(b"\r\n", 1)[0] + b"\r\n"
+    roh.decode("cp1252")
+kz = list(csv.reader(io.StringIO(pf[0].read_bytes().decode("cp1252"), newline=""), delimiter=";"))
+pz = list(csv.reader(io.StringIO(pf[1].read_bytes().decode("cp1252"), newline=""), delimiter=";"))
+assert kz[0][:-1] == list(export.KOPF_SPALTEN) and kz[0][-1] == "" and pz[0][:-1] == list(export.POSITION_SPALTEN)
+K9 = dict(zip(kz[0], kz[1]))
+P9 = [dict(zip(pz[0], z)) for z in pz[1:]]
+assert K9["Erstellungsdatum"] == "29.10.2026 11:18:38" and K9["Rabatt(Euros)"] == "0", K9
+assert K9["Kundenkurzbez."] == "AP GLAS GMBH" and K9["Versandkosten"] == "50", K9
+assert abs(float(K9["Preis"]) - sum(float(p["Preis"]) for p in P9)) < 0.005
+assert all(p["Pos."] == "1" and p["Format"] == "" and p["Date"] == "29.10.2026 11:18:38" for p in P9), P9
+assert [p["Art"] for p in P9] == ["1", "2"] and P9[0]["Liste der Arbeitsgänge"].startswith("Profile [")
+zahlen_ok(K9, export.KOPF_ZAHLEN)
+for p in P9:
+    zahlen_ok(p, export.POSITION_ZAHLEN)
+ok("C9 PROfirst-Vorlage: <Nr>.CSV und <Nr>_HEADER.CSV, Windows-1252 ohne BOM, ';' am Zeilenende, Datum mit Uhrzeit")
 
 print("OK: CSV-Export Angebotskopf/Angebotspositionen")

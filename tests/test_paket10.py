@@ -101,7 +101,7 @@ ok("L7: Tesseract-Setup und Sprachdaten zuerst aus Rohrlaser-Updates, Prüfsumme
 import json  # noqa: E402
 
 import step_messen  # noqa: E402
-from formen_baukasten import ohne, plus, quader, schreibe, zyl  # noqa: E402
+from formen_baukasten import ohne, plus, prisma, quader, schreibe, zyl  # noqa: E402
 
 rr = ohne(zyl(21.3, 600, d=(1, 0, 0)), zyl(18.3, 600, d=(1, 0, 0)))
 qr = ohne(quader(500, 40, 40), quader(500, 34, 34, 0, 3, 3))
@@ -140,5 +140,20 @@ for n in ("RR_Kopf", "QR_Lasche"):
     assert erg[-1]["artikel"] == "A-7" and erg[0]["artikel"] == "A-7-1" and not erg[0].get("_normteil")
 ok("L1: „Aufteilen“ trennt Rohr (gleiche Form und Länge, Artikelnummer bleibt) und Blech (als Blech/Flachstahl, kein "
    "Normteil)")
+
+# ------------------------------------------------------------------ Supportpaket 20.11.2026: Bolzen und Block
+# Gelenkbolzen Ø30 × 131 mit Bohrung Ø5 und Abflachung war „Rohr mit angeschweißtem Blech“; Platte 150 × 140 × 50
+# mit Querbohrungen in den Seitenflächen war „Blech“ – beide hat Patrick von Hand auf Dreh- bzw. Frästeil gestellt.
+bolzen = ohne(zyl(15, 131), zyl(2.5, 131), quader(40, 20, 10, -20, 11, 121), zyl(2.5, 40, 60, -20, 0, (1, 0, 0)))
+block = ohne(prisma([(0, 0), (150, 0), (150, 100), (110, 140), (40, 140), (0, 100)], 50), zyl(10, 60, -5, 75, 100),
+             zyl(4, 20, 25, 40, -1, (0, 1, 0)), zyl(4, 20, 25, 110, -1, (0, 1, 0)))
+
+schreibe({"Bolzen": bolzen, "Block": block}, TMP)
+aus = TMP / "s2011.txt"
+step_messen.main(["--ausgabe", str(aus), str(TMP / "Bolzen.step"), str(TMP / "Block.step")])
+mw = {m["datei"].split(".")[0]: m for m in step.lies_messwerte(aus)}
+assert mw["Bolzen"]["bauteiltyp"] == "Drehteil", (mw["Bolzen"]["bauteiltyp"], mw["Bolzen"].get("art_grund"))
+assert mw["Block"]["bauteiltyp"] == "Frästeil", (mw["Block"]["bauteiltyp"], mw["Block"].get("art_grund"))
+ok("Support 20.11.: Bolzen Ø30 mit Bohrung Ø5 ist Drehteil, Platte 50 mm mit Querbohrungen ist Frästeil")
 
 print("Paket 10: alle Tests bestanden.")

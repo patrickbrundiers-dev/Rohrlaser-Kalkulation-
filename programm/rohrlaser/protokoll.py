@@ -104,8 +104,14 @@ def kopfzeile(version, kuerzel="", speicher=""):
 def warnung(text):
     """Bewusst abgefangener Fehler (except-Zweig, Verhalten bleibt): WARNING mit Stacktrace ins Protokoll, keine
     Meldung. Je Programmstelle höchstens WARNUNG_JE_STELLE Einträge je Programmlauf (kein Volllaufen in Schleifen)."""
-    f = sys._getframe(1)
-    stelle = (f.f_code.co_filename, f.f_lineno)
+    # Im übersetzten Programm (Cython) hat der Aufrufer oft keinen Python-Rahmen, z. B. aus closeEvent heraus, das
+    # Qt direkt aufruft: sys._getframe(1) gab dort "call stack is not deep enough" und brach das Beenden ab
+    # (Supportpaket 20.11.2026). Dann zählt der Text als Stelle.
+    try:
+        f = sys._getframe(1)
+        stelle = (f.f_code.co_filename, f.f_lineno)
+    except ValueError:
+        stelle = ("", str(text)[:80])
     n = _warnungen.get(stelle, 0) + 1
     _warnungen[stelle] = n
     if n > WARNUNG_JE_STELLE:

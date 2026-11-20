@@ -280,6 +280,9 @@ def lies_step_info(pfad):
     Wirft ValueError, wenn die Datei nicht lesbar ist. IGES-Dateien (.igs/.iges) liest lies_iges_info."""
     if ist_iges(pfad):
         return lies_iges_info(pfad)
+    if _Path(str(pfad)).suffix.lower() == ".tubx":      # TRUMPF TubeCAM (Patrick 20.11.2026): Netz wie STEP messen
+        from step_tubx import lies_tubx_info
+        return lies_tubx_info(pfad)
     from OCP.IFSelect import IFSelect_RetVoid
     try:            # mit Baugruppenstruktur und Namen (XCAF); Körper in derselben Reihenfolge wie ohne
         from OCP.STEPCAFControl import STEPCAFControl_Reader
@@ -335,7 +338,7 @@ def lies_step_info(pfad):
 
 
 IGES_ENDUNGEN = (".igs", ".iges")
-CAD_ENDUNGEN = (".step", ".stp") + IGES_ENDUNGEN
+CAD_ENDUNGEN = (".step", ".stp") + IGES_ENDUNGEN + (".tubx",)       # TUBX: step_tubx
 
 
 def ist_iges(pfad):

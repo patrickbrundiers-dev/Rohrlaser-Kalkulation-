@@ -15,9 +15,10 @@ from pathlib import Path
 from . import anbau, biegerohr, bohrbild, naht, ovalprofile, rechnen, rp_profile, step_pruefung, virtuell
 
 # Dateien, die der STEP-Import liest: STEP und IGES (Patrick 05.11.2026 „Iges import einbauen“)
-CAD_ENDUNGEN = (".step", ".stp", ".igs", ".iges")
+CAD_ENDUNGEN = (".step", ".stp", ".igs", ".iges", ".tubx")    # TUBX (TRUMPF TubeCAM) wie STEP, 20.11.2026
 # ZIP-Archive mit CAD-Dateien (Importengine 20.11.2026, cad_import.py): werden entpackt, Herstellerformate gemeldet
-CAD_FILTER = "STEP, IGES und ZIP (*.step *.stp *.igs *.iges *.zip *.STEP *.STP *.IGS *.IGES *.ZIP)"
+CAD_FILTER = ("STEP, IGES, TUBX und ZIP (*.step *.stp *.igs *.iges *.tubx *.zip *.STEP *.STP *.IGS *.IGES *.TUBX "
+              "*.ZIP)")
 CAD_FILTER_ANDERE = ("Andere CAD-Formate, werden gemeldet (*.sldprt *.sldasm *.catpart *.catproduct *.ipt *.iam "
                      "*.prt *.x_t *.x_b *.SLDPRT *.SLDASM *.CATPart *.CATProduct *.IPT *.IAM *.PRT *.X_T *.X_B)")
 TOL_MASS = 0.15         # mm: Profil aus den Stammdaten passt zur Messung (Einstellung step_tol_profil)

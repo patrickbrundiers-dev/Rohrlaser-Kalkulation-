@@ -30,7 +30,7 @@ from pathlib import Path
 
 STEP_ENDUNGEN = (".step", ".stp")
 IGES_ENDUNGEN = (".igs", ".iges")
-CAD_ENDUNGEN = STEP_ENDUNGEN + IGES_ENDUNGEN
+CAD_ENDUNGEN = STEP_ENDUNGEN + IGES_ENDUNGEN + (".tubx",)      # TUBX (TRUMPF TubeCAM) misst wie STEP (#593)
 ZIP_ENDUNGEN = (".zip",)
 # Herstellerformate: Name für die Meldung
 NATIV = {
