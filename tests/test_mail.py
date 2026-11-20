@@ -122,8 +122,8 @@ db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
 ws = db.zeilen("werkstoffe")
 assert mail.werkstoff("Material: 1.4301", ws)[0] == "1.4301"
 assert mail.werkstoff("Edelstahl V2A geschliffen", ws)[0] == "1.4301"
-assert mail.werkstoff("Material S235", ws)[0] is None and mail.werkstoff("Material S235", ws)[1] == "S235"
-assert mail.werkstoff("Material S235", ws, "S235-10219")[0] == "S235-10219"     # Vorgabe passt: bleibt
+assert mail.werkstoff("Material S355", ws)[0] is None and mail.werkstoff("Material S355", ws)[1] == "S355"
+assert mail.werkstoff("Material S355", ws, "S355-10219")[0] == "S355-10219"     # Vorgabe passt: bleibt
 assert mail.werkstoff("Rohre S235JRH, Laschen 1.4301", ws, "S235-10219")[0] is None   # zwei Werkstoffe: offen
 assert mail.werkstoff("Bitte um Angebot", ws) == (None, "", [])
 ok("F4 Werkstoff: nur eindeutig (Nr., V2A, Vorgabe bei mehreren passenden), sonst nur Hinweis")
