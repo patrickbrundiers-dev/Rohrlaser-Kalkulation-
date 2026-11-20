@@ -27,7 +27,9 @@ NEUERUNGEN = [
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
                 "Angebot nach dem Optimieren je Abmessung der neueste Kauf mit ähnlicher Menge als Meterpreis, mit "
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
-                "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
+                "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen). Mit Patricks echtem ERP-Export "
+                "geprüft: Datum Erf., Zusatztext und Preiseinheit werden erkannt, Rohrart und Güte notfalls aus der "
+                "Artikelnummer.",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
     ["0.9.421", "<b>3D-Ansicht: Kanten wie im CAD, Innenkanten und Prüfmodus</b> ([[kanten_3d]]). Kanten gehen nicht "
      "mehr durch die Rohrwand oder durch andere Teile; verdeckte Kanten auf Wunsch hell gestrichelt. Innenkanten "

@@ -105,6 +105,30 @@ assert E.zerlegen("RO 48,3x2,6 S235 gebeizt", k)["profil_id"] == "RR 48,3x2,6"
 assert E.zerlegen("Gewindestange M12 verzinkt", k)["hinweis"].startswith("Abmessung nicht erkannt")
 ok("Bezeichnung: Profil (auch QR aus 40 x 40 x 3, RO = Rundrohr), Werkstoff mit EN-Norm, Oberfläche, Ampel")
 
+# Patricks ERP-Export (EKexport_S235/S355.csv, 20.11.2026; Preise hier erfunden): Spalten Bestell-Nr., ArtNr,
+# Bezeichnung, Zusatztext, Menge [m], Preis [€/m], Datum Erf., PE; Werkstoff aus Zusatztext bzw. „kaltgefertigt“,
+# Form und Güte notfalls aus der Artikelnummer („30x30x3 S355“ ohne Rohrart)
+ERP = ("Bestell-Nr.;ArtNr;Bezeichnung;Zusatztext;Bez4;Menge;Preis;L-Termin;Angebotsdatum;Datum Erf.;erfasst;PE;\r\n"
+       "2026-1;EQRS235-40x40x3;Quadratrohr 40x40x3 kaltgefertigt;EN 10219- S235 HL 6m ******** Bitte auf Geradheit "
+       "achten ********;;438;3,07;16.12.2026;;17.09.2026;Machnik;1;\r\n"
+       "2026-2;EQRS355-40x40x3;40x40x3 S355;6050mm DIN EN 10219;;30;356;26.11.2026;;19.11.2026;Machnik;100;\r\n"
+       "2026-3;ERRS235-60x40x3gs;Rechteckrohr 60x40x3;S235 Getrahlt HL 6m;;12,1;5,5;01.12.2026;;18.11.2026;Machnik;1;\r\n"
+       "2026-4;EIPES235-100;IPE 100 mm HL 6m;S235 16x 4500mm;;72;9,1;01.12.2026;;18.11.2026;Machnik;1;\r\n")
+d = E.lesen(ERP.encode("cp1252"))
+z = E.spalten_vorschlag(d["kopf"])
+assert [d["kopf"][z[f]] for f in ("datum", "menge", "preis", "artikelnr", "bezeichnung", "zusatz", "pe")] == \
+    ["Datum Erf.", "Menge", "Preis", "ArtNr", "Bezeichnung", "Zusatztext", "PE"], z
+ks, meld = E.kaeufe(d, z)
+assert len(ks) == 4 and not meld and ks[0]["datum"] == datetime.date(2026, 9, 17), meld
+assert ks[1]["preis"] == 3.56 and "Geradheit" in ks[0]["bezeichnung"] and "***" not in ks[0]["bezeichnung"]
+arts = {a["artikelnr"]: a for a in E.artikel(ks, {}, k)}
+assert (arts["EQRS235-40x40x3"]["profil_id"], arts["EQRS235-40x40x3"]["werkstoff_id"]) == ("QR 40x40x3", "S235-10219")
+assert (arts["EQRS355-40x40x3"]["profil_id"], arts["EQRS355-40x40x3"]["werkstoff_id"]) == ("QR 40x40x3", "S355-10219")
+assert arts["ERRS235-60x40x3gs"]["profil_id"] == "RE 60x40x3" and arts["ERRS235-60x40x3gs"]["oberflaeche"] == "gestrahlt"
+assert "16x4500" not in arts["EIPES235-100"]["hinweis"].replace(" ", ""), arts["EIPES235-100"]["hinweis"]
+assert E.artikelnr_hinweis("EQRS355-60x60x6,3gs") == " Quadratrohr S355 gestrahlt"
+ok("ERP-Export (Patrick 20.11.2026): Datum Erf., Zusatztext, PE, Werkstoff aus Norm/kaltgefertigt, Form aus ArtNr")
+
 # ------------------------------------------------------------------ E3 Fenster
 assert db.einstellung("funktion_erp_preise") == "nein", "11a: Vorgabe aus"
 f = Hauptfenster(db, tmp, stumm=True)

@@ -12529,7 +12529,12 @@ def kapitel_stammdaten(i):
             "oder Tab, deutsche Zahlen und Datumsformate, eine Titelzeile über dem Kopf stört nicht. Erkennt das "
             "Programm die Spalten nicht, fragt es einmal nach (Fenster <i>Spalten der ERP-CSV zuordnen</i>); die "
             "Zuordnung gilt danach für Dateien mit gleichem Spaltenkopf. Gutschriften (Menge oder Preis ≤ 0) und "
-            "Summenzeilen werden übersprungen und gemeldet. Ein Kauf, der schon geladen ist, kommt nicht doppelt.",
+            "Summenzeilen werden übersprungen und gemeldet. Ein Kauf, der schon geladen ist, kommt nicht doppelt. "
+            "Der Bestellexport des ERP (Spalten ArtNr, Bezeichnung, Zusatztext, Menge, Preis, Datum Erf., PE) wird "
+            "ohne Nachfrage erkannt: Kaufdatum = Datum Erf., der Zusatztext (Norm, Güte, Oberfläche) zählt zur "
+            "Bezeichnung, der Preis gilt je PE Meter. Steht in der Bezeichnung nur „30x30x3 S355“, kommen Rohrart, "
+            "Güte und Oberfläche aus der Artikelnummer (EQR = Quadratrohr, ERR = Rechteckrohr, ER…D = Rundrohr, "
+            "gs = gestrahlt, vz = verzinkt, bk = blank); „kaltgefertigt“ heißt EN 10219, „warmgefertigt“ EN 10210.",
             "<b>Prüfliste ERP-Artikel</b>: je Artikel Profil, Werkstoff und Oberfläche aus der Bezeichnung. Grün = "
             "eindeutig. Gelb = Werkstoff wählen (S235JRH passt zu EN 10219 und EN 10210; steht die Norm in der "
             "Bezeichnung, entscheidet sie) oder Oberfläche fehlt in den Stammdaten. Rot = Profil fehlt: <b>Profil "

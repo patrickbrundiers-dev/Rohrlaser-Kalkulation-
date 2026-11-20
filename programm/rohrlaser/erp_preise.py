@@ -28,21 +28,26 @@ from statistics import median
 from . import db_verbindung, kunden_csv
 
 FELDER = (("datum", "Kaufdatum"), ("menge", "Menge [m]"), ("preis", "Meterpreis [€/m]"),
-          ("artikelnr", "Artikelnummer"), ("bezeichnung", "EK-Artikel (Bezeichnung)"))
+          ("artikelnr", "Artikelnummer"), ("bezeichnung", "EK-Artikel (Bezeichnung)"),
+          # Patricks ERP-Export (EKexport_S235/S355.csv, 20.11.2026): Zusatztext mit Norm, Güte und Oberfläche
+          # („EN 10219- S235 HL 6m gestrahlt“), Preiseinheit PE (Preis je PE Meter)
+          ("zusatz", "Zusatztext (Norm, Güte)"), ("pe", "Preiseinheit"))
 FELD_TITEL = dict(FELDER)
 PFLICHT = ("datum", "menge", "preis", "bezeichnung")      # Artikelnummer darf fehlen (dann zählt die Bezeichnung)
 VORLAGEN = "erp_vorlagen"       # Einstellung (intern): {Spaltenkopf mit | getrennt: {Feld: Spaltennummer}}
 GRUEN, GELB, ROT = "grün", "gelb", "rot"
 
 # Spaltenköpfe je Feld, normalisiert (klein, nur Buchstaben/Ziffern): erst gleich, dann enthalten
-_KOPF = {"datum": ("kaufdatum", "datum", "belegdatum", "bestelldatum", "lieferdatum", "eingangsdatum",
+_KOPF = {"datum": ("kaufdatum", "datumerf", "bestelldatum", "datum", "belegdatum", "lieferdatum", "eingangsdatum",
                    "rechnungsdatum", "wareneingang", "buchungsdatum"),
          "preis": ("meterpreis", "preisjem", "preism", "eurom", "ekpreis", "einkaufspreis", "einzelpreis", "preis"),
          "artikelnr": ("artikelnummer", "artikelnr", "artnr", "materialnummer", "materialnr", "matnr", "nummer"),
          "menge": ("mengeinmeter", "mengem", "menge", "meter", "laenge", "länge"),
          "bezeichnung": ("ekartikel", "artikelbezeichnung", "bezeichnung", "artikeltext", "beschreibung", "text",
-                         "artikel", "material")}
-_REIHE = ("preis", "artikelnr", "datum", "menge", "bezeichnung")    # „Meterpreis“ enthält „meter“: Preis zuerst
+                         "artikel", "material"),
+         "zusatz": ("zusatztext", "zusatz", "langtext"),
+         "pe": ("pe", "preiseinheit", "preiseinh")}
+_REIHE = ("preis", "artikelnr", "datum", "menge", "zusatz", "bezeichnung", "pe")    # „Meterpreis“ enthält „meter“: Preis zuerst
 
 
 class ErpFehler(ValueError):
@@ -85,6 +90,8 @@ def spalten_vorschlag(kopf):
             if feld in out:
                 continue
             for wort in _KOPF[feld]:
+                if not gleich and feld == "pe":
+                    break               # „pe“ steckt in vielen Wörtern: nur genau
                 treffer = [i for i in sorted(frei) if (namen[i] == wort if gleich else wort in namen[i])]
                 if treffer:
                     out[feld] = treffer[0]
@@ -172,10 +179,38 @@ def kaeufe(daten, zuordnung):
         if fehler:
             meldungen.append(f"Zeile {n}: " + ", ".join(fehler) + " – übersprungen")
             continue
+        pe = zahl(zelle("pe")) if zelle("pe") else None
+        if pe and pe > 0 and pe != 1:
+            p = p / pe          # Preis je PE (z. B. je 100 m)
         art = zelle("artikelnr")
-        out.append(dict(zeile=n, datum=d, menge=m, preis=p, artikelnr=art, bezeichnung=" ".join(bez.split()),
+        zus = _zusatz(zelle("zusatz"))
+        out.append(dict(zeile=n, datum=d, menge=m, preis=p, artikelnr=art,
+                        bezeichnung=" ".join(bez.split()) + (f" · {zus}" if zus else ""),
                         schluessel=schluessel(art, bez)))
     return out, meldungen
+
+
+def _zusatz(t):
+    """Zusatztext kurz: Sternchen-/Strichzeilen und Ausrufezeichen weg, höchstens 80 Zeichen."""
+    t = re.sub(r"[*=_~!]{2,}|-{3,}", " ", str(t or ""))
+    t = " ".join(t.split())
+    return t[:80].rstrip() if len(t) <= 80 else t[:80].rsplit(" ", 1)[0]
+
+
+# ERP-Artikelnummern wie EQRS355-50x50x3gs, ERRS235-80x60x6, ERS235D172x23N (Patrick 20.11.2026): Form, Güte und
+# Oberfläche als Hinweis für die Erkennung, wenn die Bezeichnung sie nicht nennt („30x30x3 S355“)
+_ARTNR = re.compile(r"(?i)^E(QR|RR|R)(S\d{3})(?:-|D)?[\d,x.]*([a-z]{2})?")
+_ARTNR_FORM = {"QR": "Quadratrohr", "RR": "Rechteckrohr", "R": "Rundrohr"}
+_ARTNR_OBER = {"gs": "gestrahlt", "vz": "verzinkt", "bk": "blank"}
+
+
+def artikelnr_hinweis(artikelnr):
+    """' Quadratrohr S355 gestrahlt' aus der ERP-Artikelnummer oder ''."""
+    m = _ARTNR.match(str(artikelnr or "").strip())
+    if not m:
+        return ""
+    teile = [_ARTNR_FORM[m.group(1).upper()], m.group(2).upper(), _ARTNR_OBER.get((m.group(3) or "").lower(), "")]
+    return " " + " ".join(t for t in teile if t)
 
 
 # ------------------------------------------------------------------ 2. Bezeichnung zerlegen
@@ -200,7 +235,8 @@ def _f(x):
 def masse(text):
     """Profilform und Maße aus der Bezeichnung: dict(form, a, b, wand) oder None."""
     t = str(text or "")
-    m = _MASSE.search(t)
+    # erste Abmessung ohne Längenangabe („16x 4500mm“ im Zusatztext ist Stückzahl × Länge, kein Profil)
+    m = next((x for x in _MASSE.finditer(t) if all(_f(g) < 1000 for g in x.groups() if g)), None)
     if not m:
         return None
     z = [_f(x) for x in m.groups() if x]
@@ -268,12 +304,25 @@ def werkstoff_finden(text, werkstoffe):
     zeilen = [dict(z, werkstoff_id=wid) for wid, z in werkstoffe.items()]
     wid, wort, kand = werkstoff(text, zeilen)
     if wid is None and len(kand) > 1:
-        normen = set(_NORM.findall(str(text or "")))
+        t = str(text or "")
+        normen = set(_NORM.findall(t))
+        if not normen:          # „kaltgefertigt“ = EN 10219, „warmgefertigt“ = EN 10210 (ERP-Export 20.11.2026)
+            normen = {"10219"} if re.search(r"(?i)kalt\s*gefertigt", t) else \
+                {"10210"} if re.search(r"(?i)warm\s*gefertigt|\bwarm\b", t) else set()
         if normen:
             passt = [w for w in kand if any(n in " ".join(str(werkstoffe.get(w, {}).get(f) or "") for f in
                                                           ("norm", "angebotstext", "werkstoff_id")) for n in normen)]
+            if len(passt) > 1:  # Sondergüten (wetterfest S355J2WH) nur, wenn sie in der Bezeichnung stehen
+                eng = [w for w in passt if any(n in str(w) for n in normen)]
+                passt = eng or passt
             if len(passt) == 1:
                 return passt[0], wort, kand
+    if wid is None and "10305" in _NORM.findall(str(text or "")):
+        g = re.search(r"(?i)\b[ES](235|355)", str(text or ""))
+        e = [w for w in werkstoffe if "10305" in str(w) and str(werkstoffe[w].get("werkstoff") or "").startswith(
+            "E" + (g.group(1) if g else ""))]
+        if len(e) == 1:         # Präzisionsrohr EN 10305 ist E235/E355, auch wenn das ERP „S235“ schreibt
+            return e[0], wort, kand
     return wid, wort, kand
 
 
@@ -413,7 +462,7 @@ def artikel(kauf_liste, gemerkt, k):
             a.update(profil_id=z["profil_id"], werkstoff_id=z["werkstoff_id"], oberflaeche=z.get("oberflaeche") or "",
                      ampel=GRUEN, hinweis="gemerkt", gemerkt=True, ignorieren=False, vorschlag=None, kandidaten=[])
         else:
-            e = zerlegen(a["bezeichnung"], k)
+            e = zerlegen(a["bezeichnung"] + artikelnr_hinweis(a["artikelnr"]), k)
             a.update(profil_id=e["profil_id"], werkstoff_id=e["werkstoff_id"], oberflaeche=e["oberflaeche"],
                      ampel=e["ampel"], hinweis=e["hinweis"], gemerkt=False, ignorieren=False,
                      vorschlag=e["vorschlag"], kandidaten=e["kandidaten"])
