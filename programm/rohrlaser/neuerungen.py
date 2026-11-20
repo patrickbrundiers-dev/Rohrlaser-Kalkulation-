@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.435", "<b>Kalkulieren mit der lokalen KI</b> ([[ki]]). Im KI-Assistenten liest <b>Anfrage auslesen …</b> "
+    ["0.9.438", "<b>Kalkulieren mit der lokalen KI</b> ([[ki]]). Im KI-Assistenten liest <b>Anfrage auslesen …</b> "
                 "Positionen, Anfrage-Nr., Projekt, Kundenvorgaben (Zeugnis 3.1, Verpackung, Liefertermin …) und "
                 "Zusatzarbeiten aus PDF, Mail oder eingefügtem Text; <b>Als Angebotsentwurf anlegen</b> macht daraus "
                 "ein neues Angebot. Beim Import erkennt das Sprachmodell Zusatzarbeiten im Freitext und Widersprüche "
@@ -30,7 +30,7 @@ NEUERUNGEN = [
                 "Angeboten des Kunden, Rückfrage an den Kunden, Muster aus der Nachkalkulation und Suche wie "
                 "<i>alle Angebote mit Edelstahl-Rundrohr über 2 m</i>. Nichts ändert einen Preis.",
      "KI liest Anfragen aus, legt Angebotsentwürfe an und erklärt Preise (alles lokal)."],
-    ["0.9.435", "<b>Lokale KI-Plattform</b> ([[ki]]). Neu sind die <b>KI-Zentrale</b> (Datei → KI-Zentrale …) mit "
+    ["0.9.438", "<b>Lokale KI-Plattform</b> ([[ki]]). Neu sind die <b>KI-Zentrale</b> (Datei → KI-Zentrale …) mit "
                 "Status, Modellen, CPU/RAM/GPU, offenen Empfehlungen, Lernhistorie mit Zurücknehmen und Vergleich "
                 "alt/neu, verdächtigen Lerndaten, Wissenssuche und Protokoll aller KI-Aktionen, und der "
                 "<b>KI-Assistent</b> (Strg+Alt+K) für Fragen in normaler Sprache zum Angebot oder zu allen Daten. Im "
@@ -40,6 +40,16 @@ NEUERUNGEN = [
                 "ohne Installation und ohne Admin-Rechte) ist freiwillig. Es läuft nur auf diesem PC bzw. im "
                 "Firmennetz, Cloud-Modelle und Internet-Adressen sind gesperrt.",
      "Lokale KI: KI-Zentrale, KI-Assistent (Strg+Alt+K), KI-Prüfung im Angebots-Check, nur im eigenen Netz"],
+    ["0.9.435", "<b>Rahmenaufträge und Abrufe</b> ([[rahmenauftraege]]). Neue Seite <i>Rahmenaufträge</i> unter "
+     "Auftrag: Vertrag mit Gesamtmenge, Laufzeit, Mindest-/Höchstabruf, Lieferorten und Bedingungen; mehrere "
+     "Positionen; Abrufe anlegen, verschieben, liefern, stornieren, alles im Protokoll. Wirtschaftlichkeit mit der "
+     "zentralen Kalkulation: Los je Abruf, alles in einem Los oder optimierte Lose (mit Lager- und Kapitalkosten), "
+     "Material je Los, gesamt oder Beistellung, Preisstaffel 100 bis 5.000 Stück mit Mindestmarge. Preisbindung "
+     "(Festpreis, Materialbindung, Gleitklausel): Auswirkung einer Materialpreisänderung, neue Preise nur nach "
+     "Freigabe. Übersicht mit Ampel und Filtern, Warnungen zum Vertragsende, Abschlussübersicht, sieben Dokumente "
+     "(Kundenangebot ohne interne Zahlen). Im Angebot <i>Vorgang → Rahmenauftrag aus Angebot …</i>. Das Fenster <i>Abruf-/Rahmenangebot</i> rechnet "
+     "mit derselben Rechnung: Varianten A/B/C, Materialvergleich, empfohlene Losgröße und Preisstaffel ([[abruf_angebot]]).",
+     "Rahmenaufträge mit Abrufen, optimierten Losen, Material, Preisbindung mit Freigabe und Ampel"],
     ["0.9.434", "<b>Angebotsvarianten A–E</b> ([[angebotsvarianten]]): Original und bis zu fünf Varianten nebeneinander "
      "(Gewinn, Aufschläge, Rabatt, Rüst- und Programmierzeit, dazu Was-wäre-wenn bei Material, Stundensätzen und "
      "Zukauf), mit Selbstkosten, Verkaufspreis, Marge und Deckungsbeitrag. Das Angebot bleibt unverändert; eine "

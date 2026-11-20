@@ -143,6 +143,7 @@ TESTS = [
     ("test_lieferlaengen_mischen.py", {}),
     ("test_profirst_plan.py", QT),
     ("test_auftraege.py", QT),
+    ("test_rahmenauftrag.py", QT),
     ("test_nachkalk_rueckmeldung.py", QT),
     ("test_zeit_vorschlaege.py", QT),
     ("test_bestellpreis.py", QT),

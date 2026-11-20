@@ -1,7 +1,9 @@
 """Fenster „Abruf-/Rahmenangebot“ (Patrick 30.10.2026, abruf.py): Jahresmenge und Abrufmenge von–bis, Laufzeit,
 Material je Abruf (Materialklausel) oder bevorratet mit Lagerzins. Die Stückzahlen der Positionen bleiben, wie sie
 sind; der Hinweis sagt, dass sie dem kleinsten Abruf entsprechen sollen."""
-from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, QVBoxLayout
+from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox,
+                               QHBoxLayout, QHeaderView, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
+                               QVBoxLayout)
 
 from . import abruf
 from .eingabe import RechenSpin, RechenSpinGanz
@@ -22,9 +24,11 @@ def _ganz(von, bis, wert, schritt=100):
 
 class AbrufDialog(QDialog):
     """kopf = Angebotskopf, einst = Einstellungen (Vorgaben Laufzeit und Lagerzins), stueck = größte Stückzahl der
-    Positionen (Vorschlag für den kleinsten Abruf)."""
+    Positionen (Vorschlag für den kleinsten Abruf). auswerten = Funktion(Kopffelder) → Auswertung wie beim
+    Rahmenauftrag (rahmen_kalk.angebot_auswertung; Patrick 20.11.2026 „Ja umstellen“): Varianten A/B/C,
+    Materialvergleich, Preisstaffel nach Jahresmenge, empfohlene Losgröße."""
 
-    def __init__(self, parent, kopf, einst, stueck=None, losgroesse=None):
+    def __init__(self, parent, kopf, einst, stueck=None, losgroesse=None, auswerten=None):
         super().__init__(parent)
         self.setWindowTitle("Abruf-/Rahmenangebot")
         k, e = kopf or {}, einst or {}
@@ -74,6 +78,9 @@ class AbrufDialog(QDialog):
         self.los.setVisible(bool(losgroesse))
         lay.addWidget(self.los)
         lay.addWidget(hinweis)
+        self.auswerten_fn, self.auswertung = auswerten, None
+        if auswerten is not None:
+            lay.addWidget(self._wirtschaftlichkeit())
         lay.addWidget(knoepfe)
         for w in (self.jahr_von, self.jahr_bis, self.von, self.bis, self.laufzeit, self.zins):
             w.valueChanged.connect(self._info)
@@ -92,3 +99,75 @@ class AbrufDialog(QDialog):
     def _info(self, *_):
         self.zins.setEnabled(self.material.currentText() == ABRUF_LAGER)
         self.info.setText(abruf.kurz(self.werte()) or "")
+
+    # ------------------------------------------------------------------ Wirtschaftlichkeit (wie Rahmenauftrag)
+    def _wirtschaftlichkeit(self):
+        box = QGroupBox("Wirtschaftlichkeit (wie Rahmenauftrag)")
+        lay = QVBoxLayout(box)
+        self.w_text = QLabel()
+        self.w_text.setWordWrap(True)
+        self.w_var = _tabelle(("Variante", "Lose", "Selbstkosten €", "Lager + Kapital €", "Preis €/Stk.", "Marge"))
+        self.w_staffel = _tabelle(("Menge aller Positionen [Stk.]", "Szenario", "Selbstkosten €/Stk.", "Preis €/Stk.", "Marge"))
+        k = QPushButton("Neu rechnen")
+        k.setToolTip("Rechnet mit den Werten oben: gleiche Kalkulation wie das Angebot, Abrufe gleichmäßig über die "
+                     "Laufzeit. Ändert am Angebot nichts.")
+        k.clicked.connect(self.neu_rechnen)
+        lay.addWidget(self.w_text)
+        lay.addWidget(self.w_var)
+        lay.addWidget(self.w_staffel)
+        lay.addWidget(k)
+        self.neu_rechnen()
+        return box
+
+    def neu_rechnen(self, *_):
+        """Auswertung mit den Werten im Fenster; Ergebnis dict (auch mit fehler)."""
+        from . import rahmen_kalk as rk
+        try:
+            a = self.auswerten_fn(self.werte())
+        except (ValueError, KeyError, ZeroDivisionError, TypeError) as e:
+            a = dict(fehler=f"Auswertung nicht möglich: {e}")
+        self.auswertung = a
+        self.w_text.setText(rk.angebot_text(a))
+        if a.get("fehler"):
+            self.w_var.setRowCount(0)
+            self.w_staffel.setRowCount(0)
+            return a
+        v = a["varianten"]
+        zeilen = []
+        for x in (rk.A, rk.B, rk.C):
+            r = v[x]
+            zeilen.append([f"{x} {rk.VARIANTE_TEXT[x]}" + (" ★" if x == a["empfehlung"] else ""), str(r["lose"]),
+                           _eur(r["selbst"]), _eur(r["lager"] + r["kapital"] + r.get("material_kapital", 0.0)),
+                           _eur(r["preis_stueck"], 3), _pz(r["marge"])])
+        _fuellen(self.w_var, zeilen)
+        self.w_var.setFixedHeight(self.w_var.horizontalHeader().height() + 3 * self.w_var.rowHeight(0) + 4)
+        self.los.setVisible(False)           # die Empfehlung oben ersetzt den Andler-Richtwert
+        zeilen = [[f"{z['menge']:,}".replace(",", "."), s["name"], _eur(s["selbst_stueck"], 3), _eur(s["preis_stueck"], 3),
+                   _pz(s["marge"])] for z in a["preisstaffel"] for s in z["szenarien"]]
+        _fuellen(self.w_staffel, zeilen)
+        return a
+
+
+def _eur(x, nk=2):
+    return f"{x:,.{nk}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _pz(x):
+    return f"{100 * x:.1f} %".replace(".", ",") if x is not None else ""
+
+
+def _tabelle(spalten):
+    t = QTableWidget(0, len(spalten))
+    t.setHorizontalHeaderLabels(list(spalten))
+    t.verticalHeader().setVisible(False)
+    t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+    t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+    t.horizontalHeader().setStretchLastSection(True)
+    return t
+
+
+def _fuellen(t, zeilen):
+    t.setRowCount(len(zeilen))
+    for r, z in enumerate(zeilen):
+        for c, w in enumerate(z):
+            t.setItem(r, c, QTableWidgetItem(w))

@@ -520,6 +520,11 @@ class AngeboteSeite(QWidget):
         self.auftrag_aktion = menue.addAction("In Auftrag übernehmen …", lambda: self.in_auftrag())
         self.auftrag_aktion.setToolTip("Markierte beauftragte Angebote mit Zusammenfassung in einen Auftrag übernehmen")
         menue.aboutToShow.connect(lambda: self.auftrag_aktion.setVisible(self.f.auftraege_an()))
+        # Rahmenaufträge (20.11.2026): Rahmenauftrag mit Abrufen aus dem Angebot
+        self.rahmen_aktion = menue.addAction("Rahmenauftrag aus Angebot …",
+                                             lambda: self.f.rahmen_aus_angebot(self._gewaehlt()))
+        self.rahmen_aktion.setToolTip("Rahmenauftrag mit Abrufplan, Losplanung und Preisstaffel aus diesem Angebot")
+        menue.aboutToShow.connect(lambda: self.rahmen_aktion.setVisible(self.f.rahmen_an()))
         menue.addSeparator()            # Plan A9
         self.nachfassen_aktionen = (menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen()),
                                     menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen()))
@@ -4142,7 +4147,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 los = self.losgroesse()
             except (ValueError, KeyError, ZeroDivisionError, TypeError):
                 los = None
-            d = AbrufDialog(self, self.kopf, self.db.einstellungen(), stueck=stueck or None, losgroesse=los)
+            d = AbrufDialog(self, self.kopf, self.db.einstellungen(), stueck=stueck or None, losgroesse=los,
+                            auswerten=self.abruf_auswertung)
             if self.f.stumm or not d.exec():
                 self._kopf_anzeigen()
                 return False
@@ -4160,6 +4166,14 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.f.meldung("Abruf-/Rahmenangebot gespeichert. " + (preis_aenderung(vorher, self._verkauf())
                                                                  if vorher is not None else ""))
         return True
+
+    def abruf_auswertung(self, werte=None):
+        """Wirtschaftlichkeit des Abruf-Angebots mit der Rechnung des Rahmenauftrags (rahmen_kalk; Patrick 20.11.2026):
+        werte = Kopffelder aus dem Fenster (sonst die gespeicherten). Ändert am Angebot nichts."""
+        from . import rahmen_kalk as rk
+        kopf = dict(self.kopf, **(werte or {}))
+        einst = rechnen.einstellungen_angebot(kopf, self.db.einstellungen())
+        return rk.angebot_auswertung(kopf, self.positionen, self.db.kontext(), self.db.tabellen(), einst)
 
     def gleitklausel_pruefen(self, antwort=None):
         """Knopf „Gleitklausel prüfen …“ (Vorschlag K1, gleitklausel.py): festgeschriebene Materialpreise gegen die
