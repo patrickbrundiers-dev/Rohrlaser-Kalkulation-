@@ -6956,7 +6956,9 @@ def kapitel_optimieren(i):
             "merkt sich das Programm je Benutzer; sie gilt für Rohr- und Blech-Editor, Schweißbaugruppe und Satz in "
             "3D (Rohre aus den Eingaben). Das STEP-Modell hat keine Schnittkörper.",
             "<b>Darstellung</b>: <i>Schattiert</i>, <i>Mit Kanten</i> (Körperkanten dunkel, an Rundungen die "
-            "Tangentenkanten), <i>Durchsichtig</i> (Röntgen), <i>Drahtgitter</i> (nur Kanten, Umriss der Rundungen "
+            "Tangentenkanten; Rundrohre bekommen keine Linien längs über den Mantel: bei STEP-Teilen gilt nur der Übergang "
+            "zwischen zwei Flächen der STEP als Kante, nie die Vernetzung innerhalb einer Fläche, z. B. um ein Loch), "
+            "<i>Durchsichtig</i> (Röntgen), <i>Drahtgitter</i> (nur Kanten, Umriss der Rundungen "
             "und Konturen, auch die hinteren) und <i>Verdeckt gestrichelt</i> (helle Flächen, sichtbare Kanten "
             "durchgezogen, verdeckte gestrichelt wie in einer technischen Zeichnung).",
             "<b>Messen</b>: zwei Punkte anklicken. Das Programm fängt in dieser Reihenfolge: <b>Kreismitte</b> (auch "
