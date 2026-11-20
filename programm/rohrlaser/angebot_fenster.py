@@ -520,6 +520,11 @@ class AngeboteSeite(QWidget):
         self.auftrag_aktion = menue.addAction("In Auftrag übernehmen …", lambda: self.in_auftrag())
         self.auftrag_aktion.setToolTip("Markierte beauftragte Angebote mit Zusammenfassung in einen Auftrag übernehmen")
         menue.aboutToShow.connect(lambda: self.auftrag_aktion.setVisible(self.f.auftraege_an()))
+        # Rahmenaufträge (20.11.2026): Rahmenauftrag mit Abrufen aus dem Angebot
+        self.rahmen_aktion = menue.addAction("Rahmenauftrag aus Angebot …",
+                                             lambda: self.f.rahmen_aus_angebot(self._gewaehlt()))
+        self.rahmen_aktion.setToolTip("Rahmenauftrag mit Abrufplan, Losplanung und Preisstaffel aus diesem Angebot")
+        menue.aboutToShow.connect(lambda: self.rahmen_aktion.setVisible(self.f.rahmen_an()))
         menue.addSeparator()            # Plan A9
         self.nachfassen_aktionen = (menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen()),
                                     menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen()))

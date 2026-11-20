@@ -10483,6 +10483,99 @@ def kapitel_auftraege(i):
             "Arbeitsgänge, ein Schritt je Zeile; leer = Vorgabe).")
 
 
+def kapitel_rahmenauftraege(i):
+    i.kapitel("Rahmenaufträge und Abrufe", marke="rahmenauftraege")
+    i.text("Ein <b>Rahmenauftrag</b> ist ein Vertrag über eine Gesamtmenge, die der Kunde über eine Laufzeit in "
+           "einzelnen <b>Abrufen</b> holt. Er ist ein eigenes Objekt neben dem Einzelauftrag ([[auftraege]]): Seite "
+           "<b>Rahmenaufträge</b> in der Seitenleiste unter <i>Auftrag</i>. Das Programm verwaltet Vertrag, Abrufe, "
+           "Lieferungen, Fertigungslose und Material, rechnet die günstigste Losaufteilung und zeigt, was eine "
+           "Materialpreisänderung kostet. Vertragspreise ändern sich nie von selbst.", kurz=True)
+    i.liste("<b>Anlegen</b>: <i>Neuer Rahmenauftrag …</i> auf der Seite, oder im Angebot bzw. in der "
+            "Angebotsliste <i>Vorgang → Rahmenauftrag aus Angebot …</i>. Aus dem Angebot kommen Kunde, Projekt, "
+            "Positionen mit Stückpreis und Gewicht; die Rahmenmenge je Position aus der Jahresmenge des "
+            "Abruf-Angebots ([[angebot]]) oder der Stückzahl. <i>Aus Angebot …</i> auf der Seite fragt die "
+            "Angebotsnummer ab. Die Nummer ist <b>RA-2026-0001</b> (mit gemeinsamem Ordner dort reserviert).",
+            "<b>Übersicht</b>: Kacheln (aktive Rahmen, Vertragswert, Restwert, rot/gelb, überfällige Abrufe), Filter "
+            "nach Kunde, Artikel, Laufzeit (endet in 30/90/180 Tagen) und Status, darunter je Rahmen eine Zeile mit "
+            "<b>Ampel</b>, Menge, abgerufen, geliefert, offen, Restwert, offene und überfällige Abrufe, Marge und "
+            "Warnungen. <i>Öffnen</i> oder Doppelklick öffnet das Fenster <b>Rahmenauftrag</b>.", kurz=True)
+    i.genauer()
+    i.abschnitt("Vertrag, Positionen, Abrufe")
+    i.liste("<b>Vertrag</b>: Kunde, Kundennummer, Projekt, Rahmennummer des Kunden, Start und Ende, Jahresbedarf, "
+            "Gesamtpreis, Mindest- und Höchstabrufmenge, geplante Anzahl Abrufe, Lieferintervall, Lieferorte, "
+            "Zahlungs-, Liefer- und Abrufbedingungen, Preisgültigkeit, individuelle Bedingungen. <i>Vertragsdaten "
+            "speichern</i> schreibt nur die geänderten Felder ins Protokoll. Mit <i>Rahmenmenge sperrt weitere "
+            "Abrufe</i> = ja wird ein Abruf über die Rahmenmenge abgewiesen, sonst nur gewarnt. <i>Status …</i>: "
+            "Entwurf, Angeboten, Aktiv, Abgeschlossen, Storniert.",
+            "<b>Positionen</b>: mehrere Artikel je Rahmen, jeder einzeln kalkuliert. Spalten Menge, Preis, Abgerufen, "
+            "Geplant, Geliefert, Offen, Noch abrufbar, Gefertigt, Auf Lager, Restwert. <i>Position ergänzen …</i>, "
+            "<i>Menge ändern …</i>, <i>Preis ändern …</i>, <i>Gewicht ändern …</i>. Im Status <b>Aktiv</b> lässt sich "
+            "der Preis nicht mehr direkt ändern, nur über Vorschlag und Freigabe (Reiter Preisbindung).",
+            "<b>Abrufe</b>: <i>Abruf anlegen …</i> (Datum, Menge je Position), <i>Abrufplan erzeugen …</i> (Anzahl, "
+            "erster Termin, Intervall in Monaten; verteilt die noch abrufbare Menge), <i>Menge ändern …</i>, "
+            "<i>Verschieben …</i>, <i>Abgerufen</i> (Kunde hat abgerufen), <i>Liefern …</i> (mit Lieferschein, auch "
+            "Teilmengen), <i>Abschließen</i>, <i>Stornieren …</i> (mit Grund; die Menge wird wieder frei; gelieferte "
+            "Abrufe lassen sich nicht stornieren). Die Grafik zeigt Plan- und Ist-Termine; überfällige Abrufe rot.",
+            "Jede Änderung steht im Reiter <b>Protokoll</b> mit alt → neu, Benutzer, Rechner und Zeit. Ändern zwei "
+            "Arbeitsplätze gleichzeitig denselben Wert, gilt nach dem Abgleich die spätere Änderung, beide Stände "
+            "sind gleich, und der Rahmen meldet <i>gleichzeitige Änderung</i>.")
+    i.abschnitt("Wirtschaftlichkeit und Lose")
+    i.text("<i>Berechnen</i> rechnet mit der zentralen Kalkulation des verknüpften Angebots (gleiche Rüst-, Laser-, "
+           "Material- und Zukaufkosten wie im Angebot, keine zweite Rechnung) und vergleicht:")
+    i.liste("<b>Variante A</b>: ein Los je Abruf (jedes Mal rüsten, kein Lager).",
+            "<b>Variante B</b>: alles in einem Los (einmal rüsten, dafür Lagerplatz, Einlagern, Kapitalbindung bis "
+            "zur Lieferung, Kommissionierung).",
+            "<b>Variante C</b>: optimierte Lose (Wagner-Whitin: die günstigste Aufteilung über alle Abrufe); dazu feste "
+            "Losgrößen 100, 250, 500 und 1.000 (auf ganze Abrufe gerundet) und die Andler-Losgröße als Richtwert. Die "
+            "günstigste Variante ist die Empfehlung.",
+            "Kostenarten ohne Doppelzählung: <b>einmalig</b> (Programmierung, beim Wiederholen nur der eingestellte "
+            "Anteil; Vorrichtung), <b>je Los</b> (Rüsten), <b>je Stück</b> (Laser, Fertigung, Material, Zukauf), "
+            "<b>rahmenabhängig</b> (Lager, Kapital, Lieferabwicklung je Abruf, Kommissionierung, Verwaltung). Gewinn "
+            "nur auf die eigene Leistung, nicht auf Zukauf, Bleche und Fracht.",
+            "<i>Parameter …</i> öffnet die <b>Kalkulationsparameter des Rahmens</b>: Zins, Lagerplatz je Palette und "
+            "Monat, Teile je Palette, Einlagern je Los, Programmierung bei Wiederholung, Kommissionierung, "
+            "Lieferabwicklung je Abruf, Verwaltung, einmalige Kosten, Bestellkosten Material, Mindestbestellmenge "
+            "(kg), Materialstaffel, maximale Lagerdauer, Schwelle der Gleitklausel. Sie gelten nur für diesen Rahmen "
+            "und ändern sich nie von selbst.",
+            "<b>Material</b>: <i>je Los</i> (Kauf zum Los, Mindestbestellmenge und Staffel; ein Rest bleibt auf dem "
+            "Materialkonto des Rahmens für das nächste Los), <i>gesamt zu Beginn</i> (Staffelrabatt, dafür "
+            "Kapitalbindung) oder <i>Beistellung Kunde</i>. Der Vergleich zeigt, was günstiger ist. Schon gekauftes "
+            "Material wird nicht noch einmal gekauft; Einkauf und Fertigung bleiben getrennt.",
+            "<i>Kalkulation festschreiben</i> speichert das Ergebnis als Version (nachvollziehbar, auch wenn sich "
+            "Stammdaten später ändern). <i>Stückpreise übernehmen</i> setzt die errechneten Preise in die Positionen "
+            "(vor dem Status Aktiv). <i>Lose anlegen</i> legt die Fertigungslose der Empfehlung an.",
+            "Die Gegenprüfung rechnet jedes Los noch einmal exakt mit der zentralen Kalkulation und zeigt die "
+            "Abweichung des Kostenmodells. Liegt die Marge unter der <b>Mindestmarge</b>, "
+            "hebt das Programm den Preis an und markiert die Zeile (Einstellung Mindestmarge, [[kalkulation]]).")
+    i.abschnitt("Preisstaffel und Preisbindung")
+    i.liste("<b>Preisstaffel</b>: Rahmenmengen 100, 250, 500, 1.000, 2.500 und 5.000 Stück, je Szenario "
+            "(Gesamtfertigung, je Abruf, gebündelt, Bevorratung, Beistellung) Selbstkosten, Gewinn, Marge und Preis "
+            "je Stück.",
+            "<b>Preisbindung</b>: Festpreis über die Laufzeit, Festpreis bis Datum, Materialpreis gebunden bis, "
+            "Gleitklausel (Materialanteil, Basispreis, Schwelle), individuell, Prüftermine. <i>Preisbindung "
+            "speichern</i>. Eine Gleitklausel bitte rechtlich prüfen lassen.",
+            "<i>Auswirkung berechnen</i>: neuer Materialpreis (z. B. 2,50 → 2,90 €/kg); je Position Material alt/neu, "
+            "Differenz, Gewinn alt/neu und der Gleitpreis. <i>Preisänderung vorschlagen</i> legt einen Vorschlag an; "
+            "erst <i>Freigeben</i> ändert die Vertragspreise (mit Verlauf), <i>Ablehnen</i> verwirft ihn.")
+    i.abschnitt("Material und Lose, Abschluss, Dokumente")
+    i.liste("Reiter <b>Material und Lose</b>: <i>Materialkauf erfassen …</i>, <i>Verbrauch erfassen …</i>, "
+            "Materialkonto (gekauft, verbraucht, Bestand, noch zu kaufen); Lose mit Abrufen und Mengen, "
+            "<i>Los gefertigt</i>. Gefertigte Teile auf Lager werden im Restplan nicht noch einmal gefertigt. Es gibt "
+            "kein Restelager: Verschnitt wird nur gemeldet.",
+            "<b>Warnungen</b> (Ampel): Vertrag läuft ab oder ist abgelaufen mit offener Menge, Abrufe überfällig oder "
+            "unter Plan, Rahmenmenge überschritten, Abruf außerhalb Mindest-/Höchstmenge, Material reicht nicht für "
+            "den nächsten Abruf, Marge unter Mindestmarge, Restmenge unwirtschaftlich, Prüftermin, offener "
+            "Preisvorschlag, gleichzeitige Änderung.",
+            "Reiter <b>Abschluss</b>: je Position Menge, abgerufen, geliefert, nicht abgerufen, gefertigt, "
+            "Lagerbestand, offene Lieferverpflichtung, Umsatz und Restwert; Material und Abrufe Plan/Ist; Hinweise "
+            "für das Gespräch mit dem Kunden.",
+            "<i>Dokumente …</i>: Kundenangebot Rahmen und Abruf-/Lieferübersicht (für den Kunden, ohne Selbstkosten, "
+            "Gewinn und Marge; das prüft das Programm beim Schreiben), interne Kalkulation, Materialbedarfsplanung, "
+            "Produktionsplanung, Wirtschaftlichkeitsvergleich und Abschlussbericht (intern).",
+            "Rahmenaufträge gleichen sich über den gemeinsamen Ordner ab ([[mehrere_arbeitsplaetze]], Unterordner "
+            "<i>Rahmen</i>). Rechnungen schreibt weiter das ERP.")
+
+
 def kapitel_produktion(i):
     i.kapitel("Produktion und Rückmeldung", marke="produktion")
     i.text("Die Seite <b>Produktion</b> (Seitenleiste unter <i>Auftrag</i>) zeigt alle aktiven Arbeitsgänge der "
@@ -15079,6 +15172,8 @@ STECKBRIEFE = {
                 "Im Angebot die Knöpfe rechts neben <b>Ausgabe</b>"),
     "auftraege": ("Beauftragtes Angebot in einen Auftrag übernehmen und Aufträge mit Historie verwalten.",
                   "Seitenleiste <b>Aufträge</b>; Angebotsliste <i>Vorgang → In Auftrag übernehmen …</i>"),
+    "rahmenauftraege": ("Rahmenverträge mit Abrufen verwalten, Lose und Material planen, Preise binden.",
+                        "Seitenleiste <b>Rahmenaufträge</b>; Angebot <i>Vorgang → Rahmenauftrag aus Angebot …</i>"),
     "produktion": ("Arbeitsgänge in der Werkstatt beginnen, Teilmengen und Probleme melden, abschließen.",
                    "Seitenleiste <b>Produktion</b>"),
     "auswertung": ("Durchlaufzeit, Termintreue, Ausschuss, Produktivität und Kosten Ist gegen Kalkulation der "
@@ -15128,7 +15223,7 @@ TEILE = [
     ("B", "Ein Angebot rechnen", "Alle Schritte eines Angebots in der Reihenfolge der Arbeit, vom Anlegen bis zur "
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
-      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_auftraege, kapitel_produktion, kapitel_auswertung, kapitel_versand,
+      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_auftraege, kapitel_rahmenauftraege, kapitel_produktion, kapitel_auswertung, kapitel_versand,
       kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
