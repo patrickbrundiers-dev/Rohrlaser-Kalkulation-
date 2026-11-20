@@ -11651,13 +11651,9 @@ def kapitel_mehrere(i):
     i.text("Jeder Mitarbeiter hat das Programm auf seinem Rechner, mit eigener Datendatei. Damit trotzdem jeder die "
            "Angebote der anderen sieht und alle mit denselben Stammdaten rechnen, gibt es das <b>Kürzel</b> und einen "
            "<b>gemeinsamen Ordner</b>.", kurz=True)
-    i.hinweis("Die Datenbank wird gerade für mehrere Arbeitsplätze modernisiert (PostgreSQL statt SQLite, Abgleich "
-              "einzelner Änderungen statt ganzer Dateien). Bis zur Umstellung bleibt alles wie in diesem Kapitel "
-              "beschrieben; die eigene Datendatei wird nicht verändert. Seit Version 0.9.315 laufen alle Zugriffe bereits "
-              "über die neue gemeinsame Zugriffsschicht, seit 0.9.321 ohne Sonderbefehle von SQLite; seit 0.9.338 "
-              "laufen auch Änderungsprotokoll, Abgleich, Sicherung, Wiederherstellen und Archiv mit PostgreSQL "
-              "(jede Sicherung bleibt eine normale Datendatei); seit 0.9.339 kann der Hauptadmin einen PC auf PostgreSQL "
-              "umstellen ([[datenspeicher]]). Ohne Umstellen ist davon nichts spürbar.", titel="In Arbeit")
+    i.hinweis("Seit November 2026 liegen die Daten auf jedem PC in einer eigenen PostgreSQL-Datenbank "
+              "([[datenspeicher]]). Der Abgleich über den gemeinsamen Ordner bleibt wie in diesem Kapitel beschrieben "
+              "und führt Stammdaten feldweise zusammen.", titel="Datenbank")
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
     i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
             "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",

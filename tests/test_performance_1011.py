@@ -11,7 +11,7 @@ Geprüft wird ohne Bildschirm:
 - Zeitwächter: Abschnitte mit eigener Grenze, Dekorator gemessen, Abschnitte im Hintergrund zählen nicht,
   Hänger-Schutz schreibt sofort eine Zeile mit den laufenden Abschnitten, die Auswertung nennt sie,
 - Neuladen eines Angebots markiert seine Schritte (Daten lesen, Positionstabelle, Kalkulation …),
-- Schnellprüfung der Datendatei (PruefLauf): gesunde Datei ohne Befund, beschädigte mit Befund,
+- (Schnellprüfung der SQLite-Datendatei entfällt seit Datenbank-Auftrag Schritt 6: PostgreSQL prüft selbst)
 - Tempo Teil 2: schon gerechnete Schnittpläne (optimierung._merker) ergeben denselben Plan, ein zweites Optimieren
   nach einer Änderung rechnet nur die geänderte Gruppe, andere Suchgrenzen rechnen neu, Hilfsprozesse bekommen
   gemerkte Gruppen nicht; das Angebots-PDF rechnet höchstens 6 Kalkulationen (vorher 16) und
@@ -22,7 +22,6 @@ import copy
 import json
 import os
 import random
-import sqlite3
 import sys
 import tempfile
 import threading
@@ -36,7 +35,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from rohrlaser import rechnen, tempo  # noqa: E402
 from rohrlaser.angebot_fenster import AngebotSeite  # noqa: E402
-from rohrlaser.datenbank import Datenbank, PruefLauf  # noqa: E402
+from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 
 GRENZE_ZELLE_CHECK = 1.5     # s, 200 Positionen mit gestaffeltem Gewinn: Zelle ändern + Check (gemessen 0,4 s)
@@ -270,25 +269,6 @@ auswertung = tempo.auswerten(proto)
 assert "Hänger über 10 s: 1" in auswertung and "läuft: Angebot neu laden" in auswertung, auswertung
 assert len(tempo.lesen(proto)) == 1
 ok("Hänger-Schutz: sofort eine Zeile mit Ort und laufenden Abschnitten, Auswertung nennt sie")
-
-# ------------------------------------------------------------------ Datendatei prüfen
-lauf = PruefLauf(db.pfad)
-assert lauf.warten(30) and lauf.fehler is None and lauf.dauer is not None, lauf.fehler
-kaputt = tmp / "kaputt.db"
-con = sqlite3.connect(kaputt)
-con.execute("CREATE TABLE t (a INTEGER PRIMARY KEY, b TEXT)")
-con.execute("CREATE INDEX ib ON t(b)")
-con.executemany("INSERT INTO t VALUES (?, ?)", [(i, f"wert {i}" * 20) for i in range(3000)])
-con.commit()
-con.close()
-daten = bytearray(kaputt.read_bytes())
-seite = 4096
-for n in range(3, min(len(daten) // seite, 40), 3):        # Seiten mitten in der Datei überschreiben
-    daten[n * seite + 100:n * seite + 400] = b"\xff" * 300
-kaputt.write_bytes(bytes(daten))
-lauf = PruefLauf(kaputt)
-assert lauf.warten(30) and lauf.fehler, "Beschädigung nicht erkannt"
-ok(f"Datendatei-Prüfung: gesund ohne Befund, beschädigt erkannt ({lauf.fehler[:60]} …)")
 
 # ------------------------------------------------------------------ Tempo Teil 2: Schnittpläne merken, PDF
 from rohrlaser import optimierung as opt, parallel  # noqa: E402
