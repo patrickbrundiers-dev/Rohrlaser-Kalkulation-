@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.429", "<b>Weitere Prüfregeln beim STEP-Import, Schneidtechnik 2,5D/XY</b> ([[fertigbarkeit]]). Nach dem "
+    ["0.9.430", "<b>Weitere Prüfregeln beim STEP-Import, Schneidtechnik 2,5D/XY</b> ([[fertigbarkeit]]). Nach dem "
                 "Vergleich mit 247TailorSteel prüft der Import zusätzlich: Gravur zu nah an einer Schnittlinie "
                 "(Vorgabe 1,5 mm) oder berührt sie, Umfang an keinem der 5 Prüfpunkte (Enden, ¼, ½, ¾) geschlossen "
                 "(offenes Profil spannt nicht sicher), Einnietmuttern aus Zeichnung, Formular oder Zusatzarbeit (M4 "
@@ -30,6 +30,18 @@ NEUERUNGEN = [
                 "Schneidtechnik): bei XY meldet der Import Löcher im Rundrohr über 0,5 × Rohr-Ø, der Angebots-Check "
                 "ebenso. Alles nur Hinweis (gelb), das Teil bleibt wie in der STEP; Grenzwerte je Maschine.",
      "STEP-Import prüft Gravurabstand, offenen Umfang, Einnietmuttern; Schneidtechnik 2,5D/XY je Position"],
+    ["0.9.429", "<b>Exakte Rohrabwicklung mit Bemaßung, DXF und PDF, 3D und 2D verknüpft</b> ([[abwicklung_exakt]]). "
+     "Die Abwicklung zeigt die echte Außenhaut: beim Quadrat-/Rechteckrohr mit Eckradius ist der Umfang "
+     "2 × (B + H) − 8 r + 2 π r (60 × 40 × 3: 189,7 statt 200 mm), mit Radiuslinien und Seitenbreiten; Konturen "
+     "liegen genau wie im 3D und im Schnittkörper. Abwicklungsfenster: DXF (Layer AUSSENKONTUR, INNENKONTUR, KANTE, "
+     "RADIUS, GRAVUR, BESCHRIFTUNG), PDF, Original (Import) gestrichelt darüber, Gegenprobe der Konturlänge als "
+     "Hinweis. Maus über einer Kontur im 3D hebt sie in Skizze und Abwicklung hervor und umgekehrt; unsicher "
+     "erkannte Merkmale aus dem STEP-Import gelb. Abwicklung 1:1 drucken mit echtem Umfang. Neu im Rechtsklick: "
+     "<i>Rohr teilen …</i> (eine Rohrposition in zwei, nicht bei STEP-Teilen). Geänderte Rechnung (Patrick "
+     "20.11.): Konturen, die beim Quadrat-/Rechteckrohr bis in den Eckradius reichen, zählen mit ihrer Länge auf der "
+     "Außenhaut (außen breiter, z. B. 89,4 statt 80 mm); die Rundrohr-Bohrung wird in Abwicklung und 3D so breit "
+     "gezeichnet, wie die Rechnung sie zählt (Bolzen Ø d passt durch).",
+     "Abwicklung mit echter Außenhaut, DXF/PDF, Hover 3D↔2D, unsichere Merkmale gelb, Rohr teilen"],
     ["0.9.428", "<b>Anfragen: Mail-Art, Sachgebiet und technische Angaben erkennen</b> ([[anfrage_art]]). Jede Mail "
      "wird eingeordnet: neue Anfrage, Angebotsnachfrage, Angebotsänderung, Bestellung, Auftragsänderung, technische "
      "Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, allgemeine Mail oder Werbung, mit Sicherheit und "

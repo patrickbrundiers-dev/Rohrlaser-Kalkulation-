@@ -419,9 +419,14 @@ class EditorRahmen(QObject):
             a3.werkzeug_setzen(self.werkzeug)
             self._darstellung_laden()
             a3.angeklickt.connect(self._3d_geklickt)
+            if rohr:                        # P5.2: Hover 3D <-> Skizze/Abwicklung
+                a3.ueber.connect(self._3d_ueber)
+                d.skizze.ueber.connect(self._skizze_ueber)
             a3.gemessen.connect(lambda _w: self.mass.setText(a3.mess_text() or ""))
             a3.wahl.geaendert.connect(self._auswahl_stand)
             a3.wahl.aktionen = lambda gew: editor_kanten.aktionen(self, gew)     # Paket 6: Knöpfe zur Auswahl
+        if rohr:
+            self.pruefen_setzen()           # P3.1: unsichere Merkmale aus dem STEP-Import gelb
         self.step_netz = a3.netz if rohr and a3 is not None else None      # Rohr: Netz des STEP-Imports
         self.modell_step = bool(self.step_netz) and bool(getattr(d, "biegerohr", None))
         if rohr:
@@ -1505,6 +1510,8 @@ class EditorRahmen(QObject):
             if f is None:
                 f = self.abwicklung_fenster = editor_abwicklung.AbwicklungFenster(self)
                 f.geschlossen.connect(lambda: self.abwicklung_knopf.setChecked(False))
+                if self.art == "rohr":      # P5.2: Hover in der Abwicklung hebt die Kontur im 3D hervor
+                    f.bild.ueber.connect(self._skizze_ueber)
             f.show()
             f.raise_()
             f.activateWindow()
@@ -2056,23 +2063,95 @@ class EditorRahmen(QObject):
             if treffer.get("id"):
                 self.waehlen(treffer["id"])
             return
+        kennung = self._kennung_bei(treffer.get("punkt"))
+        if kennung:
+            self.waehlen(kennung)
+
+    def _kennung_bei(self, punkt):
+        """Rohr ohne Kennungen im Netz (STEP-Netz): Merkmal zum 3D-Punkt (nächste Kontur längs der Achse; liegen
+        mehrere an derselben Stelle, entscheidet die Lage am Umfang, P5.1) bzw. Ende; None ohne Modell."""
         from . import skizze as sk
-        if getattr(self.d, "biegerohr", None):
-            return
+        if getattr(self.d, "biegerohr", None) or punkt is None:
+            return None
         a = self.ansicht()
+        if a is None or a.modell is None:
+            return None
         z0, z1 = a.modell.min[2], a.modell.max[2]
-        x = treffer["punkt"][2] - z0
+        x = punkt[2] - z0
+        qs = getattr(self.d, "qs", None)
+        s_p = None
+        if qs is not None and qs.umfang:      # Lage am Umfang aus dem Punkt (Mitte des Querschnitts = Mitte Modell)
+            u = -(punkt[0] - (a.modell.min[0] + a.modell.max[0]) / 2)
+            v = punkt[1] - (a.modell.min[1] + a.modell.max[1]) / 2
+            s_p = sk.uv_zu_s(qs, u, v)
         e = self.d.eingaben()
-        beste = None
-        for lage in sk.lagen(e.get("konturen") or [], z1 - z0, getattr(self.d, "qs", None)):
+        kand = []
+        for lage in sk.lagen(e.get("konturen") or [], z1 - z0, qs):
             dist = abs(lage["x"] - x) - max(sw._z(lage.get("huelle")), 6.0) / 2
-            if beste is None or dist < beste[0]:
-                beste = (dist, f"kontur:{lage['zeile']}")
+            ds = 0.0
+            if s_p is not None:
+                d_ = abs(sk.s_lage(qs, lage["eingabe"]) % qs.umfang - s_p)
+                ds = min(d_, qs.umfang - d_)
+            kand.append((dist, ds, f"kontur:{lage['zeile']}"))
+        beste = None
+        if kand:
+            d_min = min(k[0] for k in kand)
+            beste = min((k for k in kand if k[0] <= d_min + 3.0), key=lambda k: (k[1], k[0]))
+            beste = (beste[0], beste[2])
         enden = [(x, "ende:a"), (z1 - z0 - x, "ende:b")]
         ende = min(enden)
         if beste is None or (ende[0] < 5 and ende[0] < beste[0]):
             beste = ende
-        self.waehlen(beste[1])
+        return beste[1]
+
+    def pruefen_setzen(self):
+        """P3.1: unsichere Merkmale der Importanalyse (Konfidenz unter 90 %, bauteil_analyse) gelb in 3D und
+        Abwicklung. Nur Anzeige; Teile ohne Analyse (von Hand, alte Positionen) zeigen nichts."""
+        from . import abwicklung, bauteil_analyse as ba, rohr3d
+        d = self.d
+        qs, p, skizze = getattr(d, "qs", None), getattr(d, "p", None), getattr(d, "skizze", None)
+        try:
+            liste = abwicklung.unsichere(qs, ba.aus_position(p), getattr(skizze, "L", None)) if qs and p else []
+        except (TypeError, ValueError, KeyError, AttributeError):
+            liste = []
+        if skizze is not None:
+            skizze.pruefen = liste
+        a = self.ansicht()
+        if a is None or a.modell is None:
+            return
+        eigen = self._modell_aus_eingaben()
+        mn, mx = a.modell.min, a.modell.max
+        punkte = []
+        for m in liste:
+            (u, v) = (0.0, qs.H / 2) if m["s"] is None else qs.s_zu_uv(m["s"] % qs.umfang)[0]
+            if eigen:
+                pt = rohr3d._xyz(m["x"], u, v)
+            else:
+                pt = ((mn[0] + mx[0]) / 2 - u, (mn[1] + mx[1]) / 2 + v, mn[2] + m["x"])
+            punkte.append((pt, m["text"]))
+        a.pruef_punkte = punkte
+        a.update()
+
+    def _3d_ueber(self, treffer):
+        """P5.2: Maus über einer Linie im 3D: dieselbe Kontur in Skizze und Abwicklung hervorheben."""
+        kennung = None
+        if treffer:
+            kennung = treffer.get("id") if self._modell_aus_eingaben() else self._kennung_bei(treffer.get("punkt"))
+        zeile = None
+        if isinstance(kennung, str) and kennung.startswith("kontur:"):
+            try:
+                zeile = int(kennung.split(":")[1])
+            except ValueError:
+                zeile = None
+        for b in (getattr(self.d, "skizze", None), getattr(getattr(self, "abwicklung_fenster", None), "bild", None)):
+            if b is not None and hasattr(b, "hover_setzen"):
+                b.hover_setzen(zeile)
+
+    def _skizze_ueber(self, zeile):
+        """P5.2: Maus über einer Kontur in Skizze bzw. Abwicklung: im 3D hervorheben."""
+        a = self.ansicht()
+        if a is not None:
+            a.hover_setzen(f"kontur:{zeile}" if zeile is not None else None)
 
     # -------------------------------------------------------------- Zurücksetzen auf den Ursprung
     def ursprung_import(self):
