@@ -172,9 +172,7 @@ def mit_stegen(solid, t, ziel, datei="", koerper=1, netz=False):
         if zusatz is None:
             zusatz = p
         else:
-            fu = BRepAlgoAPI_Fuse(zusatz, p)
-            fu.SetFuzzyValue(g.FUZZY)
-            fu.Build()
+            fu = g.boolesch("plus", zusatz, p)
             zusatz = fu.Shape()
     innen = (0.0, 0.0, (zmin + zmax) / 2)
     for pl in ebenen:           # nur zwischen den Endflächen

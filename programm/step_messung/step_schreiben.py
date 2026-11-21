@@ -568,7 +568,16 @@ def _gefaltetes_werkzeug(f, b, z0, z1):
 
 def _gemeinsam(a, b):
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
-    c = BRepAlgoAPI_Common(a, b)
+    try:  # OCP >= 7.8
+        from OCP.collections import List_TopoDS_Shape as TopTools_ListOfShape
+    except ImportError:
+        from OCP.TopTools import TopTools_ListOfShape
+    args, tools = TopTools_ListOfShape(), TopTools_ListOfShape()
+    args.Append(a)
+    tools.Append(b)
+    c = BRepAlgoAPI_Common()        # leer anlegen: Common(a, b) rechnet schon, Build() danach ein zweites Mal
+    c.SetArguments(args)
+    c.SetTools(tools)
     c.Build()
     return c.Shape() if c.IsDone() else None
 

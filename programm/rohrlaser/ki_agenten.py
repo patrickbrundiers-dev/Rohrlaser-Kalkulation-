@@ -418,14 +418,43 @@ class AngebotsKI(Agent):
 
 class QualitaetsKI(Agent):
     name, titel = "qualitaet", "Qualitäts-KI"
-    aufgabe = "Ungeprüfte STEP-Merkmale, Sonderprofile, Reklamationen bei Wiederholteilen"
+    aufgabe = "Ungeprüfte STEP-Merkmale, Plausibilität der STEP-Messung, unsichere Bauteilart, Sonderprofile, "\
+              "Reklamationen bei Wiederholteilen"
     woerter = ("qualität", "qualitaet", "fehler", "unstimmig", "prüfen", "pruefen", "reklamation", "konstruktion",
-               "3d", "editor", "erkannt")
-    quellen = ("step_pruefung", "einsichten.reklamation_punkte")
+               "3d", "editor", "erkannt", "plausib", "wandstärke", "wandstaerke", "import", "rohr erkannt")
+    quellen = ("step_pruefung", "step_plausibel", "bauteil_analyse", "einsichten.reklamation_punkte")
+
+    def _import(self, ctx):
+        """STEP-Import (Auftrag 21.11.2026): Plausibilität der Messwerte und unsicher erkannte Bauteilarten aus dem beim
+        Übernehmen gespeicherten Stand (positionen.step_merkmale) – nichts wird neu gemessen oder geschätzt, jede Zahl
+        im Text steht in zahlen (Faktencheck). Bestätigte Positionen („Passt“) zählen nicht."""
+        from . import step_pruefung
+        out = []
+        for i, p in enumerate(ctx.positionen):
+            d = step_pruefung.lesen(p.get("step_merkmale"))
+            if not d or d.get("geprueft"):
+                continue
+            for b in (d.get("plausibel") or ())[:4]:
+                zahlen = {}
+                for k, v in (b.get("basis") or {}).items():     # Listen (Innen-/Sollmaß, Normwände) einzeln
+                    for j, x in enumerate(v if isinstance(v, (list, tuple)) else [v]):
+                        if isinstance(x, (int, float)) and not isinstance(x, bool):
+                            zahlen[k if not isinstance(v, (list, tuple)) else f"{k}_{j + 1}"] = x
+                out.append(self.b(HINWEIS, f"Pos. {_pos_nr(p, i)}: {b.get('titel')}: {b.get('text')}", ziel=f"pos:{i}",
+                                  quelle="STEP-Plausibilität (Messwerte)", zahlen=zahlen,
+                                  begruendung="aus den Messwerten der STEP und den Stammdaten; die Messung gilt"))
+            a = d.get("analyse") or {}
+            if a and a.get("stufe") not in (None, "sicher"):
+                uns = "; ".join(str(x) for x in (a.get("unsicherheiten") or ())[:2])
+                out.append(self.b(HINWEIS, f"Pos. {_pos_nr(p, i)}: Bauteilart „{a.get('kategorie')}“ nur "
+                                  f"{a.get('konfidenz', 0)} % sicher" + (f" ({uns})" if uns else "") + " – im Prüfdialog "
+                                  "bestätigen oder ändern.", ziel=f"pos:{i}", quelle="Importanalyse (Konfidenz)",
+                                  zahlen=dict(konfidenz=a.get("konfidenz", 0))))
+        return out
 
     def pruefen(self, ctx):
         from . import einsichten, step_pruefung
-        out = []
+        out = self._import(ctx)
         offen = [(i, p, step_pruefung.offen(p)) for i, p in enumerate(ctx.positionen)]
         offen = [x for x in offen if x[2]]
         nicht = [(i, p) for i, p, m in offen if any(x.get("status") == step_pruefung.NICHT for x in m)]

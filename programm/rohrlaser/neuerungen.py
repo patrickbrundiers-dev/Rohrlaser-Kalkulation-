@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.443", "<b>Plausibilitätsprüfung beim STEP-Import</b> ([[plausibilitaet]]): ungewöhnliche Wandstärke "
+                "(nicht in den Stammdaten bzw. kein Normmaß), ungleiche Wand, unpassendes Innenmaß, nicht geschlossene "
+                "Körper, Sonderkonturen und ein Name, der eine andere Wand nennt als gemessen, machen das Teil gelb "
+                "mit Grund „Plausibilität“ (nie rot). Nur Hinweise aus den Messwerten, kein Maß wird geändert; die "
+                "Qualitäts-KI nennt die Befunde je Position. "
+                "<b>STEP-Import schneller bei U-, C- und offen gezeichneten Profilen</b> ([[offene_rohre]]). Die "
+                "Messung hat jede Boolesche Operation (Teil mit ergänzter Wand vereinen, Stege, Fenster ausschneiden, "
+                "Schweißnaht schließen) zweimal gerechnet; jetzt genau einmal. Ein U-Profil 80×40×4 mit Konturen misst "
+                "in 11 statt 19 Sekunden. Geprüft an allen 126 Test-STEPs: Profil, Maße, Länge, Konturen und "
+                "Schnittlängen bleiben gleich; nur bei drei offen gezeichneten U-Profilen liegen die Stützpunkte der "
+                "Konturlinie (Variante „aus dem Rohr“) etwas anders auf derselben Kontur (höchstens 0,04 mm).",
+     "STEP-Import: Plausibilitätsprüfung der Messwerte; U-/C-Profile und offene Rohre bis 40 % schneller"],
     ["0.9.442", "<b>Fehler behoben:</b> Die <b>KI-Zentrale</b> ([[ki]]) ging unter Windows nicht auf "
                 "(„ArgumentError: int too long to convert“). Ursache war eine Speichermessung, die eine Windows-Einstellung "
                 "für das ganze Programm verstellt hatte. Die Messungen sind jetzt voneinander getrennt; schlägt eine fehl, "

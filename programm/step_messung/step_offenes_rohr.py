@@ -504,9 +504,7 @@ def _vereinen(solid, teile, ax3, einheitlich=True):
     zurueck = tr.Inverted()
     form = solid
     for k in teile:
-        f = BRepAlgoAPI_Fuse(form, BRepBuilderAPI_Transform(k, zurueck, True).Shape())
-        f.SetFuzzyValue(g.FUZZY)
-        f.Build()
+        f = g.boolesch("plus", form, BRepBuilderAPI_Transform(k, zurueck, True).Shape())
         if not f.IsDone():
             return None
         form = f.Shape()
@@ -532,9 +530,7 @@ def _ausschneiden(form, teile, ax3):
     tr.SetTransformation(ax3)
     zurueck = tr.Inverted()
     for k in teile:
-        c = BRepAlgoAPI_Cut(form, BRepBuilderAPI_Transform(k, zurueck, True).Shape())
-        c.SetFuzzyValue(g.FUZZY)
-        c.Build()
+        c = g.boolesch("minus", form, BRepBuilderAPI_Transform(k, zurueck, True).Shape())
         if not c.IsDone():
             return None
         form = c.Shape()
@@ -996,10 +992,7 @@ def _halbraum(pl, verschiebung, ref):
 
 
 def _bool(art, a, b):
-    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
-    op = {"und": BRepAlgoAPI_Common, "plus": BRepAlgoAPI_Fuse, "minus": BRepAlgoAPI_Cut}[art](a, b)
-    op.SetFuzzyValue(g.FUZZY)
-    op.Build()
+    op = g.boolesch(art, a, b)
     return op.Shape() if op.IsDone() else None
 
 

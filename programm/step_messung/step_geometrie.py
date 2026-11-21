@@ -4257,6 +4257,29 @@ def _als_profil(solid, b, form=None, t=None, ersatz=False):
 # Bereich der Wandflächen. Körper ∩ Hülle = Rohrlaser-Geometrie (bisherige Messung), Körper − Hülle = Anbauteile.
 # Unter einem Anbauteil bleibt die Rohrwand in der Schnittmenge geschlossen: keine künstlichen Konturen.
 FUZZY = 1e-3                 # mm, Toleranz der Booleschen Operationen (die Hülle liegt genau auf dem Außenmantel)
+
+
+def boolesch(art, a, b, fuzzy=FUZZY):
+    """Boolesche Operation a ∩ b ("und"), a ∪ b ("plus") bzw. a − b ("minus") mit Toleranz fuzzy, GENAU EINMAL
+    gerechnet (gebaut, IsDone() prüfen). Tempo 21.11.2026: BRepAlgoAPI_Fuse(a, b) rechnet schon im Konstruktor (ohne
+    Toleranz); ein SetFuzzyValue + Build() danach rechnete alles ein zweites Mal. Maße, Konturen und Schnittlängen wie
+    zuvor (126 Test-STEPs); bei offen gezeichneten U-Profilen liegen nur die Stützpunkte der Konturlinien der Variante
+    „aus dem Rohr“ etwas anders auf derselben Kontur (≤ 0,04 mm)."""
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common, BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
+    try:  # OCP >= 7.8
+        from OCP.collections import List_TopoDS_Shape as TopTools_ListOfShape
+    except ImportError:
+        from OCP.TopTools import TopTools_ListOfShape
+    op = {"und": BRepAlgoAPI_Common, "plus": BRepAlgoAPI_Fuse, "minus": BRepAlgoAPI_Cut}[art]()
+    args, tools = TopTools_ListOfShape(), TopTools_ListOfShape()
+    args.Append(a)
+    tools.Append(b)
+    op.SetArguments(args)
+    op.SetTools(tools)
+    if fuzzy:
+        op.SetFuzzyValue(fuzzy)
+    op.Build()
+    return op
 ANBAU_DICKE_MIN = 0.05       # mm, mittlere Dicke 2·V/A darunter: Rechenrest der Booleschen Operation, kein Teil
 ANBAU_KONTAKT = 0.05         # mm, ein eigener Körper gilt als aufgesetzt, wenn er das Rohr so nah berührt
 REGEL_MIN = 0.4              # Anteil der Schnitte im Regelquerschnitt, ab dem getrennt wird

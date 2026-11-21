@@ -69,8 +69,7 @@ def paare(solid):
                 continue
             # A nach vorn bis hinter B, B nach vorn bis hinter A: die Schnittmenge ist der Spalt über der gemeinsamen
             # Fläche, je DICKE in beide Wände
-            ka = BRepAlgoAPI_Common(_prisma(fa, na, d + DICKE), _prisma(fb, nb, d + DICKE))
-            ka.Build()
+            ka = g.boolesch("und", _prisma(fa, na, d + DICKE), _prisma(fb, nb, d + DICKE), fuzzy=0)
             if not ka.IsDone():
                 continue
             k = g._liste(ka.Shape(), TopAbs_SOLID)
@@ -89,9 +88,7 @@ def schliessen(solid):
             return solid, 0
         form = solid
         for k in pp:
-            fu = BRepAlgoAPI_Fuse(form, k)
-            fu.SetFuzzyValue(g.FUZZY)
-            fu.Build()
+            fu = g.boolesch("plus", form, k)
             if not fu.IsDone():
                 return solid, 0
             form = fu.Shape()

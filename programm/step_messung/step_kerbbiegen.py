@@ -206,9 +206,7 @@ def _kette(bg):
 
 # ------------------------------------------------------------------ Körper
 def _bool(art, a, b):
-    op = {"common": BRepAlgoAPI_Common, "cut": BRepAlgoAPI_Cut, "fuse": BRepAlgoAPI_Fuse}[art](a, b)
-    op.SetFuzzyValue(g.FUZZY)
-    op.Build()
+    op = g.boolesch({"common": "und", "cut": "minus", "fuse": "plus"}[art], a, b)
     return op.Shape() if op.IsDone() else None
 
 

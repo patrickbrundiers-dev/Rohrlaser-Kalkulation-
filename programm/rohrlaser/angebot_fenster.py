@@ -10239,6 +10239,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 messwerte[0]["_import_befunde"] = list(vorbereitung.befunde)
             # Konstruktionsregeln der Maschine des Angebots (Laserhub-Vergleich L1): nur Hinweis im Prüfdialog
             fertigbarkeit.markieren(messwerte, rechnen.maschine(self.kopf, self.k))
+            # Plausibilität (STEP-Import mit KI 21.11.2026, 3C): nur aus Messwerten + Stammdaten, nur Hinweis
+            from . import step_plausibel
+            try:
+                step_plausibel.markieren(messwerte, self.db.zeilen("profile"))
+            except Exception as e:      # noqa: BLE001 – Zusatzprüfung darf den Import nie stören
+                __import__("logging").getLogger(__name__).warning("Plausibilität nicht geprüft: %s", e)
             json_ablage = self._messung_ablegen(ergebnis) if mit_ablage and laufend is None else None
         finally:
             if laufend is None:

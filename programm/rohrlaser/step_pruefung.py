@@ -173,6 +173,8 @@ def speicherwert(m, gewinde_vorschlag=None, jetzt=None):
     except Exception:       # noqa: BLE001 – Zusatz, darf das Übernehmen nie stören
         from . import protokoll
         protokoll.warnung("Importanalyse nicht gespeichert")
+    if m.get("_plausibel"):     # Plausibilität der Messwerte (step_plausibel.py): für Import-KI und Angebots-Check
+        d["plausibel"] = list(m["_plausibel"])[:12]
     if m.get("_geprueft"):      # „Passt“ im Prüfdialog (M3): gilt als geprüft, der Angebots-Check zählt es nicht mehr
         d["geprueft"] = dict(am=str(jetzt), wer="Prüfdialog „Passt“")
     return json.dumps(d, ensure_ascii=False)
