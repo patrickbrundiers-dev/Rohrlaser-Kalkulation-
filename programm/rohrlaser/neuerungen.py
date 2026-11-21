@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.441", "<b>STEP-Import schneller bei U-, C- und offen gezeichneten Profilen</b> ([[offene_rohre]]). Die "
+                "Messung hat jede Boolesche Operation (Teil mit ergänzter Wand vereinen, Stege, Fenster ausschneiden, "
+                "Schweißnaht schließen) zweimal gerechnet; jetzt genau einmal. Ein U-Profil 80×40×4 mit Konturen misst "
+                "in 11 statt 19 Sekunden. Die Messwerte bleiben bitgleich (geprüft an allen Test-STEPs).",
+     "STEP-Import: U-/C-Profile und offene Rohre bis 40 % schneller, gleiche Messwerte"],
     ["0.9.439", "<b>Lokale KI: Prüfen, Einkauf und Bedienung</b> ([[ki]]). Neue Fragen im KI-Assistenten: "
                 "<i>Preisrisiko</i> des Angebots mit Gründen, Rückfrage oder Kundentext <i>auf Englisch</i> (Entwurf, "
                 "Zahlen geprüft), <i>Liefertermin und Engpässe</i> aus der Auslastung, <i>Fehlermeldungen erklären</i> "
