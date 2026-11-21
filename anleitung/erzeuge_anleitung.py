@@ -10628,7 +10628,11 @@ def kapitel_automatik(i):
             "ins Benutzerprofil und startet es nur für diesen PC (127.0.0.1, Cloud aus, ohne Proxy).",
             "Im Feld <i>Modell importieren (ohne Internet)</i> den <b>Modell-Ordner</b> wählen, Dateien markieren, "
             "<b>Importieren</b>. Danach <b>Sprachmodell benutzen</b> "
-            "einschalten und mit <b>Testen</b> die Geschwindigkeit messen.",
+            "einschalten und mit <b>Testen</b> die Geschwindigkeit messen. Der Import läuft im Hintergrund mit "
+            "Fortschritt und <i>Abbrechen</i>: Aus einem Netzwerkordner wird die Datei zuerst auf diesen PC kopiert, "
+            "dann prüft Ollama sie (Prüfsumme) und übernimmt sie. Je nach Netzwerk dauert das bei einem 5-GB-Modell "
+            "5 bis 15 Minuten, aber nur einmal je PC; ohne Markierung überspringt <b>Importieren</b> Modelle, die "
+            "schon da sind.",
             "Die Modelle für <i>Frage verstehen</i>, <i>Auslesen</i>, <i>Erklären</i> und <i>Suche (Einbettung)</i> "
             "wählt das Programm nach Größe und freiem Speicher selbst; in den Auswahllisten lässt sich je Aufgabe ein "
             "festes Modell einstellen. Ein llama.cpp- oder LM-Studio-Server im Firmennetz geht als "

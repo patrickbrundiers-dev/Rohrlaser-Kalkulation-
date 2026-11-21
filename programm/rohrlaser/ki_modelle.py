@@ -445,7 +445,48 @@ def modellname(text):
     return n[:60] or "modell"
 
 
-def importieren(datei, name=None, programm=None, ausfuehren=None):
+def netzwerkpfad(pfad):
+    """True, wenn die Datei in einem Netzwerkordner liegt (\\\\Server\\… oder verbundenes Netzlaufwerk)."""
+    t = str(pfad)
+    if t.startswith(("\\\\", "//")):
+        return True
+    if sys.platform == "win32" and len(t) > 1 and t[1] == ":":
+        try:
+            import ctypes
+            return ctypes.WinDLL("kernel32").GetDriveTypeW(ctypes.c_wchar_p(t[:2] + "\\")) == 4   # DRIVE_REMOTE
+        except Exception:       # noqa: BLE001 – im Zweifel wie lokal behandeln
+            protokoll.warnung("ki_modelle: Laufwerksart unbekannt")
+    return False
+
+
+def vorhanden(name, liste):
+    """True, wenn ein Modell dieses Namens schon in Ollama ist (Name mit oder ohne :latest)."""
+    n = modellname(name)
+    return any(str(m.get("name") or "").split(":")[0] == n for m in liste or ())
+
+
+BLOCK = 8 * 1024 * 1024
+
+
+def kopieren(quelle, ziel, fortschritt=None, abbrechen=None):
+    """Datei blockweise kopieren; fortschritt(fertig_bytes, gesamt_bytes), abbrechen() -> True bricht ab."""
+    gesamt, fertig = Path(quelle).stat().st_size, 0
+    Path(ziel).parent.mkdir(parents=True, exist_ok=True)
+    with open(quelle, "rb") as q, open(ziel, "wb") as z:
+        while True:
+            if abbrechen and abbrechen():
+                raise KiFehler("abgebrochen")
+            b = q.read(BLOCK)
+            if not b:
+                break
+            z.write(b)
+            fertig += len(b)
+            if fortschritt:
+                fortschritt(fertig, gesamt)
+    return ziel
+
+
+def importieren(datei, name=None, programm=None, ausfuehren=None, fortschritt=None, abbrechen=None):
     """Modell-Datei (GGUF) ohne Internet in Ollama übernehmen (ollama create NAME -f Modelfile mit FROM <Datei>).
     Ergebnis dict(ok, name, text). Ohne Ollama-Programm: ok False mit Anleitung (llama.cpp-Server startet die Datei
     direkt). ausfuehren(befehl) ersetzt subprocess.run (Tests)."""
@@ -458,6 +499,25 @@ def importieren(datei, name=None, programm=None, ausfuehren=None):
         return dict(ok=False, name=name, text="Ollama ist auf diesem PC nicht installiert. Mit einem llama.cpp-Server "
                     f"die Datei direkt starten (llama-server -m \"{datei}\") und ihn in der KI-Zentrale als Server "
                     "„OpenAI-kompatibel“ eintragen.")
+    kopie = None
+    if ausfuehren is None and netzwerkpfad(datei):
+        # Ollama liest die Datei zweimal (Prüfsumme, Übernahme): aus dem Netzwerkordner erst einmal lokal kopieren
+        kopie = ollama_ziel() / "import" / datei.name
+        try:
+            if fortschritt:
+                fortschritt("kopieren", 0, datei.stat().st_size)
+            kopieren(datei, kopie, (lambda a, b: fortschritt("kopieren", a, b)) if fortschritt else None, abbrechen)
+            datei = kopie
+        except (OSError, KiFehler) as e:
+            try:
+                kopie.unlink()
+            except OSError:
+                protokoll.warnung("ki_modelle: Import-Kopie nicht gelöscht")
+            if str(e) == "abgebrochen":
+                return dict(ok=False, name=name, text="Import abgebrochen.")
+            kopie = None        # Kopieren ging nicht: direkt aus dem Netzwerkordner (langsamer)
+    if fortschritt:
+        fortschritt("uebernehmen", 0, 0)
     modelfile = datei.with_name(f".{name}.Modelfile")
     try:
         modelfile.write_text(f'FROM "{datei}"\n', encoding="utf-8")
@@ -470,18 +530,46 @@ def importieren(datei, name=None, programm=None, ausfuehren=None):
         if ausfuehren:
             r = ausfuehren(befehl)
         else:
-            extra = dict(creationflags=0x08000000) if sys.platform == "win32" else {}
-            r = subprocess.run(befehl, capture_output=True, text=True, timeout=3600, env=ollama_umgebung(), **extra)
+            r = _create(befehl, abbrechen)
     except (OSError, subprocess.SubprocessError) as e:
         return dict(ok=False, name=name, text=f"Import fehlgeschlagen: {e}")
     finally:
-        try:
-            modelfile.unlink()
-        except OSError:
-            pass
+        for f in (modelfile, kopie):
+            try:
+                if f:
+                    f.unlink()
+            except OSError:
+                protokoll.warnung("ki_modelle: Hilfsdatei nicht gelöscht")
+    if getattr(r, "abgebrochen", False):
+        return dict(ok=False, name=name, text="Import abgebrochen.")
     ok = getattr(r, "returncode", 1) == 0
     return dict(ok=ok, name=name, text=("Importiert als " + name) if ok else
                 f"Import fehlgeschlagen: {(getattr(r, 'stderr', '') or getattr(r, 'stdout', ''))[-400:]}")
+
+
+class _Ergebnis:
+    def __init__(self, returncode, stdout="", stderr="", abgebrochen=False):
+        self.returncode, self.stdout, self.stderr, self.abgebrochen = returncode, stdout, stderr, abgebrochen
+
+
+def _create(befehl, abbrechen=None, grenze=3600):
+    """ollama create als Prozess; abbrechen() beendet ihn."""
+    import tempfile
+    import time
+    extra = dict(creationflags=0x08000000) if sys.platform == "win32" else {}
+    with tempfile.TemporaryFile() as aus:
+        p = subprocess.Popen(befehl, stdout=aus, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                             env=ollama_umgebung(), **extra)
+        start = time.monotonic()
+        while p.poll() is None:
+            if (abbrechen and abbrechen()) or time.monotonic() - start > grenze:
+                p.kill()
+                p.wait()
+                return _Ergebnis(1, abgebrochen=True)
+            time.sleep(0.3)
+        aus.seek(0)
+        text = aus.read().decode("utf-8", "replace")
+    return _Ergebnis(p.returncode, stderr=text)
 
 
 def status(db, senden=None, liste=None):

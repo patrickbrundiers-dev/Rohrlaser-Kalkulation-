@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.444", "<b>KI-Modelle schneller und ohne Warten importieren</b> ([[ki]]): Der Import läuft im Hintergrund mit "
+                "Fortschritt und <i>Abbrechen</i>, das Programm bleibt bedienbar. Aus einem Netzwerkordner wird die "
+                "Modell-Datei zuerst einmal auf den PC kopiert (Ollama liest sie sonst zweimal über das Netz). Ohne "
+                "Markierung überspringt <i>Importieren</i> Modelle, die Ollama schon hat.",
+     "KI-Modell-Import im Hintergrund mit Fortschritt, schneller aus Netzwerkordnern"],
     ["0.9.443", "<b>Plausibilitätsprüfung beim STEP-Import</b> ([[plausibilitaet]]): ungewöhnliche Wandstärke "
                 "(nicht in den Stammdaten bzw. kein Normmaß), ungleiche Wand, unpassendes Innenmaß, nicht geschlossene "
                 "Körper, Sonderkonturen und ein Name, der eine andere Wand nennt als gemessen, machen das Teil gelb "
