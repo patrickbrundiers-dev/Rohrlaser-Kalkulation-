@@ -519,3 +519,90 @@ def text_aus_datei(pfad):
         return p.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
+
+
+# ------------------------------------------------------------------ KI 3, Paket C: Lieferantenangebote aus Mail/PDF
+def lieferant_ki(db, text, paare, profile=None, senden=None, fehler=None):
+    """Zweite Stufe zu lieferantenantwort.auslesen für Abmessungen ohne Treffer der Regeln: [dict(profil_id,
+    werkstoff_id, preis, basis, laenge, zeile, quelle='KI')]. Ein Preis zählt nur, wenn der Beleg wörtlich in der
+    Antwort steht und die Zahl im Beleg vorkommt; nur angefragte Abmessungen."""
+    from . import lieferantenantwort as la
+    if not paare or not _aktiv(db):
+        return []
+    namen = [p for p, _ in paare]
+    d = modell_json(db, "lieferant", "Lies aus der Antwort des Lieferanten die Preise. Antworte als JSON "
+                    "{\"preise\": [{\"profil\": eine der Abmessungen " + json.dumps(namen, ensure_ascii=False)
+                    + ", \"preis\": Zahl wie im Text, \"einheit\": \"kg\"|\"100 kg\"|\"t\"|\"m\"|\"Stange\", "
+                    "\"beleg\": die Textzeile wörtlich}]}. Nur Preise, die im Text stehen.", text, senden, fehler)
+    out = []
+    for e in _liste((d or {}).get("preise")):
+        if not isinstance(e, dict):
+            continue
+        pid, beleg = str(e.get("profil") or ""), str(e.get("beleg") or "")
+        paar = next(((p, w) for p, w in paare if p == pid), None)
+        if paar is None or not beleg or not fundstelle(text, beleg):
+            continue
+        wert = la._zahl(str(e.get("preis") or ""))
+        if not wert or not any(abs((la._zahl(z) or -1) - wert) < 1e-6 for z in re.findall(la.ZAHL, beleg)):
+            continue
+        einheit = str(e.get("einheit") or "").lower().strip()
+        if einheit not in ("kg", "100 kg", "t", "m", "stange"):
+            continue
+        preis, basis = la.basis_umrechnen(wert, einheit)
+        out.append(dict(profil_id=paar[0], werkstoff_id=paar[1], preis=round(preis, 4), basis=basis, laenge=None,
+                        zeile=beleg.strip()[:120], quelle="KI"))
+    return out
+
+
+# ------------------------------------------------------------------ KI 3, Paket C: Absagegrund aus der Mail
+ABSAGE_WORTE = (
+    (r"zu teuer|preis(?:lich)?\s+(?:zu hoch|nicht)|günstiger|guenstiger|billiger|preisgründen|preisgruenden|"
+     r"anderer anbieter war günstiger|nicht wettbewerbsfähig", "Preis zu hoch"),
+    (r"lieferzeit|zu spät|zu spaet|termin\w* nicht|schneller liefern|kürzere lieferzeit", "Lieferzeit zu lang"),
+    (r"selbst fertigen|selber fertigen|im haus|inhouse|eigene fertigung|fertigen wir selbst", "Kunde fertigt selbst"),
+    (r"stammlieferant|bestehende[nr]? lieferant|langjährige[nr]? partner|rahmenvertrag mit", "Anderer Lieferant (Beziehung)"),
+    (r"projekt\w*\b.{0,30}?(?:verschoben|gestoppt|gestrichen|abgesagt|auf eis)|vorerst nicht|zurückgestellt",
+     "Projekt verschoben oder gestrichen"),
+    (r"technisch nicht|nicht machbar|anforderung\w* nicht|toleranz\w* nicht", "Technisch nicht passend"),
+)
+ANDERER_ANBIETER = r"ander\w*\s+(?:anbieter|lieferanten?|firma|hersteller)|mitbewerber|wettbewerber"
+WETTBEWERB = re.compile(r"(?:wettbewerb\w*|konkurrenz\w*|ander\w* anbieter\w*|mitbewerber\w*|liegt bei|lag bei|lagen bei|"
+                        r"für|fuer|zu)\D{0,40}?"
+                        r"(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s*(?:€|eur|euro)", re.I)
+
+
+def absage_aus_text(db, text, senden=None, mit_modell=True):
+    """dict(grund, preis, bemerkung, beleg, quelle) aus der Absage-Mail des Kunden oder None. Regeln zuerst; das
+    Sprachmodell wählt nur aus den bekannten Gründen und nur mit wörtlichem Beleg. Ergebnis ist ein Vorschlag für den
+    Absage-Dialog."""
+    from . import absage
+    t = str(text or "")
+    if not t.strip():
+        return None
+    grund, beleg, quelle = None, "", "Regel"
+    for z in t.splitlines():
+        for muster, g in ABSAGE_WORTE:
+            if re.search(muster, z, re.I):
+                grund, beleg = g, z.strip()
+                break
+        if grund:
+            break
+    preis = None
+    m = WETTBEWERB.search(t)
+    if m:
+        preis = _zahl(m.group(1))
+    if grund is None and preis is not None:     # anderer Anbieter mit genanntem Preis: Preis war der Grund
+        z = next((z for z in t.splitlines() if re.search(ANDERER_ANBIETER, z, re.I)), None)
+        if z:
+            grund, beleg = "Preis zu hoch", z.strip()
+    if grund is None and mit_modell and _aktiv(db):
+        d = modell_json(db, "absage", "Warum hat der Kunde das Angebot abgelehnt? Antworte als JSON {\"grund\": "
+                        "einer von " + json.dumps(list(absage.GRUENDE), ensure_ascii=False)
+                        + ", \"beleg\": der Satz wörtlich aus der Mail}.", t, senden)
+        g, b = (d or {}).get("grund"), str((d or {}).get("beleg") or "")
+        if g in absage.GRUENDE and b and fundstelle(t, b):
+            grund, beleg, quelle = g, b.strip(), "KI"
+    if grund is None and preis is None:
+        return None
+    return dict(grund=grund or absage.OHNE_GRUND, preis=preis, beleg=beleg[:160],
+                bemerkung=("Aus Mail: " + beleg[:150]) if beleg else "", quelle=quelle)

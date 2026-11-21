@@ -80,12 +80,18 @@ class KiAssistent(QDialog):
         self.entwurf_knopf = QPushButton("Als Angebotsentwurf anlegen")
         self.entwurf_knopf.setEnabled(False)
         self.entwurf_knopf.clicked.connect(lambda: self.entwurf_anlegen())
+        self.uebernehmen_knopf = QPushButton("Übernehmen")
+        self.uebernehmen_knopf.setToolTip("Den Vorschlag des Befehls (z. B. Bohrungen als Gewinde) ins Angebot "
+                                          "übernehmen; die STEP-Kontur bleibt unverändert")
+        self.uebernehmen_knopf.setEnabled(False)
+        self.uebernehmen_knopf.clicked.connect(lambda: self.uebernehmen())
         self.kopier_knopf = QPushButton("Text kopieren")
         self.kopier_knopf.setToolTip("Antwort in die Zwischenablage, z. B. Rückfrage-Mail oder Satz für den Kunden")
         self.kopier_knopf.clicked.connect(self.kopieren)
         k = QPushButton("Schließen")
         k.clicked.connect(self.close)
-        for x in (self.pruef_knopf, self.bericht_knopf, self.auslesen_knopf, self.entwurf_knopf, self.kopier_knopf):
+        for x in (self.pruef_knopf, self.bericht_knopf, self.auslesen_knopf, self.entwurf_knopf, self.uebernehmen_knopf,
+                  self.kopier_knopf):
             z3.addWidget(x)
         z3.addStretch(1)
         z3.addWidget(k)
@@ -180,6 +186,23 @@ class KiAssistent(QDialog):
             teile.append("nicht verfügbar: " + ", ".join(q for q, _ in e["fehler"]))
         self.fuss.setText(" · ".join(teile))
         self.bericht_knopf.setEnabled(bool(bf) and self.seite() is not None and not e.get("treffer"))
+        self.uebernehmen_knopf.setEnabled(bool(e.get("aktion")) and self.seite() is not None)
+
+    def uebernehmen(self):
+        """Aktion der letzten Antwort ausführen (KI 3: Bohrbild-Befehl) – erst auf Klick, über die normale Funktion
+        des Angebots (gespeichert wie im Dialog „Bohrungen prüfen“)."""
+        a = (self.ergebnis or {}).get("aktion")
+        s = self.seite()
+        if not a or s is None:
+            return False
+        ok = False
+        if a.get("art") == "bohrbild":
+            ok = bool(s.bohrungen_alle_pruefen(sorted(a["werte"]), werte=a["werte"]))
+        ki_protokoll.schreiben(self.db, "KI-Assistent", "uebernehmen", ergebnis=a.get("text", "")[:500],
+                               angebot_id=s.id, status="ok" if ok else "fehler")
+        self.uebernehmen_knopf.setEnabled(False)
+        self.ergebnis = dict(self.ergebnis, aktion=None)
+        return ok
 
     def kopieren(self):
         QGuiApplication.clipboard().setText(self.antwort.toPlainText())

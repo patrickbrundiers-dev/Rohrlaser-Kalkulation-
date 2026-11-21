@@ -1228,6 +1228,10 @@ def kapitel_angebote(i):
     i.liste("Grund, Preis Wettbewerb und Bemerkung stehen mit Datum im Versandverlauf (Mauszeiger auf <i>Preise "
             "festgeschrieben</i> in der Übersicht) und als Tooltip auf dem Vorgang in der Angebotsliste. "
             "<i>Abbrechen</i> lässt den Vorgang unverändert.",
+            "<b>Grund vorschlagen</b>: Die Absage-Mail des Kunden ins Feld <i>Mail des Kunden</i> einfügen; das "
+            "Programm füllt Grund, Preis des Wettbewerbs und Bemerkung als Vorschlag aus (Regeln, mit lokalem "
+            "Sprachmodell auch frei formulierte Mails, nur mit wörtlichem Beleg aus der Mail). Prüfen und bestätigen "
+            "Sie wie gewohnt ([[ki]]).",
             "Die Auswertung braucht Admin-Rechte (wie die Kennzahlen der Startseite) und zählt die eigenen Angebote "
             "der letzten 90 Tage, der letzten 12 Monate oder alle; ersetzte alte Fassungen zählen nicht. "
             "<b>Trefferquote</b> = beauftragt ÷ (beauftragt + abgelehnt); offene Angebote zählen nicht mit.",
@@ -10545,7 +10549,25 @@ def kapitel_automatik(i):
             "<i>Wo kalkulieren wir laut Nachkalkulation systematisch zu knapp?</i>: Muster aus den nachkalkulierten "
             "Aufträgen (ab 3 Aufträgen je Gruppe und 10 % Abweichung).",
             "<i>Zeig alle Angebote mit Edelstahl-Rundrohr über 2 m</i>: Suche nach Werkstoff, Profilform, Maß, Länge, "
-            "Kunde und Zeitraum; Doppelklick öffnet das Angebot.")
+            "Kunde und Zeitraum; Doppelklick öffnet das Angebot.",
+            "<i>Wie hoch ist das Preisrisiko?</i>: Stufe niedrig/mittel/hoch mit Gründen (alte Materialpreise, "
+            "unsicher erkannte STEP-Merkmale, knappe Marge, keine Wiederholteile, Zukauf ohne Preis).",
+            "<i>Schreib die Rückfrage auf Englisch</i> bzw. <i>… den Kundentext auf Englisch</i>: englischer Entwurf "
+            "mit dem lokalen Sprachmodell. Enthält die Übersetzung eine Zahl, die im deutschen Text nicht steht, wird "
+            "sie verworfen.",
+            "<i>Wann können wir liefern, wo sind Engpässe?</i>: volle Wochen je Maschine aus der Auslastung und die "
+            "erste Woche, in der die Laserzeit dieses Angebots noch passt, mit Liefertermin nach dem Vorlauf.",
+            "<i>Was bedeuten die Fehlermeldungen der letzten Tage?</i>: die Fehler aus dem Protokoll mit Erklärung "
+            "und Lösungsvorschlag. <i>Wie lege ich … an?</i> antwortet mit den passenden Abschnitten dieser Anleitung.",
+            "<b>Befehle für Bohrungen</b>, z. B. <i>Alle Bohrungen Ø 8,5 als M10</i>, <i>Ø 6,8 als Einnietmutter M8</i>, "
+            "<i>Pos. 20 Ø 9 Flowdrill M10</i> oder <i>Bohrungen Ø 4,2 ablehnen</i>: Der Assistent zeigt je Position "
+            "vorher/nachher; erst <b>Übernehmen</b> speichert (wie im Dialog Bohrungen prüfen). Die STEP-Kontur bleibt "
+            "unverändert.",
+            "<b>Lieferantenantwort einlesen</b>: Findet die Regel zu einer Abmessung keinen Preis, liest das lokale "
+            "Sprachmodell ihn aus der Mail; er zählt nur mit wörtlichem Beleg und steht wie alle eingelesenen Preise "
+            "gelb zum Prüfen da ([[lieferantenangebote]]).")
+    i.text("Zeichnungen als Bild lesen (Bildmodell) und Spracheingabe kommen erst, wenn ein PC mit passender "
+           "NVIDIA-Grafikkarte da ist.")
     i.text("<b>Sprachmodell einrichten (ohne Admin-Rechte, ohne Internet)</b>:")
     i.liste("Die ZIP-Version von Ollama in einen Netzwerkordner entpacken, die Modell-Dateien (*.gguf, z. B. "
             "Qwen3-8B-Q4_K_M und nomic-embed-text) in einen zweiten Ordner legen.",
