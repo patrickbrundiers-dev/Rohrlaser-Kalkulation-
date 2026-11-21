@@ -149,6 +149,7 @@ TESTS = [
     ("test_bestellpreis.py", QT),
     ("test_onlinepreise.py", QT),
     ("test_ki_plattform.py", QT),
+    ("test_ki_register.py", QT),
     ("test_ki_auslesen.py", QT),
     ("test_ki_bedienung.py", QT),
     ("test_pruefangebote.py", QT),

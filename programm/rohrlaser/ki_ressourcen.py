@@ -178,3 +178,25 @@ def empfehlung(r):
     if ram >= 15:
         return "Ohne passende GPU: 3–8B-Modelle (Q4) auf der CPU; 3B für schnelle Antworten."
     return "Wenig Arbeitsspeicher: höchstens 1–3B-Modelle, sonst regelbasiert arbeiten."
+
+
+# Leistungsklassen (KI 4, Plan Abschnitt Hardware): (Kürzel, Name, Modelle, Training möglich)
+KLASSEN = (
+    ("S", "Klein (Büro-PC, CPU)", "1–4B (Q4), z. B. Qwen3-4B; Einbettung nomic-embed", False),
+    ("M", "Mittel (CPU mit viel RAM)", "4–8B (Q4) auf der CPU, etwa 5–10 Token/s", False),
+    ("L", "Groß (NVIDIA ab 8 GB)", "7–8B (Q4) auf der Grafikkarte; Training kleiner Modelle (QLoRA 4B)", True),
+    ("XL", "Trainings-PC (NVIDIA ab 16 GB)", "bis 14B (Q4); Training 4–8B mit QLoRA", True),
+)
+
+
+def klasse(r):
+    """(Kürzel, Name, Modelle, Training möglich) dieses PCs aus RAM und VRAM."""
+    vram = max((x["vram_gesamt_gb"] for x in r.get("gpus") or []), default=0)
+    ram = r.get("ram_gesamt_gb") or 0
+    if vram >= 15:
+        return KLASSEN[3]
+    if vram >= 7.5:
+        return KLASSEN[2]
+    if ram >= 30:
+        return KLASSEN[1]
+    return KLASSEN[0]
