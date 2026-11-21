@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.449", "<b>Normteile korrigieren und lernen</b>: <i>Doch Fertigungsteil</i> in der Liste <i>Zukaufteile …</i> "
+                "geht jetzt auch für erkannte Normteile, die voll gemessen sind. Was du annimmst oder zurücknimmst, "
+                "merkt sich das Programm je Bauteilname und Geometrie und ordnet dieselben Teile beim nächsten Import "
+                "gleich so ein (mit Datum im Grund, in der Lernzentrale vergessbar, an allen Plätzen). Unter der "
+                "Teileliste zeigt die neue Zeile <b>Kalkulation</b> die Aufteilung in Rohrlaser-Teile, Bleche, "
+                "Dreh-/Frästeile, Normteile und ungeklärte Vorschläge. <b>Nahtsuche schneller</b>, Ergebnis identisch: "
+                "Berührung zuerst per Schnitt geprüft (MASTER TOWER 379 statt 392 s, Кузов 127 statt 135 s).",
+     "STEP: Normteile von Hand zur Fertigung und zurück, Entscheidung gelernt; Zeile Kalkulation; Nahtsuche schneller"],
     ["0.9.448", "<b>Normteile in der 3D-Ansicht der Baugruppe</b>: Zukaufteile (Schrauben, Muttern, Niete, Scheiben …) "
                 "sind im STEP-Prüfdialog jetzt dunkelgrau mit eigenem Legendeneintrag und bleiben sichtbar. Die Auswahl "
                 "neben <i>Zukaufteile …</i> zeigt <i>alle Teile</i>, <i>ohne Zukaufteile</i>, <i>nur Zukaufteile</i> oder "

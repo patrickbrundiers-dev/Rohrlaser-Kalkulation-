@@ -10503,6 +10503,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             if getattr(dlg, "art_merken", None) and not self.db.nur_lesen:     # Art von Hand: fürs nächste Mal
                 self.db.einstellung_setzen(step.ART_GELERNT, step.arten_gelernt_merken(
                     self.db.einstellung(step.ART_GELERNT) or {}, dlg.art_merken))
+            if not self.db.nur_lesen:       # N6: Zukauf-/Fertigungsteil von Hand fürs nächste Mal (Name + Geometrie)
+                from . import zukaufteile
+                zk_alt = self.db.einstellung(zukaufteile.GELERNT) or {}
+                zk_neu = zukaufteile.entscheidungen(getattr(dlg, "messwerte", messwerte), zk_alt)
+                if zk_neu:
+                    self.db.einstellung_setzen(zukaufteile.GELERNT, zukaufteile.merken(zk_alt, zk_neu))
             kunde_nr = str(dlg.kundennr or "")
             if kunde_nr and not self.db.nur_lesen:      # C3: Profil-Korrekturen als Regel des Kunden
                 regeln = dict(self.db.einstellung(step.PROFIL_GELERNT) or {})

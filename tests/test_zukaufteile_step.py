@@ -156,6 +156,21 @@ assert next(z for z in zd.zeilen if z["kategorie"] == zk.HUELSE)["status"] == "V
 assert not any(m.get("_zukauf_hand") for m in mw if Path(m["datei"]).stem == "T5")
 ok("Z4 Liste: gleiche Teile zusammengefasst, Filter nach Status und Kategorie, ein Klick = ins Angebot, Vorschlag "
    "annehmen und zurücknehmen")
+d._ampel_zeigen()
+info = d.ampel_info.text()
+assert "Kalkulation: 1 Rohrlaser-Teile" in info and "Normteile/Zukaufteile" in info and "ungeklärt" in info, info
+r_niet = next(r for r, z in enumerate(zd.zeilen) if z["kategorie"] == zk.NIET)    # erkannt (Begriff), voll gemessen
+zd._zeigen(r_niet)
+assert zd.zurueck_knopf.isEnabled()
+zd.ablehnen(r_niet)
+niet = next(m for m in mw if Path(m["datei"]).stem == "T6")
+assert niet.get("_fertigung_hand") and not niet.get("_normteil"), niet
+assert next(z for z in zd.zeilen if z["kategorie"] == zk.NIET)["status"] == "Vorschlag"
+for an in (True, False):        # wieder Zukaufteil, danach abgewählt (bleibt Zukaufteil, nicht im Angebot)
+    zd.setzen(next(r for r, z in enumerate(zd.zeilen) if z["kategorie"] == zk.NIET), an)
+assert niet.get("_normteil") and not niet.get("_fertigung_hand")
+ok("Z4 Prüfdialog: Zeile „Kalkulation“ mit Rohrlaser-Teilen, Normteilen und Ungeklärtem; erkanntes Normteil "
+   "„Doch Fertigungsteil“ und zurück (N6/N7, 21.11.2026)")
 
 werte = d.werte_schreiben()
 erg = step.uebernehmen(werte, [], k, db.zeilen("gewinde"), None, "S235-10219", 3,

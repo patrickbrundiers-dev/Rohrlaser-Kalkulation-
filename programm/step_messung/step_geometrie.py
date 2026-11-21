@@ -4913,6 +4913,32 @@ def _abstand(ka, kb, grenze, punkte=False):
     return wert if wert is not None and wert <= grenze else None
 
 
+def _beruehrung(ka, kb, kontakt):
+    """Schnitt BRepAlgoAPI_Section(ka, kb) (gebaut), wenn er beweist, dass sich die Körper berühren: ein Punkt auf
+    einer Schnittkante liegt so nah an beiden Körpern, dass ihr Abstand höchstens kontakt ist (Dreiecksungleichung:
+    Abstand(ka, kb) ≤ Abstand(p, ka) + Abstand(p, kb)); sonst None. 21.11.2026: _naht_paar maß erst den Abstand der
+    ganzen Körper (MASTER TOWER/Pizza-Ofen ein Viertel der Messzeit) und schnitt danach bei Berührung ohnehin; der
+    Schnitt zuerst erspart bei sich berührenden Paaren die Abstandsmessung, Ergebnis gleich (Spalt 0, gleicher Schnitt)."""
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeVertex
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+    sec = BRepAlgoAPI_Section(ka, kb)
+    sec.Build()
+    if not sec.IsDone():
+        return None
+    for e in _liste(sec.Shape(), TopAbs_EDGE):
+        c = BRepAdaptor_Curve(TopoDS.Edge(e))
+        v = BRepBuilderAPI_MakeVertex(c.Value((c.FirstParameter() + c.LastParameter()) / 2)).Vertex()
+        summe = 0.0
+        for k in (ka, kb):
+            d = BRepExtrema_DistShapeShape(v, k)
+            if not d.IsDone():
+                return None
+            summe += d.Value()
+        return sec if summe <= kontakt else None
+    return None
+
+
 def _an_schieben(k, dist):
     """Kopie von k, um den kürzesten Abstand an das andere Teil geschoben (berührt es dann); dist =
     BRepExtrema_DistShapeShape(anderes Teil, k)."""
@@ -5060,20 +5086,22 @@ def _laengsnaht(ta, tb, zug):
 def _naht_paar(ta, ka, tb, kb, struktur, rahmen):
     """Nahtkandidat zwischen zwei Körpern (siehe _nahtkandidaten) oder None ohne Berührung mit Länge."""
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
-    abstand = _abstand(ka, kb, max(NAHT_KONTAKT, NAHT_SPALT))
-    if abstand is None:
-        return None
-    spalt = abstand if abstand > NAHT_KONTAKT else 0.0
-    if spalt:
-        klein_b = _volumen(kb) <= _volumen(ka)
-        huelle = _spalt_huelle(kb if klein_b else ka, spalt)
-        if huelle is not None:
-            sec = BRepAlgoAPI_Section(ka if klein_b else kb, huelle)
-        else:       # Aufdicken gescheitert: b an a schieben (gleiche Länge bei ebener Auflage)
-            sec = BRepAlgoAPI_Section(ka, _an_schieben(kb, _abstand(ka, kb, max(NAHT_KONTAKT, NAHT_SPALT), True)))
-    else:
-        sec = BRepAlgoAPI_Section(ka, kb)
-    sec.Build()
+    sec, spalt = _beruehrung(ka, kb, NAHT_KONTAKT), 0.0     # Berührung bewiesen: Spalt 0, Schnitt schon gebaut
+    if sec is None:
+        abstand = _abstand(ka, kb, max(NAHT_KONTAKT, NAHT_SPALT))
+        if abstand is None:
+            return None
+        spalt = abstand if abstand > NAHT_KONTAKT else 0.0
+        if spalt:
+            klein_b = _volumen(kb) <= _volumen(ka)
+            huelle = _spalt_huelle(kb if klein_b else ka, spalt)
+            if huelle is not None:
+                sec = BRepAlgoAPI_Section(ka if klein_b else kb, huelle)
+            else:       # Aufdicken gescheitert: b an a schieben (gleiche Länge bei ebener Auflage)
+                sec = BRepAlgoAPI_Section(ka, _an_schieben(kb, _abstand(ka, kb, max(NAHT_KONTAKT, NAHT_SPALT), True)))
+        else:
+            sec = BRepAlgoAPI_Section(ka, kb)
+        sec.Build()
     if not sec.IsDone():
         return None
     kanten = TopTools_HSequenceOfShape()

@@ -289,18 +289,42 @@ def annehmen(m, info=None):
     """Vorschlag annehmen: das Teil wird Zukaufteil (Normteil) mit Kategorie und Bezeichnung; bleibt beim
     Kundenwechsel erhalten (_zukauf_hand)."""
     info = info or m.get("_zukaufteil") or einordnen(m) or dict(kategorie=SONST)
+    m.pop("_fertigung_hand", None)
     m["_normteil"] = m["_zukauf_hand"] = info["kategorie"]
     m["_normteil_bezeichnung"] = bezeichnung(m, info)
-    m["_zukaufteil"] = dict(info, vertrauen=SICHER, grund=(info.get("grund") or "") + "; von Hand bestätigt")
+    grund = (info.get("grund") or "").replace("; von Hand bestätigt", "")
+    am = m.get("_zukauf_gelernt_am")
+    m["_zukaufteil"] = dict(info, vertrauen=SICHER, grund=grund + (f"; wie am {am} von Hand bestätigt" if am else
+                                                                   "; von Hand bestätigt"))
     return m
 
 
+def nur_als_zukauf_gemessen(m):
+    """Normteil laut Bauteilname nur als Zukaufteil gemessen (Messprogramm, normteil_laut_name seit 0.9.447): ohne
+    Rohr-/Blechmessung, als Fertigungsteil erst nach dem Messen mit allen Teilen (Einstellung „Normteile erkennen“
+    aus)."""
+    return bool(re.fullmatch(r"Norm .+ im Bauteilnamen", str(m.get("art_grund") or "")))
+
+
+def kann_fertigung(m):
+    """Kann das Teil von Hand wieder Fertigungsteil werden? Von Hand angenommen immer; sonst ein Normteil, das voll
+    gemessen ist."""
+    return bool(m.get("_zukauf_hand") or m.get("_normteil") and not nur_als_zukauf_gemessen(m))
+
+
 def ablehnen(m):
-    """Von Hand angenommenes Zukaufteil wieder Fertigungsteil."""
+    """Zukaufteil wieder Fertigungsteil: von Hand angenommen (Vorschlag wie vorher) bzw. ein voll gemessenes
+    Normteil (Begriff, Norm oder Form; bleibt so, bis es wieder angenommen wird: _fertigung_hand). Ein nur als
+    Zukaufteil gemessenes Normteil bleibt (es fehlen die Rohr-/Blechmaße)."""
     if m.get("_zukauf_hand"):
-        for k in ("_normteil", "_zukauf_hand", "_normteil_bezeichnung"):
+        for k in ("_normteil", "_zukauf_hand", "_normteil_bezeichnung", "_zukauf_gelernt_am"):
             m.pop(k, None)
-        m["_zukaufteil"] = einordnen(m)
+        m["_fertigung_hand"] = True
+        anwenden(m)
+    elif kann_fertigung(m):
+        m.pop("_zukauf_gelernt_am", None)
+        m["_fertigung_hand"] = True
+        anwenden(m)
     return m
 
 
@@ -312,6 +336,16 @@ def anwenden(m, eingebaut=True):
         m["_normteil"] = m["_zukauf_hand"]
         return True
     info = einordnen(m)
+    if m.get("_fertigung_hand") and not nur_als_zukauf_gemessen(m):     # von Hand Fertigungsteil (N6)
+        m.pop("_normteil", None)
+        m.pop("_normteil_bezeichnung", None)
+        if info is None:
+            m.pop("_zukaufteil", None)
+        else:
+            am = m.get("_zukauf_gelernt_am")
+            m["_zukaufteil"] = dict(info, vertrauen=VORSCHLAG, grund=info["grund"] + (
+                f"; wie am {am} von Hand als Fertigungsteil gewählt" if am else "; von Hand als Fertigungsteil gewählt"))
+        return False
     if m.get("_normteil") and (info is None or info["vertrauen"] == VORSCHLAG):
         # Begriff der eigenen Liste (Einstellungen, Importprofil) ohne bekannte Norm oder eingebauten Begriff
         info = dict(info or dict(kategorie=SONST, norm="", groesse=groesse_gemessen(m), groesse_quelle="gemessen"),
@@ -363,3 +397,104 @@ def liste(messwerte, gruppen=None, gewaehlt=None):
                         vertrauen=info["vertrauen"], status=status(m, an)))
     out.sort(key=lambda z: (KATEGORIEN.index(z["kategorie"]), z["bezeichnung"].casefold()))
     return out
+
+
+# ------------------------------------------------------------------ Lernen (N6, Master-Prompt Patrick 21.11.2026)
+GELERNT = "step_zukauf_gelernt"     # Einstellung {lern_schluessel: [Entscheidung, Kategorie, Datum]}, alle Kunden
+GELERNT_MAX = 5000
+ZUKAUF, FERTIGUNG = "Zukaufteil", "Fertigungsteil"
+
+
+def _name_kern(name):
+    """Bauteilname ohne Instanz-Zusatz (:3, <2>), Leerraum vereinheitlicht, ohne Groß/klein."""
+    return " ".join(re.sub(r"(?::\d+|<\d+>)$", "", str(name or "").strip()).split()).casefold()
+
+
+def lern_schluessel(m):
+    """Bauteilname und Geometrie-Fingerabdruck (step.art_schluessel: Hüllmaße, Volumen, Flächen, Kanten): eine
+    Entscheidung gilt nur für dasselbe Teil, nie für ein geometrisch anderes mit gleichem Namen. '' ohne beides."""
+    from .step import art_schluessel
+    g, n = art_schluessel(m), _name_kern(m.get("bauteil"))
+    return f"{g}#{n}" if g and n else ""
+
+
+def gelernt_anwenden(m, gelernt):
+    """Gemerkte Entscheidung auf ein Teil anwenden (vor anwenden): Zukaufteil wie von Hand angenommen,
+    Fertigungsteil wie von Hand abgelehnt; mit Datum im Grund. Ergebnis: Entscheidung oder ''."""
+    if m.get("_zukauf_hand") or m.get("_fertigung_hand") or m.get("fehler"):
+        return ""
+    e = (gelernt or {}).get(lern_schluessel(m)) if lern_schluessel(m) else None
+    if not isinstance(e, (list, tuple)) or not e or e[0] not in (ZUKAUF, FERTIGUNG):
+        return ""
+    if len(e) > 2 and e[2]:
+        m["_zukauf_gelernt_am"] = str(e[2])
+    if e[0] == ZUKAUF:
+        m["_zukauf_hand"] = (e[1] if len(e) > 1 and e[1] in KATEGORIEN else None) or \
+            (einordnen(m) or {}).get("kategorie") or SONST
+        annehmen(m, dict(einordnen(m) or dict(norm="", groesse=groesse_gemessen(m), groesse_quelle="gemessen",
+                                                   grund="Bauteilname und Geometrie wie zuvor"),
+                         kategorie=m["_zukauf_hand"]))
+    elif not nur_als_zukauf_gemessen(m):
+        m["_fertigung_hand"] = True
+    else:
+        m.pop("_zukauf_gelernt_am", None)
+        return ""
+    return e[0]
+
+
+def entscheidungen(messwerte, vorher=None):
+    """Von Hand getroffene Entscheidungen zum Merken {lern_schluessel: (Entscheidung, Kategorie)}; vorher = die
+    gemerkten (unverändert Übernommenes nicht neu merken, damit das Datum der Entscheidung bleibt)."""
+    out = {}
+    for m in messwerte:
+        schl = lern_schluessel(m)
+        if not schl or m.get("fehler"):
+            continue
+        if m.get("_zukauf_hand"):
+            neu = (ZUKAUF, m["_zukauf_hand"])
+        elif m.get("_fertigung_hand") and not m.get("_normteil"):
+            neu = (FERTIGUNG, "")
+        else:
+            continue
+        alt = (vorher or {}).get(schl)
+        if isinstance(alt, (list, tuple)) and tuple(alt[:2]) == neu:
+            continue
+        out[schl] = neu
+    return out
+
+
+def merken(gelernt, neu, heute=None):
+    """Neue Entscheidungen zu den gemerkten (neueste zuletzt, höchstens GELERNT_MAX), je [Entscheidung, Kategorie,
+    Datum 'TT.MM.JJJJ']."""
+    import datetime
+    tag = (heute or datetime.date.today()).strftime("%d.%m.%Y")
+    out = dict(gelernt or {})
+    for k, (e, kat) in (neu or {}).items():
+        out.pop(k, None)
+        out[k] = [e, kat or "", tag]
+    return dict(list(out.items())[-GELERNT_MAX:])
+
+
+# ------------------------------------------------------------------ Aufteilung (N7, Master-Prompt Patrick 21.11.2026)
+AUFTEILUNG = ("Rohrlaser-Teile", "Bleche/Kantteile (Zukauf)", "Dreh-/Frästeile (Zukauf)", "Normteile/Zukaufteile",
+              "ungeklärt (Vorschlag)")
+
+
+def aufteilung(messwerte):
+    """Teile (Stück der Körper) je Bereich der Kalkulation: Rohrlaser-Teile (Rohr/Profil), Bleche/Kantteile und
+    Dreh-/Frästeile (Zukaufartikel), Normteile/Zukaufteile, ungeklärt = Fertigungsteil mit Zukauf-Vorschlag (bleibt in
+    der Fertigung, bis er angenommen wird). Ohne nicht lesbare Teile. Ergebnis {Bereich: Anzahl} (nur Bereiche > 0,
+    in der Reihenfolge AUFTEILUNG)."""
+    from .step import ART_BLECH, ART_DREHFRAES, art_gruppe
+    n = dict.fromkeys(AUFTEILUNG, 0)
+    for m in messwerte:
+        if m.get("fehler") or m.get("_knick_von") or m.get("_import_befund"):
+            continue
+        if m.get("_normteil"):
+            k = AUFTEILUNG[3]
+        elif (m.get("_zukaufteil") or {}).get("vertrauen") == VORSCHLAG:
+            k = AUFTEILUNG[4]
+        else:
+            k = {ART_BLECH: AUFTEILUNG[1], ART_DREHFRAES: AUFTEILUNG[2]}.get(art_gruppe(m), AUFTEILUNG[0])
+        n[k] += 1
+    return {k: v for k, v in n.items() if v}

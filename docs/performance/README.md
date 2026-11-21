@@ -86,6 +86,26 @@ anderen Körpers liegen (`step_geometrie._abstand`, gleicher Wert wie über die 
 
 Gegenüber 0.9.444: MASTER TOWER 755 s → 469 s (Faktor 1,6), Pizza-Ofen 287 s → 211 s (Faktor 1,36).
 
+## 0.9.449 (Basis 0.9.448)
+
+Nahtkandidaten: `step_geometrie._beruehrung` schneidet die beiden Körper zuerst. Liegt ein Punkt einer Schnittkante
+so nah an beiden Körpern, dass ihr Abstand höchstens 0,1 mm ist (Dreiecksungleichung), ist die Berührung bewiesen:
+Spalt 0, derselbe Schnitt wird weiterverwendet, die Abstandsmessung der ganzen Körper entfällt. Sonst wie bisher.
+
+| Datei | alt s | neu s | Faktor | gleich |
+|---|---:|---:|---:|---|
+| MASTER_TOWER_V1.1 | 391,5 | 378,6 | 1,03 | ja |
+| Pizza_oven | 196,3 | 194,2 | 1,01 | ja |
+| Кузов | 134,9 | 126,5 | 1,07 | ja (Erreichbarkeit: Zeitbudget, siehe unten) |
+| Grab | 15,3 | 16,3 | 0,94 | ja |
+| Industrial_Scrap_Bin | 20,6 | 20,5 | 1,00 | ja |
+| 126 Test-STEPs | 289,1 | 280,8 | 1,03 | ja |
+
+Bei Кузов fehlten im alten Lauf die Erreichbarkeits-Felder von 4 Nahtkandidaten: das Zeitbudget von 20 s war unter
+Last erschöpft (bekannte Grenze, siehe oben); alle Messwerte sind gleich. Geprüft und verworfen: Flächenpaare je
+Hüllquader vorfiltern (kein Gewinn, 782,9 → 781,4 s). Die übrigen Abstandsmessungen betreffen Paare, die sich nicht
+berühren (Pizza-Ofen: 629 Paare, 26 s).
+
 ## Wo die Zeit heute liegt (Profil, py-spy)
 
 | Datei | Anteil |

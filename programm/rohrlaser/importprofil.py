@@ -10,7 +10,8 @@ import re
 from .stammdaten import BENENNUNGEN
 
 
-EINSTELLUNGEN = ("step_benennung", "step_normteile", "step_zukauf_begriffe")     # was anwenden() liest
+EINSTELLUNGEN = ("step_benennung", "step_normteile", "step_zukauf_begriffe",     # was anwenden() liest
+                 "step_zukauf_gelernt")
 
 
 def fuer_kunde(db, kundennr):
@@ -209,7 +210,7 @@ def artikel_aus(m, benennung, muster=""):
 
 def anwenden(messwerte, profil=None, einstellungen=None):
     """Benennung und Normteile auf die Messwerte anwenden (vor dem Prüfdialog). einstellungen: {step_benennung,
-    step_normteile, step_zukauf_begriffe}. Je Körper _artikel_herkunft (Text für den Prüfdialog) und _artikel_unsicher (gelb); eine im
+    step_normteile, step_zukauf_begriffe, step_zukauf_gelernt}. Je Körper _artikel_herkunft (Text für den Prüfdialog) und _artikel_unsicher (gelb); eine im
     Prüfdialog geänderte Nummer (_artikel_hand) bleibt. Ergebnis: Anzahl erkannter Normteile."""
     e = einstellungen or {}
     p = profil or {}
@@ -243,6 +244,8 @@ def anwenden(messwerte, profil=None, einstellungen=None):
             m["_normteil"] = b
         else:
             m.pop("_normteil", None)
+        # wie beim letzten Mal von Hand entschieden: Zukauf- bzw. Fertigungsteil (gleicher Name, gleiche Geometrie, N6)
+        zukaufteile.gelernt_anwenden(m, e.get(zukaufteile.GELERNT))
         # Kategorie, Norm, Größe, Grund und Vertrauensstufe (zukaufteile.py); bekannte Norm oder Begriff im Namen
         # macht auch ohne Eintrag in der Normteil-Liste ein Normteil, eine passende Form nur einen Vorschlag
         if zukaufteile.anwenden(m, eingebaut):
