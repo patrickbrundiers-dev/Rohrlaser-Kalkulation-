@@ -3872,7 +3872,9 @@ def kapitel_step(i):
             "Messung ([[systemvoraussetzungen]]). Ab 20 MB "
             "lässt das Einlesen zwei Prüfungen auf sich kreuzende Kanten weg, die bei Tausenden Bohrungen sonst "
             "Stunden dauern; die Messwerte bleiben gleich.",
-            "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
+            "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit, seit 0.9.451 auch den Schritt "
+            "(<i>Datei gelesen</i>, <i>Körper messen</i>, <i>Baugruppe auswerten</i>) und wie viele gleiche Körper "
+            "die Messung ihres Vorbilds übernehmen. Bleibt ein Körper hängen "
             "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 600 s, bis 0.9.272 120 s), wird nur er "
             "vereinfacht gemessen (seit 0.9.274: Hüllmaß und Volumen, als Frästeil/Zukaufteil angenommen, gelb mit "
             "Hinweis <i>vereinfacht gemessen … Art prüfen</i>; seit 0.9.371 bleibt ein Rohr ein Rohr: Profil, Maße, "
@@ -15136,7 +15138,10 @@ def kapitel_step_messung(i):
             "zu den Nachbarn nur noch zwischen nahe liegenden Flächen (MASTER TOWER 469 statt 524 Sekunden, Pizza-Ofen "
             "211 statt 265 Sekunden, Ergebnis identisch). Seit 0.9.450 prüft die Nahtsuche zuerst mit dem Schnitt "
             "der beiden Teile, ob sie sich berühren, und spart dann die Abstandsmessung (MASTER TOWER 379 statt 392 "
-            "Sekunden, Кузов 127 statt 135 Sekunden, Ergebnis identisch).",
+            "Sekunden, Кузов 127 statt 135 Sekunden, Ergebnis identisch). Seit 0.9.451 steht im tempo.log je "
+            "verteilter Datei auch, wie lange das Lesen der STEP-Datei, das Umwandeln/Heilen, das Nähen, die "
+            "Baugruppenstruktur und die Suche nach gleichen Körpern gedauert haben und wie viele Kopien (verschoben, "
+            "gedreht) gefunden wurden.",
             "<b>Lange Gravur und Stecknasen</b>: Läuft eine Schrift über einen großen Teil des Rohrs, trifft fast "
             "jeder Querschnitt ein Zeichen. Als Profil gilt nur ein Querschnitt ohne Gravur (genau gleich groß an "
             "mehreren Stellen, auch an beiden Enden der Länge gesucht). Die Enden (z. B. Stecknasen vorne und hinten) "

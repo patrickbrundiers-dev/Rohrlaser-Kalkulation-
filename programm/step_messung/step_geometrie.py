@@ -292,7 +292,9 @@ def lies_step_info(pfad):
     except ImportError:
         caf, r = None, STEPControl_Reader()
     _grosse_datei_einstellen([x for x in (caf, r) if x is not None], pfad)  # CAF-Leser hat eigene Werte
+    uhr = time.monotonic()
     status, ausgabe = _konsole_mitschneiden(lambda: r.ReadFile(str(pfad)))
+    phasen = dict(lesen_s=time.monotonic() - uhr)       # Dauer je Schritt (Tempo-Protokoll, Master-Auftrag 21.11.)
     fehler = [z.strip(" *") for z in ausgabe.splitlines() if "ERR" in z or "Fail" in z]
     if status != IFSelect_RetDone:
         grund = "leer oder kein STEP" if status == IFSelect_RetVoid else "Syntaxfehler"
@@ -306,6 +308,7 @@ def lies_step_info(pfad):
         meldungen += [f"Warnung: {c.CWarning(i)}" for i in range(1, c.NbWarnings() + 1)]
         chk.Next()
     doc = None
+    uhr = time.monotonic()
     if caf is not None:
         try:
             doc = _caf_uebertragen(caf)
@@ -317,6 +320,7 @@ def lies_step_info(pfad):
             r.ReadFile(str(pfad))
         r.TransferRoots()
     shape = r.OneShape()
+    phasen["uebertragen_s"] = time.monotonic() - uhr    # in Körper umwandeln und dabei heilen (ShapeFix)
     koerper = [("Volumenkörper", TopoDS.Solid(x)) for x in _liste(shape, TopAbs_SOLID)]
     # Flächen außerhalb von Volumenkörpern (Flächenmodelle): zusammennähen, geschlossene Schalen werden Volumen
     lose = []
@@ -325,15 +329,20 @@ def lies_step_info(pfad):
         lose.append(ex.Current())
         ex.Next()
     if lose:
+        uhr = time.monotonic()
         koerper += _naehen(lose)
+        phasen["naehen_s"] = time.monotonic() - uhr
     meldungen = list(dict.fromkeys(m for m in meldungen if m))
     info = dict(einheit=_einheit(pfad), meldungen=meldungen[:20], baugruppe=len(koerper) > 1, struktur=None,
                 bauteile={})
     if doc is not None:
+        uhr = time.monotonic()
         try:
             info["struktur"], info["bauteile"] = _struktur(doc, koerper, _Path(pfad).stem)
         except Exception:  # wie oben: Struktur darf die Messung nie verhindern
             pass
+        phasen["struktur_s"] = time.monotonic() - uhr
+    info["phasen"] = phasen
     return koerper, info
 
 
@@ -5617,8 +5626,11 @@ def datei_lesen(pfad, name=None):
     einzeln = os.environ.get("STEP_MESSEN_EINZELN")         # nur für Tests: jeden Körper selbst messen
     if einzeln:
         return Gelesen(name or _Path(pfad).stem, koerper, info, {})
+    uhr = time.monotonic()
     gleich = _instanzen(koerper)
-    return Gelesen(name or _Path(pfad).stem, koerper, info, gleich, _gedrehte(koerper, gleich))
+    gedreht = _gedrehte(koerper, gleich)
+    info.setdefault("phasen", {}).update(kopien_s=time.monotonic() - uhr, verschoben=len(gleich), gedreht=len(gedreht))
+    return Gelesen(name or _Path(pfad).stem, koerper, info, gleich, gedreht)
 
 
 def _instanzen(koerper):

@@ -106,6 +106,22 @@ Last erschöpft (bekannte Grenze, siehe oben); alle Messwerte sind gleich. Gepr�
 Hüllquader vorfiltern (kein Gewinn, 782,9 → 781,4 s). Die übrigen Abstandsmessungen betreffen Paare, die sich nicht
 berühren (Pizza-Ofen: 629 Paare, 26 s).
 
+## 0.9.451 (Basis 0.9.450): Schritte messbar
+
+- `info["phasen"]` je Datei: `lesen_s` (STEP-Text lesen), `uebertragen_s` (in Körper umwandeln, dabei heilen),
+  `naehen_s`, `struktur_s`, `kopien_s` (Kopien suchen), Zahl der Kopien `verschoben`/`gedreht`. Steht in ZEITEN
+  (`schritte`) und im tempo.log.
+- Fortschrittsfenster: Schritt der Messung und Zahl der übernommenen Kopien.
+- Messwerte unverändert (126 Test-STEPs und MASTER TOWER bitgleich, siehe unten).
+
+**Geprüft und verworfen (Patrick 21.11.2026: „Nein, nur bitgleich“):** Körper, die das CAD mit eigener Geometrie
+schreibt, die aber Fläche für Fläche nur verschoben sind, die Messung des ersten übernehmen lassen. MASTER TOWER:
+383 von 514 Körpern, 422 → 247 s. Nicht bitgleich, weil die Einzelmessung für dieselbe Geometrie nicht ganz
+lageunabhängig ist: Ende A kann kippen (Konturpunkte dann an anderen Stellen desselben Bogens), bei 7,95 mm Wand
+schwankt der Profilvorschlag zwischen „L 38,1x38,1x7,9“ (17 von 20) und „x8“ (3 von 20). Ebenso verworfen: Ende A
+und Name der Auswahl-Messungen (Arten) einer CAD-Kopie auf die Kopie umrechnen (heute stehen dort die Werte des
+Vorbilds; Lagewerte, keine Maße).
+
 ## Wo die Zeit heute liegt (Profil, py-spy)
 
 | Datei | Anteil |

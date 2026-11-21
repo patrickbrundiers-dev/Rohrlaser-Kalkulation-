@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.451", "<b>STEP-Import: Schritte sichtbar</b>. Das Fortschrittsfenster zeigt jetzt auch den Schritt der "
+                "Messung (<i>Datei gelesen</i>, <i>Körper messen</i>, <i>Baugruppe auswerten</i>) und wie viele gleiche "
+                "Körper die Messung ihres Vorbilds übernehmen. Im tempo.log steht je Datei, wie lange Lesen, "
+                "Umwandeln/Heilen, Nähen, Struktur und Kopiensuche gedauert haben. Messwerte unverändert.",
+     "STEP-Import: Schritt der Messung im Fortschritt, Dauer je Schritt im tempo.log."],
     ["0.9.450", "<b>Normteile korrigieren und lernen</b>: <i>Doch Fertigungsteil</i> in der Liste <i>Zukaufteile …</i> "
                 "geht jetzt auch für erkannte Normteile, die voll gemessen sind. Was du annimmst oder zurücknimmst, "
                 "merkt sich das Programm je Bauteilname und Geometrie und ordnet dieselben Teile beim nächsten Import "

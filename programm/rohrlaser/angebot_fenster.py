@@ -399,6 +399,14 @@ def step_messung_protokollieren(dauer, anzahl, stand, befehl, abgebrochen=False)
             lesen = sum(d.get("lesen", 0) + d.get("ganz", 0) for d in (z.get("dateien") or {}).values())
             abschluss = sum(d.get("abschluss", 0) for d in (z.get("dateien") or {}).values())
             teile.append(f"Lesen/ganze Dateien {lesen:.1f} s, Abschluss {abschluss:.1f} s")
+            sch = [d.get("schritte") or {} for d in (z.get("dateien") or {}).values()]
+            if any(sch):    # Schritte beim Lesen (Master-Auftrag 21.11.2026)
+                def summe(k):
+                    return sum(x.get(k, 0) for x in sch)
+                teile.append(f"davon STEP lesen {summe('lesen_s'):.1f} s, umwandeln/heilen {summe('uebertragen_s'):.1f} s, "
+                             f"nähen {summe('naehen_s'):.1f} s, Struktur {summe('struktur_s'):.1f} s, "
+                             f"Kopien suchen {summe('kopien_s'):.1f} s; Kopien: {summe('verschoben')} verschoben, "
+                             f"{summe('gedreht')} gedreht")
             if z.get("langsamste"):
                 teile.append("langsamste: " + "; ".join(f"{n} K{k} {s:g} s" for n, k, s in z["langsamste"][:3]))
         if abgebrochen:
@@ -10944,6 +10952,10 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                         text = f"Datei {d['datei']} von {d['dateien']}: {d['name']}"
                         if d.get("koerper"):
                             text += f"\nKörper {d['koerper']} von {d['koerper_n']}"
+                        if d.get("phase"):      # Schritt der Messung (Master-Auftrag 21.11.2026)
+                            text += f"\nSchritt: {d['phase']}"
+                        if d.get("kopien"):
+                            text += f"\n{d['kopien']} gleiche Körper übernehmen die Messung ihres Vorbilds"
                         fortschritt.setLabelText(text + restzeit() + (f"\n{hinweis}" if hinweis else ""))
                     except (ValueError, KeyError, TypeError):
                         pass
