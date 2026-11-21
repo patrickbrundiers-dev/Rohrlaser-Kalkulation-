@@ -4939,6 +4939,22 @@ def kapitel_step(i):
             "Position in der Spalte <b>Schneidtechnik</b> (leer = Standard der Maschine). Bei <b>XY</b> werden Löcher "
             "im Rundrohr zylindrisch geschnitten; ein Loch über Faktor × Rohr-Ø (Vorgabe 0,5) meldet der Import und "
             "der Angebots-Check. 2,5D hat diese Grenze nicht. Die Wahl ändert die Laserzeit nicht.")
+    i.abschnitt("Plausibilität der Messung", marke="plausibilitaet")
+    i.text("Seit 0.9.441 prüft der STEP-Import die <b>Messwerte</b> jedes Profils auf Ungewöhnliches, bevor "
+           "kalkuliert wird. Ein Befund macht das Teil im Prüfdialog <b>gelb</b> mit dem Grund „Plausibilität: …“ "
+           "(nie rot). Die Prüfung rechnet keine Geometrie neu und ändert kein Maß: die Messung aus der STEP gilt "
+           "immer, Sie entscheiden mit <b>Passt</b> oder einer Korrektur.", kurz=True)
+    i.liste("<b>Wandstärke</b> steht nicht in den Stammdaten (für dieses Außenmaß) bzw. ist kein übliches Normmaß; "
+            "<b>Wand ungewöhnlich</b> dick oder dünn für das Außenmaß.",
+            "<b>Wand ungleich</b>: die Einzelmessungen der Wand liegen mehr als 0,15 mm auseinander; <b>Innenmaß</b> "
+            "passt nicht zu Außenmaß minus zweimal Wand.",
+            "<b>Körper nicht geschlossen</b> (Flächenmodell), <b>Länge</b> über 12.500 mm, <b>Sonderkontur</b> ohne "
+            "erkennbare Grundform.",
+            "<b>Name passt nicht zur Messung</b>: nennt der Datei- oder Bauteilname dasselbe Profil mit anderer Wand "
+            "(„QR40x40x2“, gemessen 3 mm), erscheint ein Hinweis. Die Messung gilt; der Name ändert nichts.",
+            "Die Befunde werden mit der Position gespeichert. Die <b>Qualitäts-KI</b> der lokalen KI nennt sie je "
+            "Position, ebenso Teile, deren Bauteilart nicht sicher erkannt ist; jede Zahl im Text stammt aus der "
+            "Messung (Faktencheck). Rohre mit Gravur bleiben immer Rohr.")
     i.abschnitt("STEP-Merkmale prüfen", marke="step_merkmale")
     i.text("Jedes Rohrteil aus dem STEP-Import merkt sich, wie sicher die Messung die einzelnen Merkmale erkannt hat. "
            "Rechtsklick auf die Position → <b>STEP-Merkmale prüfen …</b> zeigt sie.", kurz=True)

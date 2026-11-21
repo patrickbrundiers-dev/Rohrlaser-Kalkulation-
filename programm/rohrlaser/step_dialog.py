@@ -108,6 +108,10 @@ def _analyse_zeile(m):
     if fb:      # Konstruktionsregeln der Maschine (fertigbarkeit.py): jeder Befund eine Zeile
         zeile += "<br><span style='color:#7A5A00'><b>Fertigbarkeit prüfen:</b> " + \
             "; ".join(html.escape(t) for t in fb[:8]) + (f" … ({len(fb)})" if len(fb) > 8 else "") + "</span>"
+    pl = [x.get("text") for x in (m.get("_plausibel") or ()) if x.get("text")]
+    if pl:      # Plausibilität der Messwerte (step_plausibel.py): Hinweise, die Messung bleibt gültig
+        zeile += "<br><span style='color:#7A5A00'><b>Plausibilität:</b> " + \
+            "; ".join(html.escape(t) for t in pl[:6]) + (f" … ({len(pl)})" if len(pl) > 6 else "") + "</span>"
     return zeile
 
 
