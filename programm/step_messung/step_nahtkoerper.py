@@ -107,8 +107,9 @@ def _nachbarn(i, k, koerper, weg, nur=None, boxen=None):
             bj = _box(kj)
         if bj.IsOut(kb):
             continue
-        d = _abstand(k, kj)
-        if d is not None and d <= KONTAKT:
+        # Abstand nur zwischen Flächen in der Hülle des anderen (step_geometrie._abstand, gleicher Wert wie
+        # BRepExtrema über die ganzen Körper; None = weiter als KONTAKT)
+        if g._abstand(k, kj, KONTAKT) is not None:
             out.append(j)
     return out
 

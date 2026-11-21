@@ -41,6 +41,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("BL", "Blech", "#C9D6E3", None),               # Blech-Editor (blech3d)
     ("KB", "Blech/Kantteil (Zukauf, nicht gelasert)", "#6F9FD8", None),   # STEP-Prüfdialog: Art Blech
     ("KD", "Dreh-/Frästeil (Zukauf, nicht gelasert)", "#C9A227", None),  # STEP-Prüfdialog: Art Dreh-/Frästeil
+    ("NT", "Normteil/Zukaufteil", "#3F4650", None),   # Baugruppe im STEP-Prüfdialog: Schrauben, Muttern … (21.11.2026)
     ("B", "Biegelinien", "#2E7D32", "#2E7D32"),
     ("SN", "Schweißnähte", "#1A1A1A", "#1A1A1A"),        # Baugruppen-Ansicht: Nahtgruppen (schwarz: auf allen
     ("SV", "Nahtvorschläge (STEP)", "#D000D0", "#D000D0"),  # Teilfarben sichtbar), offene Nahtkandidaten magenta
@@ -136,7 +137,7 @@ WEISS_ANTEIL = {VERDECKT_AUS: 0.94, TECHNISCH: 0.93}          # Flächen so weit
 PRUEF_DURCH = frozenset(("A", "BL", "UO", "AN", "KB", "KD"))  # Prüfmodus: diese Flächen (außen) durchsichtig
 TECHNISCH_KANTE = "#141A20"     # Technisch (CAD): einheitlich fast schwarz
 VERDECKT_PIXEL = 9.0            # Kanten in Stücke dieser Länge [px] teilen und je Stück die Verdeckung prüfen
-NEUTRAL_ARTEN = ("A", "I", "BL", "AN", "UO", "KB", "KD", "S", "X")    # Körperflächen (Konturen betont: hell)
+NEUTRAL_ARTEN = ("A", "I", "BL", "AN", "UO", "KB", "KD", "NT", "S", "X")    # Körperflächen (Konturen betont: hell)
 BETONT_HELL, BETONT_BREITE = 0.62, 3.4
 HAUCH_FARBE = stil.farbe_fest("#B6C0CA")      # Nur Konturen: Körperkanten ganz hell
 # Flächentypen: Farbe je Art des Flächenkatalogs (FT_ + Art); Flächen ohne Katalog (ältere Messung) FT_Netz
@@ -160,7 +161,7 @@ KANTEN_WINKEL = 0.9     # cos des Knickwinkels: darüber gilt ein Übergang als 
 # Kantenklassen (20.11.2026): Innenkanten = nur an der Innenwand (Innenecken, Lochränder innen) – eigene Farbe, einzeln
 # ausblendbar; alles mit einer Außenfläche ist außen
 KANTE_AUSSEN, KANTE_INNEN = "a", "i"
-AUSSEN_ARTEN = frozenset(("A", "BL", "AN", "UO", "KB", "KD", "N", "S", "EW", "EO", "ES", "UW"))
+AUSSEN_ARTEN = frozenset(("A", "BL", "AN", "UO", "KB", "KD", "NT", "N", "S", "EW", "EO", "ES", "UW"))
 GLATT_MAX = 150000      # Rundungen glatt schattieren (Normale je Ecke) nur bis zu so vielen Dreiecken
 MESSEN = stil.farbe_fest("#B42318")
 FANG = stil.farbe_fest("#0070C0")            # Messen: gefangenes Element unter der Maus
@@ -421,7 +422,7 @@ def _in_lage(p, lage):
     return aus
 
 
-def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=None):
+def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=None, normteile=()):
     """Teile einer Baugruppe in ihrer Einbaulage zu einem Netz zusammensetzen. netze: Liste von Netzen (dict oder
     gepackt); farben: je Netz eine Nummer, gleiche Nummer = gleiche Farbe (z. B. gleiche Teile), sonst je Netz eine;
     hervor: Nummern in netze, die als 'gewählte Teile' (Art S) blau, alle anderen hellgrau gefärbt werden;
@@ -430,7 +431,7 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=N
     Einbaulage, z. B. aus einer älteren Messung). bereiche: Liste, bekommt je Netz (Nummer, erster Punkt, Ende,
     Dreiecke als Punktnummern) für die Zuordnung eines Modellpunkts zu seinem Teil. kosten: {Nummer in netze: Stufe
     0 … 3} färbt die Teile nach ihrem €-Anteil (kostenfarben.py, Arten KO0 … KO3, mit Legende); gewählte Teile bleiben
-    blau."""
+    blau. normteile: Nummern der Normteile/Zukaufteile, eigene Farbe (Art NT, mit Legende), außer gewählt."""
     punkte, dreiecke, ohne, wk = [], {}, 0, []
     fk, tf, mit_fk = [], {}, True            # Flächenkatalog der Teile (Messplan M3), nur wenn alle Teile einen haben
     for nr, netz in enumerate(netze):
@@ -458,7 +459,7 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=N
             if art_teil == "I":
                 continue
             art = "S" if nr in hervor else "N" if nr in fehlend else f"KO{kosten[nr]}" if kosten and nr in kosten \
-                else "X" if hervor else \
+                else "X" if hervor else "NT" if nr in normteile else \
                 f"F{(farben[nr] if farben else nr) % len(TEILFARBEN)}"
             dreiecke.setdefault(art, []).extend(basis + i for i in idx)
             if kat_ok:

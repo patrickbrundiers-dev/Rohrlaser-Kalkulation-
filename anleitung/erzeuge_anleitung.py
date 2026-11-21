@@ -4853,8 +4853,12 @@ def kapitel_step(i):
             "als Zukaufteil-Position ins Angebot (Preis wie oben aus der Normteil-Liste); bei einem Vorschlag wird "
             "er damit angenommen, die Bezeichnung kommt dann aus Kategorie und Größe (z. B. <i>Scheibe Ø24 × 2,5, "
             "Bohrung Ø13</i>). <b>Alle ins Angebot</b> und <b>Keine</b> gelten für die gezeigten Zeilen, "
-            "<b>Doch Fertigungsteil</b> nimmt einen angenommenen Vorschlag zurück. Das Häkchen <b>in 3D "
-            "ausblenden</b> neben dem Knopf blendet die Zukaufteile in der Baugruppen-Ansicht aus (nur Anzeige).",
+            "<b>Doch Fertigungsteil</b> nimmt einen angenommenen Vorschlag zurück. In der 3D-Ansicht der "
+            "Baugruppe sind Zukaufteile (Normteile) seit 0.9.448 <b>dunkelgrau</b> (Legende <i>Normteil/Zukaufteil</i>) "
+            "und bleiben sichtbar. Die Auswahl neben dem Knopf filtert die Ansicht (nur Anzeige): <i>3D: alle Teile</i>, "
+            "<i>ohne Zukaufteile</i>, <i>nur Zukaufteile</i> (z. B. um zu sehen, wo die Schrauben sitzen) und <i>nur "
+            "unsichere Vorschläge</i> (Teile, die nur nach der Form ein Zukaufteil sein könnten). Vorher gab es nur "
+            "das Häkchen <i>in 3D ausblenden</i>.",
             "Unterreiter <b>Importprofile (STEP)</b> in den Einstellungen: je Kunde eine Zeile. In Angeboten dieses "
             "Kunden gilt sie beim STEP-Import, leere Felder wie in den Einstellungen.")
     i.tabelle(["Importprofile (STEP)", "Bedeutung"], [
@@ -15089,7 +15093,9 @@ def kapitel_step_messung(i):
             "Zuordnung bei großen Baugruppen viel schneller (Pizza-Ofen mit 155 Nahtkörpern: Messung 3 statt 14 "
             "Minuten); vorher lief sie dort ins Zeitlimit und die Nähte kamen als <i>Drehteil</i> in die Liste. "
             "Seit 0.9.447 werden dafür nur noch Rohre, Bleche und Profile als Nachbarn genau vermessen (MASTER TOWER "
-            "mit 1080 Körpern: 512 statt 755 Sekunden, Ergebnis identisch).",
+            "mit 1080 Körpern: 512 statt 755 Sekunden, Ergebnis identisch). Seit 0.9.448 misst sie den Abstand "
+            "zu den Nachbarn nur noch zwischen nahe liegenden Flächen (MASTER TOWER 469 statt 524 Sekunden, Pizza-Ofen "
+            "211 statt 265 Sekunden, Ergebnis identisch).",
             "<b>Lange Gravur und Stecknasen</b>: Läuft eine Schrift über einen großen Teil des Rohrs, trifft fast "
             "jeder Querschnitt ein Zeichen. Als Profil gilt nur ein Querschnitt ohne Gravur (genau gleich groß an "
             "mehreren Stellen, auch an beiden Enden der Länge gesucht). Die Enden (z. B. Stecknasen vorne und hinten) "

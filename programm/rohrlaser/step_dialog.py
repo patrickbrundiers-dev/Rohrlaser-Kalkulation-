@@ -38,6 +38,21 @@ def hat_huelle(m):
     return len([x for x in (m.get("huelle") or "").split("|") if x]) == 3
 
 
+ZK_FILTER = ("3D: alle Teile", "3D: ohne Zukaufteile", "3D: nur Zukaufteile", "3D: nur unsichere Vorschläge")
+
+
+def zk_sichtbar(m, filt):
+    """Teil m in der Baugruppen-Ansicht bei Filter filt (Nummer in ZK_FILTER) zeigen?"""
+    zukauf = bool(m.get("_normteil"))
+    if filt == 1:
+        return not zukauf
+    if filt == 2:
+        return zukauf
+    if filt == 3:
+        return not zukauf and (m.get("_zukaufteil") or {}).get("vertrauen") == "Vorschlag"
+    return True
+
+
 AMPEL_FARBE = {"gruen": stil.GRUEN, "gelb": "#EDC948", "rot": stil.ROT}
 
 
@@ -636,10 +651,14 @@ class StepPruefDialog(QDialog):
                                       "Bauteilliste als CSV.")
         self.analyse_knopf.clicked.connect(lambda: self.importanalyse_zeigen())
         zeile_3d.addWidget(self.analyse_knopf)
-        self.zk_aus = QCheckBox("in 3D ausblenden")
-        self.zk_aus.setToolTip("Zukaufteile in der 3D-Ansicht der Baugruppe ausblenden (nur Anzeige)")
-        self.zk_aus.toggled.connect(lambda *_: self._zeigen(self.baum.currentItem()))
-        zeile_3d.addWidget(self.zk_aus)
+        # Filter der Baugruppen-Ansicht (Normteil-Erkennung, Patrick 21.11.2026): Zukaufteile haben eine eigene Farbe
+        self.zk_filter = QComboBox()
+        self.zk_filter.addItems(ZK_FILTER)
+        self.zk_filter.setToolTip("Welche Teile die 3D-Ansicht der Baugruppe zeigt (nur Anzeige): alle, ohne die "
+                                  "Zukaufteile (Normteile), nur die Zukaufteile oder nur die unsicheren Vorschläge. "
+                                  "Zukaufteile sind dunkelgrau (Stahl).")
+        self.zk_filter.currentIndexChanged.connect(lambda *_: self._zeigen(self.baum.currentItem()))
+        zeile_3d.addWidget(self.zk_filter)
         self._zukauf_knopf_zeigen()
 
         # Knickrahmen aus Einzelrohren (K1-2): Vorschlag, wenn Rohre mit passenden Gehrungen aneinanderstoßen
@@ -2028,8 +2047,10 @@ class StepPruefDialog(QDialog):
         from .ansicht3d import baugruppe
         from .step import satzname
         teile = [i for i, m in enumerate(self.messwerte) if m.get("datei") == datei and m.get("_netz")]
-        if hasattr(self, "zk_aus") and self.zk_aus.isChecked():     # Zukaufteile ausgeblendet (außer hervorgehobene)
-            teile = [i for i in teile if not self.messwerte[i].get("_normteil") or i in set(hervor)]
+        filt = self.zk_filter.currentIndex() if hasattr(self, "zk_filter") else 0    # hervorgehobene bleiben immer
+        if filt:
+            teile = [i for i in teile if i in set(hervor) or zk_sichtbar(self.messwerte[i], filt)]
+        normteile = {n for n, i in enumerate(teile) if self.messwerte[i].get("_normteil")}
         zeile = {i: n for n, z in enumerate(self.zeilen) for i in z.liste}      # gleiche Teile = gleiche Farbe
         fehlt = {it.data(1, Qt.UserRole) for g in self.fehler_gruppen.values() for it in
                  (g.child(n) for n in range(g.childCount()))}
@@ -2037,7 +2058,8 @@ class StepPruefDialog(QDialog):
         netz, ohne = baugruppe([self.messwerte[i]["_netz"] for i in teile],
                                {n for n, i in enumerate(teile) if i in set(hervor)},
                                [zeile.get(i, len(self.zeilen) + n) for n, i in enumerate(teile)],
-                               {n for n, i in enumerate(teile) if i in fehlt}, bereiche=bereiche)
+                               {n for n, i in enumerate(teile) if i in fehlt}, bereiche=bereiche,
+                               normteile=normteile)
         if netz:        # jedes Teil als Körper für die Auswahl im 3D (Paket 3): Kennung = Nummer des Messwerts
             from .baugruppe_ansicht import teil_kennung
             teil_kennung(netz, bereiche, [f"{KOERPER_3D}{i}" for i in teile])
@@ -2047,6 +2069,9 @@ class StepPruefDialog(QDialog):
                 + (", blau: die gewählten Teile" if hervor else ", gleiche Teile in gleicher Farbe")
                 + (f", magenta: {n_fehlt} nicht übernehmbare{'s' if n_fehlt == 1 else ''} Teil{'e' if n_fehlt != 1 else ''}"
                    if n_fehlt and not set(hervor) >= {i for i in teile if i in fehlt} else "")
+                + (f", dunkelgrau: {len(normteile)} Zukaufteil{'e' if len(normteile) != 1 else ''} (Normteile)"
+                   if normteile and not hervor else "")
+                + (f" – Filter: {ZK_FILTER[filt]}" if filt else "")
                 + ". Teil in der Liste anklicken = Einzelteil "
                 "mit Schnitten und Konturen.")
         if ohne:
@@ -2571,7 +2596,7 @@ class StepPruefDialog(QDialog):
         self.zk_knopf.setText("Zukaufteile …" if not zeilen else
                               f"Zukaufteile ({n}" + (f" + {v} " + ("Vorschlag" if v == 1 else "Vorschläge") if v else "") + ") …")
         self.zk_knopf.setVisible(bool(zeilen))
-        self.zk_aus.setVisible(any(z["status"] != "Vorschlag" for z in zeilen) and bool(self.baugruppen))
+        self.zk_filter.setVisible(bool(zeilen) and bool(self.baugruppen))
 
     def zukauf_setzen(self, indizes, an):
         """Zukaufteile (Zeilen mit diesen Messwert-Indizes) per Klick ins Angebot (an) bzw. wieder heraus. Ein
