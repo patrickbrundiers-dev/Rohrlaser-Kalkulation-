@@ -1746,11 +1746,16 @@ def schwenk(flaechen, kanten, abw, schritt=2.0):
     from OCP.GeomAPI import GeomAPI_ProjectPointOnSurf
     from OCP.GeomLProp import GeomLProp_SLProps
     flaechen = [BRep_Tool.Surface_s(TopoDS.Face(f)) for f in flaechen]
+    projektion = []         # je Fläche einmal einrichten, je Punkt nur Perform (gleiches Ergebnis, Performance 21.11.)
+    for sf in flaechen:
+        pr = GeomAPI_ProjectPointOnSurf()
+        pr.Init(sf, *sf.Bounds())
+        projektion.append((sf, pr))
     groesster = None
     for p in _punkte_kanten(kanten, schritt):
         beste = None
-        for sf in flaechen:
-            pr = GeomAPI_ProjectPointOnSurf(p, sf)
+        for sf, pr in projektion:
+            pr.Perform(p)
             if pr.NbPoints() and (beste is None or pr.LowerDistance() < beste[0]):
                 beste = (pr.LowerDistance(), sf, pr.LowerDistanceParameters())
         if beste is None or beste[0] > 0.05:
