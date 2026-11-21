@@ -9,6 +9,9 @@ Reiter
   Lernen        Lernhistorie aller Lernsysteme (Zurücknehmen bei Kennwerten), reife Vorschläge mit Vergleich alt/neu,
                 verdächtige Lerndaten, Lernzentrale
   Wissen        Suche in der Wissensdatenbank mit Quelle und Stand, Index neu bauen
+  Modellversionen  Modell-Register (KI 4): jede Version mit Prüfsumme, Lizenz, Trainingsdaten, Prüfsatz und Status;
+                Prüfen (fachlicher Prüfsatz), Aktivieren (nur geprüft oder mit Begründung), Zurücksetzen,
+                Trainingsdaten exportieren; Leistungsklasse dieses PCs
   Protokoll     alle KI-Aktionen
 Ändern (Modelle, Zurücknehmen) nur mit Admin-Recht, sobald ein Admin-Passwort gesetzt ist."""
 from PySide6.QtCore import Qt, QTimer
@@ -16,7 +19,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QScrollArea,
                                QPushButton, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from . import ki_agenten, ki_lernhistorie, ki_modelle, ki_protokoll, ki_ressourcen, ki_wissen
+from . import ki_agenten, ki_lernhistorie, ki_modelle, ki_protokoll, ki_register, ki_ressourcen, ki_wissen
 from . import protokoll
 
 
@@ -66,6 +69,7 @@ class KiZentrale(QDialog):
         self._empfehlungen()
         self._lernen()
         self._wissen()
+        self._versionen()
         self._protokoll()
         leiste = QDialogButtonBox(QDialogButtonBox.Close)
         leiste.rejected.connect(self.reject)
@@ -162,6 +166,7 @@ class KiZentrale(QDialog):
         self._modelle_setzen()
         self._empfehlungen_setzen(offen)
         self._lernen_setzen()
+        self._versionen_setzen()
         self._protokoll_setzen()
 
     # ------------------------------------------------------------------ Modelle
@@ -385,7 +390,12 @@ class KiZentrale(QDialog):
             sek = int(__import__("time").monotonic() - start)
             kopf = f"{d['name']} ({_gb(d['groesse_gb'])})" + (f" – {stand['i'] + 1} von {len(dateien)}"
                                                               if len(dateien) > 1 else "")
-            if stand["phase"] == "kopieren" and stand["b"]:
+            if stand["phase"] == "pruefsumme" and stand["b"]:
+                dlg.setMaximum(1000)
+                dlg.setValue(int(1000 * stand["a"] / stand["b"]))
+                dlg.setLabelText(f"{kopf}\nPrüfsumme fürs Modell-Register: {stand['a'] / 1e9:.1f} von "
+                                 f"{stand['b'] / 1e9:.1f} GB · {sek // 60}:{sek % 60:02d} min")
+            elif stand["phase"] == "kopieren" and stand["b"]:
                 dlg.setMaximum(1000)
                 dlg.setValue(int(1000 * stand["a"] / stand["b"]))
                 dlg.setLabelText(f"{kopf}\nAuf diesen PC kopieren (Netzwerk/OneDrive): "
@@ -411,16 +421,26 @@ class KiZentrale(QDialog):
     def _import_eins(self, d, ausfuehren=None, fortschritt=None, abbrechen=None):
         import time
         t0 = time.monotonic()
-        e = ki_modelle.importieren(d["pfad"], ausfuehren=ausfuehren, fortschritt=fortschritt, abbrechen=abbrechen)
+        name = ki_modelle.modellname(d["name"])
+        n = 2
+        while ki_modelle.vorhanden(name, self.liste):   # nie überschreiben: frühere Version bleibt für Zurücksetzen
+            name = ki_modelle.modellname(f"{d['name']}-v{n}")
+            n += 1
+        e = ki_modelle.importieren(d["pfad"], name=name, ausfuehren=ausfuehren, fortschritt=fortschritt,
+                                   abbrechen=abbrechen)
         text = f"{d['name']}: {e['text']}" + (f" ({int(time.monotonic() - t0) // 60} min)" if e["ok"] and
                                                not ausfuehren else "")
-        return dict(text=text, name=e["name"], ok=e["ok"])      # Protokoll erst im Hauptthread (Datenbank)
+        return dict(text=text, name=e["name"], ok=e["ok"], sha256=e.get("sha256") or "", quelle=str(d["pfad"]),
+                    groesse_gb=d.get("groesse_gb"))      # Protokoll und Register erst im Hauptthread (Datenbank)
 
     def _import_fertig(self, texte):
         for t in texte:
             if isinstance(t, dict):
                 ki_protokoll.schreiben(self.db, "KI-Zentrale", "import", ergebnis=t["text"], modell=t["name"],
                                        status="ok" if t["ok"] else "fehler")
+                if t["ok"]:
+                    ki_register.eintragen(self.db, t["name"], herkunft=t.get("quelle", ""), sha256=t.get("sha256", ""),
+                                          groesse_gb=t.get("groesse_gb"), kuerzel=self._kuerzel())
         texte = [t["text"] if isinstance(t, dict) else t for t in texte]
         if texte:
             self.f.meldung(" · ".join(texte), fehler=not all("Importiert" in t or "übersprungen" in t for t in texte))
@@ -576,6 +596,273 @@ class KiZentrale(QDialog):
             if z.startswith("angebot:") and hasattr(self.f, "angebot_oeffnen"):
                 self.f.angebot_oeffnen(int(z.split(":")[1]))
                 self.accept()
+
+    # ------------------------------------------------------------------ Modellversionen (KI 4)
+    def _kuerzel(self):
+        try:
+            return str(self.db.einstellung("benutzer_kuerzel") or "")
+        except Exception:       # noqa: BLE001
+            protokoll.warnung("ki_zentrale: Kürzel nicht lesbar")
+            return ""
+
+    def _versionen(self):
+        w = QWidget()
+        v = QVBoxLayout(w)
+        self.klasse_text = QLabel()
+        self.klasse_text.setWordWrap(True)
+        v.addWidget(self.klasse_text)
+        hinweis = QLabel("Jede Modellversion wird vor dem Einsatz mit dem fachlichen Prüfsatz geprüft. Produktiv wird "
+                         "sie nur, wenn sie besteht und mindestens so gut ist wie die bisherige Version der Rolle – "
+                         "sonst nur mit Begründung. Die KI ändert sich nie selbst; Preise und Geometrie rechnet "
+                         "immer das Programm.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet("color:#4B5563")
+        v.addWidget(hinweis)
+        self.v_schloss = QLabel("Eintragen, Aktivieren und Zurücksetzen nur als Admin: in den Einstellungen mit dem "
+                                "Schloss freischalten.")
+        self.v_schloss.setStyleSheet("color:#B45309")
+        v.addWidget(self.v_schloss)
+        self.versionen_tabelle = _tabelle(("Version", "Status", "Rollen", "Prüfsatz", "Lizenz", "Datensatz",
+                                           "Herkunft", "Prüfsumme", "Angelegt"))
+        v.addWidget(self.versionen_tabelle, 3)
+        z = QHBoxLayout()
+        self.v_eintragen = QPushButton("Vorhandene eintragen")
+        self.v_eintragen.setToolTip("Alle Modelle des Servers, die noch nicht im Register stehen, als Test-Version")
+        self.v_eintragen.clicked.connect(lambda: self._v_eintragen())
+        self.v_pruefen = QPushButton("Prüfen")
+        self.v_pruefen.setToolTip("Fachlicher Prüfsatz (feste Aufgaben plus Testanteil der eigenen Trainingsdaten)")
+        self.v_pruefen.clicked.connect(lambda: self._v_pruefen())
+        self.v_angaben = QPushButton("Herkunft …")
+        self.v_angaben.setToolTip("Basismodell (Lizenz) und Trainingsdaten-Version eines eigenen Modells eintragen")
+        self.v_angaben.clicked.connect(lambda: self._v_angaben())
+        self.v_aktivieren = QPushButton("Aktivieren …")
+        self.v_aktivieren.clicked.connect(lambda: self._v_aktivieren())
+        self.v_zurueck = QPushButton("Rolle zurücksetzen …")
+        self.v_zurueck.setToolTip("Die zuletzt abgelöste Version einer Rolle wieder produktiv setzen")
+        self.v_zurueck.clicked.connect(lambda: self._v_zuruecksetzen())
+        self.v_export = QPushButton("Trainingsdaten exportieren …")
+        self.v_export.setToolTip("Bestätigte Fälle bereinigt und anonymisiert als JSONL für das Training am "
+                                 "Trainings-PC (ohne Internet)")
+        self.v_export.clicked.connect(lambda: self._v_export())
+        for k in (self.v_eintragen, self.v_angaben, self.v_pruefen, self.v_aktivieren, self.v_zurueck, self.v_export):
+            z.addWidget(k)
+        z.addStretch(1)
+        v.addLayout(z)
+        self.versionen_verlauf = _tabelle(("Zeit", "Wer", "Was"))
+        v.addWidget(self.versionen_verlauf, 2)
+        self.export_text = QLabel()
+        self.export_text.setWordWrap(True)
+        v.addWidget(self.export_text)
+        self.reiter.addTab(w, "Modellversionen")
+
+    def _versionen_setzen(self):
+        frei = darf_verwalten(self.db, self.f)
+        for k in (self.v_eintragen, self.v_angaben, self.v_aktivieren, self.v_zurueck):
+            k.setEnabled(frei)
+        self.v_schloss.setVisible(not frei)
+        rt = {r: t for r, t, _ in ki_modelle.ROLLEN}
+        try:
+            r = ki_ressourcen.messen(mit_gpu=True)
+            k = ki_ressourcen.klasse(r)
+            self.klasse_text.setText(f"Dieser PC: Klasse {k[0]} – {k[1]}. Passend: {k[2]}. "
+                                     + ("Training möglich." if k[3] else "Training auf einem PC mit NVIDIA-Karte."))
+        except Exception:       # noqa: BLE001 – Messung darf nie stören
+            protokoll.warnung("ki_zentrale: Leistungsklasse nicht ermittelt")
+            self.klasse_text.setText("Leistungsklasse nicht ermittelt.")
+        from . import ki_pruefsatz
+        self.versionen = ki_register.liste(self.db)
+        _fuellen(self.versionen_tabelle, [[e["id"], ki_register.STATUS_TITEL.get(e["status"], e["status"])
+                                           + (" (überschrieben)" if e.get("ueberschrieben") else ""),
+                                           ", ".join(rt.get(r, r) for r in e.get("rollen") or ()),
+                                           ki_pruefsatz.text(e.get("pruefung")),
+                                           e.get("lizenz"), e.get("datensatz") or "–", e.get("herkunft") or "",
+                                           (e.get("sha256") or "")[:12], (e.get("angelegt") or "")[:16].replace("T", " ")]
+                                          for e in self.versionen])
+        _fuellen(self.versionen_verlauf, [[x["zeit"][:16].replace("T", " "), x.get("wer") or "", x["was"]]
+                                          for x in ki_register.verlauf(self.db)[:100]])
+        from . import ki_training
+        ex = ki_training.exporte(self.db)
+        self.export_text.setText(("Letzter Trainingsdaten-Export: " + f"{ex[0]['version']} ({ex[0]['gesamt']} Fälle) "
+                                  f"in {ex[0]['ordner']}") if ex else "Noch keine Trainingsdaten exportiert.")
+
+    def _v_gewaehlt(self):
+        r = sorted({i.row() for i in self.versionen_tabelle.selectedIndexes()})
+        return self.versionen[r[0]] if r and r[0] < len(self.versionen) else None
+
+    def _v_eintragen(self):
+        n = ki_register.vorhandene_eintragen(self.db, [m for m in self.liste if m.get("name")], self._kuerzel())
+        self.f.meldung(f"{n} Modellversion(en) neu eingetragen." if n else "Alle Modelle stehen schon im Register.")
+        self._versionen_setzen()
+        return n
+
+    def _v_angaben(self, basis=None, datensatz=None):
+        e = self._v_gewaehlt()
+        if e is None:
+            self.f.meldung("Bitte eine Modellversion wählen.", fehler=True)
+            return None
+        if basis is None:
+            from PySide6.QtWidgets import QInputDialog
+            from . import ki_training
+            basis, ok = QInputDialog.getText(self, "Herkunft", "Basismodell (z. B. qwen3-4b):", text=e.get("basis") or "")
+            if not ok:
+                return None
+            ex = ki_training.exporte(self.db)
+            datensatz, ok = QInputDialog.getText(self, "Herkunft", "Trainingsdaten-Version (leer = keine):",
+                                                 text=e.get("datensatz") or (ex[0]["version"] if ex else ""))
+            if not ok:
+                return None
+        x = ki_register.angaben_setzen(self.db, e["id"], basis, datensatz, kuerzel=self._kuerzel())
+        self._versionen_setzen()
+        return x
+
+    def _v_modell(self, e):
+        return next((m for m in self.liste if str(m.get("name") or "").split(":")[0] == e["name"]), None)
+
+    def _v_pruefen(self, warten=False):
+        """Prüfsatz für die gewählte Version im Hintergrund (je Aufgabe eine Modellantwort, dauert Minuten)."""
+        from . import ki_pruefsatz
+        e = self._v_gewaehlt()
+        if e is None:
+            self.f.meldung("Bitte eine Modellversion wählen.", fehler=True)
+            return None
+        m = self._v_modell(e)
+        if m is None:
+            self.f.meldung(f"{e['name']} ist auf dem Modell-Server nicht vorhanden (Modelle → Import).", fehler=True)
+            return None
+        if warten:                      # Tests: ohne Hintergrund
+            return self._v_geprueft(e, ki_pruefsatz.pruefen(self.db, m, senden=self.senden))
+        import threading
+        from PySide6.QtWidgets import QProgressDialog
+        stand = dict(i=0, n=0, abbruch=False, ergebnis=None, fehler="")
+        dlg = QProgressDialog(f"{e['id']} wird geprüft …", "Abbrechen", 0, 0, self)
+        dlg.setWindowTitle("Prüfsatz")
+        dlg.setMinimumDuration(0)
+        dlg.setAutoClose(False)
+        dlg.setAutoReset(False)
+        dlg.canceled.connect(lambda: stand.update(abbruch=True))
+        eigene = ki_pruefsatz._test_aus_trainingsdaten(self.db)    # Datenbank nur im Hauptthread
+
+        def arbeit():
+            try:
+                stand["ergebnis"] = ki_pruefsatz.pruefen(None, m, senden=self.senden, eigene=eigene,
+                                                         fortschritt=lambda i, n: stand.update(i=i, n=n),
+                                                         abbrechen=lambda: stand["abbruch"])
+            except Exception as x:      # noqa: BLE001
+                protokoll.warnung("ki_zentrale: Prüfsatz abgebrochen")
+                stand["fehler"] = str(x)
+            stand["fertig"] = True
+
+        def zeigen():
+            if stand["n"]:
+                dlg.setMaximum(stand["n"])
+                dlg.setValue(stand["i"])
+                dlg.setLabelText(f"{e['id']}: Aufgabe {min(stand['i'] + 1, stand['n'])} von {stand['n']}")
+            if stand.get("fertig"):
+                self.pruef_uhr.stop()
+                dlg.close()
+                if stand["abbruch"]:
+                    self.f.meldung("Prüfung abgebrochen – nichts gespeichert.")
+                elif stand["ergebnis"]:
+                    self._v_geprueft(e, stand["ergebnis"])
+                else:
+                    self.f.meldung(f"Prüfung fehlgeschlagen: {stand['fehler']}", fehler=True)
+
+        self.pruef_uhr = QTimer(self)
+        self.pruef_uhr.setInterval(500)
+        self.pruef_uhr.timeout.connect(zeigen)
+        threading.Thread(target=arbeit, daemon=True).start()
+        self.pruef_uhr.start()
+        dlg.show()
+        return stand
+
+    def _v_geprueft(self, e, ergebnis):
+        from . import ki_pruefsatz
+        ki_register.pruefung_speichern(self.db, e["id"], ergebnis)
+        ki_protokoll.schreiben(self.db, "Modell-Register", "pruefen", ergebnis=ki_pruefsatz.text(ergebnis),
+                               modell=e["name"], dauer=ergebnis.get("dauer_s") or 0,
+                               status="ok" if (ergebnis.get("quote") or 0) >= ki_register.MINDEST_QUOTE else "fehler")
+        self.f.meldung(f"{e['id']}: {ki_pruefsatz.text(ergebnis)}")
+        self._versionen_setzen()
+        return ergebnis
+
+    def _v_aktivieren(self, rollen=None, bestaetigen=None):
+        """Gewählte Version für Rollen produktiv setzen. rollen/bestaetigen (Begründung oder None) ersetzen die
+        Dialoge (Tests)."""
+        e = self._v_gewaehlt()
+        if e is None:
+            self.f.meldung("Bitte eine Modellversion wählen.", fehler=True)
+            return None
+        if rollen is None:
+            rollen = self._rollen_waehlen(e)
+            if not rollen:
+                return None
+        try:
+            x = ki_register.aktivieren(self.db, e["id"], rollen, self._kuerzel())
+        except ki_register.BestaetigungNoetig as grund:
+            if bestaetigen is None:
+                from PySide6.QtWidgets import QInputDialog
+                text, ok = QInputDialog.getText(self, "Ohne bestandene Prüfung aktivieren?",
+                                                f"{grund}\n\nTrotzdem aktivieren? Dann bitte eine Begründung (steht im "
+                                                "Verlauf):")
+                bestaetigen = text.strip() if ok and text.strip() else None
+            if not bestaetigen:
+                self.f.meldung(f"Nicht aktiviert: {grund}", fehler=True)
+                return None
+            x = ki_register.aktivieren(self.db, e["id"], rollen, self._kuerzel(), erzwingen=True,
+                                       begruendung=bestaetigen)
+        self.f.meldung(f"{x['id']} ist produktiv für {ki_register._rollen_text(rollen)}.")
+        self.neu_laden()
+        return x
+
+    def _rollen_waehlen(self, e):
+        d = QDialog(self)
+        d.setWindowTitle(f"{e['id']} aktivieren für …")
+        lay = QVBoxLayout(d)
+        haken = {}
+        for r, t, _ in ki_modelle.ROLLEN:
+            c = QCheckBox(t)
+            c.setChecked(r in (e.get("rollen") or ()))
+            haken[r] = c
+            lay.addWidget(c)
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.accepted.connect(d.accept)
+        bb.rejected.connect(d.reject)
+        lay.addWidget(bb)
+        if d.exec() != QDialog.Accepted:
+            return []
+        return [r for r, c in haken.items() if c.isChecked()]
+
+    def _v_zuruecksetzen(self, rolle=None):
+        if rolle is None:
+            from PySide6.QtWidgets import QInputDialog
+            titel = [t for _, t, _ in ki_modelle.ROLLEN]
+            t, ok = QInputDialog.getItem(self, "Rolle zurücksetzen", "Welche Rolle?", titel, 0, False)
+            if not ok:
+                return None
+            rolle = next(r for r, tt, _ in ki_modelle.ROLLEN if tt == t)
+        x = ki_register.zuruecksetzen(self.db, rolle, self._kuerzel())
+        self.f.meldung(f"Rolle zurückgesetzt auf {x['id'] if x else 'automatische Wahl'}.")
+        self.neu_laden()
+        return x
+
+    def _v_export(self, ordner=None):
+        from . import ki_training
+        if ordner is None:
+            ordner = QFileDialog.getExistingDirectory(self, "Ordner für die Trainingsdaten",
+                                                      str(self.db.einstellung(ki_modelle.MODELL_ORDNER) or ""))
+            if not ordner:
+                return None
+        try:
+            ex = ki_training.exportieren(self.db, ordner)
+        except OSError as x:
+            self.f.meldung(f"Export fehlgeschlagen: {x}", fehler=True)
+            return None
+        teile = ", ".join(f"{a} {v['train']}+{v['test']}" for a, v in ex["aufgaben"].items())
+        ki_protokoll.schreiben(self.db, "Modell-Register", "trainingsdaten", ergebnis=f"{ex['version']}: {teile}")
+        self.f.meldung(f"Trainingsdaten {ex['version']}: {ex['gesamt']} Fälle ({teile}; Training+Test) in "
+                       f"{ex['ordner']}")
+        self._versionen_setzen()
+        return ex
 
     # ------------------------------------------------------------------ Protokoll
     def _protokoll(self):

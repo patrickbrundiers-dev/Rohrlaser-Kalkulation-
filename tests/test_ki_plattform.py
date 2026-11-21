@@ -338,7 +338,7 @@ from rohrlaser import ki_assistent, ki_zentrale  # noqa: E402
 
 gesehen = []
 d = ki_zentrale.zeigen(f, dialog=gesehen.append, senden=ollama)
-assert gesehen and d.reiter.count() == 6
+assert gesehen and d.reiter.count() == 7
 assert d.modell_tabelle.rowCount() == 3 and d.agenten_tabelle.rowCount() == 10
 assert "Modell" in d.status["ki"].text()
 from rohrlaser import admin_schutz  # noqa: E402
@@ -352,7 +352,7 @@ import time as _time  # noqa: E402
 merk_imp = ki_modelle.importieren
 
 
-def _imp_langsam(pfad, ausfuehren=None, fortschritt=None, abbrechen=None):
+def _imp_langsam(pfad, name=None, ausfuehren=None, fortschritt=None, abbrechen=None):
     for i in range(1, 4):
         fortschritt("kopieren", i, 3)
         _time.sleep(0.2)
@@ -384,7 +384,7 @@ d.neu_laden()
 assert d.prot_tabelle.rowCount() >= 1
 d.uhr.stop()
 d.close()
-ok("KI-Zentrale: sechs Reiter, Modelle, Agenten, Import-Ordner, Suche, Protokoll")
+ok("KI-Zentrale: sieben Reiter, Modelle, Agenten, Import-Ordner, Suche, Protokoll")
 
 seite = f.angebot_oeffnen(aid)
 seite = seite if seite is not None else f._seite()

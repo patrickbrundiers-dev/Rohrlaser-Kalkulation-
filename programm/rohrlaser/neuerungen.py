@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.446", "<b>Eigenes KI-Modell: Modellversionen, Prüfsatz und Trainingsdaten</b> ([[ki_modellversionen]]): "
+                "Neuer Reiter <i>Modellversionen</i> in der KI-Zentrale. Jede Modellversion steht im Register mit "
+                "Prüfsumme, Lizenz, Trainingsdaten und Status; <b>Prüfen</b> startet einen fachlichen Prüfsatz (19 "
+                "Aufgaben aus dem Alltag plus eigene Testfälle), <b>Aktivieren</b> geht nur mit bestandener, nicht "
+                "schlechterer Prüfung (sonst mit Begründung), <b>Rolle zurücksetzen</b> holt die vorige Version zurück. "
+                "<b>Trainingsdaten exportieren</b> schreibt bestätigte Fälle anonymisiert, bereinigt und fest getrennt "
+                "(90/10) mit Manifest für das Training auf einem eigenen PC – alles ohne Internet. Unter jeder Antwort "
+                "des KI-Assistenten steht jetzt das <b>Vertrauen</b> (hoch/mittel/niedrig mit Grund). Die "
+                "KI-Einstellungen gehen über die Admin-Vorgaben (Bereich KI-Plattform) an alle PCs.",
+     "KI-Modellversionen mit Prüfsatz, Freigabe, Zurücksetzen und Trainingsdaten-Export; Vertrauen im Assistenten"],
     ["0.9.445", "<b>KI-Modelle schneller und ohne Warten importieren</b> ([[ki]]): Der Import läuft im Hintergrund mit "
                 "Fortschritt und <i>Abbrechen</i>, das Programm bleibt bedienbar. Aus einem Netzwerkordner oder OneDrive wird die "
                 "Modell-Datei zuerst einmal auf den PC kopiert (Ollama liest sie sonst zweimal über das Netz). Ohne "

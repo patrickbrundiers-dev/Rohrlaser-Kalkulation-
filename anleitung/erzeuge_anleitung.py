@@ -10640,6 +10640,45 @@ def kapitel_automatik(i):
             nummeriert=True)
     i.hinweis("Ändern (Modelle, Server, Zurücknehmen) darf nur ein Admin, sobald ein Admin-Passwort gesetzt ist. "
               "Protokoll und Empfehlungen gelten nur für diesen Arbeitsplatz.")
+    i.abschnitt("Eigenes KI-Modell: Modellversionen, Prüfsatz und Trainingsdaten", marke="ki_modellversionen")
+    i.text("KI-Zentrale → Reiter <b>Modellversionen</b>: Jede Modellversion steht im <b>Modell-Register</b> mit "
+           "Herkunft, Prüfsumme (SHA-256), Lizenz, Basismodell, Trainingsdaten-Version, Prüfergebnis und Status "
+           "(<i>Test</i>, <i>Produktiv</i>, <i>Archiv</i>). Die KI ändert sich nie selbst: eine neue Version wird nur "
+           "produktiv, wenn Sie sie prüfen und aktivieren. Preise, Zeiten und Geometrie rechnet weiter das Programm.",
+           kurz=True)
+    i.liste("Oben steht die <b>Leistungsklasse</b> dieses PCs (S Büro-PC, M viel RAM, L NVIDIA ab 8 GB, XL "
+            "Trainings-PC ab 16 GB) mit den passenden Modellgrößen.",
+            "<b>Vorhandene eintragen</b> nimmt alle Modelle des Servers als Test-Version auf. Ein Import über den "
+            "Reiter <i>Modelle</i> trägt die Datei mit Prüfsumme selbst ein und überschreibt nie ein vorhandenes "
+            "Modell (gleicher Name: <i>…-v2</i>), damit frühere Versionen zurückgeholt werden können.",
+            "<b>Herkunft …</b>: Basismodell (bestimmt die Lizenz, z. B. <i>qwen3-4b</i> = Apache-2.0) und "
+            "Trainingsdaten-Version eines eigenen Modells nachtragen.",
+            "<b>Prüfen</b> startet den <b>fachlichen Prüfsatz</b> im Hintergrund: 19 feste Aufgaben aus dem Alltag "
+            "(Frage einordnen, Menge/Länge/Werkstoff/Abmessung auslesen, Absagegrund wählen, Werte erklären ohne "
+            "erfundene Zahl) plus der Testanteil der eigenen Trainingsdaten. Ergebnis: Punkte und Quote je Art.",
+            "<b>Aktivieren …</b> setzt die Version für die gewählten Rollen (Frage verstehen, Werte aus Text, "
+            "Antwort formulieren, Suche). Das geht nur mit bestandenem Prüfsatz (mindestens 70 %), nicht schlechter "
+            "als die bisherige Version der Rolle und mit bekannter Lizenz; sonst nur mit einer Begründung, die im "
+            "Verlauf steht. Die bisherige Version geht ins Archiv.",
+            "<b>Rolle zurücksetzen …</b> holt die zuletzt abgelöste Version einer Rolle zurück (ohne frühere "
+            "Version: automatische Wahl).",
+            "<b>Trainingsdaten exportieren …</b> schreibt die bestätigten Fälle (Absagegründe aus dem "
+            "Absage-Dialog, korrigierte Mail-Arten aus der Anfragen-Erkennung, sicher erkannte Fragen an den "
+            "Assistenten) als JSONL in einen Ordner: anonymisiert (Kunden, Ansprechpartner, E-Mail, Telefon, "
+            "Internet-Adressen), ohne leere, doppelte und widersprüchliche Fälle, fest getrennt in 90 % Training "
+            "und 10 % Test, mit <i>manifest.json</i> (Anzahl und Prüfsumme je Datei) und <i>LIESMICH.txt</i>. "
+            "Eine veränderte Testdatei erkennt der Prüfsatz und lässt sie weg.")
+    i.text("<b>Training</b> (auf einem PC mit NVIDIA-Grafikkarte, ohne Internet): Basismodell als Datei "
+           "bereitstellen, mit den *_train.jsonl-Dateien per QLoRA trainieren, als GGUF mit neuem Dateinamen "
+           "speichern, in der KI-Zentrale importieren, <b>Herkunft …</b> eintragen, <b>Prüfen</b> und erst bei "
+           "gleich gutem oder besserem Ergebnis <b>Aktivieren</b>. Die Schritte stehen auch in der LIESMICH.txt "
+           "des Exports.")
+    i.liste("Unter jeder Antwort des KI-Assistenten steht das <b>Vertrauen</b>: <i>hoch</i> (Frage fest erkannt, "
+            "Text belegt), <i>mittel</i> (Frage vom Sprachmodell erkannt oder ein Teil fiel aus), <i>niedrig</i> "
+            "(Frage unklar oder Modelltext vom Faktencheck verworfen).",
+            "Über die <b>Admin-Vorgaben</b> (Bereich <i>KI-Plattform</i>) gehen Server, Rollen, Modell-Ordner und "
+            "das Modell-Register an alle PCs, damit überall dieselbe geprüfte Version arbeitet. Der Ollama-Ordner "
+            "und die Geschwindigkeitsmessungen bleiben je PC.")
 
 
 def kapitel_nachkalkulation(i):
