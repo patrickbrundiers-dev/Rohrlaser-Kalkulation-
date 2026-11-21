@@ -333,17 +333,97 @@ class KiZentrale(QDialog):
         self.neu_laden()
         return texte
 
-    def _importieren(self, ausfuehren=None):
-        reihen = sorted({i.row() for i in self.datei_tabelle.selectedIndexes()}) or range(len(self.dateien))
-        texte = []
+    def _importieren(self, ausfuehren=None, warten=False):
+        """Ausgewählte (ohne Auswahl: alle noch nicht vorhandenen) Modell-Dateien in Ollama übernehmen. Läuft im
+        Hintergrund mit Fortschritt und Abbrechen; die Oberfläche bleibt bedienbar. Modelle, die Ollama schon hat,
+        werden übersprungen (ein großes Modell braucht aus dem Netzwerkordner sonst jedes Mal viele Minuten)."""
+        gewaehlt = sorted({i.row() for i in self.datei_tabelle.selectedIndexes()})
+        reihen = gewaehlt or range(len(self.dateien))
+        dateien, texte = [], []
         for r in reihen:
             d = self.dateien[r]
-            e = ki_modelle.importieren(d["pfad"], ausfuehren=ausfuehren)
-            texte.append(f"{d['name']}: {e['text']}")
-            ki_protokoll.schreiben(self.db, "KI-Zentrale", "import", ergebnis=texte[-1], modell=e["name"],
-                                   status="ok" if e["ok"] else "fehler")
+            if not gewaehlt and ki_modelle.vorhanden(d["name"], self.liste):
+                texte.append(f"{d['name']}: schon in Ollama, übersprungen")
+                continue
+            dateien.append(d)
+        if not dateien:
+            self.f.meldung(" · ".join(texte) or "Keine Modell-Datei gewählt.")
+            return texte
+        if ausfuehren is not None or warten:        # Tests: ohne Hintergrund
+            for d in dateien:
+                texte.append(self._import_eins(d, ausfuehren))
+            return self._import_fertig(texte)
+        import threading
+        from PySide6.QtWidgets import QProgressDialog
+        stand = dict(i=0, phase="", a=0, b=0, abbruch=False, fertig=False, texte=list(texte))
+        dlg = QProgressDialog("Modell wird übernommen …", "Abbrechen", 0, 0, self)
+        dlg.setWindowTitle("Modell importieren")
+        dlg.setMinimumDuration(0)
+        dlg.setAutoClose(False)
+        dlg.setAutoReset(False)
+        dlg.canceled.connect(lambda: stand.update(abbruch=True))
+        knopf_vorher = self.import_knopf.isEnabled()
+        self.import_knopf.setEnabled(False)
+
+        def arbeit():
+            try:
+                for i, d in enumerate(dateien):
+                    if stand["abbruch"]:
+                        break
+                    stand["i"] = i
+                    stand["texte"].append(self._import_eins(
+                        d, None, lambda ph, a, b: stand.update(phase=ph, a=a, b=b), lambda: stand["abbruch"]))
+            except Exception as e:      # noqa: BLE001 – Fehler gehört in die Meldung, nicht in einen Absturz
+                protokoll.warnung("ki_zentrale: Import abgebrochen")
+                stand["texte"].append(f"Import fehlgeschlagen: {e}")
+            stand["fertig"] = True
+
+        start = __import__("time").monotonic()
+
+        def zeigen():
+            d = dateien[min(stand["i"], len(dateien) - 1)]
+            sek = int(__import__("time").monotonic() - start)
+            kopf = f"{d['name']} ({_gb(d['groesse_gb'])})" + (f" – {stand['i'] + 1} von {len(dateien)}"
+                                                              if len(dateien) > 1 else "")
+            if stand["phase"] == "kopieren" and stand["b"]:
+                dlg.setMaximum(1000)
+                dlg.setValue(int(1000 * stand["a"] / stand["b"]))
+                dlg.setLabelText(f"{kopf}\nAuf diesen PC kopieren (Netzwerk/OneDrive): "
+                                 f"{stand['a'] / 1e9:.1f} von {stand['b'] / 1e9:.1f} GB · {sek // 60}:{sek % 60:02d} min")
+            else:
+                dlg.setMaximum(0)
+                dlg.setLabelText(f"{kopf}\nOllama prüft die Datei (Prüfsumme) und übernimmt sie – das dauert je "
+                                 f"GB etwa eine halbe bis eine Minute · {sek // 60}:{sek % 60:02d} min")
+            if stand["fertig"]:
+                self.import_uhr.stop()
+                dlg.close()
+                self.import_knopf.setEnabled(knopf_vorher)
+                self._import_fertig(stand["texte"])
+
+        self.import_uhr = QTimer(self)
+        self.import_uhr.setInterval(500)
+        self.import_uhr.timeout.connect(zeigen)
+        threading.Thread(target=arbeit, daemon=True).start()
+        self.import_uhr.start()
+        dlg.show()
+        return stand
+
+    def _import_eins(self, d, ausfuehren=None, fortschritt=None, abbrechen=None):
+        import time
+        t0 = time.monotonic()
+        e = ki_modelle.importieren(d["pfad"], ausfuehren=ausfuehren, fortschritt=fortschritt, abbrechen=abbrechen)
+        text = f"{d['name']}: {e['text']}" + (f" ({int(time.monotonic() - t0) // 60} min)" if e["ok"] and
+                                               not ausfuehren else "")
+        return dict(text=text, name=e["name"], ok=e["ok"])      # Protokoll erst im Hauptthread (Datenbank)
+
+    def _import_fertig(self, texte):
+        for t in texte:
+            if isinstance(t, dict):
+                ki_protokoll.schreiben(self.db, "KI-Zentrale", "import", ergebnis=t["text"], modell=t["name"],
+                                       status="ok" if t["ok"] else "fehler")
+        texte = [t["text"] if isinstance(t, dict) else t for t in texte]
         if texte:
-            self.f.meldung(" · ".join(texte), fehler=not all("Importiert" in t for t in texte))
+            self.f.meldung(" · ".join(texte), fehler=not all("Importiert" in t or "übersprungen" in t for t in texte))
         self.neu_laden()
         return texte
 

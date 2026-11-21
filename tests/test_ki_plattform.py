@@ -170,6 +170,28 @@ r = ki_modelle.importieren(d[0]["pfad"], programm="ollama", ausfuehren=lambda b:
 assert r["ok"] and r["name"] == "qwen3-8b-q4_k_m" and befehle[0][1:3] == ["create", "qwen3-8b-q4_k_m"], r
 assert not list(ordner.glob(".*Modelfile"))         # Hilfsdatei wieder weg
 assert not ki_modelle.importieren(ordner / "liesmich.txt")["ok"]
+# Import großer Modelle (Patrick 21.11.: über 10 Minuten): blockweise Kopie mit Fortschritt, Abbrechen, schon
+# vorhandene überspringen, Netzwerkpfad erkennen, ollama create abbrechbar
+import sys as _sys  # noqa: E402
+gross = ordner / "gross.bin"
+gross.write_bytes(b"x" * (ki_modelle.BLOCK * 2 + 5))
+schritte = []
+ki_modelle.kopieren(gross, ordner / "kopie" / "gross.bin", lambda a, b: schritte.append((a, b)))
+assert schritte[-1] == (gross.stat().st_size,) * 2 and len(schritte) == 3
+try:
+    ki_modelle.kopieren(gross, ordner / "kopie" / "g2.bin", abbrechen=lambda: True)
+    raise AssertionError("Abbrechen ignoriert")
+except ki_modelle.KiFehler:
+    pass
+assert ki_modelle.netzwerkpfad(r"\\Server\KI\m.gguf") and not ki_modelle.netzwerkpfad(str(gross))
+assert ki_modelle.netzwerkpfad("C:/Users/patri/OneDrive/Dokumente/KI/Qwen3-4B-Q4_K_M.gguf")
+assert ki_modelle.netzwerkpfad("C:/Users/x/OneDrive - Firma GmbH/KI/m.gguf")
+assert ki_modelle.vorhanden("Qwen3-8B-Q4_K_M", [dict(name="qwen3-8b-q4_k_m:latest")])
+assert not ki_modelle.vorhanden("Qwen3-4B", [dict(name="qwen3-8b-q4_k_m:latest")])
+r2 = ki_modelle._create([_sys.executable, "-c", "import time; time.sleep(30)"], abbrechen=lambda: True)
+assert r2.abgebrochen
+r3 = ki_modelle._create([_sys.executable, "-c", "print('fertig')"])
+assert r3.returncode == 0 and "fertig" in r3.stderr
 ok("Ollama aus Netzwerkordner kopieren und starten (nur 127.0.0.1, Cloud aus, ohne Proxy), GGUF-Import")
 
 # ------------------------------------------------------------------ Ressourcen
@@ -325,6 +347,37 @@ assert "GB" in d.status["ram"].text()
 d.ordner_feld.setText(str(ordner))
 d._dateien_setzen()
 assert d.datei_tabelle.rowCount() == 1
+# Import im Hintergrund: Oberfläche bleibt bedienbar, Fortschritt sichtbar, schon vorhandene übersprungen
+import time as _time  # noqa: E402
+merk_imp = ki_modelle.importieren
+
+
+def _imp_langsam(pfad, ausfuehren=None, fortschritt=None, abbrechen=None):
+    for i in range(1, 4):
+        fortschritt("kopieren", i, 3)
+        _time.sleep(0.2)
+    fortschritt("uebernehmen", 0, 0)
+    _time.sleep(0.2)
+    return dict(ok=True, name="qwen3-8b-q4_k_m", text="Importiert als qwen3-8b-q4_k_m")
+
+
+ki_modelle.importieren = _imp_langsam
+d.liste = []
+knopf_vorher = d.import_knopf.isEnabled()
+stand = d._importieren()
+assert isinstance(stand, dict) and not d.import_knopf.isEnabled()
+t0 = _time.monotonic()
+while not stand["fertig"] or d.import_uhr.isActive():
+    app.processEvents()
+    _time.sleep(0.05)
+    assert _time.monotonic() - t0 < 20
+assert d.import_knopf.isEnabled() == knopf_vorher and any("Importiert" in str(t) for t in stand["texte"])
+d.ordner_feld.setText(str(ordner))
+d._dateien_setzen()
+d.datei_tabelle.clearSelection()
+d.liste = [dict(name="qwen3-8b-q4_k_m:latest")]
+assert "übersprungen" in d._importieren()[0]
+ki_modelle.importieren = merk_imp
 d._suchen("Querstrebe")
 assert d.such_tabelle.rowCount() >= 1
 d.neu_laden()
