@@ -14677,6 +14677,13 @@ def kapitel_pflege(i):
             "<b>Wiederholen</b>, oder <b>Abbrechen</b>. Bei Abbruch oder Fehler stellt es alle Dateien zurück und "
             "startet die bisherige Version wieder; nichts ist verändert. Einzelheiten stehen im Protokoll "
             "(<i>Daten\\Protokoll\\fehler.log</i>).",
+            "<b>Reste des eigenen Programms</b> (seit 0.9.441): Die Hilfsprozesse für Schnittpläne und die "
+            "STEP-Gegenprobe beendet das Update vor dem Austausch selbst, eigene offene Dateien gibt es frei. Hält "
+            "danach noch ein weiterer Prozess von <i>Rohrlaser Angebotskalkulation</i> eine Datei fest (z. B. ein "
+            "hängengebliebenes, unsichtbares Fenster), nennt das Update seine Prozessnummer und fragt: <b>Ja</b> "
+            "beendet diese Prozesse und setzt das Update fort, <b>Wiederholen</b> prüft noch einmal, "
+            "<b>Abbrechen</b> startet die bisherige Version. Beendet werden nur Prozesse, deren Programmdatei im "
+            "Programmordner liegt, nie andere Programme.",
             "<i>Hilfe → Bedienungsanleitung</i> öffnet eine Kopie im Datenordner (Ordner <i>Anleitung</i>). Eine "
             "offene Anleitung blockiert das Update deshalb nicht mehr.",
             "<b>Geprüft wird alles</b>: Das Programm lädt nur über https von der offiziellen Adresse, lehnt "

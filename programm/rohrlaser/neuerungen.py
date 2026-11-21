@@ -26,6 +26,11 @@ NEUERUNGEN = [
                 "für das ganze Programm verstellt hatte. Die Messungen sind jetzt voneinander getrennt; schlägt eine fehl, "
                 "zeigt die KI-Zentrale den Wert nur als unbekannt.",
      "KI-Zentrale öffnet wieder (Absturz „int too long to convert“ behoben)"],
+    ["0.9.441", "<b>Update hängt nicht mehr an eigenen Programmdateien</b> ([[updates]]): Hilfsprozesse für "
+                "Schnittpläne und STEP-Gegenprobe werden vor dem Austausch beendet, eigene offene Dateien "
+                "(z. B. _internal/base_library.zip) freigegeben. Hält noch ein weiterer Prozess des Programms eine "
+                "Datei, fragt das Update: <i>Ja</i> beendet ihn und setzt fort.",
+                "Update: Hilfsprozesse beendet, eigene Dateien freigegeben, Rückfrage bei Programm-Resten"],
     ["0.9.440", "<b>Preisleiter, Gewinn und Marge, Wirtschaftlichkeit</b> ([[preisleiter]]): Kacheln <i>Gewinn und "
                 "Marge</i> und <i>Wirtschaftlichkeit</i> (Ampel gut, knapp, kritisch) im Angebot; <i>Ausgaben → "
                 "Preisleiter …</i> mit Preisuntergrenze, Mindest- und Zielpreis, je Stufe Aufschlag und Marge, "
