@@ -94,6 +94,8 @@ Gegenüber 0.9.444: MASTER TOWER 755 s → 469 s (Faktor 1,6), Pizza-Ofen 287 s 
 | Lift Cart | Ebenenschnitte 76 % (ein Körper mit Freiformflächen, jeder Schnitt ~5 s) |
 | Кузов | Ebenenschnitte 38 %, Anbauteile trennen 26 %, Erreichbarkeit 16 %, Nahtsuche 13 % |
 | MASTER TOWER (vor 0.9.447) | Schweißnaht-Körper 45 % (davon Nachbarn exakt 43 %), Nahtkandidaten 21 %, Profilmessung 20 % |
+| MASTER TOWER (0.9.448) | Ebenenschnitte der Profilmessung 44 %, Nahtkandidaten 29 %, Anbauteile trennen 12 %, Schweißnaht-Körper nur noch 5 % |
+| Pizza-Ofen (0.9.448) | Ebenenschnitte 35 %, Nahtkandidaten 29 %, Anbauteile trennen 16 %, Schweißnaht-Körper 14 % |
 | U_29MB (870 Körper) | Einlesen 370 s, davon 96 % in der Formheilung des CAD-Kerns: Der STEP fehlen die Parameterkurven der Kanten, sie werden beim Einlesen auf die Freiformflächen projiziert (ShapeFix_Edge::FixAddPCurve). Das Messen der Normteile dauert nur 3,5 s |
 
 - **Lift Cart Körper 32:** Wendel mit zwei Freiformflächen zu je 6 × 361 Polen. Jeder Ebenenschnitt dauert etwa
