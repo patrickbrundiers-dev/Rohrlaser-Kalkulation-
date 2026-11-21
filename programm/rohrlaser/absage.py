@@ -13,6 +13,10 @@ import datetime
 GRUENDE = ("Preis zu hoch", "Lieferzeit zu lang", "Kunde fertigt selbst", "Anderer Lieferant (Beziehung)",
            "Projekt verschoben oder gestrichen", "Technisch nicht passend", "Keine Rückmeldung", "Sonstiges")
 OHNE_GRUND = "ohne Angabe"
+# Master-Prompt Angebotserstellung (Patrick 21.11.2026, Punkt 8/9): Trefferquote je Gewinnhöhe (Gewinn [%] des Angebots)
+GEWINN_KLASSEN = ((5, "unter 5 %"), (10, "5 bis 10 %"), (15, "10 bis 15 %"), (20, "15 bis 20 %"), (30, "20 bis 30 %"),
+                  (None, "über 30 %"))
+OHNE_GEWINN = "ohne Gewinnangabe"
 PREISKLASSEN = ((500, "bis 500 €"), (2000, "500 bis 2.000 €"), (10000, "2.000 bis 10.000 €"), (None, "über 10.000 €"))
 ZEITRAEUME = ((90, "letzte 90 Tage"), (365, "letzte 12 Monate"), (None, "alle"))
 MISCH = "gemischt"
@@ -72,8 +76,22 @@ def auswahl(zeilen, heute=None, zeitraum=90):
     return out
 
 
+def gewinn_wert(z):
+    """Gewinn [%] einer Zeile der Angebotsliste: fester Gewinn des Angebots, sonst der gemerkte wirksame (vk_gewinn)."""
+    g = z.get("gewinn")
+    g = g if isinstance(g, (int, float)) and not isinstance(g, bool) else z.get("vk_gewinn")
+    return float(g) if isinstance(g, (int, float)) and not isinstance(g, bool) else None
+
+
+def gewinn_klasse(g):
+    if g is None:
+        return OHNE_GEWINN
+    return next(t for grenze, t in GEWINN_KLASSEN if grenze is None or g < grenze)
+
+
 def _gruppe():
-    return dict(angebote=0, beauftragt=0, abgelehnt=0, offen=0, summe=0.0, auftragswert=0.0, abgelehnt_wert=0.0)
+    return dict(angebote=0, beauftragt=0, abgelehnt=0, offen=0, summe=0.0, auftragswert=0.0, abgelehnt_wert=0.0,
+                offen_wert=0.0, gewinn_summe=0.0, gewinn_n=0)
 
 
 def _zaehlen(g, z):
@@ -81,6 +99,10 @@ def _zaehlen(g, z):
     netto = z.get("vk_netto") if isinstance(z.get("vk_netto"), (int, float)) else 0.0
     g["angebote"] += 1
     g["summe"] += netto
+    gw = gewinn_wert(z)
+    if gw is not None:
+        g["gewinn_summe"] += gw
+        g["gewinn_n"] += 1
     if v == "Beauftragt":
         g["beauftragt"] += 1
         g["auftragswert"] += netto
@@ -89,6 +111,7 @@ def _zaehlen(g, z):
         g["abgelehnt_wert"] += netto
     else:
         g["offen"] += 1
+        g["offen_wert"] += netto
 
 
 def _fertig(gruppen):
@@ -96,9 +119,14 @@ def _fertig(gruppen):
     out = []
     for name, g in gruppen.items():
         entschieden = g["beauftragt"] + g["abgelehnt"]
-        out.append(dict(g, name=name, trefferquote=g["beauftragt"] / entschieden if entschieden else None,
+        quote = g["beauftragt"] / entschieden if entschieden else None
+        # Umsatzpotenzial (Punkt 9): offene Angebote × Trefferquote der Gruppe (ohne Quote: nicht geschätzt)
+        out.append(dict(g, name=name, trefferquote=quote,
                         summe=kaufm_runden(g["summe"]), auftragswert=kaufm_runden(g["auftragswert"]),
-                        abgelehnt_wert=kaufm_runden(g["abgelehnt_wert"])))
+                        abgelehnt_wert=kaufm_runden(g["abgelehnt_wert"]), offen_wert=kaufm_runden(g["offen_wert"]),
+                        potenzial=kaufm_runden(g["offen_wert"] * quote) if quote is not None else None,
+                        gewinn_mittel=g["gewinn_summe"] / g["gewinn_n"] if g["gewinn_n"] else None,
+                        auftrag_mittel=kaufm_runden(g["auftragswert"] / g["beauftragt"]) if g["beauftragt"] else None))
     return sorted(out, key=lambda g: (-g["angebote"], -g["summe"], str(g["name"])))
 
 
@@ -117,7 +145,7 @@ def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, 
     werkstoffe_je_angebot = werkstoffe_je_angebot or {}
     kategorien = kategorien or {}
     auswahl_ = auswahl(zeilen, heute, zeitraum)
-    gesamt, kunde, kat, klasse, grund = _gruppe(), {}, {}, {}, {}
+    gesamt, kunde, kat, klasse, grund, gewinn = _gruppe(), {}, {}, {}, {}, {}
     wettbewerb = []
     for z in auswahl_:
         _zaehlen(gesamt, z)
@@ -125,6 +153,7 @@ def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, 
         _zaehlen(kunde.setdefault(name, _gruppe()), z)
         _zaehlen(kat.setdefault(kategorie_des_angebots(werkstoffe_je_angebot.get(z["id"]), kategorien), _gruppe()), z)
         _zaehlen(klasse.setdefault(preisklasse(z.get("vk_netto")), _gruppe()), z)
+        _zaehlen(gewinn.setdefault(gewinn_klasse(gewinn_wert(z)), _gruppe()), z)
         for n, w in (merkmale.get(z["id"]) or {}).items():
             if n in extra:
                 _zaehlen(extra[n].setdefault(w, _gruppe()), z)
@@ -145,6 +174,8 @@ def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, 
         weitere[n] = sorted(g, key=lambda x: folge.index(x["name"]) if x["name"] in folge else 99) if folge else g
     return dict(**weitere,gesamt=_fertig({"Gesamt": gesamt})[0], kunde=_fertig(kunde), kategorie=_fertig(kat),
                 preisklasse=sorted(_fertig(klasse), key=lambda g: reihenfolge.index(g["name"])),
+                gewinn=sorted(_fertig(gewinn), key=lambda g: ([t for _, t in GEWINN_KLASSEN] + [OHNE_GEWINN]).index(
+                    g["name"])),
                 grund=_fertig(grund), wettbewerb=wettbewerb, zeitraum=zeitraum)
 
 

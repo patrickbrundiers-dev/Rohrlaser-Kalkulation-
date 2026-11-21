@@ -1664,6 +1664,7 @@ class UebersichtBereich(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.auf_preisleiter = None         # Klick auf die Ampel (Angebotsseite setzt es)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
@@ -1753,7 +1754,8 @@ class UebersichtBereich(QWidget):
         for i, (name, titel) in enumerate((("positionen", "Positionen"), ("stueck", "Stückzahl"),
                                            ("gewicht", "Gewicht"), ("unsicher", "Unsicher"),
                                            ("laserzeit", "Laserzeit"), ("arbeitszeit", "Arbeitszeit"),
-                                           ("deckung", "Deckungsbeitrag"))):
+                                           ("deckung", "Deckungsbeitrag"), ("gewinn", "Gewinn und Marge"),
+                                           ("wirtschaft", "Wirtschaftlichkeit"))):
             box = QFrame()
             box.setObjectName("kennzahl")
             bl = QVBoxLayout(box)
@@ -1776,15 +1778,30 @@ class UebersichtBereich(QWidget):
             elif name == "deckung":
                 box.setToolTip("Ertrag nach Herstellkosten: Warenwert minus Herstellkosten und Zukauf-Einstand "
                                "(Anteil vom Warenwert), wie im Preisaufbau")
+            elif name == "gewinn":      # Master-Prompt 21.11.2026: Gewinn, Marge und Aufschlag sofort sichtbar
+                box.setToolTip("Gewinn nach Rabatt, Rundung und Mindestpreis; Marge vom Warenwert und Aufschlag auf die "
+                               "Kosten (Preisleiter)")
+            elif name == "wirtschaft":
+                box.setToolTip("Ampel: kritisch unter Preisuntergrenze, Kosten oder Mindestmarge, knapp unter der "
+                               "Zielmarge; Klick öffnet die Preisleiter")
             if i < 4:
                 self.kennzahlen.addWidget(box, 0, i)
+            elif name in ("gewinn", "wirtschaft"):      # dritte Zeile: Gewinn/Marge und Ampel (21.11.2026)
+                if name == "gewinn":
+                    zeile3 = QHBoxLayout()
+                    zeile3.setSpacing(6)
+                    self.kennzahlen.addLayout(zeile3, 2, 0, 1, 4)
+                zeile3.addWidget(box, 1)
             else:       # eigene Zeile mit eigenen Breiten: die Spalten oben werden dadurch nicht breiter
                 if name == "laserzeit":
                     zeile2 = QHBoxLayout()
                     zeile2.setSpacing(6)
                     self.kennzahlen.addLayout(zeile2, 1, 0, 1, 4)
                 zeile2.addWidget(box, 2 if name == "deckung" else 1)
-            w.setTextFormat(Qt.RichText if name == "deckung" else Qt.AutoText)
+            w.setTextFormat(Qt.RichText if name in ("deckung", "gewinn", "wirtschaft") else Qt.AutoText)
+            if name == "wirtschaft":
+                w.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+                w.linkActivated.connect(lambda _l: self.auf_preisleiter and self.auf_preisleiter())
         kl.addLayout(self.kennzahlen)
         # Kostenübersicht nach Gruppen, einzelne Kostenarten aufklappbar
         self.uebersicht = QLabel()          # Preisaufbau: Material → … → Herstellkosten → … → Verkaufspreis

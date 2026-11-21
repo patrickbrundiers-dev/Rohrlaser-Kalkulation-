@@ -59,13 +59,11 @@ def _werte(summen):
     verkauf = n(summen.get("verkauf"))
     variabel = sum(n(summen.get(x)) for x in ("material", "lagerzins", "schrott", "schneidgas", "zukauf_einstand",
                                                "baugruppe_fremd", "fracht", "frachtfrei", "skonto"))
-    selbst = n(summen.get("selbst"))
-    # Gewinn nach Rabatt, Rundung, Regeln und Mindestpreis: was vom Verkaufspreis nach Selbstkosten und den
-    # durchgereichten Kosten (Verpackung, Finanzierung, Fracht, Skonto) bleibt
-    gewinn = verkauf - selbst - sum(n(summen.get(x)) for x in ("verpackung", "finanzierung", "fracht", "frachtfrei",
-                                                               "skonto", "muster_spaeter"))
-    return dict(herstell=n(summen.get("herstell")), selbst=selbst, gewinn=gewinn, verkauf=verkauf,
-                marge=gewinn / verkauf if verkauf else None, deckungsbeitrag=verkauf - variabel)
+    # Gewinn nach Rabatt, Rundung, Regeln und Mindestpreis und Marge vom Warenwert: zentral in marge.py
+    from . import marge as mg
+    w = mg.werte(summen)
+    return dict(herstell=n(summen.get("herstell")), selbst=n(summen.get("selbst")), gewinn=w["gewinn"],
+                verkauf=verkauf, marge=w["marge"], aufschlag=w["aufschlag"], deckungsbeitrag=verkauf - variabel)
 
 
 def rechnen_variante(kopf, positionen, ergebnis, k, tabellen, einst, werte):

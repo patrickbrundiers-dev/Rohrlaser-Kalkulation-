@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.440", "<b>Preisleiter, Gewinn und Marge, Wirtschaftlichkeit</b> ([[preisleiter]]): Kacheln <i>Gewinn und "
+                "Marge</i> und <i>Wirtschaftlichkeit</i> (Ampel gut, knapp, kritisch) im Angebot; <i>Ausgaben → "
+                "Preisleiter …</i> mit Preisuntergrenze, Mindest- und Zielpreis, je Stufe Aufschlag und Marge, "
+                "<i>Auf Zielmarge setzen</i>. Neue Einstellung <i>Zielmarge</i>. Die Marge wird an einer Stelle "
+                "gerechnet; Rabatt und Rundung zählen jetzt mit. Staffelkurve mit Gesamtpreis, Gewinn und Marge; "
+                "Trefferquote je Gewinnhöhe als Hinweis; Angebots-Auswertung mit Ø Gewinn, verlorenem Volumen und "
+                "Umsatzpotenzial.",
+                "Preisleiter mit Aufschlag und Marge, Ampel, Staffelkurve mit Gewinn, Verkaufsanalyse"],
     ["0.9.439", "<b>Lokale KI: Prüfen, Einkauf und Bedienung</b> ([[ki]]). Neue Fragen im KI-Assistenten: "
                 "<i>Preisrisiko</i> des Angebots mit Gründen, Rückfrage oder Kundentext <i>auf Englisch</i> (Entwurf, "
                 "Zahlen geprüft), <i>Liefertermin und Engpässe</i> aus der Auslastung, <i>Fehlermeldungen erklären</i> "

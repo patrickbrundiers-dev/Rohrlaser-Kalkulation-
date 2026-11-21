@@ -363,9 +363,10 @@ def preisrisiko(ctx):
             gruende.append(dict(text=b["text"], punkte=1, quelle=q))
         elif b.get("agent") == "Einkaufs-KI" and b["art"] in (ag.WARNUNG, ag.FEHLER):
             gruende.append(dict(text=b["text"], punkte=2, quelle=q or "Einkauf"))
-    selbst, verkauf = _n(s.get("selbst")), _n(s.get("verkauf"))
+    verkauf = _n(s.get("verkauf"))
     if verkauf > 0:
-        marge = (verkauf - selbst) / verkauf
+        from . import marge as mg
+        marge = mg.marge(s) or 0.0
         try:
             mind = float(ctx.db.einstellung("mindestmarge") or 0)
         except (TypeError, ValueError):

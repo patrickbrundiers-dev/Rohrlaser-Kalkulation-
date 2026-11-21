@@ -1277,17 +1277,46 @@ class Vergleich(QWidget):
     FARBEN = stil.BALKEN_FARBEN
     OBEN = 24               # Titel
     RAND = (52, 20, 16, 30)     # je Feld: links, oben (Name), rechts, unten (Mengen)
+    # Master-Prompt 21.11.2026, Punkt 5: Stückpreis, Gesamtpreis und Gewinn über die Menge (Auswahl über der Kurve)
+    GROESSEN = (("preis_einheit", "VK netto je Einheit"), ("preis_gesamt", "Gesamtpreis netto"),
+                ("gewinn_gesamt", "Gewinn gesamt"), ("marge", "Marge vom Warenwert [%]"))
 
     def __init__(self):
         super().__init__()
-        self.reihen, self.mengen = [], []
+        self.reihen, self.mengen, self._zeilen = [], [], []
+        self.groesse = "preis_einheit"
+        self.mindestmarge = None
         self.setMinimumWidth(260)
 
+    @staticmethod
+    def wert(z, groesse):
+        """Wert einer Staffelzeile für die Kurve (Marge in %), None ohne Preis."""
+        if not isinstance(z.get("preis_einheit"), (int, float)):
+            return None
+        if groesse in ("preis_einheit", "preis_gesamt"):
+            w = z.get(groesse)
+        else:
+            w = (z.get("preis") or {}).get(groesse)
+            if groesse == "marge" and isinstance(w, (int, float)):
+                w = 100 * w
+        return w if isinstance(w, (int, float)) else None
+
+    def groesse_setzen(self, groesse):
+        self.groesse = groesse
+        self.setzen(self._zeilen)
+
     def setzen(self, zeilen):
+        self._zeilen = list(zeilen or [])
         reihen = {}
-        for z in zeilen:
-            if isinstance(z.get("preis_einheit"), (int, float)):
-                reihen.setdefault((z.get("einheit"), z["schluessel"]), []).append((z["menge"], z["preis_einheit"]))
+        mm = set()
+        for z in self._zeilen:
+            w = self.wert(z, self.groesse)
+            if w is not None:
+                reihen.setdefault((z.get("einheit"), z["schluessel"]), []).append((z["menge"], w))
+                m = (z.get("preis") or {}).get("mindestmarge")
+                if m:
+                    mm.add(m)
+        self.mindestmarge = 100 * max(mm) if self.groesse == "marge" and mm else None
         self.reihen = [(k, sorted(v)) for k, v in reihen.items()]
         self.mengen = sorted({m for _, punkte in self.reihen for m, _ in punkte})
         self.setToolTip("\n".join(f"{self.name(k)}: " + ", ".join(f"{_z(m, 0)} × {_z(w)} €" for m, w in punkte)
@@ -1307,7 +1336,7 @@ class Vergleich(QWidget):
         for r, (k, pk) in enumerate(self.reihen):
             top = self.OBEN + r * je
             y0, y1 = top + ob, top + je - un
-            maxp = max([w for _, w in pk] + [0.01])
+            maxp = max([w for _, w in pk] + [0.01] + ([self.mindestmarge] if self.mindestmarge else []))
             n = len(pk)
             aus.append((k, (y0, y1, maxp), [(li + (breite - li - re) * (i + 0.5) / n,
                                               y1 - (y1 - y0) * w / (maxp * 1.15), m, w)
@@ -1321,7 +1350,9 @@ class Vergleich(QWidget):
         p.fillRect(self.rect(), stil.farbe("#FFFFFF"))
         text, grau, linie = stil.farbe(stil.TEXT), stil.farbe(stil.TEXT_GRAU), stil.farbe(stil.LINIE)
         p.setPen(text)
-        p.drawText(QRectF(8, 4, self.width() - 16, 18), Qt.AlignLeft, "Staffelkurve: VK netto je Einheit")
+        titel = dict(self.GROESSEN).get(self.groesse, "")
+        p.drawText(QRectF(8, 4, self.width() - 16, 18), Qt.AlignLeft, f"Staffelkurve: {titel}")
+        einheit = " %" if self.groesse == "marge" else " €"
         if not self.reihen:
             p.setPen(grau)
             p.drawText(QRectF(0, 0, self.width(), self.height()), Qt.AlignCenter, "noch keine Staffelpreise")
@@ -1343,6 +1374,11 @@ class Vergleich(QWidget):
             p.drawText(QRectF(0, y_max - 9, li - 6, 18), Qt.AlignRight | Qt.AlignVCenter, _z(maxp, 0))
             for px, _, m, _ in pk:
                 p.drawText(QRectF(px - 30, y1 + 2, 60, 14), Qt.AlignHCenter, _z(m, 0))
+            if self.mindestmarge:          # Mindestmarge als rote gestrichelte Linie
+                y_mm = y1 - (y1 - y0) * self.mindestmarge / (maxp * 1.15)
+                p.setPen(QPen(stil.farbe(stil.ROT), 1, Qt.DashLine))
+                p.drawLine(int(li), int(y_mm), int(rechts), int(y_mm))
+                p.drawText(QRectF(li + 2, y_mm - 15, 140, 14), Qt.AlignLeft, f"Mindestmarge {_z(self.mindestmarge, 1)} %")
             p.setPen(QPen(farbe, 2))
             for (x1, ya, _, _), (x2, yb, _, _) in zip(pk, pk[1:]):
                 p.drawLine(int(x1), int(ya), int(x2), int(yb))
@@ -1352,7 +1388,7 @@ class Vergleich(QWidget):
                 p.drawEllipse(QRectF(px - 3, py - 3, 6, 6))
             fm = p.fontMetrics()
             for j, (px, py, _, w) in enumerate(pk):     # Preis über jedem Punkt, auf hellem Grund über der Linie
-                t = f"{_z(w)} €"
+                t = f"{_z(w, 1 if einheit == ' %' else 2)}{einheit}"
                 b = fm.horizontalAdvance(t) + 6
                 # nach rechts fallende Linie: Schild rechts oberhalb des Punkts, sonst mittig darüber
                 x = px + 4 if j + 1 < len(pk) and pk[j + 1][1] > py else px - b / 2
@@ -1442,7 +1478,17 @@ class StaffelSeite(QWidget):
         ul.addLayout(zeile)
         quer = QSplitter(Qt.Horizontal)
         quer.addWidget(self.baum)
-        quer.addWidget(self.vergleich)
+        kurve = QWidget()
+        kl = QVBoxLayout(kurve)
+        kl.setContentsMargins(0, 0, 0, 0)
+        self.kurve_wahl = QComboBox()
+        for schl, titel in Vergleich.GROESSEN:
+            self.kurve_wahl.addItem(titel, schl)
+        self.kurve_wahl.setToolTip("Was die Staffelkurve zeigt: Stückpreis, Gesamtpreis, Gewinn oder Marge je Menge")
+        self.kurve_wahl.currentIndexChanged.connect(lambda _i: self.vergleich.groesse_setzen(self.kurve_wahl.currentData()))
+        kl.addWidget(self.kurve_wahl)
+        kl.addWidget(self.vergleich, 1)
+        quer.addWidget(kurve)
         quer.setStretchFactor(0, 4)
         quer.setStretchFactor(1, 1)
         quer.setSizes([900, 280])

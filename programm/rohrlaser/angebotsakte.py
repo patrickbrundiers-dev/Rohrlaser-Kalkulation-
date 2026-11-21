@@ -473,6 +473,16 @@ def _zukauf(positionen, summen, fertigung):
                 zuschlag_fremd=_n(summen.get("zuschlag_fremdleistung")))
 
 
+def _marge(summen):
+    from . import marge as mg
+    return mg.werte(summen)["marge"]
+
+
+def _aufschlag(summen):
+    from . import marge as mg
+    return mg.werte(summen)["aufschlag"]
+
+
 # ------------------------------------------------------------------ Seite 7: Gesamt
 def _gesamt(summen, zeilen, positionen, ang, einst):
     from . import termin_staffel
@@ -507,7 +517,7 @@ def _gesamt(summen, zeilen, positionen, ang, einst):
                 rundung_stueck=netto - verkauf, gewinn=gewinn, gewinn_satz=summen.get("gewinn_satz"),
                 gewinn_gestaffelt=bool(summen.get("gewinn_gestaffelt")), gewinn_basis=basis,
                 variabel=variabel, deckungsbeitrag=verkauf - variabel,
-                marge=gewinn / verkauf if verkauf else None, db_satz=(verkauf - variabel) / verkauf if verkauf else None,
+                marge=_marge(summen), aufschlag=_aufschlag(summen), db_satz=(verkauf - variabel) / verkauf if verkauf else None,
                 teile=teile, je_teil=verkauf / teile if teile else None, je_pos=je_pos,
                 verschnitt_eur=None, untergrenze_kurz=_n(summen.get("untergrenze_kurz")),
                 untergrenze_lang=_n(summen.get("untergrenze_lang")), skonto_satz=_n(summen.get("skonto_satz")),

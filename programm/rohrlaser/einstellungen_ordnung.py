@@ -114,7 +114,7 @@ SEITEN = (
            _a("Automationen im Arbeitsablauf", "anfrage_frist anfrage_vormessen preiswaechter_schwelle "
                                                "nachkalk_schwelle anfrage_zuweisen angebot_automatik "
                                                "anfragen_sortierung stille_kunden"),
-           _a("Prüfung und Nachfassen", "mindestmarge preisluecke_schwelle preisalter_tage nachfassen_tage rueckfrage_schwelle "
+           _a("Prüfung und Nachfassen", "mindestmarge zielmarge preisluecke_schwelle preisalter_tage nachfassen_tage rueckfrage_schwelle "
                                          "step_gewicht_abweichung zukauf_preissprung endkappen_hinweis"),
            _a("Angebotsvergleich", "vergleich_schwelle_anteil vergleich_schwelle_eur"),
            _a("Vier-Augen-Freigabe", "freigabe_ab freigabe_marge"),
@@ -209,7 +209,7 @@ SEITE = {s.schluessel: s for s in SEITEN}
 # Einstellungen mit „0 = aus“ bzw. „leer = aus“, die einen eigenen Schalter vor dem Wert bekommen (Plan Funktionen
 # Schritt 3): aus = 0 bzw. leer, der letzte Wert bleibt gemerkt (WERT_GEMERKT, nur dieser Arbeitsplatz) und kommt beim
 # Einschalten zurück; ohne gemerkten Wert gilt der Wert hier.
-WERT_SCHALTER = {"nachfassen_tage": 10, "auto_optimieren_bis": 100, "mindestmarge": 0.10, "staffeln_standard": "1; 2; 5",
+WERT_SCHALTER = {"nachfassen_tage": 10, "auto_optimieren_bis": 100, "mindestmarge": 0.10, "zielmarge": 0.15, "staffeln_standard": "1; 2; 5",
                  "teilen_takt": 1.0, "stangenbild_popup": 1.0,
                  # Vorschläge vom 02.11.2026 (Vorgabe aus)
                  "finanz_zins": 0.06, "runden_stueck": 0.05, "runden_gesamt": 5.0, "neuteil_zuschlag": 0.05,
@@ -247,6 +247,7 @@ EIGENE_TITEL = {
     "angebote_zeitraum": "Angebotsliste: Zeitraum (Angebote mit Datum oder Änderung in den letzten Tagen)",
     "loeschschutz": "Löschschutz: optimierte Angebote nicht löschbar (immer = auch automatisch optimierte)",
     "mindestmarge": "Angebots-Check: Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)",
+    "zielmarge": "Angebots-Check: Zielmarge (Marge vom Warenwert, die ein Angebot erreichen soll, 0 = aus)",
     "nachfassen_tage": "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)",
     "staffeln_standard": "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
     "reklamation_fehlerarten": "Reklamationen: Fehlerarten (eine Zeile je Fehlerart)",
