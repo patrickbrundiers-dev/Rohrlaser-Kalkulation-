@@ -479,8 +479,9 @@ def vorhanden(name, liste):
 BLOCK = 8 * 1024 * 1024
 
 
-def kopieren(quelle, ziel, fortschritt=None, abbrechen=None):
-    """Datei blockweise kopieren; fortschritt(fertig_bytes, gesamt_bytes), abbrechen() -> True bricht ab."""
+def kopieren(quelle, ziel, fortschritt=None, abbrechen=None, pruefsumme=None):
+    """Datei blockweise kopieren; fortschritt(fertig_bytes, gesamt_bytes), abbrechen() -> True bricht ab;
+    pruefsumme: hashlib-Objekt, das nebenbei mitrechnet (Modell-Register, ohne die Datei ein zweites Mal zu lesen)."""
     gesamt, fertig = Path(quelle).stat().st_size, 0
     Path(ziel).parent.mkdir(parents=True, exist_ok=True)
     with open(quelle, "rb") as q, open(ziel, "wb") as z:
@@ -491,6 +492,8 @@ def kopieren(quelle, ziel, fortschritt=None, abbrechen=None):
             if not b:
                 break
             z.write(b)
+            if pruefsumme is not None:
+                pruefsumme.update(b)
             fertig += len(b)
             if fortschritt:
                 fortschritt(fertig, gesamt)
@@ -510,15 +513,17 @@ def importieren(datei, name=None, programm=None, ausfuehren=None, fortschritt=No
         return dict(ok=False, name=name, text="Ollama ist auf diesem PC nicht installiert. Mit einem llama.cpp-Server "
                     f"die Datei direkt starten (llama-server -m \"{datei}\") und ihn in der KI-Zentrale als Server "
                     "„OpenAI-kompatibel“ eintragen.")
-    kopie = None
+    kopie, quelle, summe = None, datei, None
     if ausfuehren is None and netzwerkpfad(datei):
         # Ollama liest die Datei zweimal (Prüfsumme, Übernahme): aus dem Netzwerkordner erst einmal lokal kopieren
         kopie = ollama_ziel() / "import" / datei.name
         try:
             if fortschritt:
                 fortschritt("kopieren", 0, datei.stat().st_size)
-            kopieren(datei, kopie, (lambda a, b: fortschritt("kopieren", a, b)) if fortschritt else None, abbrechen)
-            datei = kopie
+            import hashlib
+            h = hashlib.sha256()
+            kopieren(datei, kopie, (lambda a, b: fortschritt("kopieren", a, b)) if fortschritt else None, abbrechen, h)
+            datei, summe = kopie, h.hexdigest()
         except (OSError, KiFehler) as e:
             try:
                 kopie.unlink()
@@ -527,6 +532,15 @@ def importieren(datei, name=None, programm=None, ausfuehren=None, fortschritt=No
             if str(e) == "abgebrochen":
                 return dict(ok=False, name=name, text="Import abgebrochen.")
             kopie = None        # Kopieren ging nicht: direkt aus dem Netzwerkordner (langsamer)
+    if summe is None and ausfuehren is None and not netzwerkpfad(datei):
+        try:                    # lokale Datei: Prüfsumme fürs Modell-Register (SSD: wenige Sekunden je GB)
+            from .ki_register import sha256_datei
+            if fortschritt:
+                fortschritt("pruefsumme", 0, datei.stat().st_size)
+            summe = sha256_datei(datei, (lambda a, b: fortschritt("pruefsumme", a, b)) if fortschritt else None,
+                                 abbrechen) or None
+        except OSError:
+            protokoll.warnung("ki_modelle: Prüfsumme nicht berechnet")
     if fortschritt:
         fortschritt("uebernehmen", 0, 0)
     import tempfile
@@ -550,7 +564,7 @@ def importieren(datei, name=None, programm=None, ausfuehren=None, fortschritt=No
     if getattr(r, "abgebrochen", False):
         return dict(ok=False, name=name, text="Import abgebrochen.")
     ok = getattr(r, "returncode", 1) == 0
-    return dict(ok=ok, name=name, text=("Importiert als " + name) if ok else
+    return dict(ok=ok, name=name, sha256=summe or "", quelle=str(quelle), text=("Importiert als " + name) if ok else
                 f"Import fehlgeschlagen: {(getattr(r, 'stderr', '') or getattr(r, 'stdout', ''))[-400:]}")
 
 

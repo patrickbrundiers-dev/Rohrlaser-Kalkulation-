@@ -136,6 +136,36 @@ def faktencheck(antwort, fakten_text, frage=""):
     return not fremd, fremd
 
 
+# ------------------------------------------------------------------ Vertrauen (KI 4)
+HOCH, MITTEL, NIEDRIG = "hoch", "mittel", "niedrig"
+
+
+def vertrauen(absicht, quelle, faktencheck_ok=None, fehler=(), befunde=0, treffer=0):
+    """(Stufe, Grund) einer Antwort: wie sicher ist die Einordnung der Frage und wie belegt der Text?
+    quelle: "regeln" (Stichwörter, fest), "befehl"/"langtext" (eindeutige Form), "modell" (Sprachmodell) oder ""."""
+    gruende = []
+    if absicht is None:
+        stufe = NIEDRIG
+        gruende.append("Frage keiner Absicht sicher zugeordnet")
+    elif quelle == "modell":
+        stufe = MITTEL
+        gruende.append("Absicht vom Sprachmodell erkannt")
+    else:
+        stufe = HOCH
+        gruende.append("Absicht fest erkannt" if quelle == "regeln" else "eindeutige Eingabe")
+    if faktencheck_ok is False:
+        stufe = NIEDRIG
+        gruende.append("Modelltext verworfen (Faktencheck)")
+    elif faktencheck_ok is True:
+        gruende.append("Modelltext durch Faktencheck belegt")
+    if fehler:
+        stufe = MITTEL if stufe == HOCH else stufe
+        gruende.append(f"{len(fehler)} Teil(e) ausgefallen")
+    if not befunde and not treffer and stufe == HOCH:
+        gruende.append("ohne Befunde")
+    return stufe, "; ".join(gruende)
+
+
 # ------------------------------------------------------------------ Antwort
 def _zeile(b):
     zeichen = {ag.FEHLER: "✗", ag.WARNUNG: "!", ag.VORSCHLAG: "→", ag.HINWEIS: "•", ag.INFO: "·"}.get(b["art"], "•")
@@ -162,19 +192,20 @@ def fragen(db, frage, angebot_id=None, seite=None, senden=None, heute=None, mit_
     from . import ki_modelle, ki_prognose, ki_protokoll, ki_wissen
     t0 = time.perf_counter()
     absicht, punkte = absicht_regeln(frage)
-    modell_info = None
+    modell_info, quelle = None, "regeln" if absicht else ""
     if absicht is None and mit_modell and ki_modelle.aktiv(db):
         absicht, modell_info = absicht_modell(db, frage, senden)
+        quelle = "modell" if absicht else ""
     hat_angebot = angebot_id is not None or seite is not None
     titel, _, agenten, global_ok = ABSICHTEN.get(absicht, ("Antwort", (), None, True))
     befunde, fehler, extra, staffel, treffer = [], [], "", None, []
     if absicht is None:
         agenten = agenten_fuer(frage) or None
     if len(str(frage or "")) >= LANGTEXT and str(frage).count("\n") >= 2:
-        absicht, titel = "auslesen", ABSICHTEN["auslesen"][0]
+        absicht, titel, quelle = "auslesen", ABSICHTEN["auslesen"][0], "langtext"
     from . import ki_befehle
     if hat_angebot and seite is not None and ki_befehle.lesen(frage) is not None:
-        absicht, titel = "befehl", ABSICHTEN["befehl"][0]
+        absicht, titel, quelle = "befehl", ABSICHTEN["befehl"][0], "befehl"
     aktion = None
     if absicht in ("erklaeren", "rueckfragemail", "muster", "auslesen", "suche", "vergleich", "teuer", "fehlt",
                    "risiko", "englisch", "hilfe", "fehlerlog", "liefertermin", "befehl"):
@@ -193,7 +224,8 @@ def fragen(db, frage, angebot_id=None, seite=None, senden=None, heute=None, mit_
         return dict(text=text, absicht=absicht, titel=titel, befunde=[], treffer=treffer2,
                     quellen=[("Kalkulation", "")] if absicht in ("erklaeren", "rueckfragemail") else [],
                     agenten=[], modell="", faktencheck=None, fremde_zahlen=[], fehler=[], dauer_s=round(dauer, 3),
-                    staffel=None, aktion=aktion)
+                    staffel=None, aktion=aktion, absicht_quelle=quelle,
+                    vertrauen=vertrauen(absicht, quelle, None, [], 0, len(treffer2) or bool(extra2)))
     if absicht == "staffel" and hat_angebot:
         ctx = ag.Kontext(db, angebot_id, seite, heute)
         staffel = ki_prognose.mengenstaffel(ctx, ki_prognose.mengen_aus_text(frage))
@@ -263,7 +295,8 @@ def fragen(db, frage, angebot_id=None, seite=None, senden=None, heute=None, mit_
                            angebot_id=angebot_id if angebot_id is not None else getattr(seite, "id", None))
     return dict(text=text, absicht=absicht, titel=titel, befunde=befunde, treffer=treffer, quellen=quellen,
                 agenten=agenten or [a.name for a in ag.AGENTEN], modell=modell, faktencheck=fakt_ok,
-                fremde_zahlen=fremd, fehler=fehler, dauer_s=round(dauer, 3), staffel=staffel)
+                fremde_zahlen=fremd, fehler=fehler, dauer_s=round(dauer, 3), staffel=staffel, absicht_quelle=quelle,
+                vertrauen=vertrauen(absicht, quelle, fakt_ok, fehler, len(befunde), len(treffer) or bool(extra)))
 
 
 def _ki2(db, absicht, frage, angebot_id, seite, heute, senden):

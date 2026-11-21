@@ -175,6 +175,9 @@ class KiAssistent(QDialog):
                     it.setToolTip(b["begruendung"])
                 self.befunde.setItem(r, c, it)
         teile = []
+        if e.get("vertrauen"):
+            stufe, grund = e["vertrauen"]
+            teile.append(f"Vertrauen: {stufe} ({grund})")
         if e.get("quellen"):
             teile.append("Quellen: " + "; ".join(f"{q}{' (Stand ' + st + ')' if st else ''}" for q, st in e["quellen"]))
         if e.get("modell"):

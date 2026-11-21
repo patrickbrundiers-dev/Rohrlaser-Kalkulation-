@@ -63,6 +63,8 @@ VERTRIEB_BEREICHE = ("e_zuschlaege", "e_gewinn_gestaffelt", "e_neue_angebote", "
                      "e_automatik")
 HAUPTADMIN = "Hauptadmin"
 FRACHT = "fracht"                       # Pflege der Frachtdaten (alle Tabellen aus fracht_daten)
+KI = "ki"                               # KI-Plattform: Server, Rollen, Modellversionen, Modell-Ordner (KI 4)
+KI_EINSTELLUNGEN = ("ki_aktiv", "ki_server", "ki_rollen", "ki_modell_ordner", "ki_modell_register")
 ZEITVORGABEN = "zeitvorgaben"           # Stundensätze und Arbeitsschritte
 MINUTEN = 15                            # ohne Eingabe so lange freigeschaltet (Frage 4b)
 FORMAT = 1
@@ -73,7 +75,7 @@ ORDNER = "Admin"
 VORGABE = ("e_funktionen", "e_firma", "e_ablage", "e_zuschlaege", "e_gewinn_gestaffelt", "e_kosten",
            "e_neue_angebote", "e_automatik", "e_lieferlaengen", "e_blech",
            "preise", "werkstoffe", "maschinen", "schneiddaten", ZEITVORGABEN, "zusatzarbeiten",
-           "arbeitsgang_regeln", FRACHT)
+           "arbeitsgang_regeln", FRACHT, KI)
 # immer frei: eigener Arbeitsplatz; Profile, damit „Unbekannte Abmessung anlegen“ im Popup weiter geht
 NIE = ("e_arbeitsplatz", "kunden")
 IMMER = HAUPT_SEITEN
@@ -94,6 +96,7 @@ def bereiche():
             continue
         aus.append((t.name, t.titel, "stammdaten"))
     aus.append((FRACHT, "Frachtkosten (Zonen, Tarife, Zuschläge …)", "stammdaten"))
+    aus.append((KI, "KI-Plattform (Server, Rollen, Modellversionen)", "einstellungen"))
     return aus
 
 
@@ -133,6 +136,8 @@ def einstellungen_geschuetzt(db, seiten=None):
     if FRACHT in schutz:                # Einstellungen im Reiter Frachtkosten (Historie und Einstellungen)
         from .stammdaten import EINSTELLUNGEN
         namen.update(e.name for e in EINSTELLUNGEN if e.gruppe == ordnung.EIGENER_REITER)
+    if KI in schutz:                    # KI-Zentrale: alle PCs mit derselben geprüften Modellversion (KI 4)
+        namen.update(KI_EINSTELLUNGEN)
     return namen - set(LOKAL)
 
 
