@@ -1,12 +1,12 @@
 """Normteil-Vorab-Erkennung, Stufe 1 (Master-Prompt Patrick 21.11.2026 „Intelligente Normteil- und
 Zukaufteil-Erkennung“): Normteile laut Bauteilname werden nur als Zukaufteil gemessen, ohne Rohr-/Blechmessung.
 
-- N1 Niet „DIN 7337 4x8“ (Kopf Ø8 × 1,5, Schaft Ø4 × 8): Drehteil mit Hinweis, Netz bleibt; Programm: sicheres
+- N1 Niet „DIN 7337 4x8“ (Kopf Ø8 × 1,5, Schaft Ø4 × 8): Drehteil (Grund: Norm im Bauteilnamen, kein gelber Hinweis), Netz bleibt; Programm: sicheres
   Zukaufteil; Scheibe „DIN 125“ bleibt Blech wie bisher (voll gemessen, nur runde Drehteile kurz)
 - N2 nur Begriff („Scheibe“), Halbzeug-Norm (EN 10219), unbekannte Norm, kein Name: voll gemessen wie bisher
 - N3 größer als zukaufteile.KLEIN_BIS (Gewindestange DIN 975 × 1000): voll gemessen
-- N4 Einstellung „Normteile voll messen“ (step_geometrie.einstellen normteile_voll): voll gemessen
-- N5 Programm: --normteile-voll, wenn eingestellt oder die eingebaute Erkennung aus ist
+- N4 --normteile-voll (step_geometrie.einstellen normteile_voll): voll gemessen
+- N5 Programm: --normteile-voll, wenn die eingebaute Erkennung (step_zukauf_begriffe) aus ist
 
 Aufruf: python tests/test_normteil_vorab.py
 """
@@ -39,13 +39,14 @@ def messen(solid, name):
 
 
 def voll(t):
-    return not any("Normteil laut Name" in h for h in t.hinweise)
+    return not (t.art_grund or "").endswith("im Bauteilnamen")
 
 
 # N1
 g.einstellen(None)
 t = messen(NIET, "Nýt trhací DIN7337_4x8-4")
-assert t.bauteiltyp == "Drehteil" and not voll(t), (t.bauteiltyp, t.hinweise)
+assert t.bauteiltyp == "Drehteil" and not voll(t), (t.bauteiltyp, t.art_grund)
+assert not t.hinweise, t.hinweise
 assert t.netz, "Normteil bleibt in der 3D-Ansicht (Netz)"
 assert abs(t.abm_a - 8) < 0.01 and t.art_regel == "Normteil", (t.abm_a, t.art_regel)
 m = dict(bauteil=t.bauteil, profilform=t.profilform, laenge=t.laenge, abm_a=t.abm_a, abm_b=t.abm_b)
@@ -84,7 +85,6 @@ class DB:
 
 
 assert "--normteile-voll" not in step_einstellungen.mess_argumente(DB(step_cache="nein"))
-assert "--normteile-voll" in step_einstellungen.mess_argumente(DB(step_cache="nein", step_normteile_voll="ja"))
 assert "--normteile-voll" in step_einstellungen.mess_argumente(DB(step_cache="nein", step_zukauf_begriffe="nein"))
 print("OK: N5 Aufrufargumente")
 print("Alle Tests bestanden.")

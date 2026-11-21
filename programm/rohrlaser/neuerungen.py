@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.447", "<b>STEP-Import schneller, Ergebnis identisch</b>: Große Baugruppen mit vielen Körpern sind "
+                "deutlich schneller gemessen (MASTER TOWER mit 1080 Körpern 512 statt 755 Sekunden), weil bei der "
+                "Suche nach gezeichneten Schweißnähten nur noch Rohre, Bleche und Profile als Nachbarn genau vermessen "
+                "werden. Rohre mit vielen Konturen messen rund 10 % schneller (Schwenkwinkel). Geprüft mit 126 Test-STEPs und 5 "
+                "echten Baugruppen: jeder Messwert ungerundet gleich. <b>Normteile laut Name</b> (DIN 933, DIN 7337, "
+                "ISO 4032 …, rund und bis 150 mm) werden nur noch als Zukaufteil gemessen, ohne Rohr-/Blechsuche – "
+                "gleiche Maße und Einordnung, ein Blindniet 0,06 statt 12,5 Sekunden. Ist die eingebaute "
+                "Zukaufteil-Erkennung ausgeschaltet, wird wie bisher alles voll gemessen.",
+     "STEP: große Baugruppen bis 1,5× schneller (bitgleich), Normteile laut Name nur als Zukaufteil gemessen"],
     ["0.9.446", "<b>Eigenes KI-Modell: Modellversionen, Prüfsatz und Trainingsdaten</b> ([[ki_modellversionen]]): "
                 "Neuer Reiter <i>Modellversionen</i> in der KI-Zentrale. Jede Modellversion steht im Register mit "
                 "Prüfsumme, Lizenz, Trainingsdaten und Status; <b>Prüfen</b> startet einen fachlichen Prüfsatz (19 "

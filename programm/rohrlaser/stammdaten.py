@@ -1659,10 +1659,6 @@ EINSTELLUNGEN = (
     # Paket 1 (Patrick 12.11.2026): eingebaute Begriffe (deutsch/englisch) und bekannte Normen, zukaufteile.py
     Einstellung("step_zukauf_begriffe", "Zukaufteile auch an eingebauten Begriffen und Normen erkennen (Schraube, "
                 "washer, Niet, DIN 125 …)", "STEP-Import", "auswahl", "ja", auswahl="janein"),
-    # Normteil-Vorab-Erkennung (Patrick 21.11.2026): Normteile laut Name (DIN 933 …, bis 150 mm) nur als Zukaufteil
-    # messen, ohne Rohr-/Blechmessung (step_geometrie.normteil_laut_name); „ja“ misst sie wie jedes Teil
-    Einstellung("step_normteile_voll", "Normteile laut Bauteilname (DIN 933, ISO 4032 …) trotzdem voll messen wie "
-                "Fertigungsteile (langsamer; sonst nur als Zukaufteil)", "STEP-Import", "auswahl", "nein", auswahl="janein"),
     Einstellung("step_benennung", "Artikelnummer aus (Bauteilname, Dateiname oder beides)", "STEP-Import", "auswahl", BENENNUNGEN[0], auswahl="benennung"),
     # Messung (STEP-Import.exe): Prozesse, Zeitlimit je Körper, Zwischenspeicher; siehe step_einstellungen.py
     Einstellung("step_prozesse", "Messung: gleichzeitige Messprozesse (0 = automatisch, Kerne − 1)", "STEP-Import",

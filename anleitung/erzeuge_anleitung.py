@@ -4836,6 +4836,15 @@ def kapitel_step(i):
             "Halbzeug-Norm im Namen (EN 10219, DIN 2395 …) macht aus einem Rohr kein Normteil mehr. Die eingebauten "
             "Begriffe und Normen lassen sich unter <i>Einstellungen → STEP-Import → Zukaufteile auch an eingebauten "
             "Begriffen und Normen erkennen</i> ausschalten; dann gilt nur die eigene Begriffsliste.",
+            "<b>Normteile laut Name schneller messen (seit 0.9.447):</b> Nennt der Bauteilname eine bekannte Norm "
+            "eines Verbindungselements (z. B. DIN 933, DIN 7337, ISO 4032), ist das Teil höchstens 150 mm groß und "
+            "rund (Schraube, Niet, Stift, Mutter), misst der STEP-Import es nur noch als Zukaufteil (Maße, Volumen, "
+            "3D-Ansicht) und spart die Suche nach Rohr- oder Blechprofil. Als Grund steht am Teil <i>Norm DIN 7337 "
+            "im Bauteilnamen</i>. Ergebnis wie vorher (gleiche Maße und Einordnung), nur "
+            "schneller: ein Blindniet im Pizza-Ofen 0,06 statt 12,5 Sekunden. Scheiben und Sicherungsringe, Teile "
+            "über 150 mm, Teile mit nur einem Begriff im Namen (<i>Schraube</i>) oder einer Rohr-/Blechnorm "
+            "werden weiter voll gemessen, ebenso alle Teile, wenn die eingebaute Erkennung (oben) "
+            "ausgeschaltet ist – dann bleiben sie ja Fertigungsteile.",
             "Der Knopf <b>Zukaufteile …</b> unter der Teileliste des Prüfdialogs (mit Anzahl, z. B. <i>Zukaufteile "
             "(38 + 2 Vorschläge) …</i>) öffnet die <b>Liste der Zukaufteile</b>: gleiche Teile in einer Zeile mit "
             "Anzahl, Bezeichnung, Kategorie, Norm, Größe, Erkennung, Grund und Datei, daneben die 3D-Ansicht (in "
@@ -15078,7 +15087,9 @@ def kapitel_step_messung(i):
             "(Körper)</i> im Bericht, nicht übernommen. Die Naht selbst kommt wie immer aus dem Stoß der beiden "
             "Teile. Vorher kam so eine Naht als <i>offenes Sonderprofil</i> in die Liste. Seit 0.9.444 geht diese "
             "Zuordnung bei großen Baugruppen viel schneller (Pizza-Ofen mit 155 Nahtkörpern: Messung 3 statt 14 "
-            "Minuten); vorher lief sie dort ins Zeitlimit und die Nähte kamen als <i>Drehteil</i> in die Liste.",
+            "Minuten); vorher lief sie dort ins Zeitlimit und die Nähte kamen als <i>Drehteil</i> in die Liste. "
+            "Seit 0.9.447 werden dafür nur noch Rohre, Bleche und Profile als Nachbarn genau vermessen (MASTER TOWER "
+            "mit 1080 Körpern: 512 statt 755 Sekunden, Ergebnis identisch).",
             "<b>Lange Gravur und Stecknasen</b>: Läuft eine Schrift über einen großen Teil des Rohrs, trifft fast "
             "jeder Querschnitt ein Zeichen. Als Profil gilt nur ein Querschnitt ohne Gravur (genau gleich groß an "
             "mehreren Stellen, auch an beiden Enden der Länge gesucht). Die Enden (z. B. Stecknasen vorne und hinten) "

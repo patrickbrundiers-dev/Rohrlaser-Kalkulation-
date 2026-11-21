@@ -5552,7 +5552,7 @@ def _verbund_pruefen(teile, koerper):
 EINSTELLBAR = {"flach_laenge": "FLACHSTAHL_LAENGE", "gekantet_anteil": "GEKANTET_ANTEIL", "naht_spalt": "NAHT_SPALT"}
 
 
-NORMTEILE_VOLL = False      # True: auch Normteile laut Name voll messen (Einstellung, --normteile-voll)
+NORMTEILE_VOLL = False      # True: auch Normteile laut Name voll messen (--normteile-voll: eingebaute Erkennung aus)
 STEGE = None    # größeres Profil gleicher Form („Form|A|B|Wand“): Winkel/U als virtuelles Bauteil (step_schenkel)
 VIRTUELL = None     # Ordner für die virtuellen Bauteile als STEP (virtuell_ablegen) oder None
 
@@ -5798,7 +5798,7 @@ def normteil_laut_name(solid, datei, koerper, name):
     höchstens zukaufteile.KLEIN_BIS groß und als Drehteil erkennbar, ist es sicher ein Zukaufteil: nur als Normteil
     bzw. Drehteil messen
     (Maße, Volumen, Netz bleiben), ohne Rohr-, Blech- und Konturmessung. Das Programm ordnet es wie bisher als sicheres
-    Zukaufteil ein; „Als Fertigungsteil“ bzw. die Einstellung „Normteile voll messen“ misst es voll. Sonst None –
+    Zukaufteil ein; ist die eingebaute Erkennung aus (--normteile-voll), wird es voll gemessen. Sonst None –
     dann wird wie bisher voll gemessen (unsichere Fälle nie hier)."""
     from rohrlaser import zukaufteile
     ntext, nkat = zukaufteile.norm(name or "")
@@ -5821,8 +5821,7 @@ def normteil_laut_name(solid, datei, koerper, name):
         d["text"] = f"{d['art']} ({', '.join(d['merkmale'] + d['zusatz'])})"
     t.sicherheit["konturen"] = "nicht ausgewertet"
     t.art_grund, t.art_regel = f"Norm {ntext} im Bauteilnamen", "Normteil"
-    t.hinweise.append(f"Normteil laut Name ({ntext}): als Zukaufteil gemessen, ohne Rohr-/Blechmessung – als "
-                      "Fertigungsteil voll messen über die Einstellung „Normteile voll messen“")
+    # kein Hinweis (er machte das Teil gelb „prüfen“): der Grund steht in art_grund, die Einordnung im Programm
     return t
 
 
