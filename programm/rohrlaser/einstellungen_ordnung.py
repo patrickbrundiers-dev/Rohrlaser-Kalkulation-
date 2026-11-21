@@ -83,7 +83,8 @@ SEITEN = (
           + ALLE_PLAETZE,
           (_a("Grenzen und Sätze", "gewinn_bis_1 gewinn_satz_1 gewinn_bis_2 gewinn_satz_2 gewinn_bis_3 "
                                    "gewinn_satz_3 gewinn_bis_4 gewinn_satz_4 gewinn_satz_5"),
-           _a("Staffeln", "mindestmarge_staffel"))),
+           _a("Staffeln", "mindestmarge_staffel"),
+           _a("Zielmarge (Preisleiter)", "zielmarge"))),
     Seite("e_kosten", "Kosten und Stundensatz",
           "Weitere Kosten in der Rechnung und die Grundwerte, mit denen sich ein Maschinenstundensatz ermitteln "
           "lässt. " + ALLE_PLAETZE,
@@ -114,7 +115,7 @@ SEITEN = (
            _a("Automationen im Arbeitsablauf", "anfrage_frist anfrage_vormessen preiswaechter_schwelle "
                                                "nachkalk_schwelle anfrage_zuweisen angebot_automatik "
                                                "anfragen_sortierung stille_kunden"),
-           _a("Prüfung und Nachfassen", "mindestmarge zielmarge preisluecke_schwelle preisalter_tage nachfassen_tage rueckfrage_schwelle "
+           _a("Prüfung und Nachfassen", "mindestmarge preisluecke_schwelle preisalter_tage nachfassen_tage rueckfrage_schwelle "
                                          "step_gewicht_abweichung zukauf_preissprung endkappen_hinweis"),
            _a("Angebotsvergleich", "vergleich_schwelle_anteil vergleich_schwelle_eur"),
            _a("Vier-Augen-Freigabe", "freigabe_ab freigabe_marge"),

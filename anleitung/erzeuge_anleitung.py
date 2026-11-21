@@ -9592,7 +9592,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "und Unterschied zum Angebot.",
             "<i>Auf Mindestmarge setzen</i> und <i>Auf Zielmarge setzen</i> stellen den Gewinn des Angebots so ein, "
             "dass die volle Kalkulation genau diese Marge erreicht (mit Rückgängig). Die <i>Zielmarge</i> steht unter "
-            "Einstellungen → Angebot → Prüfung und Nachfassen (0 = aus), neben der Mindestmarge.",
+            "Einstellungen → Kalkulation → Gewinn gestaffelt → Zielmarge (Preisleiter) (<i>Angebots-Check: Zielmarge "
+            "(Marge vom Warenwert, die ein Angebot erreichen soll, 0 = aus)</i>, Vorgabe 0).",
             "<b>Staffelkurve</b> im Reiter Staffeln: über der Kurve wählen, ob sie den VK je Einheit, den "
             "Gesamtpreis, den Gewinn oder die Marge je Menge zeigt; bei der Marge steht die Mindestmarge als rote "
             "Linie.",
@@ -10154,7 +10155,8 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("Die <b>Mindestmarge</b> steht in den Einstellungen unter <i>Angebot</i> (<i>Angebots-Check: "
            "Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)</i>, Vorgabe 0). Gemeint ist (Gewinn + "
            "Anhebung auf den Mindestpreis) geteilt durch den Warenwert (Selbstkosten + Gewinn + Anhebung), ohne "
-           "Fracht und Skonto: 10 % Gewinn ergeben 9,1 % Marge. Angebote der Kollegen lassen sich ansehen und ausgeben, "
+           "Fracht und Skonto: 10 % Gewinn ergeben 9,1 % Marge. Ein gewährter Rabatt mindert die Marge (eine Formel "
+           "für Check, Freigabe, Varianten und Angebotsakte, [[preisleiter]]). Angebote der Kollegen lassen sich ansehen und ausgeben, "
            "ohne dass der Check fragt.")
     i.abschnitt("Kostentreiber über alle Aufträge", marke="kostentreiber")
     i.text("Datei → <b>Kostentreiber …</b> wertet die beauftragten Angebote der letzten 12 Monate aus: je "
@@ -11940,7 +11942,7 @@ def kapitel_einstellungen(i):
         ["Allgemein", "Ablage und Teilen", "was im gemeinsamen Ordner liegt, Archiv"],
         ["Kalkulation", "Zuschläge und Preise", "Zuschläge, Gewinn, Rüsten, Programmieren, Beträge je Angebot, MwSt."],
         ["Kalkulation", "Gewinn gestaffelt", "Grenzen und Sätze für den Gewinn nach Auftragswert, Grenze 1 leer = aus "
-         "([[gewinn_gestaffelt]])."],
+         "([[gewinn_gestaffelt]]); Mindestmarge der Staffeln; Zielmarge für Preisleiter und Ampel ([[preisleiter]])."],
         ["Kalkulation", "Kosten und Stundensatz", "Ausschuss, Schrotterlös, Preiseinheit, Schneidgas; Grundwerte zum "
          "Ermitteln des Stundensatzes (eingeklappt)."],
         ["Angebot", "Neue Angebote", "Maschine, Stangenlänge, Staffeln, Lieferzeit, Zahlung, Gültigkeit, Nummern"],
