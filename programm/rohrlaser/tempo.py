@@ -349,8 +349,9 @@ def speicher_mb():
                             ("PeakPagefileUsage", ctypes.c_size_t)]
             z = Zaehler()
             z.cb = ctypes.sizeof(z)
-            proc = ctypes.windll.kernel32.GetCurrentProcess()
-            if not ctypes.windll.psapi.GetProcessMemoryInfo(proc, ctypes.byref(z), z.cb):
+            psapi = ctypes.WinDLL("psapi")              # eigene Instanz: keine geteilten restype/argtypes
+            psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD]
+            if not psapi.GetProcessMemoryInfo(wintypes.HANDLE(-1), ctypes.byref(z), z.cb):   # -1 = dieser Prozess
                 return None
             return z.WorkingSetSize / 1048576
         with open("/proc/self/status", encoding="ascii") as f:
@@ -410,10 +411,10 @@ def prozess_alter():
         if sys.platform == "win32":
             import ctypes
             from ctypes import wintypes
-            k32 = ctypes.windll.kernel32
-            t = [wintypes.FILETIME() for _ in range(4)]
-            k32.GetCurrentProcess.restype = wintypes.HANDLE
-            if not k32.GetProcessTimes(k32.GetCurrentProcess(), *[ctypes.byref(x) for x in t]):
+            k32 = ctypes.WinDLL("kernel32")             # eigene Instanz: windll.kernel32 nie verändern (Absturz
+            t = [wintypes.FILETIME() for _ in range(4)]  # KI-Zentrale 21.11.2026: restype HANDLE galt global)
+            k32.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.c_void_p] * 4
+            if not k32.GetProcessTimes(wintypes.HANDLE(-1), *[ctypes.byref(x) for x in t]):   # -1 = dieser Prozess
                 return None
             jetzt = wintypes.FILETIME()
             k32.GetSystemTimeAsFileTime(ctypes.byref(jetzt))
