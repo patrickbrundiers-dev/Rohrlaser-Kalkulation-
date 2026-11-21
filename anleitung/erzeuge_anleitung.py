@@ -728,6 +728,24 @@ def kapitel_start(i):
             "Der Bericht liegt auch als diagnose.txt im Support-Paket ([[support_paket]]). Viele „doppelt“ bei einer "
             "Rechnung zeigen dem Support, wo das Programm noch unnötig rechnet.",
             "Das Zählen bremst nicht spürbar; Ergebnisse der Rechnungen ändert es nicht.",
+            "<b>Befunde und Empfehlungen (Rechenkerne-Update 21.11.2026):</b> Ganz oben bewertet das Programm die "
+            "Zähler selbst und nennt Auffälligkeiten mit Stufe ROT oder GELB und einer konkreten Empfehlung: "
+            "Berechnungen mit ungültigem Ergebnis, Rechnungen über 15 s oder oft über 1 s, viele unnötige "
+            "Mehrfachberechnungen, Arbeitsspeicher über 1.500 MB, langsame Datenbank (im Mittel über 20 ms oder "
+            "viele Anweisungen über 100 ms), unerwartete Fehler, ausgeschalteter Merker über den Neustart, "
+            "Hintergrundaufgaben, die länger als 10 Minuten laufen, und Hänger der Oberfläche über 10 s. Ohne "
+            "Auffälligkeit steht dort <i>keine Auffälligkeiten</i>.",
+            "<b>Neue Zeilen:</b> Rechenzeit der Staffeln, Antwortzeiten der Datenbank in Stufen (bis 1 ms, 10 ms, "
+            "100 ms, 1 s, länger) mit der längsten Anweisung, fehlgeschlagene Berechnungen mit dem letzten Befund "
+            "sowie die Hintergrundaufgaben (Optimieren, Staffelpreise, Maschinenvergleich, Wiederholteile, "
+            "Sicherung): was gerade läuft und seit wann, und wie oft und wie lange sie seit dem Start liefen.",
+            "<b>Ergebnisprüfung:</b> Nach jeder Kalkulation prüft das Programm das Ergebnis unabhängig von der "
+            "Rechnung: jede Zahl muss gültig sein (kein NaN, nicht unendlich). Sonst zeigt der Angebots-Check einen "
+            "FEHLER ([[angebots_check]]), das Protokoll eine Warnung und die Diagnose die fehlgeschlagene "
+            "Berechnung. Ein gültiges Ergebnis bleibt genau gleich.",
+            "<b>Wiederherstellung:</b> Bricht eine Kalkulation mit einem Fehler ab, kann ein beschädigter "
+            "Zwischenstand die Ursache sein. Das Programm rechnet dann einmal ohne alle Merker neu und nimmt dieses "
+            "Ergebnis; Protokoll und Diagnose vermerken das. Bleibt der Fehler, kommt die übliche Fehlermeldung.",
             "<b>Über Neustart gemerkt (seit 0.9.402):</b> reine Rechnungen, deren Ergebnis nur von ihren Eingaben "
             "abhängt (Schneidfolge je Teil und Maschine, Endabfall aus dem 3D), legt das Programm zusätzlich in "
             "<i>Daten/Rechenmerker/rechenmerker.db</i> ab. Nach einem Neustart öffnet ein Angebot dadurch deutlich "
@@ -4854,7 +4872,7 @@ def kapitel_step(i):
             "er damit angenommen, die Bezeichnung kommt dann aus Kategorie und Größe (z. B. <i>Scheibe Ø24 × 2,5, "
             "Bohrung Ø13</i>). <b>Alle ins Angebot</b> und <b>Keine</b> gelten für die gezeigten Zeilen, "
             "<b>Doch Fertigungsteil</b> macht die Teile der Zeile wieder zu Fertigungsteilen: einen angenommenen "
-            "Vorschlag und seit 0.9.449 auch ein erkanntes Normteil, das voll gemessen ist (z. B. „Blind Rivet“ im "
+            "Vorschlag und seit 0.9.450 auch ein erkanntes Normteil, das voll gemessen ist (z. B. „Blind Rivet“ im "
             "Namen). Ein Normteil mit Norm im Bauteilnamen ist nur als Zukaufteil gemessen; als Fertigungsteil geht "
             "es erst, wenn unter Einstellungen › STEP-Import <i>Zukaufteile auch an eingebauten Begriffen und Normen "
             "erkennen</i> auf nein steht und die Datei neu eingelesen wird (der Knopf sagt das im Tooltip). "
@@ -5187,6 +5205,12 @@ def kapitel_optimieren(i):
             "wenige Sekunden). Seit 0.9.280 merkt sich das Programm schon gerechnete Profilgruppen: optimieren Sie "
             "nach einer Änderung erneut (auch über das Angebots-PDF), rechnet es nur die Gruppen neu, deren Teile, "
             "Stangen oder Einstellungen sich geändert haben – mit genau demselben Schnittplan wie eine volle Rechnung.",
+            "<b>Schneller bei großen Aufträgen (Rechenkerne-Update 21.11.2026):</b> Die Schnittmuster-Optimierung löst "
+            "je neuem Muster dasselbe Rechenmodell mit einer Zeile mehr. Sie setzt jetzt die Rechenschritte der "
+            "vorigen Runde fort, solange diese für die neue Zeile genau gleich bleiben, und sucht die Muster ohne "
+            "unnötige Zwischenkopien. Ein Angebot mit 500 Positionen und 5.224 Teilen optimiert so in rund 3,7 statt "
+            "7,6 s (ein Prozessorkern: 7,9 statt 15,1 s). Schnittplan, Stangenzahl und jede Zahl der Rechnung sind "
+            "dieselben wie vorher; ein Test vergleicht das bei jedem Release mit dem bisherigen Verfahren.",
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet", marke="veraltet")
     i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand Veraltet", hoehe=125 * mm,
@@ -10120,6 +10144,8 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.tabelle(["Prüfung", "Stufe", "Hinspringen zu"], [
         ["keine Positionen; Positionen mit FEHLER (z. B. Profil fehlt, Schweißbaugruppe ohne Werte)", "FEHLER",
          "erste betroffene Position"],
+        ["Rechenfehler in der Kalkulation: eine Zahl im Ergebnis ist ungültig (NaN oder unendlich, z. B. durch "
+         "beschädigte Stammdaten); das Ergebnis wird nie still als Preis übernommen", "FEHLER", "Kalkulation"],
         ["Positionen mit WARNUNG (z. B. Gewinde ohne Preis), ungeprüfte Bohrungen/Gewinde-Vorschläge und "
          "Anbauteile, Hinweis in der Kalkulation (z. B. kein Preis, nicht eingeplant), Zukaufteil ohne "
          "Einkaufspreis", "WARNUNG", "erste betroffene Position"],
@@ -15108,7 +15134,7 @@ def kapitel_step_messung(i):
             "Seit 0.9.447 werden dafür nur noch Rohre, Bleche und Profile als Nachbarn genau vermessen (MASTER TOWER "
             "mit 1080 Körpern: 512 statt 755 Sekunden, Ergebnis identisch). Seit 0.9.448 misst sie den Abstand "
             "zu den Nachbarn nur noch zwischen nahe liegenden Flächen (MASTER TOWER 469 statt 524 Sekunden, Pizza-Ofen "
-            "211 statt 265 Sekunden, Ergebnis identisch). Seit 0.9.449 prüft die Nahtsuche zuerst mit dem Schnitt "
+            "211 statt 265 Sekunden, Ergebnis identisch). Seit 0.9.450 prüft die Nahtsuche zuerst mit dem Schnitt "
             "der beiden Teile, ob sie sich berühren, und spart dann die Abstandsmessung (MASTER TOWER 379 statt 392 "
             "Sekunden, Кузов 127 statt 135 Sekunden, Ergebnis identisch).",
             "<b>Lange Gravur und Stecknasen</b>: Läuft eine Schrift über einen großen Teil des Rohrs, trifft fast "

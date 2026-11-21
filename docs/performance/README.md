@@ -86,7 +86,7 @@ anderen Körpers liegen (`step_geometrie._abstand`, gleicher Wert wie über die 
 
 Gegenüber 0.9.444: MASTER TOWER 755 s → 469 s (Faktor 1,6), Pizza-Ofen 287 s → 211 s (Faktor 1,36).
 
-## 0.9.449 (Basis 0.9.448)
+## 0.9.450 (Basis 0.9.448)
 
 Nahtkandidaten: `step_geometrie._beruehrung` schneidet die beiden Körper zuerst. Liegt ein Punkt einer Schnittkante
 so nah an beiden Körpern, dass ihr Abstand höchstens 0,1 mm ist (Dreiecksungleichung), ist die Berührung bewiesen:

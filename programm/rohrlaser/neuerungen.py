@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.449", "<b>Normteile korrigieren und lernen</b>: <i>Doch Fertigungsteil</i> in der Liste <i>Zukaufteile …</i> "
+    ["0.9.450", "<b>Normteile korrigieren und lernen</b>: <i>Doch Fertigungsteil</i> in der Liste <i>Zukaufteile …</i> "
                 "geht jetzt auch für erkannte Normteile, die voll gemessen sind. Was du annimmst oder zurücknimmst, "
                 "merkt sich das Programm je Bauteilname und Geometrie und ordnet dieselben Teile beim nächsten Import "
                 "gleich so ein (mit Datum im Grund, in der Lernzentrale vergessbar, an allen Plätzen). Unter der "
@@ -29,6 +29,13 @@ NEUERUNGEN = [
                 "Dreh-/Frästeile, Normteile und ungeklärte Vorschläge. <b>Nahtsuche schneller</b>, Ergebnis identisch: "
                 "Berührung zuerst per Schnitt geprüft (MASTER TOWER 379 statt 392 s, Кузов 127 statt 135 s).",
      "STEP: Normteile von Hand zur Fertigung und zurück, Entscheidung gelernt; Zeile Kalkulation; Nahtsuche schneller"],
+    ["0.9.449", "<b>Schnittoptimierung rund doppelt so schnell, Ergebnis identisch</b>: Große Angebote optimieren "
+                "deutlich schneller (500 Positionen mit 5.224 Teilen 4,6 statt 8,8 Sekunden), jeder Schnittplan Zahl für "
+                "Zahl gleich. <b>Ergebnisprüfung</b>: Enthält eine Kalkulation eine ungültige Zahl (NaN/∞), zeigt der "
+                "Angebots-Check den FEHLER <i>Rechenfehler</i> statt eines falschen Preises. Bricht eine Kalkulation ab, "
+                "rechnet das Programm sie einmal ohne Zwischenspeicher neu. <b>Diagnose</b> nennt Befunde mit "
+                "Empfehlung, Datenbank-Antwortzeiten, fehlgeschlagene Berechnungen und laufende Hintergrundaufgaben.",
+     "Rechenkerne: Optimieren ~2× schneller (bitgleich), Ergebnisprüfung, Wiederherstellung, Diagnose-Befunde"],
     ["0.9.448", "<b>Normteile in der 3D-Ansicht der Baugruppe</b>: Zukaufteile (Schrauben, Muttern, Niete, Scheiben …) "
                 "sind im STEP-Prüfdialog jetzt dunkelgrau mit eigenem Legendeneintrag und bleiben sichtbar. Die Auswahl "
                 "neben <i>Zukaufteile …</i> zeigt <i>alle Teile</i>, <i>ohne Zukaufteile</i>, <i>nur Zukaufteile</i> oder "

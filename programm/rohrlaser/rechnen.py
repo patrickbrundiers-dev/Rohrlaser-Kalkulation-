@@ -4325,11 +4325,34 @@ def gewinn_gestaffelt(basis, stufen):
 
 def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     """Kalkulation wie _kalkulation; mit gestaffeltem Gewinn (gewinn_stufen) zuerst die Gewinnbasis des ganzen Angebots
-    (Lauf mit Gewinn 100 %), dann derselbe Satz für alle Positionen: Gewinn der Stufe ÷ Basis."""
+    (Lauf mit Gewinn 100 %), dann derselbe Satz für alle Positionen: Gewinn der Stufe ÷ Basis.
+
+    Wiederherstellung (Master-Prompt Rechenkerne 21.11.2026): bricht die Rechnung mit einem Fehler ab, kann ein
+    beschädigter Zwischenstand (Merker, Angebots-Cache) die Ursache sein. Dann einmal ohne alle Merker neu rechnen;
+    gelingt das, gilt dieses Ergebnis (Protokoll und Diagnose vermerken es), sonst wird der Fehler weitergegeben."""
     # MACH-006: Maschine der Position gleich der des Kopfs zählt wie leer (gleiche Gruppen, gleiches Rüsten)
     if any(not _leer(p.get("maschine")) and not maschine_abweichend(p, kopf) for p in positionen if p):
         positionen = [dict(p, maschine=None) if p and not _leer(p.get("maschine")) and not maschine_abweichend(p, kopf)
                       else p for p in positionen]
+    try:
+        return _kalkulation_gemerkt(kopf, positionen, ergebnis, k, tabellen, einstellungen)
+    except Exception as ex:     # noqa: BLE001 – einmal ohne Merker wiederholen, dann weitergeben
+        erster = ex
+    from . import protokoll
+    text = f"{type(erster).__name__}: {erster}"
+    diagnose.fehlgeschlagen("Kalkulation (abgebrochen)", text)
+    protokoll.warnung(f"Kalkulation abgebrochen ({text}); neuer Versuch ohne Merker")
+    _KALK_MERK.leeren()
+    rechenmerker.alle_leeren()
+    try:
+        erg = _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen, einstellungen, None)
+    except Exception:
+        raise erster from None
+    protokoll.warnung("Kalkulation ohne Merker gelungen (beschädigter Zwischenstand verworfen)")
+    return erg
+
+
+def _kalkulation_gemerkt(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     # Gleiche Eingaben (Inhalt), dieselben Stammdaten und derselbe Tag: das Ergebnis von eben als eigene Kopie
     # (Stabilität 18.11.2026: Automatik, Terminplan und Maschinenvergleich rechneten dieselbe Kalkulation erneut)
     try:
@@ -4370,7 +4393,11 @@ def _kalkulation_dauer(kopf, positionen, ergebnis, k, tabellen, einstellungen, t
 def _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen, einstellungen, text):
     with merker(), diagnose.messen("Kalkulation", (text, id(k), id(tabellen))):
         # gestaffelter Gewinn rechnet zweimal: Positionswerte, Schneiddaten, Stangenpreise nur einmal
-        return _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen)
+        zeilen, summen = _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen)
+    # Ergebnisprüfung (Master-Prompt Rechenkerne 21.11.2026): NaN/∞ nie still übernehmen; ohne Befund unverändert
+    from . import rechenpruefung
+    rechenpruefung.pruefen(zeilen, summen)
+    return zeilen, summen
 
 
 # Supportpaket Patrick 19.11.2026 („Doppelte Rechnung prüfen“): mit 8 Einträgen und 10 s rechnete das Programm in
