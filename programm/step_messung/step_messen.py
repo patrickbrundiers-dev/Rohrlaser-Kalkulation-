@@ -782,6 +782,8 @@ def main(argv=None):
     ap.add_argument("--flach-laenge", type=float, help="Flachstahl: Länge mindestens × Breite (Vorgabe 3)")
     ap.add_argument("--gekantet-anteil", type=float, help="Kantteil-Grenze Volumenanteil (Vorgabe 0,85)")
     ap.add_argument("--naht-spalt", type=float, help="Schweißstoß: Spalt bis [mm] noch Naht und Gravur (Vorgabe 3)")
+    ap.add_argument("--normteile-voll", action="store_true",
+                    help="Normteile laut Bauteilname (DIN 933 …) wie jedes Teil voll messen (sonst nur als Zukaufteil)")
     ap.add_argument("--prozesse", type=int, default=0, help="Messprozesse (0 = automatisch)")
     ap.add_argument("--zeitlimit", type=float, default=0, help="Sekunden je Körper (0 = ohne)")
     ap.add_argument("--cache", help="Ordner des Zwischenspeichers")
@@ -815,7 +817,8 @@ def main(argv=None):
         Path(a.netze).mkdir(parents=True, exist_ok=True)
     einst = {k: v for k, v in (("flach_laenge", a.flach_laenge), ("gekantet_anteil", a.gekantet_anteil),
                                ("naht_spalt", a.naht_spalt),
-                               ("stege", a.stege), ("virtuell", a.virtuell)) if v is not None}
+                               ("stege", a.stege), ("virtuell", a.virtuell),
+                               ("normteile_voll", a.normteile_voll or None)) if v is not None}
     ergebnis = [None] * len(dateien)
     with open(a.ausgabe, "w", encoding="utf-8", newline="\n") as f:      # Teilergebnis wächst je Datei
         f.write("\t".join(SPALTEN) + "\n")

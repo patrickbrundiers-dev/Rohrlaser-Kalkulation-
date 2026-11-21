@@ -91,12 +91,21 @@ def kandidat(t, art):
     return 0 < (t.n_flaechen or 0) <= FLAECHEN_MAX
 
 
-def _nachbarn(i, k, koerper, weg):
-    """Indizes der Körper, die k berühren (Abstand bis KONTAKT)."""
+def _nachbarn(i, k, koerper, weg, nur=None, boxen=None):
+    """Indizes der Körper, die k berühren (Abstand bis KONTAKT). nur(j): nur diese Körper prüfen (vor der exakten
+    Abstandsrechnung statt danach aussortieren – gleiches Ergebnis); boxen: {j: Hülle} einmal je Körper."""
     kb = _box(k, KONTAKT)
     out = []
     for j, (_, kj) in enumerate(koerper):
-        if j == i or j in weg or _box(kj).IsOut(kb):
+        if j == i or j in weg or (nur is not None and not nur(j)):
+            continue
+        if boxen is not None:
+            if j not in boxen:
+                boxen[j] = _box(kj)
+            bj = boxen[j]
+        else:
+            bj = _box(kj)
+        if bj.IsOut(kb):
             continue
         d = _abstand(k, kj)
         if d is not None and d <= KONTAKT:
@@ -109,11 +118,18 @@ def zuordnen(teile, koerper, weg=()):
     Ergebnis: Menge der Indizes (in teile), die Nahtkörper geworden sind."""
     fertig = set()
     stuetz = {}         # Nachbar -> _Stuetz (einmal je Körper, für alle Nahtkandidaten)
+    boxen = {}          # Körper -> Hülle (einmal je Körper statt je Nahtkandidat, MASTER TOWER 21.11.2026)
+    teil = {}           # Körper -> ist Rohr, Blech oder Profil (nur diese können die Naht tragen)
+
+    def ist_teil(j):
+        if j not in teil:
+            teil[j] = teile[j].bauteiltyp in TEIL or g._ist_rohr(teile[j])
+        return teil[j]
     for i, (t, (art, k)) in enumerate(zip(teile, koerper)):
         if i in weg or not kandidat(t, art):
             continue
-        nb = [j for j in _nachbarn(i, k, koerper, set(weg) | fertig)
-              if teile[j].bauteiltyp in TEIL or g._ist_rohr(teile[j])]
+        # erst nach der Art sortieren, dann exakt rechnen: Drehteile, Schrauben, Nahtkörper … tragen keine Naht
+        nb = _nachbarn(i, k, koerper, set(weg) | fertig, ist_teil, boxen)
         if len(nb) < 2:
             continue
         roh = _punkte(k)
