@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.444", "<b>STEP-Import großer Baugruppen mit gezeichneten Schweißnähten schneller</b>: Die Zuordnung "
+                "„Schweißnaht als Körper“ prüft jeden Nachbarkörper nur noch einmal und erkennt sicher nahe Punkte "
+                "ohne aufwendige Abstandsrechnung. Pizza-Ofen (231 Körper): 186 statt 816 Sekunden, Ergebnis "
+                "identisch. Vorher lief die Messung dort ins Zeitlimit, und 155 Schweißnaht-Körper kamen als "
+                "„Drehteil“ in die Liste; jetzt stehen sie richtig als Schweißnaht (Körper) im Bericht.",
+     "STEP: große Baugruppen mit Schweißnaht-Körpern bis 4× schneller, Nähte richtig erkannt"],
     ["0.9.443", "<b>Plausibilitätsprüfung beim STEP-Import</b> ([[plausibilitaet]]): ungewöhnliche Wandstärke "
                 "(nicht in den Stammdaten bzw. kein Normmaß), ungleiche Wand, unpassendes Innenmaß, nicht geschlossene "
                 "Körper, Sonderkonturen und ein Name, der eine andere Wand nennt als gemessen, machen das Teil gelb "

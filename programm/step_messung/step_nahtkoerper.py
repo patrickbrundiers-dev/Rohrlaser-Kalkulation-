@@ -24,6 +24,39 @@ FLAECHEN_MAX = 60           # mehr Flächen: kein Nahtkörper (Naht hat wenige F
 TEIL = ("Profil", "Blech", "Blech gekantet")
 
 
+class _Stuetz:
+    """Punkte, die sicher AUF einem Körper liegen (Eckpunkte und je Kante drei Punkte jeder Fläche), in einem Raster
+    mit Zellgröße NAHT_SCHENKEL. Liegt ein Prüfpunkt höchstens NAHT_SCHENKEL von einem davon, ist sein Abstand zum
+    Körper sicher höchstens NAHT_SCHENKEL (der Körper ist mindestens so nah) – die exakte Abstandsrechnung entfällt.
+    Sonst rechnet zuordnen exakt wie bisher: das Ergebnis ist dasselbe, nur schneller (Pizza-Ofen 21.11.2026).
+    Zusätzliche Rasterpunkte auf den Flächen waren gemessen langsamer (Aufbau je großem Körper ~4 s) und bleiben weg."""
+
+    def __init__(self, k):
+        from OCP.TopoDS import TopoDS
+        self.zellen = {}
+        for f in g._liste(k, TopAbs_FACE):
+            face = TopoDS.Face(f) if hasattr(TopoDS, "Face") else TopoDS.Face_s(f)
+            for q in g._flaechen_punkte(face):
+                x, y, z = q.X(), q.Y(), q.Z()
+                self.zellen.setdefault(self._zelle(x, y, z), []).append((x, y, z))
+
+    @staticmethod
+    def _zelle(x, y, z):
+        return int(x // NAHT_SCHENKEL), int(y // NAHT_SCHENKEL), int(z // NAHT_SCHENKEL)
+
+    def sicher_nah(self, p):
+        x, y, z = p.X(), p.Y(), p.Z()
+        cx, cy, cz = self._zelle(x, y, z)
+        grenze = NAHT_SCHENKEL * NAHT_SCHENKEL
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    for (a, b, c) in self.zellen.get((cx + dx, cy + dy, cz + dz), ()):
+                        if (a - x) ** 2 + (b - y) ** 2 + (c - z) ** 2 <= grenze:
+                            return True
+        return False
+
+
 def _box(k, rand=0.0):
     b = Bnd_Box()
     BRepBndLib.Add_s(k, b, False)
@@ -75,6 +108,7 @@ def zuordnen(teile, koerper, weg=()):
     """Schweißnähte als eigene Körper finden (siehe oben). weg: Indizes, die schon kein Teil sind (Gravurkörper).
     Ergebnis: Menge der Indizes (in teile), die Nahtkörper geworden sind."""
     fertig = set()
+    stuetz = {}         # Nachbar -> _Stuetz (einmal je Körper, für alle Nahtkandidaten)
     for i, (t, (art, k)) in enumerate(zip(teile, koerper)):
         if i in weg or not kandidat(t, art):
             continue
@@ -82,13 +116,26 @@ def zuordnen(teile, koerper, weg=()):
               if teile[j].bauteiltyp in TEIL or g._ist_rohr(teile[j])]
         if len(nb) < 2:
             continue
-        pts = [BRepBuilderAPI_MakeVertex(p).Vertex() for p in _punkte(k)]
+        roh = _punkte(k)
+        pts = [BRepBuilderAPI_MakeVertex(p).Vertex() for p in roh]
+        nah = {}        # Nachbar -> liegt jeder Punkt höchstens NAHT_SCHENKEL davon? (je Nachbar einmal, nicht je Paar)
+
+        def alle_nah(j):
+            if j not in nah:
+                kj = koerper[j][1]
+                box = _box(kj, NAHT_SCHENKEL)       # Punkt außerhalb der Hülle + Schenkel: sicher weiter weg
+                if j not in stuetz:
+                    stuetz[j] = _Stuetz(kj)
+                st = stuetz[j]
+                nah[j] = all(not box.IsOut(p) and (st.sicher_nah(p) or (
+                    (d := _abstand(v, kj)) is not None and d <= NAHT_SCHENKEL)) for p, v in zip(roh, pts))
+            return nah[j]
         paar = None
         for x in range(len(nb)):
+            if not alle_nah(nb[x]):
+                continue
             for y in range(x + 1, len(nb)):
-                a, b = koerper[nb[x]][1], koerper[nb[y]][1]
-                if all((da := _abstand(v, a)) is not None and da <= NAHT_SCHENKEL and
-                       (db := _abstand(v, b)) is not None and db <= NAHT_SCHENKEL for v in pts):
+                if alle_nah(nb[y]):
                     paar = (nb[x], nb[y])
                     break
             if paar:
