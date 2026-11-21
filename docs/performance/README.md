@@ -71,6 +71,21 @@ fehlen die nicht gewählte Auswahlmessung „offenes Sonderprofil“ und die Lä
 Profilmessung. Art, Maße, Volumen und Netz sind gleich. Alle übrigen 58 Körper sind bitgleich. Die 126 Test-STEPs sind
 auch mit der Vorab-Erkennung 126 von 126 bitgleich (keine Normteile mit Normnamen darunter).
 
+## 0.9.448 (Basis 0.9.447)
+
+Schweißnaht-Körper: Der Abstand zu den Nachbarn wird nur noch zwischen den Flächen gemessen, die in der Hülle des
+anderen Körpers liegen (`step_geometrie._abstand`, gleicher Wert wie über die ganzen Körper).
+
+| Datei | alt s | neu s | Faktor | gleich |
+|---|---:|---:|---:|---|
+| MASTER_TOWER_V1.1 | 523,9 | 468,9 | 1,12 | ja |
+| Pizza_oven | 264,7 | 211,0 | 1,25 | ja |
+| Кузов | 136,8 | 142,8 | 0,96 | ja |
+| Grab | 15,0 | 16,4 | 0,91 | ja |
+| Industrial_Scrap_Bin | 21,6 | 23,3 | 0,93 | ja |
+
+Gegenüber 0.9.444: MASTER TOWER 755 s → 469 s (Faktor 1,6), Pizza-Ofen 287 s → 211 s (Faktor 1,36).
+
 ## Wo die Zeit heute liegt (Profil, py-spy)
 
 | Datei | Anteil |
@@ -79,7 +94,14 @@ auch mit der Vorab-Erkennung 126 von 126 bitgleich (keine Normteile mit Normname
 | Lift Cart | Ebenenschnitte 76 % (ein Körper mit Freiformflächen, jeder Schnitt ~5 s) |
 | Кузов | Ebenenschnitte 38 %, Anbauteile trennen 26 %, Erreichbarkeit 16 %, Nahtsuche 13 % |
 | MASTER TOWER (vor 0.9.447) | Schweißnaht-Körper 45 % (davon Nachbarn exakt 43 %), Nahtkandidaten 21 %, Profilmessung 20 % |
+| MASTER TOWER (0.9.448) | Ebenenschnitte der Profilmessung 44 %, Nahtkandidaten 29 %, Anbauteile trennen 12 %, Schweißnaht-Körper nur noch 5 % |
+| Pizza-Ofen (0.9.448) | Ebenenschnitte 35 %, Nahtkandidaten 29 %, Anbauteile trennen 16 %, Schweißnaht-Körper 14 % |
 | U_29MB (870 Körper) | Einlesen 370 s, davon 96 % in der Formheilung des CAD-Kerns: Der STEP fehlen die Parameterkurven der Kanten, sie werden beim Einlesen auf die Freiformflächen projiziert (ShapeFix_Edge::FixAddPCurve). Das Messen der Normteile dauert nur 3,5 s |
+
+- **Lift Cart Körper 32:** Wendel mit zwei Freiformflächen zu je 6 × 361 Polen. Jeder Ebenenschnitt dauert etwa
+  5 s, der Körper läuft ins Zeitlimit (600 s) und wird vereinfacht als Frästeil gemessen. Der CAD-Kern schneidet
+  schon parallel (SetRunParallel). Schneller ginge es nur mit einer anderen Messart für Wendeln; die würde das
+  Ergebnis ändern und ist deshalb ein eigener Vorschlag.
 
 Getestet und verworfen:
 

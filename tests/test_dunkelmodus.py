@@ -60,7 +60,9 @@ ERLAUBT = {"#D0021B", "#E00000",                      # kräftige Rotlinien: auf
            "#CDD2D7", "#244A75", "#E9ECEF", "#F4F6F8",
            # Kantenfarben der 3D-Ansicht (Auftrag Kanten 20.11.2026): Linien auf den Körpern wie #3C4650, nicht auf dem
            # Hintergrund
-           "#141A20", "#111111", "#1F3F73", "#1E5B35", "#7A1F1F"}
+           "#141A20", "#111111", "#1F3F73", "#1E5B35", "#7A1F1F",
+           # Normteile/Zukaufteile in der Baugruppen-Ansicht (21.11.2026): Körperfarbe, dunkelgrau auf dem Verlauf
+           "#3F4650"}
 offen, fest = [], []
 for datei in sorted((WURZEL / "programm" / "rohrlaser").glob("*.py")):
     if datei.name in NUR_DRUCK:

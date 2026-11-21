@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.448", "<b>Normteile in der 3D-Ansicht der Baugruppe</b>: Zukaufteile (Schrauben, Muttern, Niete, Scheiben …) "
+                "sind im STEP-Prüfdialog jetzt dunkelgrau mit eigenem Legendeneintrag und bleiben sichtbar. Die Auswahl "
+                "neben <i>Zukaufteile …</i> zeigt <i>alle Teile</i>, <i>ohne Zukaufteile</i>, <i>nur Zukaufteile</i> oder "
+                "<i>nur unsichere Vorschläge</i> (ersetzt das Häkchen „in 3D ausblenden“). <b>STEP-Import großer "
+                "Baugruppen noch schneller</b>, Ergebnis identisch: Die Suche nach gezeichneten Schweißnähten misst die "
+                "Abstände nur noch zwischen nahe liegenden Flächen (MASTER TOWER 469 statt 524 Sekunden, Pizza-Ofen 211 "
+                "statt 265 Sekunden).",
+     "STEP: Normteile im 3D dunkelgrau mit Filter, Schweißnaht-Suche schneller (bitgleich)"],
     ["0.9.447", "<b>STEP-Import schneller, Ergebnis identisch</b>: Große Baugruppen mit vielen Körpern sind "
                 "deutlich schneller gemessen (MASTER TOWER mit 1080 Körpern 512 statt 755 Sekunden), weil bei der "
                 "Suche nach gezeichneten Schweißnähten nur noch Rohre, Bleche und Profile als Nachbarn genau vermessen "
