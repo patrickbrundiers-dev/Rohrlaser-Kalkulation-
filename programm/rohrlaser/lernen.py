@@ -8,7 +8,8 @@ vergessen (vergessen). Quellen:
   wieder bei 1 an. Gelerntes wendet der STEP-Import selbst an (F3a, angebot_automatik.nach_import): Vorschlag gleich
   übernehmen bzw. gleich ablehnen, mit Einblendung und Rückgängig im Automatik-Protokoll.
 - Aus Nacharbeit (nacharbeit.py, Einstellung 'nacharbeit_gelernt'), Teileart und Profilzuordnung aus dem
-  STEP-Prüfdialog (step.ART_GELERNT, step.PROFIL_GELERNT), Kennwert-Vorschläge und -Freigaben (kennwerte.py).
+  STEP-Prüfdialog (step.ART_GELERNT, step.PROFIL_GELERNT), Zukauf-/Fertigungsteil von Hand (zukaufteile.GELERNT,
+  je Bauteilname + Geometrie, 21.11.2026), Kennwert-Vorschläge und -Freigaben (kennwerte.py).
 Teilen (F1a): die Tabelle 'gelernt' geht wie Stammdaten über den gemeinsamen Ordner (teilen.GETEILT, je Zeile die
 neueste Änderung); die Einstellungen EINSTELLUNGEN_GETEILT ebenso, beim Lesen je Eintrag gemischt (mischen), damit
 Gelerntes der Kollegen das eigene nicht verdrängt. Vergessen schreibt bei diesen Einstellungen einen leeren Eintrag
@@ -48,7 +49,8 @@ GELERNT = Tabelle(
 # gelernte Einstellungen, die über den gemeinsamen Ordner gehen (teilen.EINSTELLUNGEN_GETEILT, je Eintrag gemischt)
 NACHARBEIT, STEP_ART, STEP_PROFIL = "nacharbeit_gelernt", "step_art_gelernt", "step_profil_gelernt"
 MUSTER_AB = "muster_abgelehnt"          # muster.ABGELEHNT (I3/I4 nicht übernommen)
-EINSTELLUNGEN_GETEILT = (NACHARBEIT, STEP_ART, STEP_PROFIL, MUSTER_AB)
+STEP_ZUKAUF = "step_zukauf_gelernt"     # zukaufteile.GELERNT: Zukauf-/Fertigungsteil je Name + Geometrie (N6)
+EINSTELLUNGEN_GETEILT = (NACHARBEIT, STEP_ART, STEP_PROFIL, MUSTER_AB, STEP_ZUKAUF)
 KENNWERT_AB = 0.05              # Startseite: Kennwert-Vorschlag erst ab 5 % Abweichung Ist ÷ Soll
 TREFFER_AB = 3                  # Trefferquote erst ab 3 entschiedenen Angeboten des Kunden
 VERLERNEN_AB = 2                # I10: nach so vielen Rücknahmen von selbst Angewendetem ist es verlernt
@@ -201,7 +203,7 @@ def mischen(name, hier, dort):
         else:
             out.pop(k, None)
             out[k] = v
-    if name == STEP_ART:
+    if name in (STEP_ART, STEP_ZUKAUF):
         out = dict(list(out.items())[-5000:])
     return json.dumps(out, ensure_ascii=False)
 
@@ -273,6 +275,16 @@ def uebersicht(db, mit_kennwerten=True):
         out.append(dict(quelle=STEP_ART, schluessel=g, bereich="STEP: Teileart", kunde="alle Kunden",
                         was=f"{n} Teil{'e' if n != 1 else ''} beim nächsten Import gleich als „{g}“", stand="gelernt",
                         wann="", gelernt=True, vergessen=True))
+    zk = {}
+    for k, v in (_einstellung(db, STEP_ZUKAUF) or {}).items():
+        if isinstance(v, (list, tuple)) and v and v[0]:
+            e = (str(v[0]), str(v[1]) if len(v) > 1 and v[1] else "")
+            zk[e] = zk.get(e, 0) + 1
+    for (e, kat), n in sorted(zk.items()):
+        out.append(dict(quelle=STEP_ZUKAUF, schluessel=[e, kat], bereich="STEP: Zukaufteil/Fertigungsteil",
+                        kunde="alle Kunden", was=f"{n} Teil{'e' if n != 1 else ''} (gleicher Name, gleiche Geometrie) "
+                                                f"beim nächsten Import gleich als {e}" + (f" ({kat})" if kat else ""),
+                        stand="gelernt", wann="", gelernt=True, vergessen=True))
     for kundennr, regeln in (_einstellung(db, STEP_PROFIL) or {}).items():
         for gemessen, ziel in (regeln or {}).items() if isinstance(regeln, dict) else ():
             if ziel and ziel != gemessen:
@@ -351,6 +363,12 @@ def vergessen(db, eintrag):
         d = _einstellung(db, STEP_ART)
         from .step import _gelernt_wert
         db.einstellung_setzen(STEP_ART, {k: (None if _gelernt_wert(v)[0] == s else v) for k, v in d.items()})
+    elif q == STEP_ZUKAUF:
+        d = _einstellung(db, STEP_ZUKAUF)
+        e, kat = s
+        db.einstellung_setzen(STEP_ZUKAUF, {k: (None if isinstance(v, (list, tuple)) and v and v[0] == e and
+                                                (str(v[1]) if len(v) > 1 and v[1] else "") == kat else v)
+                                            for k, v in d.items()})
     elif q == STEP_PROFIL:
         d = _einstellung(db, STEP_PROFIL)
         kundennr, gemessen = s

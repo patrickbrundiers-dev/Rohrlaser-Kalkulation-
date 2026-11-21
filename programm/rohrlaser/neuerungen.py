@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.450", "<b>Normteile korrigieren und lernen</b>: <i>Doch Fertigungsteil</i> in der Liste <i>Zukaufteile …</i> "
+                "geht jetzt auch für erkannte Normteile, die voll gemessen sind. Was du annimmst oder zurücknimmst, "
+                "merkt sich das Programm je Bauteilname und Geometrie und ordnet dieselben Teile beim nächsten Import "
+                "gleich so ein (mit Datum im Grund, in der Lernzentrale vergessbar, an allen Plätzen). Unter der "
+                "Teileliste zeigt die neue Zeile <b>Kalkulation</b> die Aufteilung in Rohrlaser-Teile, Bleche, "
+                "Dreh-/Frästeile, Normteile und ungeklärte Vorschläge. <b>Nahtsuche schneller</b>, Ergebnis identisch: "
+                "Berührung zuerst per Schnitt geprüft (MASTER TOWER 379 statt 392 s, Кузов 127 statt 135 s).",
+     "STEP: Normteile von Hand zur Fertigung und zurück, Entscheidung gelernt; Zeile Kalkulation; Nahtsuche schneller"],
     ["0.9.449", "<b>Schnittoptimierung rund doppelt so schnell, Ergebnis identisch</b>: Große Angebote optimieren "
                 "deutlich schneller (500 Positionen mit 5.224 Teilen 4,6 statt 8,8 Sekunden), jeder Schnittplan Zahl für "
                 "Zahl gleich. <b>Ergebnisprüfung</b>: Enthält eine Kalkulation eine ungültige Zahl (NaN/∞), zeigt der "

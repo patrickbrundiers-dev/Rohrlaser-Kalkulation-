@@ -1276,7 +1276,14 @@ class StepPruefDialog(QDialog):
             teile.append(f"<b style='color:#7A5A00'>● {gelb} prüfen</b>")
         if rot:
             teile.append(f"<b style='color:#B42318'>● {rot} nicht übernehmbar</b>")
-        self.ampel_info.setText("Erkennung: " + " · ".join(teile))
+        text = "Erkennung: " + " · ".join(teile)
+        from . import zukaufteile
+        auf = zukaufteile.aufteilung(self.messwerte)    # N7: Bereiche der Kalkulation (Stück)
+        if len(auf) > 1:
+            text += "<br>Kalkulation: " + " · ".join(
+                (f"<span style='color:#7A5A00'>{n} {k}</span>" if k == zukaufteile.AUFTEILUNG[4] else f"{n} {k}")
+                for k, n in auf.items())
+        self.ampel_info.setText(text)
         if hasattr(self, "schrittleiste"):      # Importengine: gleiche Zahlen oben in der Schrittleiste
             from . import importanalyse_dialog
             importanalyse_dialog.auffrischen(self.schrittleiste, (gruen, gelb, rot))
@@ -2624,11 +2631,12 @@ class StepPruefDialog(QDialog):
         return n
 
     def zukauf_ablehnen(self, indizes):
-        """Von Hand angenommene Zukaufteile wieder Fertigungsteil (zukaufteile.ablehnen)."""
+        """Zukaufteile wieder Fertigungsteil (zukaufteile.ablehnen: von Hand angenommene und voll gemessene
+        Normteile)."""
         from . import zukaufteile
         indizes = set(indizes)
         treffer = [i for z in self.zeilen if indizes & set(z.liste) for i in z.liste
-                   if self.messwerte[i].get("_zukauf_hand")]
+                   if zukaufteile.kann_fertigung(self.messwerte[i])]
         if not treffer:
             return 0
         self.werte_schreiben()
@@ -3002,8 +3010,8 @@ class ZukaufteileDialog(_Mit3D):
             b.clicked.connect(lambda _=False, an=an: self.alle_setzen(an))
             kopf.addWidget(b)
         self.zurueck_knopf = QPushButton("Doch Fertigungsteil")
-        self.zurueck_knopf.setToolTip("Den angenommenen Vorschlag der gewählten Zeile zurücknehmen: das Teil wird "
-                                      "wieder wie gemessen behandelt.")
+        self.zurueck_knopf.setToolTip("Die Teile der gewählten Zeile werden Fertigungsteile (wie gemessen); beim "
+                                      "nächsten Import gilt das für Teile mit gleichem Namen und gleicher Geometrie.")
         self.zurueck_knopf.clicked.connect(lambda: self.ablehnen())
         kopf.addWidget(self.zurueck_knopf)
         kopf.addStretch(1)
@@ -3014,7 +3022,8 @@ class ZukaufteileDialog(_Mit3D):
         hinweis = QLabel("Häkchen = als Zukaufteil-Position ins Angebot (Preis aus der Normteil-Liste, Zukaufartikel "
                          "der Kategorie Normteile; ohne Preis gelb „EK fehlt“). Ein Vorschlag stammt nur aus der Form "
                          "und bleibt Fertigungsteil, bis du ihn anhakst. Eine Norm steht nur da, wenn sie im "
-                         "Bauteilnamen steht.")
+                         "Bauteilnamen steht. Was du annimmst oder mit „Doch Fertigungsteil“ zurücknimmst, gilt beim "
+                         "nächsten Import für Teile mit gleichem Namen und gleicher Geometrie (Lernzentrale).")
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet("color: #595959;")
         self.lay.addWidget(hinweis)
@@ -3111,7 +3120,14 @@ class ZukaufteileDialog(_Mit3D):
         if not 0 <= r < len(self.zeilen):
             return
         z = self.zeilen[r]
-        self.zurueck_knopf.setEnabled(any(self.pd.messwerte[i].get("_zukauf_hand") for i in z["indizes"]))
+        from . import zukaufteile
+        kann = any(zukaufteile.kann_fertigung(self.pd.messwerte[i]) for i in z["indizes"])
+        self.zurueck_knopf.setEnabled(kann)
+        self.zurueck_knopf.setToolTip(self.zurueck_knopf.toolTip().split("\n")[0] + (
+            "" if kann or not any(zukaufteile.nur_als_zukauf_gemessen(self.pd.messwerte[i]) for i in z["indizes"])
+            else "\nNur als Zukaufteil gemessen (Norm im Bauteilnamen): als Fertigungsteil erst, wenn unter "
+                 "Einstellungen › STEP-Import „Zukaufteile auch an eingebauten Begriffen und Normen erkennen“ auf "
+                 "nein steht und die Datei neu eingelesen wird."))
         m = self.pd.messwerte[z["indizes"][0]]
         text = (f"<b>{html.escape(z['bezeichnung'])}</b>: {z['anzahl']} Stück, {html.escape(z['kategorie'])}"
                 + (f", {html.escape(z['norm'])}" if z["norm"] else "") + f"<br>{html.escape(z['grund'])}")
