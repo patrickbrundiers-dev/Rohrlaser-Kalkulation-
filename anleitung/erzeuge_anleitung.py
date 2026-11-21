@@ -15033,7 +15033,9 @@ def kapitel_step_messung(i):
             "gezeichnet (z. B. Kehlnaht als Dreieck um ein Rohr an einem Rohrbund), wird sie kein Teil: ein Körper, "
             "der zwei Teile berührt und überall höchstens 8 mm von beiden entfernt liegt, steht als <i>Schweißnaht "
             "(Körper)</i> im Bericht, nicht übernommen. Die Naht selbst kommt wie immer aus dem Stoß der beiden "
-            "Teile. Vorher kam so eine Naht als <i>offenes Sonderprofil</i> in die Liste.",
+            "Teile. Vorher kam so eine Naht als <i>offenes Sonderprofil</i> in die Liste. Seit 0.9.444 geht diese "
+            "Zuordnung bei großen Baugruppen viel schneller (Pizza-Ofen mit 155 Nahtkörpern: Messung 3 statt 14 "
+            "Minuten); vorher lief sie dort ins Zeitlimit und die Nähte kamen als <i>Drehteil</i> in die Liste.",
             "<b>Lange Gravur und Stecknasen</b>: Läuft eine Schrift über einen großen Teil des Rohrs, trifft fast "
             "jeder Querschnitt ein Zeichen. Als Profil gilt nur ein Querschnitt ohne Gravur (genau gleich groß an "
             "mehreren Stellen, auch an beiden Enden der Länge gesucht). Die Enden (z. B. Stecknasen vorne und hinten) "
