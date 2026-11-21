@@ -21,6 +21,25 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.438", "<b>Kalkulieren mit der lokalen KI</b> ([[ki]]). Im KI-Assistenten liest <b>Anfrage auslesen …</b> "
+                "Positionen, Anfrage-Nr., Projekt, Kundenvorgaben (Zeugnis 3.1, Verpackung, Liefertermin …) und "
+                "Zusatzarbeiten aus PDF, Mail oder eingefügtem Text; <b>Als Angebotsentwurf anlegen</b> macht daraus "
+                "ein neues Angebot. Beim Import erkennt das Sprachmodell Zusatzarbeiten im Freitext und Widersprüche "
+                "zwischen Zeichnung und Position (nur wörtlich belegte Werte). Neue Fragen: Preis erklären mit Satz "
+                "für den Kunden, Vergleich mit früheren Aufträgen, vergessene Positionen gegenüber früheren "
+                "Angeboten des Kunden, Rückfrage an den Kunden, Muster aus der Nachkalkulation und Suche wie "
+                "<i>alle Angebote mit Edelstahl-Rundrohr über 2 m</i>. Nichts ändert einen Preis.",
+     "KI liest Anfragen aus, legt Angebotsentwürfe an und erklärt Preise (alles lokal)."],
+    ["0.9.438", "<b>Lokale KI-Plattform</b> ([[ki]]). Neu sind die <b>KI-Zentrale</b> (Datei → KI-Zentrale …) mit "
+                "Status, Modellen, CPU/RAM/GPU, offenen Empfehlungen, Lernhistorie mit Zurücknehmen und Vergleich "
+                "alt/neu, verdächtigen Lerndaten, Wissenssuche und Protokoll aller KI-Aktionen, und der "
+                "<b>KI-Assistent</b> (Strg+Alt+K) für Fragen in normaler Sprache zum Angebot oder zu allen Daten. Im "
+                "Angebots-Check gibt es den Link <i>KI-Prüfung …</i>: Zehn Fach-Agenten prüfen das Angebot "
+                "technisch und kaufmännisch, der Bericht lässt sich als PDF speichern. Alle Zahlen kommen aus der "
+                "Kalkulation, die KI ändert nichts selbst. Ein lokales Sprachmodell (Ollama aus dem Netzwerkordner, "
+                "ohne Installation und ohne Admin-Rechte) ist freiwillig. Es läuft nur auf diesem PC bzw. im "
+                "Firmennetz, Cloud-Modelle und Internet-Adressen sind gesperrt.",
+     "Lokale KI: KI-Zentrale, KI-Assistent (Strg+Alt+K), KI-Prüfung im Angebots-Check, nur im eigenen Netz"],
     ["0.9.437", "<b>Lernsystem aus TRUMPF-Produktionsdaten</b> ([[lernsystem]]): Ordner der gefertigten LST-Dateien "
                 "einstellen, dann <i>Datei → Produktionsdaten & Lernsystem …</i>. Das Programm liest jede LST einmal "
                 "(im Hintergrund), ordnet die Teile über PPEASE-Nummer, Artikelnummer oder gleiche Merkmale Angebot "

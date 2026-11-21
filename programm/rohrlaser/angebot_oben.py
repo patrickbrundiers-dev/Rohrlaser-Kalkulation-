@@ -1919,6 +1919,13 @@ class UebersichtBereich(QWidget):
         k.style().unpolish(k)
         k.style().polish(k)
 
+    @staticmethod
+    def _ki_link():
+        """Lokale KI-Plattform: alle Fach-Agenten prüfen das Angebot (ändert nichts)."""
+        from . import stil
+        return (f"<br><a style='color:{stil.umsetzen(stil.AKZENT)}' href='check:ki'>KI-Prüfung …</a>"
+                f" <span style='color:{stil.umsetzen(stil.TEXT_GRAU)}'>(alle Fach-Agenten, ändert nichts)</span>")
+
     def freigabe_setzen(self, punkte):
         """punkte: angebot_check.punkte(...) (Paare (Art, Text) mit ziel und details)."""
         from html import escape
@@ -1936,7 +1943,8 @@ class UebersichtBereich(QWidget):
                                               f"Punkt{'e' if len(offen) > 1 else ''}" + zusatz)
             k.setObjectName("meldung_fehler" if any(a == "FEHLER" for a, _ in punkte) else "meldung_warnung")
         if not punkte:
-            self.freigabe.setText("Kunde, Schnittplan, Positionen, Bohrungen, Fracht und Staffeln sind in Ordnung.")
+            self.freigabe.setText("Kunde, Schnittplan, Positionen, Bohrungen, Fracht und Staffeln sind in Ordnung."
+                                  + self._ki_link())
         else:
             farbe = {"FEHLER": stil.ROT, "WARNUNG": stil.GELB_TEXT, "HINWEIS": stil.TEXT_GRAU}
             link = f"color:{stil.umsetzen(stil.AKZENT)}"
@@ -1948,7 +1956,7 @@ class UebersichtBereich(QWidget):
                 if getattr(p, "ziel", None):
                     z += f" <a style='{link}' href='check:{p.ziel}'>Hinspringen</a>"
                 zeilen.append(z)
-            self.freigabe.setText("<br>".join(zeilen))
+            self.freigabe.setText("<br>".join(zeilen) + self._ki_link())
         k.style().unpolish(k)
         k.style().polish(k)
 

@@ -4955,10 +4955,20 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return self.step_gelb_pruefen([int(x) for x in wert.split(",") if x.strip().isdigit()])
         if art == "materialanfrage":     # MAT-009: alter Materialpreis → Anfrage an den Lieferanten
             return self.material_anfragen()
+        if art == "ki":                 # lokale KI-Plattform: Angebotsprüfung aller Fach-Agenten
+            return self.ki_pruefung()
         if art == "normteile" and getattr(self.f, "zukauf", None) is not None:      # M6
             self.f.reiter.setCurrentWidget(self.f.zukauf)
             return self.f.zukauf.normteile_zeigen()
         return None
+
+    def ki_pruefung(self):
+        """KI-Prüfung: öffnet den KI-Assistenten mit der vollständigen Angebotsprüfung (nur Vorschläge)."""
+        if not hasattr(self.f, "ki_assistent"):
+            return None
+        d = self.f.ki_assistent()
+        d.pruefen()
+        return d
 
     def check_erledigen(self, aktionen):
         """K1: Punkte des Angebots-Checks vom Programm erledigen lassen. Ergebnis: erledigte Aktionen."""
@@ -5845,6 +5855,11 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 self.db.zeilen("zusatzarbeiten"), "Zeichnung", zeichnung_hinweise.zusatz_mengen(zh, mit_bohrbild=False))
             if not werte.get("gewinde_vorschlag") and zeichnung_hinweise.gewinde_vorschlag(zh):
                 werte["gewinde_vorschlag"] = zeichnung_hinweise.gewinde_vorschlag(zh)
+            from . import ki_auslesen       # KI 2: lokales Sprachmodell findet weitere Zusatzarbeiten (Vorschlag)
+            if ki_auslesen._aktiv(self.db):
+                werte["arbeitsgaenge"] = ki_auslesen.text_merken_ki(
+                    werte.get("arbeitsgaenge"), ki_auslesen.zusatz_ki(self.db, dxf[1].get("text"),
+                                                                      self.db.zeilen("zusatzarbeiten")), "Zeichnung")
         pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         self.zusatz_3d_anwenden(pid_neu, getattr(d, "zusatz_neu", None))     # CAD-009
         self._radius_uebernehmen(dict(werte, id=pid_neu), eingaben)
@@ -10501,7 +10516,10 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                                               "ersetzen)."))
         katalog_erk = self.db.zeilen("zusatzarbeiten") \
             if werkstoff_text or any(p.get("_zeichnung_text") for p in erg["positionen"]) else ()
-        from . import zeichnung_hinweise
+        from . import ki_auslesen, zeichnung_hinweise
+        mit_zeichnung = any(p.get("_zeichnung_text") for p in erg["positionen"])
+        ki_prof = self.db.zeilen("profile") if mit_zeichnung else ()
+        ki_ws = self.db.zeilen("werkstoffe") if mit_zeichnung else ()
         for p in erg["positionen"]:
             z_text, z_quelle = p.pop("_zeichnung_text", None), p.pop("_zeichnung_quelle", None)
             reiben = p.pop("_reiben", None)
@@ -10513,6 +10531,10 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 fehlt = zeichnung_hinweise.nicht_abgedeckt(zh)
                 if fehlt:
                     erg["bericht"].append(f"{p.get('artikel') or p.get('bezeichnung') or ''}: {fehlt}")
+                # KI 2: Widersprüche STEP ↔ Zeichnung (Profil, Wand, Länge, Werkstoff) und – mit lokalem
+                # Sprachmodell – weitere Zusatzarbeiten als Vorschlag
+                ki_auslesen.import_pruefen(self.db, p, z_text, z_quelle or "Zeichnung", katalog_erk, ki_prof, ki_ws,
+                                           erg["bericht"])
             if werkstoff_text and not ist_baugruppe(p):     # Anfrage-Mail: erkannte Zusatzarbeiten als Vorschlag (2a)
                 p["arbeitsgaenge"] = zusatz_erkennung.text_merken(p.get("arbeitsgaenge"), werkstoff_text, katalog_erk,
                                                                   "E-Mail")
