@@ -26,7 +26,7 @@ def _win_speicher():
                     ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
     s = Status()
     s.dwLength = ctypes.sizeof(Status)
-    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(s)):
+    if not ctypes.WinDLL("kernel32").GlobalMemoryStatusEx(ctypes.byref(s)):
         return None, None
     return s.ullTotalPhys / 1024 ** 3, s.ullAvailPhys / 1024 ** 3
 
@@ -34,7 +34,7 @@ def _win_speicher():
 def _win_cpu_zeiten():
     import ctypes
     leer, kern, benutzer = ctypes.c_ulonglong(), ctypes.c_ulonglong(), ctypes.c_ulonglong()
-    if not ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(leer), ctypes.byref(kern), ctypes.byref(benutzer)):
+    if not ctypes.WinDLL("kernel32").GetSystemTimes(ctypes.byref(leer), ctypes.byref(kern), ctypes.byref(benutzer)):
         return None
     return leer.value, kern.value + benutzer.value          # Kernzeit enthält die Leerlaufzeit
 
@@ -51,8 +51,9 @@ def _win_prozess_mb():
                     ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t)]
     z = Zaehler()
     z.cb = ctypes.sizeof(Zaehler)
-    h = ctypes.windll.kernel32.GetCurrentProcess()
-    if ctypes.windll.psapi.GetProcessMemoryInfo(h, ctypes.byref(z), z.cb):
+    psapi = ctypes.WinDLL("psapi")      # eigene Instanz: andere Module dürfen restype/argtypes nicht stören
+    psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD]
+    if psapi.GetProcessMemoryInfo(wintypes.HANDLE(-1), ctypes.byref(z), z.cb):     # -1 = dieser Prozess
         return z.WorkingSetSize / 1024 ** 2
     return None
 
@@ -84,8 +85,17 @@ def _linux_prozess_mb():
 def _cpu_zeiten():
     try:
         return _win_cpu_zeiten() if sys.platform == "win32" else _linux_cpu_zeiten()
-    except (OSError, AttributeError, ValueError, IndexError):
+    except Exception:       # noqa: BLE001 – siehe messen()
+        _warnung("CPU-Zeiten")
         return None
+
+
+def _warnung(was):
+    try:
+        from . import protokoll
+        protokoll.warnung(f"ki_ressourcen: {was} nicht messbar")
+    except Exception:       # noqa: BLE001 – Protokoll fehlt (Tests ohne Paket): einfach weiter
+        return
 
 
 def cpu_last():
@@ -137,11 +147,13 @@ def gpus(ausfuehren=None):
 def messen(mit_gpu=True, ausfuehren=None):
     try:
         gesamt, frei = _win_speicher() if sys.platform == "win32" else _linux_speicher()
-    except (OSError, AttributeError, ValueError):
+    except Exception:       # noqa: BLE001 – Messung darf die KI-Zentrale nie aufhalten (auch ctypes.ArgumentError)
+        _warnung("RAM")
         gesamt = frei = None
     try:
         prozess = _win_prozess_mb() if sys.platform == "win32" else _linux_prozess_mb()
-    except (OSError, AttributeError, ValueError):
+    except Exception:       # noqa: BLE001 – siehe oben
+        _warnung("Prozessspeicher")
         prozess = None
     g = gpus(ausfuehren) if mit_gpu else []
     return dict(cpu_kerne=os.cpu_count(), cpu_last_pct=cpu_last(),

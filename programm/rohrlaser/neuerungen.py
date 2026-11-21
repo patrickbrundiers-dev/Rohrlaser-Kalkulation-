@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.441", "<b>Plausibilitätsprüfung beim STEP-Import</b> ([[plausibilitaet]]): ungewöhnliche Wandstärke "
+    ["0.9.443", "<b>Plausibilitätsprüfung beim STEP-Import</b> ([[plausibilitaet]]): ungewöhnliche Wandstärke "
                 "(nicht in den Stammdaten bzw. kein Normmaß), ungleiche Wand, unpassendes Innenmaß, nicht geschlossene "
                 "Körper, Sonderkonturen und ein Name, der eine andere Wand nennt als gemessen, machen das Teil gelb "
                 "mit Grund „Plausibilität“ (nie rot). Nur Hinweise aus den Messwerten, kein Maß wird geändert; die "
@@ -33,6 +33,16 @@ NEUERUNGEN = [
                 "Schnittlängen bleiben gleich; nur bei drei offen gezeichneten U-Profilen liegen die Stützpunkte der "
                 "Konturlinie (Variante „aus dem Rohr“) etwas anders auf derselben Kontur (höchstens 0,04 mm).",
      "STEP-Import: Plausibilitätsprüfung der Messwerte; U-/C-Profile und offene Rohre bis 40 % schneller"],
+    ["0.9.442", "<b>Fehler behoben:</b> Die <b>KI-Zentrale</b> ([[ki]]) ging unter Windows nicht auf "
+                "(„ArgumentError: int too long to convert“). Ursache war eine Speichermessung, die eine Windows-Einstellung "
+                "für das ganze Programm verstellt hatte. Die Messungen sind jetzt voneinander getrennt; schlägt eine fehl, "
+                "zeigt die KI-Zentrale den Wert nur als unbekannt.",
+     "KI-Zentrale öffnet wieder (Absturz „int too long to convert“ behoben)"],
+    ["0.9.441", "<b>Update hängt nicht mehr an eigenen Programmdateien</b> ([[updates]]): Hilfsprozesse für "
+                "Schnittpläne und STEP-Gegenprobe werden vor dem Austausch beendet, eigene offene Dateien "
+                "(z. B. _internal/base_library.zip) freigegeben. Hält noch ein weiterer Prozess des Programms eine "
+                "Datei, fragt das Update: <i>Ja</i> beendet ihn und setzt fort.",
+                "Update: Hilfsprozesse beendet, eigene Dateien freigegeben, Rückfrage bei Programm-Resten"],
     ["0.9.440", "<b>Preisleiter, Gewinn und Marge, Wirtschaftlichkeit</b> ([[preisleiter]]): Kacheln <i>Gewinn und "
                 "Marge</i> und <i>Wirtschaftlichkeit</i> (Ampel gut, knapp, kritisch) im Angebot; <i>Ausgaben → "
                 "Preisleiter …</i> mit Preisuntergrenze, Mindest- und Zielpreis, je Stufe Aufschlag und Marge, "

@@ -4148,7 +4148,7 @@ def kapitel_step(i):
               "beieinander liegen, und nutzt dafür alle Kerne. Die Messwerte bleiben gleich, die Messung ist "
               "deutlich kürzer, und große Baugruppen bekommen ihre Nähte, statt ins Zeitlimit zu laufen. Wie lange jede Messung gedauert hat, steht im Tempo-Protokoll "
               "([[zeitwaechter]]).")
-    i.hinweis("Seit 0.9.441 rechnet die Messung jede Boolesche Operation genau einmal (vorher zweimal). Das spart "
+    i.hinweis("Seit 0.9.443 rechnet die Messung jede Boolesche Operation genau einmal (vorher zweimal). Das spart "
               "vor allem bei U- und C-Profilen und offen gezeichneten Rohren Zeit: ein U-Profil 80×40×4 mit Konturen "
               "misst in etwa 11 statt 19 Sekunden. Maße, Konturen und Schnittlängen bleiben gleich.")
     i.abschnitt("Biegerohre", marke="biegerohre")
@@ -4940,7 +4940,7 @@ def kapitel_step(i):
             "im Rundrohr zylindrisch geschnitten; ein Loch über Faktor × Rohr-Ø (Vorgabe 0,5) meldet der Import und "
             "der Angebots-Check. 2,5D hat diese Grenze nicht. Die Wahl ändert die Laserzeit nicht.")
     i.abschnitt("Plausibilität der Messung", marke="plausibilitaet")
-    i.text("Seit 0.9.441 prüft der STEP-Import die <b>Messwerte</b> jedes Profils auf Ungewöhnliches, bevor "
+    i.text("Seit 0.9.443 prüft der STEP-Import die <b>Messwerte</b> jedes Profils auf Ungewöhnliches, bevor "
            "kalkuliert wird. Ein Befund macht das Teil im Prüfdialog <b>gelb</b> mit dem Grund „Plausibilität: …“ "
            "(nie rot). Die Prüfung rechnet keine Geometrie neu und ändert kein Maß: die Messung aus der STEP gilt "
            "immer, Sie entscheiden mit <b>Passt</b> oder einer Korrektur.", kurz=True)
@@ -14696,6 +14696,13 @@ def kapitel_pflege(i):
             "<b>Wiederholen</b>, oder <b>Abbrechen</b>. Bei Abbruch oder Fehler stellt es alle Dateien zurück und "
             "startet die bisherige Version wieder; nichts ist verändert. Einzelheiten stehen im Protokoll "
             "(<i>Daten\\Protokoll\\fehler.log</i>).",
+            "<b>Reste des eigenen Programms</b> (seit 0.9.441): Die Hilfsprozesse für Schnittpläne und die "
+            "STEP-Gegenprobe beendet das Update vor dem Austausch selbst, eigene offene Dateien gibt es frei. Hält "
+            "danach noch ein weiterer Prozess von <i>Rohrlaser Angebotskalkulation</i> eine Datei fest (z. B. ein "
+            "hängengebliebenes, unsichtbares Fenster), nennt das Update seine Prozessnummer und fragt: <b>Ja</b> "
+            "beendet diese Prozesse und setzt das Update fort, <b>Wiederholen</b> prüft noch einmal, "
+            "<b>Abbrechen</b> startet die bisherige Version. Beendet werden nur Prozesse, deren Programmdatei im "
+            "Programmordner liegt, nie andere Programme.",
             "<i>Hilfe → Bedienungsanleitung</i> öffnet eine Kopie im Datenordner (Ordner <i>Anleitung</i>). Eine "
             "offene Anleitung blockiert das Update deshalb nicht mehr.",
             "<b>Geprüft wird alles</b>: Das Programm lädt nur über https von der offiziellen Adresse, lehnt "

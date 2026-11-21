@@ -180,6 +180,24 @@ assert gp and gp[0]["vram_gesamt_gb"] == 8.0 and gp[0]["vram_frei_gb"] == 2.04 a
 assert ki_ressourcen.empfehlung(res)
 ok("CPU/RAM gemessen, GPU über nvidia-smi, Empfehlung")
 
+# Absturz 0.9.439 (Windows): tempo.py setzte restype HANDLE auf dem geteilten windll.kernel32, danach warf
+# ki_ressourcen ctypes.ArgumentError (OverflowError) und die KI-Zentrale ging nicht auf. Messung darf nie werfen,
+# und kein Modul verändert restype/argtypes auf ctypes.windll.* oder ruft das geteilte GetCurrentProcess.
+import ctypes  # noqa: E402
+import re  # noqa: E402
+merk = ki_ressourcen._linux_prozess_mb, ki_ressourcen._linux_speicher, ki_ressourcen._linux_cpu_zeiten
+for n in ("_linux_prozess_mb", "_linux_speicher", "_linux_cpu_zeiten"):
+    setattr(ki_ressourcen, n, lambda: (_ for _ in ()).throw(ctypes.ArgumentError("argument 1: OverflowError")))
+ki_ressourcen._LETZTE.clear()
+res2 = ki_ressourcen.messen(mit_gpu=False)
+assert res2["prozess_mb"] is None and res2["ram_gesamt_gb"] is None and res2["cpu_last_pct"] is None, res2
+ki_ressourcen._linux_prozess_mb, ki_ressourcen._linux_speicher, ki_ressourcen._linux_cpu_zeiten = merk
+for datei in (HIER.parent / "programm" / "rohrlaser").glob("*.py"):
+    text = datei.read_text(encoding="utf-8")
+    assert not re.search(r"windll\.kernel32\.GetCurrentProcess|windll\.\w+\.\w+\.(?:restype|argtypes)|"
+                         r"k32\.GetCurrentProcess\.restype", text), datei.name
+ok("Ressourcen: ctypes-Fehler brechen die KI-Zentrale nicht ab, windll.* bleibt unverändert")
+
 # ------------------------------------------------------------------ Angebot anlegen und optimieren
 aid = beispiel_angebot.anlegen(db)
 kopf, pos = db.angebot(aid), db.positionen(aid)
