@@ -92,6 +92,25 @@ def _q(w):
     return "–" if w is None else f"{w * 100:.0f} %"
 
 
+def verkauf_text(g):
+    """Verkaufskennzahlen (Master-Prompt 21.11.2026, Punkt 9): Ø Auftragswert, Ø Gewinn mit Marge, verlorenes Volumen,
+    Umsatzpotenzial der offenen Angebote."""
+    from . import marge as mg
+    teile = []
+    if g.get("auftrag_mittel") is not None:
+        teile.append(f"Ø Auftragswert {euro_text(g['auftrag_mittel'])} €")
+    if g.get("gewinn_mittel") is not None:
+        m = mg.aus_aufschlag(g["gewinn_mittel"] / 100)
+        teile.append(f"Ø Gewinn {g['gewinn_mittel']:.1f} %".replace(".", ",")
+                     + (f" (Marge etwa {100 * m:.1f} %)".replace(".", ",") if m is not None else ""))
+    if g.get("abgelehnt"):
+        teile.append(f"verloren {euro_text(g['abgelehnt_wert'])} €")
+    if g.get("potenzial") is not None and g.get("offen"):
+        teile.append(f"Umsatzpotenzial offen {euro_text(g['potenzial'])} € (offen {euro_text(g['offen_wert'])} € × "
+                     f"Trefferquote)")
+    return (" · ".join(teile) + ".") if teile else ""
+
+
 SPALTEN = ("", "Angebote", "beauftragt", "abgelehnt", "offen", "Trefferquote", "angeboten [€]", "beauftragt [€]")
 SPALTEN_GRUND = ("Absagegrund", "Absagen", "Anteil", "abgelehnt [€]")
 # Vorschlag K5: Ertrag (Verkauf ohne Material, Zukaufteile, Fracht) je Laserstunde der beauftragten Angebote
@@ -100,7 +119,7 @@ SPALTEN_ERTRAG = ("Laser-h beauftragt", "Ertrag €/h Soll", "Ertrag €/h Ist")
 TITEL = (("kunde", "Je Kunde"), ("kategorie", "Je Werkstoff-Kategorie"), ("preisklasse", "Je Preisklasse"),
          ("form", "Je Profilform"), ("wand", "Je Wandstärke"), ("laenge", "Je Teilelänge"),
          ("konturen", "Je Komplexität"), ("stueck", "Je Stückzahl"), ("reaktion", "Je Reaktionszeit"),
-         ("grund", "Absagegründe"))
+         ("gewinn", "Je Gewinnhöhe"), ("grund", "Absagegründe"))
 
 
 class AuswertungDialog(QDialog):
@@ -169,9 +188,10 @@ class AuswertungDialog(QDialog):
         self.kopf.setText(
             f"<b>{g['angebote']} Angebote</b> ({euro_text(g['summe'])} € netto): {g['beauftragt']} beauftragt "
             f"({euro_text(g['auftragswert'])} €), {g['abgelehnt']} abgelehnt, {g['offen']} offen. "
-            f"<b>Trefferquote {_q(g['trefferquote'])}</b> (beauftragt von den entschiedenen). Eine sehr hohe "
-            "Quote kann heißen, dass die Preise Luft nach oben haben; viele Absagen „Preis zu hoch“ zeigen, wo es "
-            "zu teuer ist.")
+            f"<b>Trefferquote {_q(g['trefferquote'])}</b> (beauftragt von den entschiedenen). "
+            + verkauf_text(g) + " Eine sehr hohe Quote kann heißen, dass die Preise Luft nach oben haben; viele "
+            "Absagen „Preis zu hoch“ zeigen, wo es zu teuer ist. Der Reiter „Je Gewinnhöhe“ zeigt, bei welchem "
+            "Gewinn Sie gewinnen.")
         for name, _ in TITEL:
             if name not in ("kunde", "grund"):
                 self._fuellen(self.tabellen[name], self.daten[name])

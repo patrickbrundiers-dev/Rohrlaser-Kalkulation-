@@ -1725,6 +1725,9 @@ EINSTELLUNGEN = (
                 "anteil", 0.03, 0, 1),
     Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)", "Angebot", "anteil",
                 0.0, 0, 1),
+    # Master-Prompt Angebotserstellung (Patrick 21.11.2026, Punkt 4): Zielmarge für die Preisleiter und die Ampel
+    Einstellung("zielmarge", "Angebots-Check: Zielmarge (Marge vom Warenwert, die ein Angebot erreichen soll, 0 = aus)",
+                "Angebot", "anteil", 0.0, 0, 1),
     # Angebotswesen P1 (Patrick 20.11.2026): Mindestmarge als Preisuntergrenze jeder Staffel (Anhebung als eigener Posten)
     Einstellung("mindestmarge_staffel", "Staffeln: Preis auf die Mindestmarge anheben", "Angebot", "auswahl", "ja",
                 auswahl="janein"),

@@ -1093,7 +1093,8 @@ def _seite_gesamt(a, st):
     out = _seiten_titel(7, "Gesamtkalkulation", akte_.INTERN, st,
                         "Alle Werte aus der Kalkulation des Angebots; Gewinn auf die Selbstkosten ohne Zukaufteile")
     out += [_kacheln([("Selbstkosten", geld(g.get("selbst"), 0)), ("Verkaufspreis", geld(g.get("verkauf"), 0)),
-                      ("Gewinn", geld(g.get("gewinn"), 0)), ("Gewinnmarge", prozent(g.get("marge"))),
+                      ("Gewinn", geld(g.get("gewinn"), 0)), ("Gewinnmarge", prozent(g.get("marge")),
+                       f"Aufschlag {prozent(g.get('aufschlag'))}" if g.get("aufschlag") is not None else ""),
                       ("Deckungsbeitrag", geld(g.get("deckungsbeitrag"), 0), prozent(g.get("db_satz")))],
                      st, flaeche=INTERN_FL), Spacer(1, 3 * mm)]
     stufe1 = [(x["titel"], x["betrag"]) for x in g.get("gruppen") or () if x["stufe"] == 1]

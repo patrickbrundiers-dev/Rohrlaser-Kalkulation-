@@ -2418,6 +2418,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.felder = self.kopf_bereich.felder
         self.maschinenwerte = self.kopf_bereich.maschinenwerte
         self.uebersicht_bereich = UebersichtBereich()
+        self.uebersicht_bereich.auf_preisleiter = self.preisleiter
         self.stand = self.uebersicht_bereich.stand
         self.uebersicht = self.uebersicht_bereich.uebersicht
         self.uebersicht_bereich.preise_knopf.clicked.connect(lambda _=False: self.preise_aktualisieren())
@@ -2552,6 +2553,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         menue.addAction("Angebotsdokument erstellen …", lambda: self.angebotsdokument())
         # Angebotswesen P4 (20.11.2026): Varianten A–E nebeneinander, Original bleibt, als Fassung übernehmen
         menue.addAction("Angebotsvarianten A–E …", lambda: self.angebotsvarianten())
+        menue.addAction("Preisleiter …", lambda: self.preisleiter())
         # Dokumentenablage nach PPEASE-Angebotsnummer (19.11.2026): ausgewählte Dokumente in den Ordner des PPEASE-Angebots
         menue.addAction("Dokumentenablage / PPEASE-Verknüpfung …", lambda: self.f.ppease_ablage(self.kopf))
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
@@ -5090,6 +5092,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             deckung=f"{_z(e['netto'])} €" + (f"<br><span style='font-weight:normal;color:{stil.umsetzen('#5F6B7A')}'>"
                                             f"{_z(100 * e['netto_anteil'], 1)} %</span>"
                                             if e["netto_anteil"] is not None else "")))
+        self._wirtschaft_setzen(summen)
         self.uebersicht_bereich.zeitbild_setzen(summen)
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
         self.uebersicht_rahmen.jetzt_anpassen()
@@ -8415,7 +8418,17 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return ""
         if getattr(self, "_treffer", (None, ""))[0] != stand:
             self._treffer = (stand, lernen.treffer_text(lernen.trefferquote(self.db, nr, self.id)))
-        return self._treffer[1]
+        text = self._treffer[1]
+        # Trefferquote je Gewinnhöhe über alle Kunden (Master-Prompt 21.11.2026, Punkt 8): nur Hinweis
+        try:
+            alle = self.db.con.execute("SELECT COUNT(*), MAX(geaendert) FROM angebote").fetchone()[:]
+            if getattr(self, "_treffer_gewinn", (None, None))[0] != alle:
+                self._treffer_gewinn = (alle, lernen.trefferquote_gewinn(self.db, self.id))
+            g = gewinn_wirksam(self._rechnung()[1], self.einst)
+            hinweis = lernen.gewinn_hinweis(self._treffer_gewinn[1], g)
+        except Exception:           # nur Hinweis
+            hinweis = ""
+        return " · ".join(x for x in (text, hinweis) if x)
 
     def _ist_vorschlag(self, p, name):
         """True, wenn name an der Position ein Zusatzarbeit-Vorschlag ist (offen oder abgelehnt), keine automatische
@@ -9871,6 +9884,28 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if inhalt is not None:
             self._kalk_letzte = (inhalt, self.k, self.tabellen, jetzt, rechnen.kopie(erg))
         return erg
+
+    def _wirtschaft_setzen(self, summen):
+        """Kacheln „Gewinn und Marge“ und „Wirtschaftlichkeit“ (Master-Prompt 21.11.2026, preisleiter.py)."""
+        from . import preisleiter as pl
+        kz = getattr(self.uebersicht_bereich, "kennzahl", {})
+        if "gewinn" not in kz:
+            return
+        b = pl.bewertung(summen, self.einst, self.unsicher_anteil())
+        grau = stil.umsetzen("#5F6B7A")
+        if not b:
+            kz["gewinn"].setText("–")
+            kz["wirtschaft"].setText("–")
+            return
+        kz["gewinn"].setText(f"{_z(b['gewinn'])} €<br><span style='font-weight:normal;color:{grau}'>Marge "
+                             + (f"{_z(100 * b['marge'], 1)} %" if b["marge"] is not None else "–")
+                             + (f"<br>Aufschlag {_z(100 * b['aufschlag'], 1)} %" if b["aufschlag"] is not None else "")
+                             + "</span>")
+        farbe = stil.umsetzen({pl.GUT: stil.GRUEN, pl.KNAPP: stil.ORANGE, pl.KRITISCH: stil.ROT}[b["stufe"]])
+        kz["wirtschaft"].setText(f"<a href='preisleiter' style='text-decoration:none;color:{farbe}'>● {b['stufe']}</a>"
+                                 f"<br><span style='font-weight:normal;color:{grau}'>Preisleiter …</span>")
+        kz["wirtschaft"].setToolTip(b["text"] + "".join("\n• " + g for g in b["gruende"]))
+        self._wirtschaft = b
 
     def angebotsvarianten(self, dialog=None):
         """Fenster „Angebotsvarianten A–E“ (angebot_varianten_dialog.py); nur mit Schnittplan. dialog(d) bedient das

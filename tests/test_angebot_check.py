@@ -58,7 +58,9 @@ erwartet = {
     "Schnittplan nicht aktuell": (ac.WARNUNG, "optimieren", ""),
     "Zukaufteil ohne Einkaufspreis": (ac.WARNUNG, "pos:1", "Pos. 20"),
     "Fracht: PLZ fehlt": (ac.WARNUNG, "fracht", None),
-    "Marge 4,5": (ac.WARNUNG, "kalkulation", ""),
+    # Marge vom Warenwert zentral in marge.py (21.11.2026): Preis 1.000 € bei Selbstkosten 1.500 € = −50 % (bis
+    # 20.11. ergab dieselbe Zeile 4,5 %, weil die alte Formel den Verkaufspreis nicht ansah)
+    "Marge -50,0": (ac.WARNUNG, "kalkulation", ""),
     "unter der Mindestmarge 5 %": (ac.WARNUNG, "kalkulation", ""),
     "2 Staffelstufe(n) veraltet": (ac.WARNUNG, "staffeln", None),
     "Mindestauftragswert greift": (ac.HINWEIS, "kopf:mindestpreis_anwenden", ""),

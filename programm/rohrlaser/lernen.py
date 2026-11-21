@@ -491,6 +491,55 @@ def trefferquote(db, kundennr, ohne_id=None):
                 gewinn_nein=mittel(nein), preis_zu_hoch=zu_teuer, abstand=mittel(abstand), n_abstand=len(abstand))
 
 
+TREFFER_GEWINN_AB = 5           # Trefferquote je Gewinnhöhe erst ab 5 entschiedenen Angeboten der Gewinnklasse
+
+
+def trefferquote_gewinn(db, ohne_id=None):
+    """Lernen aus Annahme und Ablehnung (Master-Prompt 21.11.2026, Punkt 8): beauftragte und abgelehnte Angebote aller
+    Kunden je Gewinnklasse (absage.GEWINN_KLASSEN, ohne ersetzte Fassungen): [dict(klasse, beauftragt, abgelehnt,
+    quote)] in der Reihenfolge der Klassen, quote None unter TREFFER_GEWINN_AB. Nur Hinweis, ändert nichts."""
+    from . import absage, funktionen
+    if not funktionen.an(funktionen.PREIS_HINWEISE, db):
+        return []
+    try:
+        zeilen = db.con.execute("SELECT id, vorgang, gewinn, vk_gewinn FROM angebote WHERE COALESCE(ersetzt_durch, '') "
+                                "= '' AND id IS NOT ? AND vorgang IN ('Beauftragt', 'Abgelehnt')", (ohne_id,)).fetchall()
+    except Exception:
+        return []
+    je = {t: [0, 0] for _, t in absage.GEWINN_KLASSEN}
+    for r in zeilen:
+        g = absage.gewinn_wert(dict(gewinn=r["gewinn"], vk_gewinn=r["vk_gewinn"]))
+        if g is None:
+            continue
+        je[absage.gewinn_klasse(g)][0 if r["vorgang"] == "Beauftragt" else 1] += 1
+    out = []
+    for _, k in absage.GEWINN_KLASSEN:
+        ja, nein = je[k]
+        out.append(dict(klasse=k, beauftragt=ja, abgelehnt=nein,
+                        quote=ja / (ja + nein) if ja + nein >= TREFFER_GEWINN_AB else None))
+    return out
+
+
+def gewinn_hinweis(klassen, gewinn):
+    """Eine Zeile zur Trefferquote bei der Gewinnhöhe des Angebots (gewinn in %), '' ohne genug Daten."""
+    from . import absage
+    if gewinn is None or not klassen:
+        return ""
+    k = absage.gewinn_klasse(gewinn)
+    hier = next((x for x in klassen if x["klasse"] == k), None)
+    if not hier or hier["quote"] is None:
+        return ""
+    n = hier["beauftragt"] + hier["abgelehnt"]
+    text = (f"Alle Kunden: bei {k} Gewinn {100 * hier['quote']:.0f} % beauftragt ({hier['beauftragt']} von {n} "
+            "entschiedenen)")
+    andere = [x for x in klassen if x["quote"] is not None and x["klasse"] != k]
+    if andere:
+        best = max(andere, key=lambda x: x["quote"])
+        if best["quote"] > hier["quote"] + 0.10:
+            text += f"; bei {best['klasse']}: {100 * best['quote']:.0f} %"
+    return text
+
+
 def treffer_text(t):
     """Eine Zeile für die Angebotsseite (nur Hinweis)."""
     if not t:

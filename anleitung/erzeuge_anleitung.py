@@ -9571,6 +9571,39 @@ def kapitel_ausgabe(i, seiten, ablage):
             "(Nummer -2, -3 …, [[neue_fassung]]) und trägt dort ihre Kalkulationswerte ein. Das bisherige Angebot steht "
             "danach auf „Ersetzt“, bleibt aber unverändert. Was-wäre-wenn-Preise werden nicht übernommen; die "
             "Meldung nennt sie.")
+    i.abschnitt("Preisleiter, Gewinn und Marge, Wirtschaftlichkeit", marke="preisleiter")
+    i.text("Die Kacheln <b>Gewinn und Marge</b> und <b>Wirtschaftlichkeit</b> in der Übersicht des Angebots zeigen "
+           "sofort, was das Angebot verdient. <i>Ausgaben → Preisleiter …</i> (oder ein Klick auf die Ampel) stellt "
+           "alle Preisstufen von der Preisuntergrenze bis zum Angebotspreis nebeneinander.", kurz=True)
+    i.genauer()
+    i.liste("<b>Aufschlag und Marge</b>: Der Gewinn [%] im Angebot ist ein <i>Aufschlag</i> auf die Kosten. Die "
+            "<i>Marge</i> ist der Gewinn geteilt durch den Warenwert (Preis ohne Fracht, Verpackung, Finanzierung "
+            "und Skonto). Marge = Aufschlag ÷ (1 + Aufschlag): 25 % Aufschlag sind 20 % Marge, 20 % Marge brauchen "
+            "25 % Aufschlag. Das Programm rechnet die Marge an einer Stelle; Rabatt, Rundung, Mindestpreis und Preis "
+            "von Hand zählen mit (ein Rabatt senkt also auch die Marge im Angebots-Check).",
+            "Kachel <b>Gewinn und Marge</b>: Gewinn in € nach Rabatt und Rundung, darunter Marge und Aufschlag.",
+            "Kachel <b>Wirtschaftlichkeit</b> (Ampel): <i>kritisch</i> unter der kurzfristigen Preisuntergrenze, "
+            "unter den Kosten oder unter der Mindestmarge; <i>knapp</i> unter der Zielmarge (ohne Ziel- und "
+            "Mindestmarge unter 8 %) oder wenn ein Viertel des Preises auf unsicheren Werten steht; sonst <i>gut</i>. "
+            "Der Tooltip nennt die Gründe.",
+            "<b>Preisleiter</b>: Preisuntergrenze kurzfristig (nur variable Kosten) und langfristig (alle Kosten, "
+            "Fracht, Verpackung), Mindestpreis (Mindestmarge), Zielpreis (Zielmarge), Zielpreis des Kunden (aus "
+            "<i>Zielpreis …</i>) und Angebotspreis; je Stufe Netto, Gewinn, Aufschlag auf Kosten, Marge vom Warenwert "
+            "und Unterschied zum Angebot.",
+            "<i>Auf Mindestmarge setzen</i> und <i>Auf Zielmarge setzen</i> stellen den Gewinn des Angebots so ein, "
+            "dass die volle Kalkulation genau diese Marge erreicht (mit Rückgängig). Die <i>Zielmarge</i> steht unter "
+            "Einstellungen → Kalkulation → Gewinn gestaffelt → Zielmarge (Preisleiter) (<i>Angebots-Check: Zielmarge "
+            "(Marge vom Warenwert, die ein Angebot erreichen soll, 0 = aus)</i>, Vorgabe 0).",
+            "<b>Staffelkurve</b> im Reiter Staffeln: über der Kurve wählen, ob sie den VK je Einheit, den "
+            "Gesamtpreis, den Gewinn oder die Marge je Menge zeigt; bei der Marge steht die Mindestmarge als rote "
+            "Linie.",
+            "<b>Lernen aus Annahme und Ablehnung</b>: Neben dem Gewinn steht, wie oft Angebote mit dieser Gewinnhöhe "
+            "bei allen Kunden beauftragt wurden (ab 5 entschiedenen Angeboten je Gewinnklasse) und bei welcher "
+            "Gewinnhöhe die Quote deutlich höher war. Das ist nur ein Hinweis; das Programm ändert keinen Wert.",
+            "<b>Angebots-Auswertung</b> (Datei → Angebots-Auswertung, Admin): neuer Reiter <i>Je Gewinnhöhe</i>; der "
+            "Kopf nennt Ø Auftragswert, Ø Gewinn mit Marge, verlorenes Volumen und das <i>Umsatzpotenzial</i> der "
+            "offenen Angebote (offener Wert × Trefferquote). Die Kennzahlen der Startseite zeigen dazu verloren, "
+            "Ø Gewinn und Umsatzpotenzial.")
     i.abschnitt("Dokumentenablage nach PPEASE-Angebotsnummer", marke="ppease_ablage")
     i.text("<i>Ausgaben → Dokumentenablage / PPEASE-Verknüpfung …</i> (auch im Menü <i>Datei</i> und im Kontextmenü "
            "der Angebotsübersicht) legt ausgewählte Dokumente der Kalkulation im Ordner des <b>PPEASE-Angebots</b> "
@@ -10122,7 +10155,8 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("Die <b>Mindestmarge</b> steht in den Einstellungen unter <i>Angebot</i> (<i>Angebots-Check: "
            "Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)</i>, Vorgabe 0). Gemeint ist (Gewinn + "
            "Anhebung auf den Mindestpreis) geteilt durch den Warenwert (Selbstkosten + Gewinn + Anhebung), ohne "
-           "Fracht und Skonto: 10 % Gewinn ergeben 9,1 % Marge. Angebote der Kollegen lassen sich ansehen und ausgeben, "
+           "Fracht und Skonto: 10 % Gewinn ergeben 9,1 % Marge. Ein gewährter Rabatt mindert die Marge (eine Formel "
+           "für Check, Freigabe, Varianten und Angebotsakte, [[preisleiter]]). Angebote der Kollegen lassen sich ansehen und ausgeben, "
            "ohne dass der Check fragt.")
     i.abschnitt("Kostentreiber über alle Aufträge", marke="kostentreiber")
     i.text("Datei → <b>Kostentreiber …</b> wertet die beauftragten Angebote der letzten 12 Monate aus: je "
@@ -11908,7 +11942,7 @@ def kapitel_einstellungen(i):
         ["Allgemein", "Ablage und Teilen", "was im gemeinsamen Ordner liegt, Archiv"],
         ["Kalkulation", "Zuschläge und Preise", "Zuschläge, Gewinn, Rüsten, Programmieren, Beträge je Angebot, MwSt."],
         ["Kalkulation", "Gewinn gestaffelt", "Grenzen und Sätze für den Gewinn nach Auftragswert, Grenze 1 leer = aus "
-         "([[gewinn_gestaffelt]])."],
+         "([[gewinn_gestaffelt]]); Mindestmarge der Staffeln; Zielmarge für Preisleiter und Ampel ([[preisleiter]])."],
         ["Kalkulation", "Kosten und Stundensatz", "Ausschuss, Schrotterlös, Preiseinheit, Schneidgas; Grundwerte zum "
          "Ermitteln des Stundensatzes (eingeklappt)."],
         ["Angebot", "Neue Angebote", "Maschine, Stangenlänge, Staffeln, Lieferzeit, Zahlung, Gültigkeit, Nummern"],
