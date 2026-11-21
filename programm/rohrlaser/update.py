@@ -900,7 +900,7 @@ def eigene_griffe_freigeben(ordner=None, dateien=()):
             if offen and isinstance(name, (str, os.PathLike)) and _norm(name) in ziele:
                 o.close()
                 zu += 1
-        except Exception:       # noqa: BLE001 – Freigeben ist ein Versuch; scheitert er, meldet die Prüfung die Datei
+        except (OSError, ValueError, TypeError, AttributeError):    # Versuch; sonst meldet die Prüfung die Datei
             continue
     if zu:
         gc.collect()
