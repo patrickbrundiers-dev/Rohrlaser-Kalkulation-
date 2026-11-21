@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget)
 
 from . import abmessung, anbau, profil_neu, blech, drehfraes_preis, dreid, fracht_angebot, ausgabe, naht, rechnen, schneidweg, step, tastatur, \
-    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen, blech_preis
+    teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen, blech_preis, hintergrund
 from .angebot_ausgabe import AusgabeMixin
 from .akte_ausgabe import AkteMixin
 from .klartext import fehler_text
@@ -4038,6 +4038,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         t = threading.Thread(target=lambda: self._mv_rechnen(eingaben), name="Maschinenvergleich", daemon=True)
         self._mv_lauf = (schl, t)
         t.start()
+        hintergrund.melden(t)
         uhr = self.__dict__.get("_mv_uhr")
         if uhr is None:
             uhr = self._mv_uhr = QTimer(self)
@@ -8004,6 +8005,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         t = threading.Thread(target=rechnen_, name="Wiederholteile", daemon=True)
         self._wt_lauf = (kennung, t, ende)
         t.start()
+        hintergrund.melden(t)
         if getattr(self, "_wt_zeitgeber", None) is None:
             self._wt_zeitgeber = QTimer(self)
             self._wt_zeitgeber.setInterval(50)
@@ -9551,6 +9553,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
 
         t = threading.Thread(target=lauf, name="Optimieren", daemon=True)
         t.start()
+        hintergrund.melden(t)
         dlg = QProgressDialog("Optimieren …", "Abbrechen", 0, 1000, self)
         dlg.setWindowTitle("Optimieren")
         dlg.setWindowModality(Qt.WindowModal)

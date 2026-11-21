@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QSplitter, QTabWidget, QTableView, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import abruf, fracht_angebot, hilfe, protokoll, rechnen, staffeln, stil
+from . import abruf, fracht_angebot, hilfe, hintergrund, protokoll, rechnen, staffeln, stil
 from .klartext import fehler_text
 from .fenster import FARBE_BERECHNET, FARBE_STATUS
 from .spaltenbreite import AutoGroesse
@@ -1949,7 +1949,9 @@ class StaffelSeite(QWidget):
                 self._bote.fertig.emit(nr, zeilen, kenn)
             except Exception as e:          # noqa: BLE001 – Fehler im Programmablauf melden
                 self._bote.fertig.emit(nr, None, str(e))
-        threading.Thread(target=lauf, name="Staffelpreise", daemon=True).start()   # Name: update_fenster
+        t = threading.Thread(target=lauf, name="Staffelpreise", daemon=True)     # Name: update_fenster
+        t.start()
+        hintergrund.melden(t)
         self._anzeigen()
 
     def _hintergrund_fertig(self, nr, zeilen, kenn):

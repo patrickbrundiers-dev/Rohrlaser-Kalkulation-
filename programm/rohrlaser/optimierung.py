@@ -899,6 +899,11 @@ def typ(t):
             t.drehung, -1 if t.naht is None else t.naht, t.rest, t.ende_frei)
 
 
+# Anzahl je Endenart als eine Zahl (16 Bit je Art) statt als Liste: spart je Suchknoten zwei Listenkopien
+_ART_BITS = 16
+_ART_MASKE = (1 << _ART_BITS) - 1
+
+
 def bestes_muster(g, typen, bedarf, wert):
     """Schnittmuster (Anzahl je Typ, höchstens der Bedarf) mit dem größten Gesamtwert, das auf eine Stange passt.
     Tiefensuche, je Typ zuerst die größte mögliche Anzahl; abgeschnitten wird, wenn selbst die freie Länge mit dem
@@ -915,18 +920,19 @@ def bestes_muster(g, typen, bedarf, wert):
                  for a in set(art)}
     zuschlag = {}
 
-    def zuschlag_von(anz):
+    def zuschlag_von(schl):
+        anz = [(schl >> (_ART_BITS * a)) & _ART_MASKE for a in range(4)]
         null = [vertreter[a] for a in range(4) for _ in range(anz[a])]
-        zuschlag[anz] = verbrauch(g, anordnen(null))
-        return zuschlag[anz]
+        zs = zuschlag[schl] = verbrauch(g, anordnen(null))
+        return zs
 
     grenze = g.nutzbar_bis + EPS
-
     frei = g.nutzbar_bis - g.endbeschnitt
     laengen = [t.laenge for t in typen]
+    eins = [1 << (_ART_BITS * a) for a in art]      # +1 Teil dieser Endenart in der Anzahl-Zahl
 
     def suche(i, w, laenge, anz0):
-        # anz0: Anzahl je Endenart der Typen vor i (wird mitgegeben statt je Knoten neu gezählt; gleiche Suche)
+        # anz0: Anzahl je Endenart der Typen vor i als eine Zahl (gleiche Suche, gleiche Knotenzahl wie bisher)
         knoten[0] += 1
         if w > beste[1] + 1e-9:
             beste[0], beste[1] = list(zahl), w
@@ -934,71 +940,193 @@ def bestes_muster(g, typen, bedarf, wert):
             return
         if w + q_ab[i] * (frei - laenge) <= beste[1] + 1e-9:
             return
-        a, li = art[i], laengen[i]
-        anz = list(anz0)
-        while zahl[i] < bedarf[i]:
-            anz[a] += 1
-            schl = tuple(anz)
-            zs = zuschlag.get(schl)
+        li, d, bi = laengen[i], eins[i], bedarf[i]
+        anz, k = anz0, 0
+        while k < bi:
+            anz += d
+            zs = zuschlag.get(anz)
             if zs is None:
-                zs = zuschlag_von(schl)
-            if not zs + (laenge + li * (zahl[i] + 1)) <= grenze:      # passt nicht mehr auf die Stange
+                zs = zuschlag_von(anz)
+            if not zs + (laenge + li * (k + 1)) <= grenze:      # passt nicht mehr auf die Stange
                 break
-            zahl[i] += 1
+            k += 1
+        wi, i1 = wert[i], i + 1
         while True:
-            k = zahl[i]
-            weiter = list(anz0)
-            weiter[a] += k
-            suche(i + 1, w + wert[i] * k, laenge + li * k, weiter)
-            if zahl[i] == 0:
+            zahl[i] = k
+            suche(i1, w + wi * k, laenge + li * k, anz0 + d * k)
+            if k == 0:
                 break
-            zahl[i] -= 1
+            k -= 1
 
-    suche(0, 0.0, 0.0, [0, 0, 0, 0])
+    suche(0, 0.0, 0.0, 0)
     return beste[0], knoten[0] <= MUSTER_MAX_KNOTEN
 
 
-def simplex_max(c, a, b):
+# Simplex für die Spaltengenerierung (Master-Prompt Rechenkerne 21.11.2026). Jede Runde der Schnittmuster-Optimierung
+# löst dasselbe lineare Programm mit einer Zeile (einem Muster) mehr. Die Schritte des Simplex hängen für die
+# bisherigen Zeilen nicht von der neuen Zeile ab, solange die neue Zeile in keinem Schritt die Pivotzeile wird: bis
+# dahin rechnet jede Zahl genau gleich. SimplexVerlauf merkt sich die Schritte der letzten Runde und alle
+# SIMPLEX_STAND_ALLE Schritte den ganzen Stand; die nächste Runde führt nur die neue Zeile durch die bekannten
+# Schritte, bis sie mitspielt, und rechnet ab dort wie bisher weiter. Ergebnis, Pivotfolge und jede Zahl sind
+# dieselben wie bei einer Rechnung von vorn (Prüfung: tests/test_rechenkerne_2111.py).
+# Aufbau einer Tableau-Zeile: [rechte Seite, Spalten der Typen, Schlupf 0 … m-1]; Zeilen dürfen kürzer sein als die
+# Pivotzeile (fehlende Spalten sind 0,0 und werden erst bei Bedarf angehängt).
+SIMPLEX_STAND_ALLE = 3      # alle so viele Schritte einen Zwischenstand merken …
+SIMPLEX_STAENDE_MAX = 32    # … aber höchstens so viele (Arbeitsspeicher; danach gröber, die späten bleiben dichter)
+
+
+class SimplexVerlauf:
+    """Schritte und Zwischenstände des letzten Simplex-Laufs einer Spaltengenerierung (siehe oben)."""
+    __slots__ = ("a", "c", "b", "staende", "schritte", "uebernommen", "gerechnet")
+
+    def __init__(self):
+        self.a = self.c = self.b = None
+        self.staende, self.schritte = {}, []
+        self.uebernommen = self.gerechnet = 0
+
+
+def _simplex_schritt(tab, z, m, r, e, zeile, nz):
+    """Pivotschritt: Zeile r wird zeile (schon durch das Pivotelement geteilt), alle anderen Zeilen und die
+    Zielzeile verlieren f × zeile; nur die Spalten nz (zeile dort nicht 0) ändern sich (x − f·0 = x)."""
+    tab[r] = list(zeile)
+    lz = len(zeile)
+    for i in range(m):
+        if i != r:
+            ti = tab[i]
+            f = ti[e] if e < len(ti) else 0.0
+            if abs(f) > 1e-12:
+                if len(ti) < lz:
+                    ti.extend([0.0] * (lz - len(ti)))
+                for j in nz:
+                    ti[j] = ti[j] - f * zeile[j]
+    f = z[e]
+    for j in nz:
+        z[j] = z[j] - f * zeile[j]
+
+
+def simplex_max(c, a, b, verlauf=None):
     """Lineares Programm max c·y unter a·y <= b, y >= 0 mit b >= 0 (Simplex mit Tableau, Regel von Bland gegen
-    Kreisen). Ergebnis: (y, Zielwert, Schattenpreise der Zeilen, gelöst)."""
+    Kreisen). Ergebnis: (y, Zielwert, Schattenpreise der Zeilen, gelöst).
+    verlauf (SimplexVerlauf): Ist a die Matrix des letzten Laufs mit einer Zeile mehr (c gleich, b gleich bis auf
+    die neue Zeile), werden dessen Schritte übernommen, solange sie für die neue Zeile gleich bleiben."""
     m, n = len(a), len(c)
-    tab = [list(a[i]) + [1.0 if j == i else 0.0 for j in range(m)] + [b[i]] for i in range(m)]
-    z = [-x for x in c] + [0.0] * (m + 1)
-    basis = [n + i for i in range(m)]
+    grenze = 20 * (m + n) + 100
+    start = None
+    if verlauf is not None and verlauf.a is not None and m == len(verlauf.a) + 1 and verlauf.c == c \
+            and verlauf.b == b[:-1] and a[:-1] == verlauf.a:
+        start = _simplex_fortsetzen(verlauf, a[-1], b[-1], n, m)
+    if start is None:
+        tab = [[b[i]] + list(a[i]) + [0.0] * i + [1.0] for i in range(m)]
+        z = [0.0] + [-x for x in c] + [0.0] * m
+        basis = [n + i for i in range(m)]
+        schritt, staende, schritte = 0, {}, []
+    else:
+        tab, z, basis, schritt, staende, schritte = start
+        verlauf.uebernommen += schritt
     geloest = False
-    for _ in range(20 * (m + n) + 100):
-        e = next((j for j in range(n + m) if z[j] < -1e-9), None)
+    merken = verlauf is not None
+    while schritt < grenze:
+        if merken and schritt % SIMPLEX_STAND_ALLE == 0 and schritt not in staende:
+            staende[schritt] = ([list(t) for t in tab], list(z), list(basis))
+        e = None
+        for j in range(1, n + m + 1):
+            if z[j] < -1e-9:
+                e = j
+                break
         if e is None:
             geloest = True
             break
         r, best = None, None
         for i in range(m):
-            if tab[i][e] > 1e-9:
-                q = tab[i][-1] / tab[i][e]
+            ti = tab[i]
+            v = ti[e] if e < len(ti) else 0.0
+            if v > 1e-9:
+                q = ti[0] / v
                 if best is None or q < best - 1e-12 or (abs(q - best) <= 1e-12 and basis[i] < basis[r]):
                     r, best = i, q
         if r is None:       # unbeschränkt: kommt bei Schnittmustern nicht vor (jeder Typ hat ein Muster)
             break
         p = tab[r][e]
         zeile = [x / p for x in tab[r]]
-        tab[r] = zeile
-        # nur die Spalten, in denen die Pivotzeile nicht 0 ist, ändern sich (x − f·0 = x): gleiches Ergebnis, schneller
         nz = [j for j, y in enumerate(zeile) if y != 0.0]
-        for i in range(m):
-            ti = tab[i]
-            if i != r and abs(ti[e]) > 1e-12:
-                f = ti[e]
-                for j in nz:
-                    ti[j] = ti[j] - f * zeile[j]
-        f = z[e]
-        for j in nz:
-            z[j] = z[j] - f * zeile[j]
-        basis[r] = e
+        _simplex_schritt(tab, z, m, r, e, zeile, nz)
+        if merken:
+            schritte.append((e, r, best, zeile, nz))
+            verlauf.gerechnet += 1
+        basis[r] = e - 1
+        schritt += 1
+    if merken:
+        verlauf.a, verlauf.c, verlauf.b = [list(x) for x in a], list(c), list(b)
+        verlauf.staende, verlauf.schritte = _staende_ausduennen(staende), schritte
     y = [0.0] * n
     for i, bi in enumerate(basis):
         if bi < n:
-            y[bi] = tab[i][-1]
-    return y, z[-1], z[n:n + m], geloest
+            y[bi] = tab[i][0]
+    return y, z[0], z[1 + n:1 + n + m], geloest
+
+
+def _staende_ausduennen(staende):
+    """Höchstens SIMPLEX_STAENDE_MAX Zwischenstände: die späteren Hälfte bleibt, von den früheren jeder zweite
+    (die neue Zeile spielt meist erst spät mit). Schritt 0 bleibt immer. Nur Tempo, nie das Ergebnis: fehlt ein
+    Stand, werden die bekannten Schritte ab dem vorigen nachgerechnet."""
+    while len(staende) > SIMPLEX_STAENDE_MAX:
+        schl = sorted(staende)
+        frueh = schl[1:len(schl) // 2]
+        if not frueh:
+            break
+        for s in frueh[::2]:
+            del staende[s]
+    return staende
+
+
+def _simplex_basis(v, t, r):
+    """Basisvariable der Zeile r vor Schritt t des gemerkten Laufs."""
+    k = max(s for s in v.staende if s <= t)
+    basis = list(v.staende[k][2])
+    for s in range(k, t):
+        e, rr = v.schritte[s][0], v.schritte[s][1]
+        basis[rr] = e - 1
+    return basis[r]
+
+
+def _simplex_fortsetzen(v, a_neu, b_neu, n, m):
+    """Neue Zeile durch die Schritte des gemerkten Laufs führen, bis sie in einem Schritt Pivotzeile würde (oder der
+    Lauf endete). Ergebnis: (Tableau, Zielzeile, Basis, Schritt, Zwischenstände, Schritte) zum Weiterrechnen, oder
+    None (von vorn rechnen)."""
+    zeile_neu = [b_neu] + list(a_neu) + [0.0] * (m - 1) + [1.0]
+    b_basis = n + m - 1
+    breite = 1 + n + m
+    staende = {}
+    t = len(v.schritte)
+    for s, (e, r, best, zeile, nz) in enumerate(v.schritte):
+        if s in v.staende:
+            tab_s, z_s, basis_s = v.staende[s]
+            staende[s] = (tab_s + [list(zeile_neu)], z_s + [0.0] * (breite - len(z_s)), basis_s + [b_basis])
+        w = zeile_neu[e] if e < len(zeile_neu) else 0.0
+        if w > 1e-9:            # Quotiententest wie im Lauf: die neue Zeile ist die letzte, also zuletzt geprüft
+            q = zeile_neu[0] / w
+            if q < best - 1e-12 or (abs(q - best) <= 1e-12 and b_basis < _simplex_basis(v, s, r)):
+                t = s
+                break
+        if abs(w) > 1e-12:
+            if len(zeile_neu) < len(zeile):
+                zeile_neu.extend([0.0] * (len(zeile) - len(zeile_neu)))
+            for j in nz:
+                zeile_neu[j] = zeile_neu[j] - w * zeile[j]
+    if t == len(v.schritte) and t in v.staende:
+        tab_s, z_s, basis_s = v.staende[t]
+        staende[t] = (tab_s + [list(zeile_neu)], z_s + [0.0] * (breite - len(z_s)), basis_s + [b_basis])
+    vorher = [s for s in staende if s <= t]
+    if not vorher:
+        return None
+    k = max(vorher)             # letzter gemerkter Stand vor t, dann die bekannten Schritte bis t nachrechnen
+    tab_s, z_s, basis_s = staende[k]
+    tab, z, basis = [list(x) for x in tab_s], list(z_s), list(basis_s)
+    for s in range(k, t):
+        e, r, best, zeile, nz = v.schritte[s]
+        _simplex_schritt(tab, z, m, r, e, zeile, nz)
+        basis[r] = e - 1
+    return tab, z, basis, t, {s: x for s, x in staende.items() if s <= t}, list(v.schritte[:t])
 
 
 def muster_optimierung(g):
@@ -1025,9 +1153,10 @@ def muster_optimierung(g):
             return [], 0            # passt nicht auf eine Stange (wird vorher aussortiert)
         muster.append(tuple(k if j == i else 0 for j in range(n)))
     vollstaendig = False
+    verlauf = SimplexVerlauf()      # jede Runde setzt die Schritte der vorigen fort (gleiches Ergebnis, schneller)
     for _ in range(MUSTER_MAX_RUNDEN):
         y, wert, x, geloest = simplex_max([float(d) for d in bedarf], [[float(v) for v in m] for m in muster],
-                                          [1.0] * len(muster))
+                                          [1.0] * len(muster), verlauf)
         if not geloest:
             break
         m, ganz = bestes_muster(g, typen, bedarf, [max(v, 0.0) for v in y])

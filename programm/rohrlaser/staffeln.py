@@ -453,6 +453,13 @@ def rechnen_alle(kopf, positionen, stufen, k, tabellen, einst, fortschritt=None,
     alt: bisherige Zeilen; Stufen mit unveränderter Prüfsumme werden übernommen statt neu optimiert.
     ohne_lauf: nur die Preisschicht; Stufen ohne passenden Mengenlauf bekommen Zeilen 'VERALTET'.
     fortschritt(i, n) wird vor jedem Mengenlauf aufgerufen und kann mit False abbrechen (Ergebnis dann None)."""
+    from . import diagnose          # Rechenzeit je Rechenkern (Performance-Monitoring 21.11.2026)
+    with diagnose.messen("Staffeln" if not ohne_lauf else "Staffeln (nur Preise)"):
+        return _rechnen_alle(kopf, positionen, stufen, k, tabellen, einst, fortschritt, alt, ohne_lauf, stufen_daten)
+
+
+def _rechnen_alle(kopf, positionen, stufen, k, tabellen, einst, fortschritt=None, alt=None, ohne_lauf=False,
+                  stufen_daten=None):
     g = _hash(_gemeinsam(kopf, positionen, k, tabellen, einst))
     vorher = {(z.get("kennung_stufe"), txt(z.get("schluessel")), z.get("menge")): z for z in alt or ()
               if z.get("bausteine") or z.get("hinweis")}

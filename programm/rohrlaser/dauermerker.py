@@ -494,6 +494,11 @@ def stand():
     return dict(zaehler, eintraege=n, aus=_aus or _wurzel is None, bereiche=bereiche)
 
 
+def gestoert():
+    """True, wenn der Merker eingerichtet war und wegen eines Datei-Fehlers ausgeschaltet ist (Diagnose)."""
+    return bool(_aus and _wurzel is not None)
+
+
 def zaehler_zuruecksetzen():
     with _sperre:
         zaehler.update(treffer=0, neu=0)

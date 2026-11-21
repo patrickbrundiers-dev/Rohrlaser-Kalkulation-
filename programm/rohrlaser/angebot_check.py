@@ -73,6 +73,10 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
     st = {i: str(status[i] if i < len(status) else "") for i in aktiv}
     if not aktiv:
         out.append(Punkt(FEHLER, "keine Positionen"))
+    from . import rechenpruefung    # ungültige Zahl im Ergebnis (NaN/∞): nie still ins Angebot (21.11.2026)
+    rf = rechenpruefung.check_text(summen)
+    if rf:
+        out.append(Punkt(FEHLER, rf, "kalkulation"))
     if _leer(kopf.get("kunde")):
         out.append(Punkt(WARNUNG, "kein Kunde eingetragen", "kopf:kunde"))
     if stand != "aktuell":
