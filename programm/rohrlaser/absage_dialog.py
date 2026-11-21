@@ -1,8 +1,8 @@
 """Absagegrund beim Vorgang „Abgelehnt“ und Datei → „Angebots-Auswertung …“ (absage.py, Plan 29.10.2026 1b)."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout,
-                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QTabWidget,
-                               QVBoxLayout)
+                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QTableWidget,
+                               QTableWidgetItem, QTabWidget, QVBoxLayout)
 
 from . import absage
 from .ausgabe import euro_text
@@ -35,12 +35,47 @@ class AbsageDialog(QDialog):
         self.bemerkung = QLineEdit()
         self.bemerkung.setPlaceholderText("z. B. Wettbewerber, Hinweis des Kunden")
         form.addRow("Bemerkung", self.bemerkung)
+        # KI 3 (Paket C): Grund aus der Absage-Mail vorschlagen (Regeln, lokales Sprachmodell nur mit Beleg)
+        self.mail = QPlainTextEdit()
+        self.mail.setPlaceholderText("Optional: Mail des Kunden hier einfügen – „Grund vorschlagen“ füllt Grund, "
+                                     "Preis und Bemerkung aus (nur Vorschlag).")
+        self.mail.setMaximumHeight(90)
+        form.addRow("Mail des Kunden", self.mail)
+        self.vorschlag_knopf = QPushButton("Grund vorschlagen")
+        self.vorschlag_knopf.clicked.connect(lambda: self.vorschlagen())
+        self.vorschlag_text = QLabel("")
+        self.vorschlag_text.setWordWrap(True)
+        z = QHBoxLayout()
+        z.addWidget(self.vorschlag_knopf)
+        z.addWidget(self.vorschlag_text, 1)
+        form.addRow(z)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.button(QDialogButtonBox.Ok).setText("Als abgelehnt markieren")
         knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
         form.addRow(knoepfe)
+
+    def vorschlagen(self, text=None, db=None, mit_modell=True):
+        """Grund, Wettbewerbspreis und Bemerkung aus der eingefügten Mail vorschlagen; ändert nur die Felder."""
+        from . import ki_auslesen
+        db = db or getattr(self.parent(), "db", None) or getattr(getattr(self.parent(), "f", None), "db", None)
+        v = ki_auslesen.absage_aus_text(db, self.mail.toPlainText() if text is None else text,
+                                        mit_modell=mit_modell and db is not None)
+        if not v:
+            self.vorschlag_text.setText("In der Mail steht kein erkennbarer Grund.")
+            return None
+        i = self.grund.findText(v["grund"])
+        if i >= 0:
+            self.grund.setCurrentIndex(i)
+        if v.get("preis"):
+            self.preis.setValue(v["preis"])
+        if v.get("bemerkung") and not self.bemerkung.text().strip():
+            self.bemerkung.setText(v["bemerkung"])
+        self.vorschlag_text.setText(f"Vorschlag ({'Sprachmodell' if v['quelle'] == 'KI' else 'Regel'}): "
+                                    f"{v['grund']}" + (f", Preis {euro_text(v['preis'])} €" if v.get('preis') else "")
+                                    + " – bitte prüfen.")
+        return v
 
     def _ok(self):
         self.ergebnis = (self.grund.currentText(), self.bemerkung.text().strip(), self.preis.value() or None)

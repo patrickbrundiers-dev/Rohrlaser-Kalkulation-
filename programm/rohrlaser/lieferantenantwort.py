@@ -152,6 +152,14 @@ def einlesen(db, angebot_id, text, absender="", paare=(), profile=None, stange=N
     from . import automatik, lieferantenangebote as la
     lief = lieferant_finden(absender, text, db.zeilen("zukauf_lieferanten")) or (absender or "unbekannt")
     zeilen = auslesen(text, paare, profile or {}, stange)
+    fehlen = [(p, w) for p, w in paare if not any(z["profil_id"] == p and z["werkstoff_id"] == w for z in zeilen)]
+    if fehlen:              # KI 3: lokales Sprachmodell als zweite Stufe (nur mit wörtlichem Beleg, nur Vorschlag)
+        try:
+            from . import ki_auslesen
+            zeilen += ki_auslesen.lieferant_ki(db, text, fehlen, profile)
+        except Exception:   # noqa: BLE001 – ohne Modell bleibt es bei den Regeln
+            from . import protokoll
+            protokoll.warnung("lieferantenantwort: KI-Stufe")
     if not zeilen:
         raise ValueError("In der Antwort steht zu keiner Abmessung des Angebots ein Preis mit Einheit (€/kg, €/m, "
                          "€/Stange). Bitte von Hand erfassen.")

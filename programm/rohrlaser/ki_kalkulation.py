@@ -335,3 +335,103 @@ def filter_text(f):
     if f.get("seit"):
         teile.append(f"seit {f['seit']}")
     return ", ".join(teile)
+
+
+# ------------------------------------------------------------------ KI 3 (Paket B-Rest): Preisrisiko
+RISIKO_MARGE = 0.08         # unter dieser Marge (oder der Mindestmarge der Einstellungen) zählt die Marge als knapp
+RISIKO_STUFEN = ((5, "hoch"), (3, "mittel"), (0, "niedrig"))
+
+
+def preisrisiko(ctx):
+    """dict(stufe, punkte, gruende [dict(text, punkte, quelle)], text) oder None (nicht optimiert): wie sicher der
+    Preis ist – alte Materialpreise, unsichere Erkennung, knappe Marge, ungewohntes Teil, Zukauf ohne Preis. Nur
+    Hinweis; der Preis bleibt die Rechnung des Programms."""
+    from . import ki_agenten as ag
+    s = ctx.summen
+    if not s:
+        return None
+    gruende = []
+    r = ag.pruefen(ctx.db, ctx.angebot_id, ctx.seite, ["material", "qualitaet", "einkauf", "rohrlaser"], ctx.heute,
+                   protokoll=False)
+    for b in r["befunde"]:
+        q = b.get("quelle") or ""
+        if q == "Preisalter" and b["art"] in (ag.WARNUNG, ag.HINWEIS):
+            gruende.append(dict(text=b["text"], punkte=2, quelle=q))
+        elif q == "STEP-Prüfstatus":
+            gruende.append(dict(text=b["text"], punkte=2 if b["art"] == ag.WARNUNG else 1, quelle=q))
+        elif q == "Schneiddaten" and b["art"] in (ag.WARNUNG, ag.HINWEIS):
+            gruende.append(dict(text=b["text"], punkte=1, quelle=q))
+        elif b.get("agent") == "Einkaufs-KI" and b["art"] in (ag.WARNUNG, ag.FEHLER):
+            gruende.append(dict(text=b["text"], punkte=2, quelle=q or "Einkauf"))
+    selbst, verkauf = _n(s.get("selbst")), _n(s.get("verkauf"))
+    if verkauf > 0:
+        marge = (verkauf - selbst) / verkauf
+        try:
+            mind = float(ctx.db.einstellung("mindestmarge") or 0)
+        except (TypeError, ValueError):
+            mind = 0.0
+        grenze = max(mind, RISIKO_MARGE)
+        if marge < grenze:
+            gruende.append(dict(text=f"Marge {_z(100 * marge, 1)} % liegt unter {_z(100 * grenze, 1)} %.",
+                                punkte=2 if marge < grenze / 2 else 1, quelle="Kalkulation"))
+    if ctx.seite is not None and hasattr(ctx.seite, "wiederholteile_suchen"):
+        try:
+            if not vergleich_frueher(ctx):
+                gruende.append(dict(text="Keine Wiederholteile: für diese Teile gibt es keinen früheren Preis.",
+                                    punkte=1, quelle="Wiederholteile"))
+        except Exception:       # noqa: BLE001
+            protokoll.warnung("ki_kalkulation: Wiederholteile nicht prüfbar")
+    punkte = sum(g["punkte"] for g in gruende)
+    stufe = next(t for ab, t in RISIKO_STUFEN if punkte >= ab)
+    text = f"Preisrisiko {stufe} ({punkte} Punkte)" + (":\n" + "\n".join(f"• {g['text']} ({g['quelle']})"
+                                                         for g in gruende) if gruende else
+                                                         ": keine Auffälligkeiten.")
+    return dict(stufe=stufe, punkte=punkte, gruende=gruende, text=text)
+
+
+# ------------------------------------------------------------------ KI 3: Texte auf Englisch (nur Entwurf)
+SYSTEM_EN = ("You translate German business texts of a tube laser cutting company into clear, polite English. "
+             "Keep every number, unit, article number and name exactly as given. Do not add facts. Output only "
+             "the translated text.")
+
+
+def _de_zahlen(en):
+    """Englisch geschriebene Zahlen (1,224.11 / 12.5) deutsch schreiben (1.224,11 / 12,5) für den Faktencheck."""
+    def um(m):
+        t = m.group(0)
+        if re.fullmatch(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?", t):
+            t = t.replace(",", "")
+        elif "," in t:
+            return t
+        ganz, _, rest = t.partition(".")
+        if ganz.isdigit() and int(ganz) >= 1000 and (rest or m.group(0) != t):     # mit Tausender/Dezimalteil
+            ganz = f"{int(ganz):,}".replace(",", ".")
+        return ganz + ("," + rest if rest else "")
+    return re.sub(r"(?<![\d.,])\d[\d,]*(?:\.\d+)?(?![\d])", um, str(en))
+
+
+def uebersetzen(db, text, senden=None):
+    """dict(text, ok, modell, fremde_zahlen): englischer Entwurf des Textes mit dem lokalen Sprachmodell. ok=False,
+    wenn kein Modell aktiv ist oder die Übersetzung eine Zahl enthält, die im Original nicht steht (dann bleibt der
+    deutsche Text)."""
+    from . import ki_modelle, ki_orchestrator, ki_protokoll
+    if not str(text or "").strip():
+        return dict(text="", ok=False, modell="", fremde_zahlen=[])
+    if not ki_modelle.aktiv(db):
+        return dict(text=text, ok=False, modell="", fremde_zahlen=[],
+                    hinweis="Englisch braucht ein lokales Sprachmodell (KI-Zentrale → Modelle).")
+    try:
+        a = ki_modelle.erzeugen(db, ki_modelle.ERKLAEREN, text, system=SYSTEM_EN, senden=senden)
+    except ki_modelle.KiFehler as e:
+        return dict(text=text, ok=False, modell="", fremde_zahlen=[], hinweis=f"Sprachmodell: {e}")
+    en = str(a.get("text") or "").strip()
+    ok, fremd = ki_orchestrator.faktencheck(_de_zahlen(en), text)
+    try:
+        ki_protokoll.schreiben(db, "KI-Übersetzung", "englisch", ergebnis="ok" if ok else f"verworfen {fremd}",
+                               modell=a.get("modell", ""), status="ok" if ok else "fehler")
+    except Exception:           # noqa: BLE001
+        protokoll.warnung("ki_kalkulation: Protokoll Übersetzung")
+    if not ok or not en:
+        return dict(text=text, ok=False, modell=a.get("modell", ""), fremde_zahlen=fremd,
+                    hinweis="Die Übersetzung enthielt Zahlen, die im Original nicht stehen – verworfen.")
+    return dict(text=en, ok=True, modell=a.get("modell", ""), fremde_zahlen=[])

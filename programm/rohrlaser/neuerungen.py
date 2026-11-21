@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.439", "<b>Lokale KI: Prüfen, Einkauf und Bedienung</b> ([[ki]]). Neue Fragen im KI-Assistenten: "
+                "<i>Preisrisiko</i> des Angebots mit Gründen, Rückfrage oder Kundentext <i>auf Englisch</i> (Entwurf, "
+                "Zahlen geprüft), <i>Liefertermin und Engpässe</i> aus der Auslastung, <i>Fehlermeldungen erklären</i> "
+                "und <i>Hilfe aus der Anleitung</i>. Befehle wie <i>Alle Bohrungen Ø 8,5 als M10</i> zeigen einen "
+                "Vorschlag, <b>Übernehmen</b> speichert ihn. Der Absage-Dialog schlägt den Grund aus der Mail des "
+                "Kunden vor, und beim Einlesen von Lieferantenantworten liest das Sprachmodell fehlende Preise (nur "
+                "mit Beleg). Alles lokal, alles nur Vorschlag.",
+     "KI: Preisrisiko, Englisch, Liefertermin, Fehler erklären, Bohrungs-Befehle, Absagegrund aus Mail"],
     ["0.9.438", "<b>Kalkulieren mit der lokalen KI</b> ([[ki]]). Im KI-Assistenten liest <b>Anfrage auslesen …</b> "
                 "Positionen, Anfrage-Nr., Projekt, Kundenvorgaben (Zeugnis 3.1, Verpackung, Liefertermin …) und "
                 "Zusatzarbeiten aus PDF, Mail oder eingefügtem Text; <b>Als Angebotsentwurf anlegen</b> macht daraus "

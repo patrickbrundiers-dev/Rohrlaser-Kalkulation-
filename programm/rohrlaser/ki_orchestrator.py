@@ -54,6 +54,19 @@ ABSICHTEN = {
                                                   "nachkalkulation auswert", "wo kalkulieren wir"), (), True),
     "auslesen": ("Anfrage auslesen", ("lies die anfrage", "anfrage auslesen", "angebotsentwurf", "entwurf anlegen",
                                       "fasse die anfrage", "zusammenfass"), (), True),
+    # KI 3 (Pakete B-Rest, C, D; Freigabe wie oben)
+    "risiko": ("Preisrisiko", ("preisrisiko", "risiko", "wie sicher ist der preis", "wie sicher ist das angebot"), (),
+               False),
+    "englisch": ("Entwurf auf Englisch", ("englisch", "english", "auf englisch", "in english"), (), False),
+    "hilfe": ("Hilfe aus der Anleitung", ("wie lege ich", "wie kann ich", "wie mache ich", "wo finde ich", "wie geht",
+                                          "wo stelle ich", "wie stelle ich", "bedienung", "anleitung", "wie funktioniert"),
+              (), True),
+    "fehlerlog": ("Fehlermeldungen erklären", ("fehlermeldung", "fehlerprotokoll", "fehler im protokoll", "absturz",
+                                               "abgestürzt", "stürzt ab", "was bedeutet der fehler", "supportpaket"),
+                  (), True),
+    "liefertermin": ("Liefertermin und Engpässe", ("liefertermin", "engpass", "engpäss", "wann können wir liefern",
+                                                   "wann passt", "kapazität", "kapazitaet", "auslastung"), (), True),
+    "befehl": ("Befehl für die Bohrungen", (), (), False),
 }
 LANGTEXT = 250          # längerer eingefügter Text (Mail, Formular): als Anfrage auslesen
 FAKTEN_TOLERANZ = 0.006
@@ -159,11 +172,19 @@ def fragen(db, frage, angebot_id=None, seite=None, senden=None, heute=None, mit_
         agenten = agenten_fuer(frage) or None
     if len(str(frage or "")) >= LANGTEXT and str(frage).count("\n") >= 2:
         absicht, titel = "auslesen", ABSICHTEN["auslesen"][0]
-    if absicht in ("erklaeren", "rueckfragemail", "muster", "auslesen", "suche", "vergleich", "teuer", "fehlt"):
+    from . import ki_befehle
+    if hat_angebot and seite is not None and ki_befehle.lesen(frage) is not None:
+        absicht, titel = "befehl", ABSICHTEN["befehl"][0]
+    aktion = None
+    if absicht in ("erklaeren", "rueckfragemail", "muster", "auslesen", "suche", "vergleich", "teuer", "fehlt",
+                   "risiko", "englisch", "hilfe", "fehlerlog", "liefertermin", "befehl"):
         extra2, treffer2 = _ki2(db, absicht, frage, angebot_id, seite, heute, senden)
+        if isinstance(treffer2, dict):      # Befehl: (Text, Aktion)
+            aktion, treffer2 = treffer2, []
     else:
         extra2, treffer2 = "", []
-    if absicht in ("erklaeren", "rueckfragemail", "muster", "auslesen") or (absicht == "suche" and treffer2):
+    if absicht in ("erklaeren", "rueckfragemail", "muster", "auslesen", "risiko", "englisch", "hilfe", "fehlerlog",
+                   "liefertermin", "befehl") or (absicht == "suche" and treffer2):
         text = (titel + ":\n" + extra2) if extra2 else f"{titel}: nichts gefunden."
         dauer = time.perf_counter() - t0
         ki_protokoll.schreiben(db, "Orchestrator", "frage", frage=frage[:2000], ergebnis=f"{titel}: {len(text)} Zeichen",
@@ -172,7 +193,7 @@ def fragen(db, frage, angebot_id=None, seite=None, senden=None, heute=None, mit_
         return dict(text=text, absicht=absicht, titel=titel, befunde=[], treffer=treffer2,
                     quellen=[("Kalkulation", "")] if absicht in ("erklaeren", "rueckfragemail") else [],
                     agenten=[], modell="", faktencheck=None, fremde_zahlen=[], fehler=[], dauer_s=round(dauer, 3),
-                    staffel=None)
+                    staffel=None, aktion=aktion)
     if absicht == "staffel" and hat_angebot:
         ctx = ag.Kontext(db, angebot_id, seite, heute)
         staffel = ki_prognose.mengenstaffel(ctx, ki_prognose.mengen_aus_text(frage))
@@ -263,6 +284,47 @@ def _ki2(db, absicht, frage, angebot_id, seite, heute, senden):
             if vf:
                 teile += ["", "Gegenüber früheren Aufträgen:"] + [x["text"] for x in vf]
             return "\n".join(teile), []
+        if absicht == "risiko":
+            if not hat_angebot:
+                return "Für das Preisrisiko bitte das Angebot öffnen.", []
+            r = kk.preisrisiko(ag.Kontext(db, angebot_id, seite, heute))
+            return (r["text"] if r else "Für das Preisrisiko bitte zuerst optimieren."), []
+        if absicht == "englisch":
+            if not hat_angebot:
+                return "Für einen englischen Entwurf bitte das Angebot öffnen.", []
+            ctx = ag.Kontext(db, angebot_id, seite, heute)
+            t = str(frage).casefold()
+            if "rückfrage" in t or "rueckfrage" in t or "mail" in t:
+                r = kk.rueckfrage_entwurf(ctx)
+                de = f"Betreff: {r['betreff']}\n\n{r['text']}" if r else ""
+            else:
+                r = kk.preis_erklaeren(ctx, fuer_kunde=True)
+                de = r["text"] if r else ""
+            if not de:
+                return "Kein Text zum Übersetzen (offene Punkte bzw. optimiertes Angebot fehlen).", []
+            u = kk.uebersetzen(db, de, senden=senden)
+            if u["ok"]:
+                return f"Entwurf auf Englisch (lokal übersetzt, {u['modell']}, bitte prüfen):\n\n{u['text']}", []
+            return f"{u.get('hinweis') or 'Keine Übersetzung.'}\n\nDeutscher Text:\n{de}", []
+        if absicht == "hilfe":
+            from . import ki_hilfe
+            return ki_hilfe.hilfe_text(ki_hilfe.hilfe(db, frage, senden=senden)), []
+        if absicht == "fehlerlog":
+            from pathlib import Path
+            from . import ki_hilfe
+            ordner = Path(getattr(db, "pfad", ".")).parent / "Protokoll"
+            return ki_hilfe.fehler_text(ki_hilfe.fehler_erklaeren(ordner)), []
+        if absicht == "liefertermin":
+            from . import ki_hilfe
+            aid = angebot_id if angebot_id is not None else getattr(seite, "id", None)
+            return ki_hilfe.liefertermin(db, aid, heute=heute)["text"], []
+        if absicht == "befehl":
+            from . import ki_befehle, rechnen
+            gew = [(g["gewinde"], g.get("kernloch")) for g in (seite.tabellen.get("gewinde") or []) if g.get("gewinde")]
+            b = ki_befehle.befehl(frage, seite.positionen, gew, lambda p: rechnen.wand_position(p, seite.k))
+            if not b:
+                return "Den Befehl habe ich nicht verstanden.", []
+            return b["text"], (dict(art="bohrbild", werte=b["werte"], text=b["text"]) if b["werte"] else [])
         if absicht == "fehlt" and hat_angebot:
             v = kk.vergessene_positionen(ag.Kontext(db, angebot_id, seite, heute))
             return ("Gegenüber früheren Angeboten desselben Kunden:\n" + "\n".join("→ " + x["text"] for x in v))\
@@ -341,4 +403,10 @@ BEISPIELE = ("Analysiere diese Kalkulation.", "Warum ist dieses Angebot so teuer
              "Erkläre den Preis, auch mit einem Satz für den Kunden.",
              "Schreib eine Rückfrage an den Kunden.",
              "Wo kalkulieren wir laut Nachkalkulation systematisch zu knapp?",
-             "Zeig alle Angebote mit Edelstahl-Rundrohr über 2 m.")
+             "Zeig alle Angebote mit Edelstahl-Rundrohr über 2 m.",
+             "Wie hoch ist das Preisrisiko dieses Angebots?",
+             "Schreib die Rückfrage auf Englisch.",
+             "Wann können wir liefern, wo sind Engpässe?",
+             "Was bedeuten die Fehlermeldungen der letzten Tage?",
+             "Wie lege ich einen Rahmenauftrag an?",
+             "Alle Bohrungen Ø 8,5 als M10")
