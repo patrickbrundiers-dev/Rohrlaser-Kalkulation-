@@ -109,9 +109,9 @@ def ist_sperre(e):
 NACHHOLEN = "nachholen"              # in _update: Anleitungen, die beim Update gesperrt waren (nachholen())
 
 
-def wer_sperrt(pfad):
-    """Namen der Programme, die die Datei gerade festhalten (Windows-Neustart-Manager), sonst []. Nur für die Meldung
-    und das Protokoll; jeder Fehler ergibt []."""
+def sperrer(pfad):
+    """Prozesse, die die Datei gerade festhalten (Windows-Neustart-Manager): [(Prozessnummer, Name)], sonst [].
+    Jeder Fehler ergibt []."""
     if os.name != "nt":
         return []
     try:
@@ -142,11 +142,128 @@ def wer_sperrt(pfad):
             anzahl = wintypes.UINT(noetig.value)
             if rm.RmGetList(sitzung, ctypes.byref(noetig), ctypes.byref(anzahl), infos, ctypes.byref(grund)):
                 return []
-            return sorted({i.name or f"Prozess {i.prozess.pid}" for i in infos[:anzahl.value]})
+            return sorted({(int(i.prozess.pid), i.name or f"Prozess {i.prozess.pid}") for i in infos[:anzahl.value]})
         finally:
             rm.RmEndSession(sitzung)
     except Exception:       # noqa: BLE001 – nur Zusatzinfo
         return []
+
+
+def wer_sperrt(pfad, ordner=None):
+    """Namen der Programme, die die Datei gerade festhalten (sperrer), sonst []. Nur für die Meldung und das
+    Protokoll; dieses Programm selbst heißt „dieses Update-Fenster“, weitere Prozesse dieses Programms bekommen
+    ihre Prozessnummer dazu (Hilfsprozess oder hängendes zweites Fenster, im Task-Manager unter Details)."""
+    eigen = os.getpid()
+    out = set()
+    for pid, name in sperrer(pfad):
+        if pid == eigen:
+            out.add("diesem Update-Fenster selbst")
+        elif ordner is not None and _im_ordner(prozess_pfad(pid), ordner):
+            out.add(f"{name} im Hintergrund (Prozess {pid})")
+        else:
+            out.add(name)
+    return sorted(out)
+
+
+def prozess_pfad(pid):
+    """Pfad der .exe des Prozesses pid oder None (kein Zugriff, beendet, anderes Betriebssystem)."""
+    try:
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+            k = ctypes.WinDLL("kernel32", use_last_error=True)
+            k.OpenProcess.restype = wintypes.HANDLE
+            h = k.OpenProcess(0x1000, False, int(pid))         # PROCESS_QUERY_LIMITED_INFORMATION
+            if not h:
+                return None
+            try:
+                puffer, laenge = ctypes.create_unicode_buffer(32768), wintypes.DWORD(32768)
+                if not k.QueryFullProcessImageNameW(h, 0, puffer, ctypes.byref(laenge)):
+                    return None
+                return Path(puffer.value)
+            finally:
+                k.CloseHandle(h)
+        return Path(os.readlink(f"/proc/{int(pid)}/exe"))
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def _norm(pfad):
+    return os.path.normcase(os.path.abspath(os.fspath(pfad)))
+
+
+def _im_ordner(pfad, ordner):
+    """True, wenn pfad im Programmordner (oder einem Unterordner) liegt."""
+    if pfad is None:
+        return False
+    p, o = _norm(pfad), _norm(ordner)
+    while True:
+        if p == o:
+            return True
+        oben = os.path.dirname(p)
+        if oben == p:
+            return False
+        p = oben
+
+
+def programm_reste(ordner, dateien, finden=None, pfad=None):
+    """Andere laufende Prozesse DIESES Programms (ihre .exe liegt im Programmordner, nicht dieser Prozess), die eine
+    der Dateien (rel. Pfade) festhalten: {Prozessnummer: Name}. Typisch: Hilfsprozesse (parallel.py, --optimierer)
+    oder ein hängendes, unsichtbares zweites Fenster. finden/pfad ersetzen sperrer/prozess_pfad (Tests)."""
+    finden, pfad = finden or sperrer, pfad or prozess_pfad
+    eigen, out = os.getpid(), {}
+    for rel in dateien:
+        for pid, name in finden(Path(ordner) / rel):
+            if pid != eigen and pid not in out and _im_ordner(pfad(pid), ordner):
+                out[pid] = name
+    return out
+
+
+def prozesse_beenden(pids, ordner, pfad=None, warten_s=5):
+    """Prozesse beenden, aber nur solche, deren .exe im Programmordner liegt (nie fremde Programme). Ergebnis:
+    Liste der beendeten Prozessnummern."""
+    pfad = pfad or prozess_pfad
+    beendet = []
+    for pid in pids:
+        if pid == os.getpid() or not _im_ordner(pfad(pid), ordner):
+            continue
+        try:
+            if os.name == "nt":
+                import ctypes
+                from ctypes import wintypes
+                k = ctypes.WinDLL("kernel32", use_last_error=True)
+                k.OpenProcess.restype = wintypes.HANDLE
+                h = k.OpenProcess(0x0001 | 0x00100000 | 0x1000, False, int(pid))   # TERMINATE|SYNCHRONIZE|QUERY
+                if not h:
+                    continue
+                try:
+                    if k.TerminateProcess(h, 1):
+                        k.WaitForSingleObject(h, int(warten_s * 1000))
+                        beendet.append(pid)
+                finally:
+                    k.CloseHandle(h)
+            else:
+                import signal
+                os.kill(int(pid), signal.SIGTERM)
+                ende = time.monotonic() + warten_s
+                while time.monotonic() < ende and _laeuft(pid):
+                    time.sleep(0.05)
+                beendet.append(pid)
+        except (OSError, ValueError, AttributeError):
+            continue
+    return beendet
+
+
+def _laeuft(pid):
+    try:
+        os.kill(int(pid), 0)
+    except OSError:
+        return False
+    try:                        # Zombie (beendet, Eltern hat noch nicht abgeholt) zählt als beendet
+        with open(f"/proc/{int(pid)}/stat") as f:
+            return f.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except OSError:
+        return True
 
 
 def nur_anleitungen(dateien):
@@ -157,8 +274,10 @@ def nur_anleitungen(dateien):
 def sperr_grund(rel, ordner=None):
     """Wahrscheinlicher Grund, warum die Datei rel festgehalten wird (für die Meldung); mit ordner auch das
     Programm, das sie festhält (wer_sperrt)."""
-    wer = wer_sperrt(Path(ordner) / rel) if ordner is not None else []
+    wer = wer_sperrt(Path(ordner) / rel, ordner) if ordner is not None else []
     if wer:
+        if any("im Hintergrund" in w or "selbst" in w for w in wer):
+            return f"noch geöffnet von {', '.join(wer)}"
         return f"geöffnet in {', '.join(wer)} – bitte dort schließen"
     p = str(rel).replace("\\", "/").lower()
     if p.endswith(".pdf"):
@@ -751,22 +870,48 @@ def _zurueck(von, nach, sekunden=None, schlafen=time.sleep):
             schlafen(0.25)
 
 
-def eigene_griffe_freigeben():
+def eigene_griffe_freigeben(ordner=None, dateien=()):
     """Dateien freigeben, die das laufende Programm selbst offen hält. importlib.metadata merkt sich jeden Eintrag von
     sys.path als offene ZIP-Datei; seit PostgreSQL Pflicht ist (0.9.407) fragt psycopg beim Laden seine Version so ab,
     und _internal/base_library.zip blieb bis zum Programmende offen (Windows: „von einem anderen Prozess benutzt“,
-    Update-Test 19.11.2026). invalidate_caches leert diesen Zwischenspeicher, die Datei wird geschlossen."""
+    Update-Test 19.11.2026). invalidate_caches leert diesen Zwischenspeicher, die Datei wird geschlossen.
+    Mit ordner und dateien (rel. Pfade, die das Update austauscht) zusätzlich jede noch offene ZIP-Datei und jede
+    offene Datei dieses Prozesses auf genau diese Pfade schließen, egal wer sie noch hält (Update 0.9.439 am
+    21.11.2026: base_library.zip blieb trotzdem „geöffnet in Rohrlaser Angebotskalkulation“). Das Programm ist zu
+    diesem Zeitpunkt schon beendet; neu gelesen wird danach nur über frisch geöffnete Dateien."""
     import gc
     import importlib
+    import io
+    import zipfile
     importlib.invalidate_caches()
     gc.collect()
+    if ordner is None or not dateien:
+        return 0
+    ziele = {_norm(Path(ordner) / rel) for rel in dateien}
+    zu = 0
+    for o in gc.get_objects():
+        try:
+            if isinstance(o, zipfile.ZipFile):
+                name, offen = o.filename, o.fp is not None
+            elif isinstance(o, io.IOBase):
+                name, offen = getattr(o, "name", None), not o.closed
+            else:
+                continue
+            if offen and isinstance(name, (str, os.PathLike)) and _norm(name) in ziele:
+                o.close()
+                zu += 1
+        except Exception:       # noqa: BLE001 – Freigeben ist ein Versuch; scheitert er, meldet die Prüfung die Datei
+            continue
+    if zu:
+        gc.collect()
+    return zu
 
 
 def warten_bis_frei(ordner, plan, sekunden=None, melden=None, schlafen=time.sleep, uhr=time.monotonic):
     """Bis zu sekunden warten, bis keine betroffene Datei mehr gesperrt ist. melden(gesperrt, rest_s) nach jeder
     Runde (Anzeige). Ergebnis: rel. Pfade, die dann noch gesperrt sind ([] = alles frei)."""
     ende = uhr() + (SPERR_WARTEN_S if sekunden is None else sekunden)
-    eigene_griffe_freigeben()
+    eigene_griffe_freigeben(ordner, list(plan["neu"]) + list(plan["weg"]))
     while True:
         gesperrt = gesperrte_dateien(ordner, plan)
         rest = ende - uhr()
@@ -782,7 +927,7 @@ def einspielen(ordner, online, plan, neu_ordner):
     Bei einem Fehler alles zurück und UpdateFehler bzw. DateiGesperrt (der Programmordner ist dann wie vorher, der
     Download in _update/neu bleibt für einen neuen Versuch)."""
     ordner = Path(ordner)
-    eigene_griffe_freigeben()
+    eigene_griffe_freigeben(ordner, list(plan["neu"]) + list(plan["weg"]))
     alt = ordner / ARBEITSORDNER / f"alt-{datetime.datetime.now():%Y%m%d-%H%M%S-%f}"
     getan = []          # [Ziel, gesicherte alte Datei oder None, neue Datei angelegt]
 

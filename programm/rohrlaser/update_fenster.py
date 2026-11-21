@@ -420,6 +420,7 @@ class Updater:
         if not self.f.close():
             return False
         hintergrund_abwarten()
+        hilfsprozesse_beenden()
         QApplication.closeAllWindows()
         QApplication.quit()
         return True
@@ -441,6 +442,7 @@ def nach_beenden(ordner, ausstehend, starten=None, exe=None):
     online, plan, neu_ordner = ausstehend["online"], ausstehend["plan"], ausstehend["neu_ordner"]
     from . import datenspeicher
     datenspeicher.alle_stoppen()        # PostgreSQL des PCs beenden: seine Programmdateien (pgsql) sind sonst belegt
+    hilfsprozesse_beenden()
     fortschritt = QProgressDialog("Dateien werden ausgetauscht …", None, 0, 0)
     fortschritt.setWindowTitle(f"{NAME} – Update")
     fortschritt.setMinimumDuration(0)
@@ -478,6 +480,21 @@ def nach_beenden(ordner, ausstehend, starten=None, exe=None):
             protokoll.info("Update: gesperrt " + "; ".join(f"{r} ({update.sperr_grund(r, ordner)})"
                                                             for r in gesperrt))
             fortschritt.hide()
+            reste = update.programm_reste(ordner, gesperrt)
+            if reste:
+                # Prozesse dieses Programms halten die Dateien (Hilfsprozesse, hängendes zweites Fenster): nach
+                # Rückfrage beenden und weiter (Update 0.9.439, Patrick 21.11.2026)
+                antwort = QMessageBox.question(None, f"{NAME} – Update", reste_text(gesperrt, reste),
+                                               QMessageBox.Yes | QMessageBox.Retry | QMessageBox.Cancel,
+                                               QMessageBox.Yes)
+                if antwort == QMessageBox.Yes:
+                    beendet = update.prozesse_beenden(list(reste), ordner)
+                    protokoll.info(f"Update: Programm-Prozesse beendet: {beendet} (von {sorted(reste)})")
+                if antwort in (QMessageBox.Yes, QMessageBox.Retry):
+                    fortschritt.show()
+                    continue
+                ergebnis = "abgebrochen"
+                break
             antwort = QMessageBox.warning(
                 None, f"{NAME} – Update", f"{update.sperr_text(gesperrt, ordner)}\n\nBitte schließen und „Wiederholen“ "
                 "klicken. „Abbrechen“ startet die bisherige Version, es wurde nichts geändert.",
@@ -502,6 +519,30 @@ def nach_beenden(ordner, ausstehend, starten=None, exe=None):
     if starten is not None:
         starten(exe or sys.executable, ["--nach-update", ergebnis])
     return ergebnis
+
+
+def hilfsprozesse_beenden():
+    """Hilfsprozesse für Schnittpläne und STEP-Gegenprobe (parallel.py, dieselbe .exe mit --optimierer) beenden. Sie
+    bleiben sonst bis zum Programmende bereit, also auch während des Austauschs, und halten Programmdateien offen
+    (Update 0.9.439: „_internal/base_library.zip geöffnet in Rohrlaser Angebotskalkulation“)."""
+    parallel = sys.modules.get(f"{__package__}.parallel")
+    if parallel is None:
+        return
+    try:
+        parallel.beenden()
+    except Exception as e:      # noqa: BLE001 – sonst meldet die Sperrprüfung die Prozesse
+        protokoll.info(f"Update: Hilfsprozesse ließen sich nicht beenden: {e}")
+
+
+def reste_text(gesperrt, reste):
+    """Rückfrage, wenn Prozesse dieses Programms Programmdateien festhalten."""
+    prozesse = ", ".join(f"Nr. {pid}" for pid in sorted(reste))
+    dateien = ", ".join(list(gesperrt)[:3]) + (f" und {len(gesperrt) - 3} weitere" if len(gesperrt) > 3 else "")
+    return (f"Im Hintergrund läuft noch {NAME} ({len(reste)} Prozess{'e' if len(reste) != 1 else ''}: {prozesse}) "
+            f"und hält Programmdateien fest ({dateien}).\n\nMeist ist das ein Hilfsprozess oder ein hängengebliebenes "
+            "Programmfenster ohne offene Eingaben.\n\n„Ja“ beendet diese Prozesse und setzt das Update fort. "
+            "„Wiederholen“ prüft noch einmal (z. B. nachdem Sie ein offenes Fenster selbst geschlossen haben). "
+            "„Abbrechen“ startet die bisherige Version, es wurde nichts geändert.")
 
 
 def melden_ergebnis(ausstehend, ergebnis, fehler=None):
