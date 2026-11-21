@@ -406,7 +406,7 @@ def step_messung_protokollieren(dauer, anzahl, stand, befehl, abgebrochen=False)
                 teile.append(f"davon STEP lesen {summe('lesen_s'):.1f} s, umwandeln/heilen {summe('uebertragen_s'):.1f} s, "
                              f"nähen {summe('naehen_s'):.1f} s, Struktur {summe('struktur_s'):.1f} s, "
                              f"Kopien suchen {summe('kopien_s'):.1f} s; Kopien: {summe('verschoben')} verschoben, "
-                             f"{summe('gleich_geometrie')} gleiche Geometrie, {summe('gedreht')} gedreht")
+                             f"{summe('gedreht')} gedreht")
             if z.get("langsamste"):
                 teile.append("langsamste: " + "; ".join(f"{n} K{k} {s:g} s" for n, k, s in z["langsamste"][:3]))
         if abgebrochen:

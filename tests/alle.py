@@ -103,7 +103,7 @@ TESTS = [
     ("test_revision_chance.py", {}),
     ("test_neu_einlesen.py", {}),
     ("test_step_gedreht.py", {}),
-    ("test_step_gleiche_geometrie.py", {}),
+    ("test_step_schritte.py", {}),
     ("test_step_senden.py", {}),
     ("test_step_kritisch.py", QT),
     ("test_step_jede_kontur.py", QT),

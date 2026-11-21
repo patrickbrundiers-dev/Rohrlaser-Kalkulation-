@@ -21,12 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.451", "<b>STEP-Import: gleiche Teile nur einmal messen</b>, auch wenn das CAD jedes Teil mit eigener "
-                "Geometrie schreibt. Stimmen Flächen, Kanten und Eckpunkte überein und ist das Teil nur verschoben, "
-                "übernimmt es die Messung des ersten (MASTER TOWER: 383 von 514 Körpern, 247 statt 422 s). Gleiche "
-                "Teile sind so immer gleich gemessen. Das Fortschrittsfenster zeigt den Schritt der Messung und die "
-                "Zahl übernommener Kopien, das tempo.log die Dauer je Schritt beim Lesen.",
-     "Gleiche Teile mit eigener CAD-Geometrie nur einmal messen (MASTER TOWER 247 statt 422 s); Schritt im Fortschritt."],
+    ["0.9.451", "<b>STEP-Import: Schritte sichtbar</b>. Das Fortschrittsfenster zeigt jetzt auch den Schritt der "
+                "Messung (<i>Datei gelesen</i>, <i>Körper messen</i>, <i>Baugruppe auswerten</i>) und wie viele gleiche "
+                "Körper die Messung ihres Vorbilds übernehmen. Im tempo.log steht je Datei, wie lange Lesen, "
+                "Umwandeln/Heilen, Nähen, Struktur und Kopiensuche gedauert haben. Messwerte unverändert.",
+     "STEP-Import: Schritt der Messung im Fortschritt, Dauer je Schritt im tempo.log."],
     ["0.9.450", "<b>Normteile korrigieren und lernen</b>: <i>Doch Fertigungsteil</i> in der Liste <i>Zukaufteile …</i> "
                 "geht jetzt auch für erkannte Normteile, die voll gemessen sind. Was du annimmst oder zurücknimmst, "
                 "merkt sich das Programm je Bauteilname und Geometrie und ordnet dieselben Teile beim nächsten Import "

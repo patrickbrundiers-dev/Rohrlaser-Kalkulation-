@@ -106,33 +106,21 @@ Last erschöpft (bekannte Grenze, siehe oben); alle Messwerte sind gleich. Gepr�
 Hüllquader vorfiltern (kein Gewinn, 782,9 → 781,4 s). Die übrigen Abstandsmessungen betreffen Paare, die sich nicht
 berühren (Pizza-Ofen: 629 Paare, 26 s).
 
-## 0.9.451 (Basis 0.9.450): gleiche Teile mit eigener CAD-Geometrie
+## 0.9.451 (Basis 0.9.450): Schritte messbar
 
-Was geändert wurde:
+- `info["phasen"]` je Datei: `lesen_s` (STEP-Text lesen), `uebertragen_s` (in Körper umwandeln, dabei heilen),
+  `naehen_s`, `struktur_s`, `kopien_s` (Kopien suchen), Zahl der Kopien `verschoben`/`gedreht`. Steht in ZEITEN
+  (`schritte`) und im tempo.log.
+- Fortschrittsfenster: Schritt der Messung und Zahl der übernommenen Kopien.
+- Messwerte unverändert (126 Test-STEPs und MASTER TOWER bitgleich, siehe unten).
 
-- **Gleiche Geometrie ohne gemeinsame CAD-Vorlage** (`_verschoben_geometrisch`): Ein Körper übernimmt die Messung eines
-  früheren, wenn Flächen, Kanten und Eckpunkte in derselben Reihenfolge, Art und Größe gleich sind und alles um
-  dieselbe Verschiebung versetzt ist (1e-6 mm). Gedrehte, gespiegelte und auch nur leicht andere Körper werden weiter
-  selbst gemessen. Vorbilder gedrehter Kopien ebenso. Die Suche kostet unter 1 s (MASTER TOWER 0,9 s).
-- **Kopien:** Die Auswahl-Messungen (Arten) einer Kopie bekommen jetzt Ende A und Namen der Kopie, nicht mehr die des
-  Vorbilds. Das betrifft auch die bisherigen CAD-Kopien.
-- **Schritte messbar:** Lesen, Umwandeln/Heilen, Nähen, Struktur, Kopiensuche je Datei (ZEITEN `schritte`, tempo.log),
-  Schritt und Zahl der Kopien im Fortschrittsfenster.
-
-| Datei | alt | neu | Messwerte |
-|---|---:|---:|---|
-| MASTER TOWER (1080 Körper, 383 neu als Kopie) | 421,8 s | 247,2 s | nicht bitgleich, siehe unten |
-| Lift Cart | 916 s | 936 s | Lagewerte von Kopien |
-| U_AP214_13MB | 2298 s | 2263 s | Lagewerte von Kopien |
-| Grab | 14,3 s | 14,5 s | gleich |
-| 126 Test-STEPs | 296,6 s | 276,5 s | 123 gleich, 3 nur Lage z der Bohrungen in der Frästeil-Auswahl |
-
-**Nicht bitgleich:** Die Einzelmessung ist für dieselbe Geometrie nicht ganz lageunabhängig. Bei Kopien kann Ende A auf
-der anderen Seite liegen, dann liegen auch die Konturpunkte an etwas anderen Stellen desselben Bogens. Bei
-Wandstärke 7,95 mm hängt die Rundung am Rechenrauschen: von 20 gleichen Winkeln bekamen bisher 17 den Vorschlag
-„L 38,1x38,1x7,9“ und 3 den Vorschlag „L 38,1x38,1x8“, jetzt alle denselben. Lagewerte in Dateikoordinaten
-(z der Bohrungen in der Dreh-/Frästeil-Auswahl) kommen vom Vorbild, wie schon bisher bei CAD-Kopien. Ob das so
-bleibt, entscheidet Patrick.
+**Geprüft und verworfen (Patrick 21.11.2026: „Nein, nur bitgleich“):** Körper, die das CAD mit eigener Geometrie
+schreibt, die aber Fläche für Fläche nur verschoben sind, die Messung des ersten übernehmen lassen. MASTER TOWER:
+383 von 514 Körpern, 422 → 247 s. Nicht bitgleich, weil die Einzelmessung für dieselbe Geometrie nicht ganz
+lageunabhängig ist: Ende A kann kippen (Konturpunkte dann an anderen Stellen desselben Bogens), bei 7,95 mm Wand
+schwankt der Profilvorschlag zwischen „L 38,1x38,1x7,9“ (17 von 20) und „x8“ (3 von 20). Ebenso verworfen: Ende A
+und Name der Auswahl-Messungen (Arten) einer CAD-Kopie auf die Kopie umrechnen (heute stehen dort die Werte des
+Vorbilds; Lagewerte, keine Maße).
 
 ## Wo die Zeit heute liegt (Profil, py-spy)
 

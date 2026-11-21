@@ -3881,12 +3881,7 @@ def kapitel_step(i):
             "Wandstärke und Länge aus einem Querschnitt, Konturen nicht gemessen, das Frästeil nur als Auswahl) und "
             "die Datei weiter gemessen. Gleiche Teile einer Baugruppe (z. B. acht gleiche Stützen, im CAD nur "
             "verschoben) werden nur einmal gemessen; gleiche Bleche, Kantteile, Dreh- und Frästeile auch dann, wenn "
-            "sie gedreht eingebaut sind (Rohre und Profile werden gedreht einzeln gemessen). Seit 0.9.451 gilt das "
-            "auch für Teile, die das CAD jeweils mit eigener Geometrie schreibt: stimmen Flächen, Kanten und Eckpunkte "
-            "in derselben Reihenfolge überein und sind sie nur verschoben, übernimmt der Körper die Messung des ersten "
-            "(MASTER TOWER: 383 von 514 Körpern, 247 statt 422 Sekunden). Gleiche Teile sind so immer gleich gemessen "
-            "(vorher konnte z. B. ein Winkel mit 7,95 mm Wand je nach Lage 7,9 oder 8 mm bekommen). Gedrehte, "
-            "gespiegelte oder auch nur leicht andere Körper werden weiter selbst gemessen. Eine große Datei wird auf "
+            "sie gedreht eingebaut sind (Rohre und Profile werden gedreht einzeln gemessen). Eine große Datei wird auf "
             "mehrere Messprozesse verteilt und dafür nur einmal eingelesen. "
             "Schon gemessene Dateien kommen beim nächsten Import sofort aus dem "
             "Zwischenspeicher. Nach <b>Abbrechen</b> kommen die bis dahin gemessenen Dateien ohne Rückfrage in den "
@@ -15146,7 +15141,7 @@ def kapitel_step_messung(i):
             "Sekunden, Кузов 127 statt 135 Sekunden, Ergebnis identisch). Seit 0.9.451 steht im tempo.log je "
             "verteilter Datei auch, wie lange das Lesen der STEP-Datei, das Umwandeln/Heilen, das Nähen, die "
             "Baugruppenstruktur und die Suche nach gleichen Körpern gedauert haben und wie viele Kopien (verschoben, "
-            "gleiche Geometrie, gedreht) gefunden wurden.",
+            "gedreht) gefunden wurden.",
             "<b>Lange Gravur und Stecknasen</b>: Läuft eine Schrift über einen großen Teil des Rohrs, trifft fast "
             "jeder Querschnitt ein Zeichen. Als Profil gilt nur ein Querschnitt ohne Gravur (genau gleich groß an "
             "mehreren Stellen, auch an beiden Enden der Länge gesucht). Die Enden (z. B. Stecknasen vorne und hinten) "

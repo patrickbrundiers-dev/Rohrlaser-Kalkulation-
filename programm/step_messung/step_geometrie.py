@@ -5629,11 +5629,7 @@ def datei_lesen(pfad, name=None):
     uhr = time.monotonic()
     gleich = _instanzen(koerper)
     gedreht = _gedrehte(koerper, gleich)
-    n_vorlage = len(gleich)
-    gleich.update(_verschoben_geometrisch(koerper, gleich, gedreht))
-    ph = info.setdefault("phasen", {})
-    ph.update(kopien_s=time.monotonic() - uhr, verschoben=n_vorlage, gleich_geometrie=len(gleich) - n_vorlage,
-              gedreht=len(gedreht))
+    info.setdefault("phasen", {}).update(kopien_s=time.monotonic() - uhr, verschoben=len(gleich), gedreht=len(gedreht))
     return Gelesen(name or _Path(pfad).stem, koerper, info, gleich, gedreht)
 
 
@@ -5658,90 +5654,6 @@ def _instanzen(koerper):
         else:
             vorbilder.append((nr, k))
     return gleich
-
-
-KOPIE_TOL = 1e-6        # mm: so genau müssen Eckpunkte, Flächen- und Kantenmitten einer verschobenen Kopie passen
-
-
-def _abbild(k):
-    """Geometrie eines Körpers in der Reihenfolge, in der die Messung Flächen, Kanten und Eckpunkte nummeriert
-    (TopExp.MapShapes): je Fläche (Flächenart, Inhalt, Schwerpunkt), je Kante (Kurvenart, Länge, Mitte), je Eckpunkt
-    die Lage, dazu das Volumen."""
-    def karte(typ):
-        m = TopTools_IndexedMapOfShape()
-        TopExp.MapShapes_s(k, typ, m)
-        return [m.FindKey(i) for i in range(1, m.Extent() + 1)]
-
-    def masse(s, fl):
-        pr = GProp_GProps()
-        (BRepGProp.SurfaceProperties_s if fl else BRepGProp.LinearProperties_s)(s, pr)
-        c = pr.CentreOfMass()
-        return pr.Mass(), (c.X(), c.Y(), c.Z())
-    pr = GProp_GProps()
-    BRepGProp.VolumeProperties_s(k, pr)
-    flaechen = [(int(BRepAdaptor_Surface(TopoDS.Face(f), False).GetType()), *masse(f, True)) for f in karte(TopAbs_FACE)]
-    kanten = [(int(BRepAdaptor_Curve(TopoDS.Edge(e)).GetType()) if not BRep_Tool.Degenerated_s(TopoDS.Edge(e)) else -1,
-               *masse(e, False)) for e in karte(TopAbs_EDGE)]
-    ecken = []
-    for v in karte(TopAbs_VERTEX):
-        p = BRep_Tool.Pnt_s(TopoDS.Vertex(v))
-        ecken.append((p.X(), p.Y(), p.Z()))
-    return pr.Mass(), flaechen, kanten, ecken
-
-
-def _passt_verschoben(a, b, v):
-    """Ist Abbild b genau Abbild a, um v verschoben (gleiche Reihenfolge, Arten, Inhalte; Lagen auf KOPIE_TOL)?"""
-    (va, fa, ka, ea), (vb, fb, kb, eb) = a, b
-    if len(fa) != len(fb) or len(ka) != len(kb) or len(ea) != len(eb) or abs(va - vb) > 1e-9 * max(abs(va), 1.0):
-        return False
-
-    def lage(p, q):
-        return all(abs(q[i] - p[i] - v[i]) <= KOPIE_TOL for i in range(3))
-    return (all(lage(p, q) for p, q in zip(ea, eb))
-            and all(x[0] == y[0] and abs(x[1] - y[1]) <= 1e-9 * max(abs(x[1]), 1.0) and lage(x[2], y[2])
-                    for x, y in zip(fa + ka, fb + kb)))
-
-
-def _verschoben_geometrisch(koerper, gleich, gedreht):
-    """Körper, die genau verschobene Kopien eines früheren sind, aber im CAD eigene Geometrie haben (keine gemeinsame
-    Vorlage wie bei _instanzen, z. B. 383 von 514 Körpern im MASTER TOWER): {Nummer: (Nummer des Vorbilds,
-    Verschiebung)} wie _instanzen. Gleich heißt: dieselben Flächen, Kanten und Eckpunkte in derselben Reihenfolge,
-    gleiche Arten und Inhalte, alle Lagen um dieselbe Verschiebung versetzt (KOPIE_TOL). Gedrehte oder gespiegelte
-    Körper nie (die Messung wählt Ende A und die Lage der Konturen nach der Lage im Raum), Vorbilder gedrehter Kopien
-    nie (sie geben ihre Messung weiter). Im Zweifel: selbst messen."""
-    vorbilder = {vnr for vnr, _ in gedreht.values()}
-    gruppen = {}
-    for nr, (art, k) in enumerate(koerper, start=1):    # grob vorsortieren: Eckpunkte relativ zum ersten
-        if art != "Volumenkörper" or nr in gleich or nr in gedreht:
-            continue
-        try:
-            m = TopTools_IndexedMapOfShape()
-            TopExp.MapShapes_s(k, TopAbs_VERTEX, m)
-            ec = [BRep_Tool.Pnt_s(TopoDS.Vertex(m.FindKey(i))) for i in range(1, m.Extent() + 1)]
-        except Exception:   # Körper, die sich nicht so auswerten lassen: selbst messen
-            continue
-        if ec:
-            x0 = ec[0]
-            gruppen.setdefault(tuple(round(c, 3) for p in ec for c in (p.X() - x0.X(), p.Y() - x0.Y(), p.Z() - x0.Z())),
-                               []).append(nr)
-    out = {}
-    for nrn in gruppen.values():
-        if len(nrn) < 2:
-            continue
-        geprueft = []       # (Nummer, Abbild) der Vorbilder in dieser Gruppe
-        for nr in nrn:
-            try:
-                ab = _abbild(koerper[nr - 1][1])
-            except Exception:
-                continue
-            for vnr, vab in geprueft:
-                v = tuple(ab[3][0][i] - vab[3][0][i] for i in range(3))
-                if nr not in vorbilder and _passt_verschoben(vab, ab, v):
-                    out[nr] = (vnr, v)
-                    break
-            else:
-                geprueft.append((nr, ab))
-    return out
 
 
 GEDREHT_UEBERNEHMEN = ("Blech", "Blech gekantet", "Drehteil", "Frästeil")
@@ -6054,11 +5966,9 @@ def _instanz(vorbild, nr, info, v):
             x._rahmen = r
     t.koerper = nr
     t.bauteil, t.pfad, t.knoten = info["bauteile"].get(nr, ("", "", ""))
-    # auch die Auswahl-Messungen (Arten, z. B. Dreh-/Frästeil) in die Lage der Kopie: vorher stand dort Ende A und
-    # Bauteilname des Vorbilds (Master-Auftrag 21.11.2026, Benchmark gegen die Einzelmessung)
-    weitere = [t.alternative, *((getattr(t, "arten", None) or {}).values())]
-    for x in [t] + [y for i, y in enumerate(weitere) if y is not None and y is not t
-                   and all(y is not z for z in weitere[:i])]:
+    for x in (t, t.alternative):
+        if x is None:
+            continue
         if x is not t:
             x.koerper, x.bauteil, x.pfad, x.knoten = nr, t.bauteil, t.pfad, t.knoten
         if x.ende_a_global:
