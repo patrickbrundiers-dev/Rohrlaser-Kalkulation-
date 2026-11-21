@@ -5552,6 +5552,7 @@ def _verbund_pruefen(teile, koerper):
 EINSTELLBAR = {"flach_laenge": "FLACHSTAHL_LAENGE", "gekantet_anteil": "GEKANTET_ANTEIL", "naht_spalt": "NAHT_SPALT"}
 
 
+NORMTEILE_VOLL = False      # True: auch Normteile laut Name voll messen (Einstellung, --normteile-voll)
 STEGE = None    # größeres Profil gleicher Form („Form|A|B|Wand“): Winkel/U als virtuelles Bauteil (step_schenkel)
 VIRTUELL = None     # Ordner für die virtuellen Bauteile als STEP (virtuell_ablegen) oder None
 
@@ -5560,8 +5561,9 @@ def einstellen(werte):
     """Grenzwerte der Erkennung aus den Einstellungen setzen ({Name aus EINSTELLBAR: Wert}, None = Vorgabe), das
     größere Profil für Winkel/U mit Stegen (Schlüssel stege, step_schenkel) und den Ordner für die virtuellen Bauteile
     als STEP (Schlüssel virtuell, virtuell_ablegen)."""
-    global STEGE, VIRTUELL
+    global STEGE, VIRTUELL, NORMTEILE_VOLL
     STEGE = (werte or {}).get("stege") or None
+    NORMTEILE_VOLL = bool((werte or {}).get("normteile_voll"))
     VIRTUELL = (werte or {}).get("virtuell") or None
     vorgabe = {"flach_laenge": 3.0, "gekantet_anteil": 0.85, "naht_spalt": 3.0}
     for name, glob in EINSTELLBAR.items():
@@ -5790,6 +5792,40 @@ def _zeitlimit_rohr(solid, datei, koerper, grund, fraes=None):
     return t
 
 
+def normteil_laut_name(solid, datei, koerper, name):
+    """Stufe 1 der Normteil-Erkennung (Master-Prompt Patrick 21.11.2026): nennt der Bauteilname eine bekannte Norm
+    eines Verbindungselements (zukaufteile.NORMEN, z. B. DIN 933, ISO 4032 – keine Rohr-/Blechnorm) und ist das Teil
+    höchstens zukaufteile.KLEIN_BIS groß und als Drehteil erkennbar, ist es sicher ein Zukaufteil: nur als Normteil
+    bzw. Drehteil messen
+    (Maße, Volumen, Netz bleiben), ohne Rohr-, Blech- und Konturmessung. Das Programm ordnet es wie bisher als sicheres
+    Zukaufteil ein; „Als Fertigungsteil“ bzw. die Einstellung „Normteile voll messen“ misst es voll. Sonst None –
+    dann wird wie bisher voll gemessen (unsichere Fälle nie hier)."""
+    from rohrlaser import zukaufteile
+    ntext, nkat = zukaufteile.norm(name or "")
+    if not nkat:
+        return None
+    try:
+        import step_drehfraes as df
+        gr = df._huelle(solid)
+        if not gr or max(gr) > zukaufteile.KLEIN_BIS:
+            return None
+        t = _normteil(solid, datei, koerper) or _gewindeteil(solid, datei, koerper) or \
+            df.pruefen(solid, None, datei, koerper, erzwingen=True)
+    except Exception:  # dann voll messen
+        return None
+    if t is None or t.bauteiltyp != df.DREHTEIL:
+        return None     # nur runde Normteile (Schraube, Niet, Stift, Mutter); Scheiben bleiben Blech wie bisher
+    d = t.drehfraes or {}
+    if df.VON_HAND in (d.get("merkmale") or ()):     # Drehteil erkannt (ohne Vorgabe t), nicht von Hand gewählt
+        d["merkmale"] = [x for x in d["merkmale"] if x != df.VON_HAND]
+        d["text"] = f"{d['art']} ({', '.join(d['merkmale'] + d['zusatz'])})"
+    t.sicherheit["konturen"] = "nicht ausgewertet"
+    t.art_grund, t.art_regel = f"Norm {ntext} im Bauteilnamen", "Normteil"
+    t.hinweise.append(f"Normteil laut Name ({ntext}): als Zukaufteil gemessen, ohne Rohr-/Blechmessung – als "
+                      "Fertigungsteil voll messen über die Einstellung „Normteile voll messen“")
+    return t
+
+
 def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None):
     """Körper i (ab 1) einer gelesenen Datei messen: Teil mit Importdaten, Bauteilname und Rohnetz, wenn nicht
     messbar. Das Teil lässt sich zwischen Prozessen übergeben (ohne _rahmen, siehe teil_uebergeben)."""
@@ -5810,7 +5846,9 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
         t.hinweise.append("Flächenmodell nicht geschlossen, nicht messbar")
     else:
         try:
-            t = analysiere(k, gel.name, i, netz, flach_bis)
+            t = None if NORMTEILE_VOLL else normteil_laut_name(k, gel.name, i, info["bauteile"].get(i, ("",))[0])
+            if t is None:
+                t = analysiere(k, gel.name, i, netz, flach_bis)
         except Exception as e:  # Messung dieses Körpers gescheitert: melden, andere Körper weiter messen
             t = Teil(datei=gel.name, koerper=i)
             t.hinweise.append(f"Messung fehlgeschlagen: {e or type(e).__name__}")

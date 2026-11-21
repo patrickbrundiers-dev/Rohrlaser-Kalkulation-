@@ -15,7 +15,8 @@ TOLERANZEN = {"step_tol_profil": (step, "TOL_MASS", 0.15), "step_tol_gleich": (s
 # außerhalb der Karte STEP-Import, aber ebenso beim Start und nach jeder Änderung gesetzt
 WEITERE = {"schweiss_spalt_max": (baugruppe, "SPALT_MAX", 2.0), "schweiss_a_min": (baugruppe, "A_MIN", 3.0)}
 EINSTELLUNGEN = set(TOLERANZEN) | {"step_prozesse", "step_zeitlimit", "step_cache", "step_cache_mb",
-                                   "step_flach_laenge", "step_gekantet_anteil", "step_naht_spalt"}
+                                   "step_flach_laenge", "step_gekantet_anteil", "step_naht_spalt",
+                                   "step_normteile_voll", "step_zukauf_begriffe"}
 
 
 def _zahl(db, name, vorgabe):
@@ -50,6 +51,10 @@ def mess_argumente(db):
             "--flach-laenge", f"{_zahl(db, 'step_flach_laenge', 3.0):g}",
             "--gekantet-anteil", f"{_zahl(db, 'step_gekantet_anteil', 0.85):g}",
             "--naht-spalt", f"{_zahl(db, 'step_naht_spalt', 3.0):g}"]
+    # Normteile laut Name nur als Zukaufteil messen – nicht, wenn die eingebaute Erkennung aus ist (dann bleiben sie
+    # Fertigungsteile und brauchen die volle Messung) oder „voll messen“ gewählt ist
+    if db.einstellung("step_normteile_voll") == "ja" or (db.einstellung("step_zukauf_begriffe") or "ja") != "ja":
+        args.append("--normteile-voll")
     if (db.einstellung("step_cache") or "ja") == "ja":
         args += ["--cache", str(cache_ordner(db)), "--cache-mb", f"{_zahl(db, 'step_cache_mb', 500):g}",
                  "--kennung", VERSION]
