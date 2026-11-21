@@ -109,6 +109,47 @@ class VorschlaegeMixin:
                                        bericht=("Zielpreis", text))
         return dict(ziel=ziel, gewinn=g, marge=marge, text=text)
 
+    # ------------------------------------------------------------------ Preisleiter (Master-Prompt 21.11.2026)
+    def auf_marge_setzen(self, m, rueckgaengig=True):
+        """Gewinn des Angebots so einstellen, dass die Marge vom Warenwert (marge.py) m erreicht; gerechnet wird mit der
+        vollen Kalkulation (Rabatt, Rundung, Mindestpreis zählen mit). Ergebnis: Gewinn (Anteil) oder None."""
+        from . import kalk_hinweise
+        from . import marge as mg
+        if self.fremd() or self.db.nur_lesen or not m:
+            return None
+
+        def marge_bei(g):
+            e = dict(self.einst, gewinn=g, gewinn_bis_1=0)
+            w = mg.marge(rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, e)[1])
+            return -1.0 if w is None else w
+
+        g = kalk_hinweise.gewinn_fuer_ziel(marge_bei, m)
+        if g is None:
+            self.f.meldung(f"Marge {zahl(100 * m, 1)} % ist mit keinem Gewinn erreichbar (schon ohne Gewinn darüber).")
+            return None
+        alt = rechnen._n(self.einst.get("gewinn"))
+        g = round(g + 5e-5, 4)            # auf 0,01 % aufgerundet: die Marge liegt nie knapp darunter
+        self._kopf_speichern(_kopf_feld("gewinn"), round(100 * g, 2))
+        text = (f"Gewinn auf {zahl(100 * g, 2)} % gesetzt (vorher {zahl(100 * alt, 2)} %): Marge "
+                f"{zahl(100 * m, 1)} % vom Warenwert.")
+        if rueckgaengig and not self.f.stumm:
+            self.rueckgaengig_anbieten(text, bericht=("Preisleiter", text))
+        else:
+            self.f.meldung(text)
+        return g
+
+    def unsicher_anteil(self):
+        """Anteil des Preises auf unsicheren Werten (CALC-028, aus dem letzten Angebots-Check) oder None."""
+        u = getattr(self, "_herkunft", None)
+        return u["unsicher_pct"] / 100 if u and u.get("gesamt") else None
+
+    def preisleiter(self, dialog=None):
+        """Fenster „Preisleiter“ (preisleiter_dialog.py); dialog(d) bedient das Fenster statt exec (Tests)."""
+        from .preisleiter_dialog import PreisleiterDialog
+        d = PreisleiterDialog(self, self)
+        (dialog(d) if dialog else d.exec())
+        return d
+
     def zielpreis_hebel(self, ziel):
         """OFFER-011: Text „Hebel bis zum Zielpreis …“: Gewinn halbiert, ohne Eilzuschlag, ohne Fremdleistungen
         (Zusatzarbeiten mit Fremdleistung = ja) und doppelte Menge (Preis der angefragten Menge zum Stückpreis der

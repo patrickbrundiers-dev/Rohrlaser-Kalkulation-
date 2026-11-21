@@ -3039,7 +3039,12 @@ class StartSeite(QWidget):
             self.kennzahlen.setText(
                 f"<b>Letzte {k['zeitraum']} Tage</b> (nur Admin): {k['angebote']} Angebote, "
                 f"{euro_text(k['summe'])} € angeboten, Ø {schnitt}; {k['beauftragt']} beauftragt "
-                f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}" + self._reaktion_text(alle))
+                f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}"
+                + (f", {k['abgelehnt']} verloren ({euro_text(k['abgelehnt_wert'])} €)" if k.get("abgelehnt") else "")
+                + (f", Ø Gewinn {k['gewinn_mittel']:.1f} %".replace(".", ",") if k.get("gewinn_mittel") is not None
+                   else "")
+                + (f", Umsatzpotenzial offen {euro_text(k['potenzial'])} €" if k.get("potenzial") else "")
+                + self._reaktion_text(alle))
 
         self.rolle_anwenden()
     def _reaktion_text(self, alle):

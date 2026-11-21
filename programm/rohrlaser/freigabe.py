@@ -17,11 +17,9 @@ def _n(w):
 
 
 def marge(summen):
-    """Marge am Warenwert wie im Angebots-Check: (Gewinn + Anhebung) ÷ (Selbstkosten + Gewinn + Anhebung)."""
-    gewinn, selbst = _n(summen.get("gewinn")), _n(summen.get("selbst"))
-    anhebung = _n(summen.get("mindestpreis_anhebung")) * (1 - _n(summen.get("skonto_satz")) / 100)
-    basis = selbst + gewinn + anhebung
-    return (gewinn + anhebung) / basis if basis > 0 else None
+    """Marge vom Warenwert (zentral in marge.py, 21.11.2026: Rabatt, Rundung und Preisschicht zählen mit)."""
+    from . import marge as mg
+    return mg.marge(summen)
 
 
 def noetig(summen, einst):

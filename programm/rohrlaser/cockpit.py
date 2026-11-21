@@ -130,7 +130,16 @@ def kennzahlen(zeilen, heute=None, zeitraum=ZEITRAUM_TAGE):
     abgelehnt = [z for z in auswahl if _vorgang(z) == "Abgelehnt"]
     entschieden = len(beauftragt) + len(abgelehnt)
     werte = [_betrag(z) for z in auswahl if _betrag(z)]
+    quote = round(len(beauftragt) / entschieden, 3) if entschieden else None
+    # Master-Prompt 21.11.2026 (Punkt 9): verloren, offen mit Umsatzpotenzial (× Trefferquote), Ø Gewinn
+    from .absage import gewinn_wert
+    offen = [z for z in auswahl if _vorgang(z) not in ("Beauftragt", "Abgelehnt", "Storniert", "Ersetzt")]
+    offen_wert = round(sum(_betrag(z) for z in offen), 2)
+    gewinne = [g for g in (gewinn_wert(z) for z in auswahl) if g is not None]
     return dict(zeitraum=zeitraum, angebote=len(auswahl), summe=round(sum(werte), 2),
                 durchschnitt=round(sum(werte) / len(werte), 2) if werte else None,
                 beauftragt=len(beauftragt), auftragswert=round(sum(_betrag(z) for z in beauftragt), 2),
-                trefferquote=round(len(beauftragt) / entschieden, 3) if entschieden else None)
+                trefferquote=quote, abgelehnt=len(abgelehnt),
+                abgelehnt_wert=round(sum(_betrag(z) for z in abgelehnt), 2), offen=len(offen), offen_wert=offen_wert,
+                potenzial=round(offen_wert * len(beauftragt) / entschieden, 2) if entschieden else None,
+                gewinn_mittel=round(sum(gewinne) / len(gewinne), 2) if gewinne else None)
