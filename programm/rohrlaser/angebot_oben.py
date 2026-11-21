@@ -1791,7 +1791,7 @@ class UebersichtBereich(QWidget):
                     zeile3 = QHBoxLayout()
                     zeile3.setSpacing(6)
                     self.kennzahlen.addLayout(zeile3, 2, 0, 1, 4)
-                zeile3.addWidget(box, 1)
+                zeile3.addWidget(box, 2 if name == "gewinn" else 1)
             else:       # eigene Zeile mit eigenen Breiten: die Spalten oben werden dadurch nicht breiter
                 if name == "laserzeit":
                     zeile2 = QHBoxLayout()

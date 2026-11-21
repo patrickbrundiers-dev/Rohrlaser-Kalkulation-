@@ -9899,7 +9899,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return
         kz["gewinn"].setText(f"{_z(b['gewinn'])} €<br><span style='font-weight:normal;color:{grau}'>Marge "
                              + (f"{_z(100 * b['marge'], 1)} %" if b["marge"] is not None else "–")
-                             + (f" · Aufschlag {_z(100 * b['aufschlag'], 1)} %" if b["aufschlag"] is not None else "")
+                             + (f"<br>Aufschlag {_z(100 * b['aufschlag'], 1)} %" if b["aufschlag"] is not None else "")
                              + "</span>")
         farbe = stil.umsetzen({pl.GUT: stil.GRUEN, pl.KNAPP: stil.ORANGE, pl.KRITISCH: stil.ROT}[b["stufe"]])
         kz["wirtschaft"].setText(f"<a href='preisleiter' style='text-decoration:none;color:{farbe}'>● {b['stufe']}</a>"
