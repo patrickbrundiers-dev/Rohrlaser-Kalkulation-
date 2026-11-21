@@ -57,6 +57,7 @@ SPEICHER_SCHRITT_MB = 100   # neuer Höchststand um so viel: eine Zeile ins Prot
 ABSCHNITT_MIN_S = 0.2     # kürzere Abschnitte stehen nicht im Eintrag
 MAX_ABSCHNITTE = 8
 HAENGER_S = 10.0          # so lange ohne Reaktion: sofort eine Zeile „Hänger“ (Hilfsfaden)
+haenger_anzahl = 0        # gemeldete Hänger seit dem Start (Diagnose, 21.11.2026)
 _abschnitte = []          # (Name, Dauer) seit dem letzten Takt, nur auf dem Oberflächen-Ablauf
 _offen = []               # gerade laufende Abschnitte (außen zuerst), nur auf dem Oberflächen-Ablauf
 
@@ -279,6 +280,8 @@ class Waechter:
         if seit < self.haenger_s or self._haenger_gemeldet == beginn:
             return None
         self._haenger_gemeldet = beginn
+        global haenger_anzahl
+        haenger_anzahl += 1
         teile = [f"Hänger seit {seit:.0f} s"]
         ort = self._ort_sicher()
         if ort:

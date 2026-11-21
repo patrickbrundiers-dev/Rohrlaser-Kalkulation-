@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.449", "<b>Schnittoptimierung rund doppelt so schnell, Ergebnis identisch</b>: Große Angebote optimieren "
+                "deutlich schneller (500 Positionen mit 5.224 Teilen 4,6 statt 8,8 Sekunden), jeder Schnittplan Zahl für "
+                "Zahl gleich. <b>Ergebnisprüfung</b>: Enthält eine Kalkulation eine ungültige Zahl (NaN/∞), zeigt der "
+                "Angebots-Check den FEHLER <i>Rechenfehler</i> statt eines falschen Preises. Bricht eine Kalkulation ab, "
+                "rechnet das Programm sie einmal ohne Zwischenspeicher neu. <b>Diagnose</b> nennt Befunde mit "
+                "Empfehlung, Datenbank-Antwortzeiten, fehlgeschlagene Berechnungen und laufende Hintergrundaufgaben.",
+     "Rechenkerne: Optimieren ~2× schneller (bitgleich), Ergebnisprüfung, Wiederherstellung, Diagnose-Befunde"],
     ["0.9.448", "<b>Normteile in der 3D-Ansicht der Baugruppe</b>: Zukaufteile (Schrauben, Muttern, Niete, Scheiben …) "
                 "sind im STEP-Prüfdialog jetzt dunkelgrau mit eigenem Legendeneintrag und bleiben sichtbar. Die Auswahl "
                 "neben <i>Zukaufteile …</i> zeigt <i>alle Teile</i>, <i>ohne Zukaufteile</i>, <i>nur Zukaufteile</i> oder "

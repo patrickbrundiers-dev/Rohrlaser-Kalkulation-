@@ -3754,6 +3754,8 @@ class SicherungLauf:
         self._thread = threading.Thread(target=self._lauf, args=(db, ordner, dokumente), name="Sicherung",
                                         daemon=True)
         self._thread.start()
+        from . import hintergrund
+        hintergrund.melden(self._thread)
 
     def _lauf(self, db, ordner, dokumente):
         from . import pruef_wiederherstellung
