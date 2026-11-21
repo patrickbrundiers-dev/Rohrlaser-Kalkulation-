@@ -10629,7 +10629,7 @@ def kapitel_automatik(i):
             "Im Feld <i>Modell importieren (ohne Internet)</i> den <b>Modell-Ordner</b> wählen, Dateien markieren, "
             "<b>Importieren</b>. Danach <b>Sprachmodell benutzen</b> "
             "einschalten und mit <b>Testen</b> die Geschwindigkeit messen. Der Import läuft im Hintergrund mit "
-            "Fortschritt und <i>Abbrechen</i>: Aus einem Netzwerkordner wird die Datei zuerst auf diesen PC kopiert, "
+            "Fortschritt und <i>Abbrechen</i>: Aus einem Netzwerkordner oder OneDrive wird die Datei zuerst auf diesen PC kopiert, "
             "dann prüft Ollama sie (Prüfsumme) und übernimmt sie. Je nach Netzwerk dauert das bei einem 5-GB-Modell "
             "5 bis 15 Minuten, aber nur einmal je PC; ohne Markierung überspringt <b>Importieren</b> Modelle, die "
             "schon da sind.",

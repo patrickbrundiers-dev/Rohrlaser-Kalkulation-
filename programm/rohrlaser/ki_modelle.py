@@ -446,10 +446,21 @@ def modellname(text):
 
 
 def netzwerkpfad(pfad):
-    """True, wenn die Datei in einem Netzwerkordner liegt (\\\\Server\\… oder verbundenes Netzlaufwerk)."""
+    """True, wenn die Datei nicht schnell lokal lesbar ist: Netzwerkordner (\\\\Server\\…, Netzlaufwerk) oder OneDrive
+    bzw. nur online gespeicherte Dateien. Solche Dateien kopiert importieren() zuerst auf den PC."""
     t = str(pfad)
     if t.startswith(("\\\\", "//")):
         return True
+    if re.search(r"[\\/]onedrive(?: - [^\\/]*)?[\\/]", t, re.I) or os.environ.get("OneDrive") and \
+            t.lower().startswith(os.environ["OneDrive"].lower()):
+        return True             # OneDrive: Dateien oft nur online, Lesen lädt sie erst herunter, Sync bremst
+    if sys.platform == "win32":
+        try:
+            attr = os.stat(t).st_file_attributes
+            if attr & (0x00400000 | 0x00001000):    # RECALL_ON_DATA_ACCESS / OFFLINE: nur in der Cloud
+                return True
+        except (OSError, AttributeError):
+            protokoll.warnung("ki_modelle: Dateiattribute unbekannt")
     if sys.platform == "win32" and len(t) > 1 and t[1] == ":":
         try:
             import ctypes
@@ -518,13 +529,9 @@ def importieren(datei, name=None, programm=None, ausfuehren=None, fortschritt=No
             kopie = None        # Kopieren ging nicht: direkt aus dem Netzwerkordner (langsamer)
     if fortschritt:
         fortschritt("uebernehmen", 0, 0)
-    modelfile = datei.with_name(f".{name}.Modelfile")
-    try:
-        modelfile.write_text(f'FROM "{datei}"\n', encoding="utf-8")
-    except OSError:
-        import tempfile
-        modelfile = Path(tempfile.gettempdir()) / f"{name}.Modelfile"
-        modelfile.write_text(f'FROM "{datei}"\n', encoding="utf-8")
+    import tempfile
+    modelfile = Path(tempfile.gettempdir()) / f"{name}.Modelfile"     # nie neben die Datei (OneDrive synct sonst)
+    modelfile.write_text(f'FROM "{datei}"\n', encoding="utf-8")
     befehl = [exe, "create", name, "-f", str(modelfile)]
     try:
         if ausfuehren:

@@ -184,6 +184,8 @@ try:
 except ki_modelle.KiFehler:
     pass
 assert ki_modelle.netzwerkpfad(r"\\Server\KI\m.gguf") and not ki_modelle.netzwerkpfad(str(gross))
+assert ki_modelle.netzwerkpfad("C:/Users/patri/OneDrive/Dokumente/KI/Qwen3-4B-Q4_K_M.gguf")
+assert ki_modelle.netzwerkpfad("C:/Users/x/OneDrive - Firma GmbH/KI/m.gguf")
 assert ki_modelle.vorhanden("Qwen3-8B-Q4_K_M", [dict(name="qwen3-8b-q4_k_m:latest")])
 assert not ki_modelle.vorhanden("Qwen3-4B", [dict(name="qwen3-8b-q4_k_m:latest")])
 r2 = ki_modelle._create([_sys.executable, "-c", "import time; time.sleep(30)"], abbrechen=lambda: True)

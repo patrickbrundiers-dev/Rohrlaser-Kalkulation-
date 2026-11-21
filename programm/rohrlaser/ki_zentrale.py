@@ -388,7 +388,7 @@ class KiZentrale(QDialog):
             if stand["phase"] == "kopieren" and stand["b"]:
                 dlg.setMaximum(1000)
                 dlg.setValue(int(1000 * stand["a"] / stand["b"]))
-                dlg.setLabelText(f"{kopf}\nAus dem Netzwerkordner auf diesen PC kopieren: "
+                dlg.setLabelText(f"{kopf}\nAuf diesen PC kopieren (Netzwerk/OneDrive): "
                                  f"{stand['a'] / 1e9:.1f} von {stand['b'] / 1e9:.1f} GB · {sek // 60}:{sek % 60:02d} min")
             else:
                 dlg.setMaximum(0)
