@@ -4262,7 +4262,9 @@ FUZZY = 1e-3                 # mm, Toleranz der Booleschen Operationen (die Hül
 def boolesch(art, a, b, fuzzy=FUZZY):
     """Boolesche Operation a ∩ b ("und"), a ∪ b ("plus") bzw. a − b ("minus") mit Toleranz fuzzy, GENAU EINMAL
     gerechnet (gebaut, IsDone() prüfen). Tempo 21.11.2026: BRepAlgoAPI_Fuse(a, b) rechnet schon im Konstruktor (ohne
-    Toleranz); ein SetFuzzyValue + Build() danach rechnete alles ein zweites Mal. Ergebnis wie zuvor der zweite Lauf."""
+    Toleranz); ein SetFuzzyValue + Build() danach rechnete alles ein zweites Mal. Maße, Konturen und Schnittlängen wie
+    zuvor (126 Test-STEPs); bei offen gezeichneten U-Profilen liegen nur die Stützpunkte der Konturlinien der Variante
+    „aus dem Rohr“ etwas anders auf derselben Kontur (≤ 0,04 mm)."""
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Common, BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
     try:  # OCP >= 7.8
         from OCP.collections import List_TopoDS_Shape as TopTools_ListOfShape

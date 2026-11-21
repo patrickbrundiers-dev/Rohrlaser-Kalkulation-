@@ -24,7 +24,9 @@ NEUERUNGEN = [
     ["0.9.441", "<b>STEP-Import schneller bei U-, C- und offen gezeichneten Profilen</b> ([[offene_rohre]]). Die "
                 "Messung hat jede Boolesche Operation (Teil mit ergänzter Wand vereinen, Stege, Fenster ausschneiden, "
                 "Schweißnaht schließen) zweimal gerechnet; jetzt genau einmal. Ein U-Profil 80×40×4 mit Konturen misst "
-                "in 11 statt 19 Sekunden. Die Messwerte bleiben bitgleich (geprüft an allen Test-STEPs).",
+                "in 11 statt 19 Sekunden. Geprüft an allen 126 Test-STEPs: Profil, Maße, Länge, Konturen und "
+                "Schnittlängen bleiben gleich; nur bei drei offen gezeichneten U-Profilen liegen die Stützpunkte der "
+                "Konturlinie (Variante „aus dem Rohr“) etwas anders auf derselben Kontur (höchstens 0,04 mm).",
      "STEP-Import: U-/C-Profile und offene Rohre bis 40 % schneller, gleiche Messwerte"],
     ["0.9.439", "<b>Lokale KI: Prüfen, Einkauf und Bedienung</b> ([[ki]]). Neue Fragen im KI-Assistenten: "
                 "<i>Preisrisiko</i> des Angebots mit Gründen, Rückfrage oder Kundentext <i>auf Englisch</i> (Entwurf, "

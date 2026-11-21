@@ -4150,7 +4150,7 @@ def kapitel_step(i):
               "([[zeitwaechter]]).")
     i.hinweis("Seit 0.9.441 rechnet die Messung jede Boolesche Operation genau einmal (vorher zweimal). Das spart "
               "vor allem bei U- und C-Profilen und offen gezeichneten Rohren Zeit: ein U-Profil 80×40×4 mit Konturen "
-              "misst in etwa 11 statt 19 Sekunden. Die Messwerte bleiben gleich.")
+              "misst in etwa 11 statt 19 Sekunden. Maße, Konturen und Schnittlängen bleiben gleich.")
     i.abschnitt("Biegerohre", marke="biegerohre")
     i.text("Ein <b>gebogenes Rundrohr</b> (Geraden und Bögen) erkennt der Import selbst. Er rechnet die gestreckte "
            "Länge, setzt die Bohrungen an die richtige Stelle am geraden Rohr und liefert die Biegedaten. Der "
