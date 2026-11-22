@@ -407,6 +407,9 @@ def step_messung_protokollieren(dauer, anzahl, stand, befehl, abgebrochen=False)
                              f"nähen {summe('naehen_s'):.1f} s, Struktur {summe('struktur_s'):.1f} s, "
                              f"Kopien suchen {summe('kopien_s'):.1f} s; Kopien: {summe('verschoben')} verschoben, "
                              f"{summe('gedreht')} gedreht")
+                if any("messen_s" in x for x in sch):     # ganz in einem Prozess gemessene Dateien
+                    teile.append(f"Körper messen {summe('messen_s'):.1f} s ({summe('gemessen')} Körper), "
+                                 f"Baugruppe auswerten {summe('abschluss_s'):.1f} s")
             if z.get("langsamste"):
                 teile.append("langsamste: " + "; ".join(f"{n} K{k} {s:g} s" for n, k, s in z["langsamste"][:3]))
         if abgebrochen:

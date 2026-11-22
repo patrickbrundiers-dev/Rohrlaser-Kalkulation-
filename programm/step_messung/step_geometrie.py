@@ -6134,6 +6134,7 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None,
     if melden:
         melden(0, n)
     teile = {}
+    uhr = time.monotonic()
     for i in range(1, n + 1):
         if i in gel.gleich and i not in auslassen:
             continue
@@ -6142,4 +6143,9 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None,
         if melden:
             melden(i, n)
         teile[i] = koerper_messen(gel, i, netz, flach_bis, auslassen)
-    return datei_abschliessen(gel, teile, netz, flach_bis, auslassen, melden)
+    ph = gel.info.setdefault("phasen", {})      # Dauer je Schritt (Benchmark, Master-Auftrag 21.11.2026)
+    ph.update(messen_s=time.monotonic() - uhr, gemessen=len(teile))
+    uhr = time.monotonic()
+    out = datei_abschliessen(gel, teile, netz, flach_bis, auslassen, melden)
+    ph["abschluss_s"] = time.monotonic() - uhr  # Kopien, Anbauteile, Verbund, Nähte
+    return out

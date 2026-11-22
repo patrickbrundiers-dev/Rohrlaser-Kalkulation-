@@ -106,6 +106,19 @@ Last erschöpft (bekannte Grenze, siehe oben); alle Messwerte sind gleich. Gepr�
 Hüllquader vorfiltern (kein Gewinn, 782,9 → 781,4 s). Die übrigen Abstandsmessungen betreffen Paare, die sich nicht
 berühren (Pizza-Ofen: 629 Paare, 26 s).
 
+## 0.9.452 (Basis 0.9.451): Benchmark-Suite
+
+- `python3 werkzeuge/step_benchmark.py suite ERGEBNIS --bericht suite.md` fasst einen Lauf je
+  STEP-Schema (AP203/AP214/AP242) und Größe zusammen: Zeit, CPU, RAM, Körper, Normteile, Fehler und
+  die Zeit je Schritt. Mit `lauf --erwartung erwartung.json` (Datei -> Körper -> Bauteiltyp/Profil)
+  kommt die Trefferquote der Einordnung dazu.
+- Ganz gemessene Dateien (ein Prozess) melden jetzt auch „Körper messen“ und „Baugruppe auswerten“.
+  Bei verteilten Dateien messen die Hilfsprozesse einzelne Körper, dort bleiben diese Spalten leer.
+- Bitgleich: 126 von 126 Test-STEPs gleich gegen 0.9.451 (`suite_0.9.452/bitgleich_0.9.451_0.9.452.md`).
+- Ausgangsbericht über die 11 echten Dateien: `suite_0.9.452/echte_dateien.md` (Summe 4085 s,
+  U_29MB 1578 s und 3,0 GB RAM, davon 341 s Umwandeln/Heilen beim Lesen). Das ist der Stand, an dem
+  sich weitere Verbesserungen messen lassen müssen; es ist keine Verbesserung.
+
 ## 0.9.451 (Basis 0.9.450): Schritte messbar
 
 - `info["phasen"]` je Datei: `lesen_s` (STEP-Text lesen), `uebertragen_s` (in Körper umwandeln, dabei heilen),
