@@ -189,7 +189,8 @@ def pruefen(db, modell, senden=None, fortschritt=None, abbrechen=None, mit_eigen
 
 
 ART_TITEL = {"einordnen": "Einordnen", "auslesen": "Auslesen", "absage": "Absage", "erklaeren": "Erklären",
-             "eigen_einordnen": "eigene Fragen", "eigen_absage": "eigene Absagen", "eigen_mail_art": "eigene Mail-Arten"}
+             "eigen_einordnen": "eigene Fragen", "eigen_absage": "eigene Absagen", "eigen_mail_art": "eigene Mail-Arten",
+             "eigen_step_art": "eigene STEP-Teile"}
 
 
 def text(e):

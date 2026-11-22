@@ -10718,7 +10718,9 @@ def kapitel_automatik(i):
             "Version: automatische Wahl).",
             "<b>Trainingsdaten exportieren …</b> schreibt die bestätigten Fälle (Absagegründe aus dem "
             "Absage-Dialog, korrigierte Mail-Arten aus der Anfragen-Erkennung, sicher erkannte Fragen an den "
-            "Assistenten) als JSONL in einen Ordner: anonymisiert (Kunden, Ansprechpartner, E-Mail, Telefon, "
+            "Assistenten, seit 0.9.452 auch von Hand eingeordnete STEP-Teile: Zukaufteil oder Fertigungsteil je "
+            "Bauteilname und Geometrie sowie gemerkte Arten, Aufgabe <i>step_art</i>, im Prüfsatz <i>eigene "
+            "STEP-Teile</i>; die Maße misst weiter nur der CAD-Kern) als JSONL in einen Ordner: anonymisiert (Kunden, Ansprechpartner, E-Mail, Telefon, "
             "Internet-Adressen), ohne leere, doppelte und widersprüchliche Fälle, fest getrennt in 90 % Training "
             "und 10 % Test, mit <i>manifest.json</i> (Anzahl und Prüfsumme je Datei) und <i>LIESMICH.txt</i>. "
             "Eine veränderte Testdatei erkennt der Prüfsatz und lässt sie weg.")
@@ -15141,7 +15143,8 @@ def kapitel_step_messung(i):
             "Sekunden, Кузов 127 statt 135 Sekunden, Ergebnis identisch). Seit 0.9.451 steht im tempo.log je "
             "verteilter Datei auch, wie lange das Lesen der STEP-Datei, das Umwandeln/Heilen, das Nähen, die "
             "Baugruppenstruktur und die Suche nach gleichen Körpern gedauert haben und wie viele Kopien (verschoben, "
-            "gedreht) gefunden wurden.",
+            "gedreht) gefunden wurden. Seit 0.9.452 auch bei Dateien, die in einem Prozess gemessen werden, dazu "
+            "die Zeit für <i>Körper messen</i> und <i>Baugruppe auswerten</i>.",
             "<b>Lange Gravur und Stecknasen</b>: Läuft eine Schrift über einen großen Teil des Rohrs, trifft fast "
             "jeder Querschnitt ein Zeichen. Als Profil gilt nur ein Querschnitt ohne Gravur (genau gleich groß an "
             "mehreren Stellen, auch an beiden Enden der Länge gesucht). Die Enden (z. B. Stecknasen vorne und hinten) "

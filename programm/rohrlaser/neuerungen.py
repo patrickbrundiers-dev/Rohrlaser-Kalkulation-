@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.452", "<b>STEP-Import messbar</b>: Das tempo.log nennt jetzt auch bei Dateien, die in einem Prozess gemessen "
+                "werden, die Zeit je Schritt (Lesen, Umwandeln/Heilen, Struktur, Kopien, Körper messen, Baugruppe "
+                "auswerten). <b>Eigenes KI-Modell</b>: <i>Trainingsdaten exportieren</i> nimmt jetzt auch von Hand "
+                "eingeordnete STEP-Teile mit (Zukaufteil oder Fertigungsteil, gemerkte Arten); der Prüfsatz prüft sie "
+                "als <i>eigene STEP-Teile</i>. Die Maße misst weiter nur der CAD-Kern. Messwerte unverändert.",
+     "STEP: Zeit je Schritt im tempo.log; KI-Trainingsdaten mit von Hand eingeordneten STEP-Teilen."],
     ["0.9.451", "<b>STEP-Import: Schritte sichtbar</b>. Das Fortschrittsfenster zeigt jetzt auch den Schritt der "
                 "Messung (<i>Datei gelesen</i>, <i>Körper messen</i>, <i>Baugruppe auswerten</i>) und wie viele gleiche "
                 "Körper die Messung ihres Vorbilds übernehmen. Im tempo.log steht je Datei, wie lange Lesen, "

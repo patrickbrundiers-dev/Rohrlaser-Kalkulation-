@@ -9,6 +9,11 @@ größten Arbeitsspeicher (Spitze eines Messprozesses). Der Vergleich zweier Lä
 Aufruf:
     python werkzeuge/step_benchmark.py lauf BAUM ERGEBNIS DATEI_ODER_ORDNER … [--prozesse 0] [--zeitlimit 600]
     python werkzeuge/step_benchmark.py vergleich ERGEBNIS_ALT ERGEBNIS_NEU [--toleranz 0] [--bericht DATEI.md]
+    python werkzeuge/step_benchmark.py suite ERGEBNIS [--bericht DATEI.md]
+
+lauf hält je Datei außerdem fest: STEP-Schema (AP203/AP214/AP242) und Größenklasse, Zeit je Schritt (lesen,
+umwandeln/heilen, nähen, Struktur, Kopien suchen, Körper messen, Baugruppe auswerten), Körper, Normteile, Fehler und mit
+--erwartung die Trefferquote der Erkennung. suite fasst einen Lauf je Schema/Größe und je Datei zusammen.
 
 BAUM ist ein Programmstand (Ordner mit programm/step_messung, z. B. ein zweiter git worktree mit dem alten Stand).
 --prozesse 0 = so viele Messprozesse wie im Programm (automatisch), 1 = ein Prozess (reproduzierbare Reihenfolge).
@@ -26,6 +31,44 @@ from pathlib import Path
 
 FLUECHTIG = {"erzeugt", "schema_version"}      # Felder ohne Messbedeutung (Zeitpunkt, Programmversion)
 ENDUNGEN = (".step", ".stp")
+SCHEMAS = (("AP242", ("AP242", "MANAGED_MODEL_BASED")), ("AP214", ("AUTOMOTIVE_DESIGN",)),
+           ("AP203", ("CONFIG_CONTROL_DESIGN", "EXPLICIT_DRAUGHTING")))
+GROESSEN = ((1, "bis 1 MB"), (10, "1–10 MB"), (50, "10–50 MB"), (None, "über 50 MB"))
+
+
+def kategorie(p):
+    """Art der Datei für die Benchmark-Suite (Master-Auftrag 21.11.2026, Abschnitt Benchmark): STEP-Schema (AP203,
+    AP214, AP242 aus FILE_SCHEMA im Kopf), Größenklasse, MB."""
+    try:
+        with open(p, "rb") as f:
+            kopf = f.read(20000).decode("latin-1", "replace").upper()
+        mb = Path(p).stat().st_size / 1e6
+    except OSError:
+        return dict(schema="unlesbar", groesse="", mb=0.0)
+    i = kopf.find("FILE_SCHEMA")
+    teil = kopf[i:i + 300] if i >= 0 else ""
+    schema = next((n for n, merk in SCHEMAS if any(m in teil for m in merk)), "unbekannt" if teil else "kein Kopf")
+    groesse = next(t for g, t in GROESSEN if g is None or mb <= g)
+    return dict(schema=schema, groesse=groesse, mb=round(mb, 2))
+
+
+def kennzahlen(js, erwartung=None):
+    """Zahlen aus dem JSON der Messung: Körper, Fehler (Körper mit Fehler oder Datei nicht lesbar), Normteile (laut
+    Name oder Form erkannt), Baugruppe; mit erwartung {Körpernummer: Art} die Trefferquote der Erkennung
+    (bauteiltyp/profiltyp, Klassifikationsgenauigkeit)."""
+    d = _lade(js)
+    dateien = d.get("dateien") or []
+    koerper = [k for f in dateien for k in (f.get("koerper") or [])]
+    fehler = sum(1 for f in dateien if f.get("fehler")) + sum(1 for k in koerper if k.get("fehler"))
+    normteile = sum(1 for k in koerper if str(k.get("art_grund") or "").startswith(("Normteil", "Norm ")))
+    out = dict(koerper_n=len(koerper), fehler_n=fehler, normteile_n=normteile,
+               baugruppe=any(f.get("baugruppe") for f in dateien))
+    if erwartung:
+        nach_nr = {str(k.get("nr")): k for k in koerper}
+        treffer = sum(1 for nr, art in erwartung.items() if art in (
+            (nach_nr.get(str(nr)) or {}).get("bauteiltyp"), (nach_nr.get(str(nr)) or {}).get("profiltyp")))
+        out.update(erwartet_n=len(erwartung), treffer_n=treffer)
+    return out
 
 
 def dateien(pfade):
@@ -71,7 +114,7 @@ def _starten(befehl, umgebung, zeitlimit):
     return rc, time.perf_counter() - t0, cpu, ram, "".join(ausgabe)
 
 
-def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600):
+def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600, erwartung=None):
     baum, ergebnis = Path(baum), Path(ergebnis)
     messen = baum / "programm" / "step_messung" / "step_messen.py"
     if not messen.exists():
@@ -93,7 +136,9 @@ def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600):
         werte[n] = dict(datei=str(p), rc=rc, dauer_s=round(dauer, 3), cpu_s=round(cpu, 3),
                         cpu_auslastung=round(cpu / dauer, 2) if dauer > 0 else 0, ram_mb=round(ram, 1),
                         lesen_s=teil.get("lesen"), abschluss_s=teil.get("abschluss"),
-                        koerper_s=zeiten.get("koerper_s"), koerper=zeiten.get("koerper_n"))
+                        koerper_s=zeiten.get("koerper_s"), koerper=zeiten.get("koerper_n"),
+                        schritte=teil.get("schritte") or {}, **kategorie(p),
+                        **kennzahlen(js, (erwartung or {}).get(p.name)))
         print(f"{dauer:8.1f} s  CPU {cpu:8.1f} s  RAM {ram:7.0f} MB  rc {rc}  {n}", flush=True)
     (ergebnis / "benchmark.json").write_text(json.dumps(werte, indent=1, ensure_ascii=False), encoding="utf-8")
     return werte
@@ -177,6 +222,46 @@ def _markdown(e, toleranz):
     return "\n".join(t) + "\n"
 
 
+SCHRITTE = (("lesen_s", "STEP lesen"), ("uebertragen_s", "umwandeln/heilen"), ("naehen_s", "nähen"),
+            ("struktur_s", "Struktur"), ("kopien_s", "Kopien suchen"), ("messen_s", "Körper messen"),
+            ("abschluss_s", "Baugruppe auswerten"))
+
+
+def suite(ergebnis, bericht=None):
+    """Bericht eines Laufs als Benchmark-Suite: je Datei Gesamtzeit, Zeit je Schritt, RAM-Spitze, CPU, Körper,
+    Normteile, Fehler, Trefferquote; Summen je STEP-Schema und Größenklasse. Ergebnis: Markdown-Text."""
+    w = _lade(Path(ergebnis) / "benchmark.json")
+    w = {k: v for k, v in w.items() if isinstance(v, dict)}
+    t = ["# STEP-Benchmark-Suite", "", f"{len(w)} Dateien, Summe {sum(v.get('dauer_s') or 0 for v in w.values()):.1f} s.",
+         "", "## Je Schema und Größe", "", "| Schema | Größe | Dateien | Körper | Normteile | Fehler | Summe s | RAM max MB |",
+         "|---|---|---:|---:|---:|---:|---:|---:|"]
+    gruppen = {}
+    for v in w.values():
+        gruppen.setdefault((v.get("schema", "?"), v.get("groesse", "?")), []).append(v)
+    for (sch, gr), vs in sorted(gruppen.items()):
+        t.append(f"| {sch} | {gr} | {len(vs)} | {sum(v.get('koerper_n') or 0 for v in vs)} | "
+                 f"{sum(v.get('normteile_n') or 0 for v in vs)} | {sum(v.get('fehler_n') or 0 for v in vs)} | "
+                 f"{sum(v.get('dauer_s') or 0 for v in vs):.1f} | {max(v.get('ram_mb') or 0 for v in vs):.0f} |")
+    t += ["", "## Je Datei", "", "| Datei | Schema | MB | s | CPU | RAM MB | Körper | Normteile | Fehler | Treffer | "
+          + " | ".join(n for _, n in SCHRITTE) + " |", "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|"
+          + "---:|" * len(SCHRITTE)]
+    for n, v in sorted(w.items(), key=lambda x: -(x[1].get("dauer_s") or 0)):
+        sch = v.get("schritte") or {}
+        treffer = f"{v['treffer_n']}/{v['erwartet_n']}" if v.get("erwartet_n") else ""
+        t.append(f"| {n} | {v.get('schema', '')} | {v.get('mb', '')} | {v.get('dauer_s')} | {v.get('cpu_auslastung')} | "
+                 f"{v.get('ram_mb')} | {v.get('koerper_n', '')} | {v.get('normteile_n', '')} | {v.get('fehler_n', '')} | "
+                 f"{treffer} | " + " | ".join(f"{sch[k]:.2f}" if isinstance(sch.get(k), (int, float)) else ""
+                                               for k, _ in SCHRITTE) + " |")
+    erw = [v for v in w.values() if v.get("erwartet_n")]
+    if erw:
+        a, b = sum(v["treffer_n"] for v in erw), sum(v["erwartet_n"] for v in erw)
+        t += ["", f"Erkennung: {a} von {b} Körpern wie erwartet ({100 * a / b:.1f} %)."]
+    text = "\n".join(t) + "\n"
+    if bericht:
+        Path(bericht).write_text(text, encoding="utf-8")
+    return text
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="befehl", required=True)
@@ -186,6 +271,10 @@ def main(argv=None):
     a.add_argument("pfade", nargs="+")
     a.add_argument("--prozesse", type=int, default=0)
     a.add_argument("--zeitlimit", type=int, default=600)
+    a.add_argument("--erwartung", help="JSON {Dateiname: {Körpernummer: Art}} für die Trefferquote der Erkennung")
+    s = sub.add_parser("suite")
+    s.add_argument("ergebnis")
+    s.add_argument("--bericht")
     v = sub.add_parser("vergleich")
     v.add_argument("alt")
     v.add_argument("neu")
@@ -193,7 +282,11 @@ def main(argv=None):
     v.add_argument("--bericht")
     x = ap.parse_args(argv)
     if x.befehl == "lauf":
-        lauf(x.baum, x.ergebnis, x.pfade, x.prozesse, x.zeitlimit)
+        erw = json.loads(Path(x.erwartung).read_text(encoding="utf-8")) if x.erwartung else None
+        lauf(x.baum, x.ergebnis, x.pfade, x.prozesse, x.zeitlimit, erwartung=erw)
+        return 0
+    if x.befehl == "suite":
+        print(suite(x.ergebnis, x.bericht))
         return 0
     e = vergleich(x.alt, x.neu, x.toleranz, x.bericht)
     print(f"gleich {e['gleich']}, anders {len(e['anders'])}, fehlen {len(e['fehlt'])}; "

@@ -462,6 +462,7 @@ def _arbeiter(auftraege, ereignisse, wid):
                 ereignisse.put(("geteilt", wid, schluessel, messbar, n, gedreht, gel.info.get("phasen")))
                 continue
             erg = messen(datei, netze, schluessel[1], flach_bis, einst, auslassen, melden, gel)
+            _senden(ereignisse, ("phasen", wid, schluessel, gel.info.get("phasen")))     # Tempo-Protokoll
             _senden(ereignisse, ("fertig", wid, schluessel, erg))
             continue
         gel = gelesen.get(str(datei))
@@ -541,6 +542,10 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
         if w["auftrag"] != ev[2]:       # Meldung eines beendeten Auftrags
             return
         nr = ev[2][1]
+        if ev[0] == "phasen":           # Schritte einer ganz in einem Prozess gemessenen Datei (Tempo-Protokoll)
+            if ev[3]:
+                phasen[Path(auftraege[nr][0]).name] = ev[3]
+            return
         if ev[0] == "koerper":
             k, n = ev[3], ev[4]
             w.update(koerper=k or None, seit=time.monotonic() if k else None, n=n)

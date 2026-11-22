@@ -11,6 +11,8 @@ Aufgaben (nur bestätigte oder sicher erkannte Fälle):
   absage      Absage-Mail bzw. Bemerkung → Absagegrund (vom Mitarbeiter im Absage-Dialog bestätigt)
   mail_art    Mail-Text → Mail-Art (Korrekturen von Hand in der Anfragen-Erkennung, anfrage_lernen)
   einordnen   Frage an den Assistenten → Absicht (nur die von den festen Regeln sicher erkannten)
+  step_art    STEP-Bauteil (Name, Hüllmaße, Volumen, Flächen, Kanten) → Art bzw. Zukaufteil/Fertigungsteil (nur von
+              Hand eingeordnete Teile, gemerkt im STEP-Import; die KI schlägt nur vor, Maße bleiben beim CAD-Kern)
 Bereinigt: leere und zu kurze Eingaben, unbekannte Antworten, Doppelte (gleiche Eingabe; bei Widerspruch fliegen alle
 Fälle dieser Eingabe raus). Anonymisiert: Mail-Adressen, Telefonnummern, Internet-Adressen, Kunden- und
 Ansprechpartnernamen. Getrennt: fest nach Prüfsumme der Eingabe, 10 % Test (bleibt bei jedem Export im Test).
@@ -29,6 +31,8 @@ SYSTEM = {
     "absage": "Du bist die KI einer Rohrlaser-Lohnfertigung. Wähle den Absagegrund des Kunden aus der Liste.",
     "mail_art": "Du bist die KI einer Rohrlaser-Lohnfertigung. Ordne die E-Mail einer Mail-Art zu.",
     "einordnen": "Du bist die KI einer Rohrlaser-Lohnfertigung. Ordne die Frage des Kalkulators einer Absicht zu.",
+    "step_art": "Du bist die KI einer Rohrlaser-Lohnfertigung. Ordne das Bauteil aus der STEP-Datei ein: Art bzw. "
+                "Zukaufteil-Kategorie oder Fertigungsteil. Maße nie ändern, nur einordnen.",
 }
 LIESMICH = """Trainingsdaten Rohrlaser-KI ({version})
 
@@ -143,9 +147,44 @@ def _einordnungen(db):
     return out
 
 
+def _geometrie_text(schluessel):
+    """art_schluessel (Hüllmaße|Volumen/10|Flächen|Kanten, step.art_schluessel) als lesbarer Text."""
+    t = str(schluessel or "").split("|")
+    if len(t) != 6:
+        return ""
+    return (f"Hülle {t[0]} × {t[1]} × {t[2]} mm, Volumen {float(t[3] or 0) / 100:g} cm³, Flächen {t[4]}, "
+            f"Kanten {t[5]}")
+
+
+def _step_arten(db):
+    """STEP-Teile, die von Hand eingeordnet wurden (Master-Auftrag STEP-Import 21.11.2026, KI-Unterstützung): gemerkte
+    Zukaufteil-/Fertigungsteil-Entscheidungen (zukaufteile.GELERNT, Bauteilname + Geometrie) und gemerkte Arten
+    (step.ART_GELERNT, nur Geometrie). Nur bestätigte Fälle; die Maße bleiben beim CAD-Kern."""
+    from . import step, zukaufteile
+    out = []
+    for k, v in (db.einstellung(zukaufteile.GELERNT) or {}).items():
+        g, _, name = str(k).partition("#")
+        geo = _geometrie_text(g)
+        if not (geo and name and isinstance(v, (list, tuple)) and v and v[0] in (zukaufteile.ZUKAUF,
+                                                                                 zukaufteile.FERTIGUNG)):
+            continue
+        antwort = zukaufteile.FERTIGUNG if v[0] == zukaufteile.FERTIGUNG else \
+            f"{zukaufteile.ZUKAUF}: {v[1] if len(v) > 1 and v[1] else zukaufteile.SONST}"
+        out.append(dict(eingabe=f"Bauteil „{name}“, {geo}", antwort=antwort,
+                        quelle=f"STEP-Zukauf {v[2] if len(v) > 2 else ''}".strip()))
+    for k, v in (db.einstellung(step.ART_GELERNT) or {}).items():
+        gruppe, datum = step._gelernt_wert(v)
+        geo = _geometrie_text(k)
+        if geo and gruppe:
+            out.append(dict(eingabe=f"Bauteil ohne Namen, {geo}", antwort=gruppe,
+                            quelle=f"STEP-Art {datum}".strip()))
+    return out
+
+
 def sammeln(db, wurzel=None):
     """{Aufgabe: [dict(eingabe, antwort, quelle)]} aus allen Quellen (noch nicht bereinigt)."""
-    return dict(absage=_absagen(db), mail_art=_mail_arten(db, wurzel), einordnen=_einordnungen(db))
+    return dict(absage=_absagen(db), mail_art=_mail_arten(db, wurzel), einordnen=_einordnungen(db),
+                step_art=_step_arten(db))
 
 
 def bereinigen(faelle, namen_=()):

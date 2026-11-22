@@ -188,7 +188,7 @@ zeile = json.loads(next(z for p in ordner.glob("absage_*.jsonl") for z in p.read
 assert [m["role"] for m in zeile["messages"]] == ["system", "user", "assistant"]
 assert zeile["messages"][2]["content"] == "Preis zu hoch"
 man = json.loads((ordner / "manifest.json").read_text(encoding="utf-8"))
-assert man["version"] == ex["version"] and len(man["dateien"]) == 6 and (ordner / "LIESMICH.txt").is_file()
+assert man["version"] == ex["version"] and len(man["dateien"]) == 8 and (ordner / "LIESMICH.txt").is_file()
 assert ki_training.manifest_pruefen(ordner) == (True, [])
 assert ki_training.exporte(db)[0]["version"] == ex["version"]
 # gleicher Inhalt = gleiche Version; Trennung fest nach Eingabe
