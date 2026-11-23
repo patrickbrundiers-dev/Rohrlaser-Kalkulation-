@@ -734,7 +734,8 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
         k = kontext_aus({"profile": list(k.profile.values()) + erg["neue_profile"],
                          "werkstoffe": list(k.werkstoffe.values()), "maschinen": list(k.maschinen.values()),
                          "oberflaechen": list(k.oberflaechen.values())}, k.profilformen, k.kategorien)
-    kz, summen = rechnen.kalkulation(kopf, lauf, erg, k, tabellen, einst)
+    from . import zusatz_global      # Stückpreise der Stufe nur aus den Positionen (allgemeine Zusatzarbeiten extra)
+    kz, summen = rechnen.kalkulation(zusatz_global.ohne(kopf), lauf, erg, k, tabellen, einst)
     gemeinsam = []
     if summen.get("fracht_hinweis"):
         gemeinsam.append(summen["fracht_hinweis"])

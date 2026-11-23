@@ -63,6 +63,8 @@ def _zusatz_zeile(e, stueck):
     if teil > float(e.get("betrag") or 0) + 0.005 and art != "€/Angebot":
         teile.append("inkl. Mindestbetrag")
     teile += [f"{_eur(teil * stueck)} Pos.", "Fremdleistung" if e.get("fremd") else "eigen"]
+    if e.get("vk"):            # Haken „Preis = Verkauf“ (23.11.2026): Betrag ist der Verkaufspreis
+        teile.append("Verkaufspreis fest")
     return TRENNER.join([name] + [t for t in teile if t])
 
 

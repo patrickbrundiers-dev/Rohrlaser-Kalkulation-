@@ -227,6 +227,11 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
     v = verschickt_abweichung(kopf.get("preisbasis"), summen.get("verkauf"))
     if v:
         out.append(Punkt(HINWEIS, v, "kalkulation"))
+    from . import zusatz_global      # gleiche Leistung allgemein und an Positionen (23.11.2026)
+    doppelt = zusatz_global.ueberschneidungen(kopf, positionen)
+    if doppelt:
+        out.append(Punkt(WARNUNG, f"Zusatzarbeit möglicherweise doppelt berechnet: {doppelt[0][0]}", "zusatzarbeiten",
+                         zusatz_global.ueberschneidung_text(doppelt)))
     if kunde is not None and not _leer(kopf.get("kunde")) and _leer((kunde or {}).get("email")):
         out.append(Punkt(HINWEIS, "Kunde ohne E-Mail-Adresse", "kunde"))
     if _leer(kopf.get("lieferzeit_art")) and _leer(kopf.get("lieferzeit_zusatz")):

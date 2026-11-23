@@ -2914,6 +2914,10 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                                            (self.optimierung_seite, "Optimierung")])
         self.reiter.addTab(zk_seite, "Zukaufteile")
         self._zukauf_seite = zk_seite
+        # Zusatzarbeiten flexibel (Patrick 23.11.2026): allgemeine Zusatzarbeiten des Angebots und Übersicht je Position
+        from .zusatz_global_seite import ZusatzGlobalSeite
+        self.zusatz_seite = ZusatzGlobalSeite(self)
+        self.reiter.addTab(self.zusatz_seite, "Zusatzarbeiten")
         # Teilebaum mit Offen-Spalte und 3D-Vorschau links neben dem Schnittplan (Lantek-Idee L3)
         self.teile_baum = TeileBaum(self._vorschau_netz)
         self.teile_baum.gewaehlt.connect(self._baum_gewaehlt)
@@ -4963,6 +4967,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return self.preise_aktualisieren()
         if art == "kalkulation":
             return self.reiter.setCurrentWidget(self.kalk_seite)
+        if art == "zusatzarbeiten":
+            return self.reiter.setCurrentWidget(self.zusatz_seite)
         if art == "bohrungen":
             return self.bohrungen_alle_pruefen()
         if art == "stepgelb":           # K3: ungeprüfte STEP-Teile der Reihe nach bestätigen
@@ -5111,6 +5117,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         with tempo.abschnitt("Angebot: Wiederholteile", FEIN):
             self.wiederholteile_anzeigen()
         self.zeiten_seite.setzen(summen)
+        self.zusatz_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
         self.zukauf_info.setText(zukauf_info(summen))
         self.zukauf_zeigen()

@@ -2836,7 +2836,38 @@ def zusatz_werte(p, k, tabellen, kopf=None):
                         staffel=staffel or None, faktor_mehr=faktor_mehr,
                         mindest_teil=mindest_teil if art not in ("s/Stück", "€/Angebot") else 0.0,
                         fracht=_n(kz.get("fracht_fremd")) if kz.get("fremd") == "ja" else 0.0))
+        if vk_fest(e) and art not in ("s/Stück",):
+            # Zusatzarbeiten flexibel (Patrick 23.11.2026): Preis je Einheit ist der Verkaufspreis (ohne Zuschlag und
+            # Gewinn); interne Kosten je Teil = Menge × Preis des Preisstands bzw. der Stammdaten (Kostenpreis)
+            kosten_einheit = _n(kz.get("preis")) if stand else zusatz_preis(kz, saetze)["preis"]
+            if isinstance(e.get("kosten"), (int, float)):
+                kosten_einheit = float(e["kosten"])
+            kosten = _n(menge) * kosten_einheit / (3600 if art == "€/h" else 1)
+            out[-1].update(vk=True, kosten_teil=0.0 if art == "€/Angebot" else kosten,
+                           kosten_pauschal=kosten if art == "€/Angebot" else 0.0)
     return out
+
+
+def vk_fest(e):
+    """True, wenn der Preis einer Zusatzarbeit der Position der Verkaufspreis je Einheit ist (Haken „Preis =
+    Verkaufspreis“, Patrick 23.11.2026): ohne Zuschlag Fertigung/Fremdleistung und ohne Gewinn im Stückpreis."""
+    return (e or {}).get("vk") in ("ja", True)
+
+
+def zusatz_vk_teil(zus):
+    """(Verkaufspreis, interne Kosten) je Teil der Zusatzarbeiten mit Haken „Preis = Verkaufspreis“ (Einträge aus
+    _zusatz_umlegen); (0, 0) ohne solche Einträge."""
+    vk = [e for e in zus or () if e.get("vk")]
+    if not vk:
+        return 0.0, 0.0
+    kosten = 0.0
+    for e in vk:
+        k = _n(e.get("kosten_teil"))
+        if e.get("art") == "€/Angebot":       # pauschal: Kosten im Verhältnis wie der umgelegte Verkaufspreis
+            p = _n(e.get("pauschal"))
+            k = _n(e.get("kosten_pauschal")) * (_n(e.get("teil")) / p) if p else 0.0
+        kosten += k             # Mindestbetrag und Rüsten heben den Preis, nicht die Kosten
+    return sum(_n(e.get("teil")) for e in vk), kosten
 
 
 def zahl(w, stellen=2):
@@ -4411,11 +4442,12 @@ _KALK_MERK = rechenmerker.Merker("Kalkulation (gleiche Eingaben)", KALK_MERKEN, 
 
 
 def _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen):
-    from . import preisschicht      # letzte Preisschicht (Vorschläge 02.11.2026), ohne Einstellungen bitgleich
+    from . import preisschicht, zusatz_global      # letzte Preisschicht (Vorschläge 02.11.2026), ohne Einstellungen bitgleich
     stufen = gewinn_stufen(einstellungen)
     if not stufen:
         zeilen, summen = _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen)
         preisschicht.anwenden(kopf, positionen, zeilen, summen, k, tabellen, einstellungen)
+        zusatz_global.anwenden(kopf, summen)        # allgemeine Zusatzarbeiten (23.11.2026), ohne Einträge bitgleich
         return zeilen, summen
     # Basis ohne eigenen Gewinn auf Material (sonst stünde Material × Gewinn Material in der Basis)
     _, s1 = _kalkulation(kopf, positionen, ergebnis, k, tabellen, dict(einstellungen, gewinn=1.0, gewinn_material=None))
@@ -4424,6 +4456,7 @@ def _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellung
     zeilen, summen = _kalkulation(kopf, positionen, ergebnis, k, tabellen, dict(einstellungen, gewinn=satz))
     summen.update(gewinn_satz=satz, gewinn_gestaffelt=True, gewinn_stufen_basis=basis)
     preisschicht.anwenden(kopf, positionen, zeilen, summen, k, tabellen, dict(einstellungen, gewinn=satz))
+    zusatz_global.anwenden(kopf, summen)
     return zeilen, summen
 
 
@@ -4727,8 +4760,9 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         # Schneidgas je Stunde Laserzeit nach dem Gas der Schneiddaten (Plan B1)
         gz, gas_m3, gas_m3h = gas_kosten(sd, zb_je.get(mid(p), zb)["maschine"], einstellungen, v["gas_s"], oz)
         qz = _n(oz) / 3600 * s_laser + pz / 3600 * s_gew + gp + gz
-        ze = sum(e["teil"] for e in zus[i] if not e["fremd"])
-        zfr = sum(e["teil"] for e in zus[i] if e["fremd"])
+        ze = sum(e["teil"] for e in zus[i] if not e["fremd"] and not e.get("vk"))
+        zfr = sum(e["teil"] for e in zus[i] if e["fremd"] and not e.get("vk"))
+        zv, zv_kosten = zusatz_vk_teil(zus[i])      # Preis = Verkaufspreis (23.11.2026), ohne: 0, bitgleich
         n_abm = teile_abm.get(abm_schluessel(p), 0)
         r_abm = ruest_abm + sonder_abm.get(abm_schluessel(p), 0) + form_abm + wand_abm.get(abm_schluessel(p), 0.0)
         if sw_gr is None:       # bis 25.10.2026 (bitgleich wie bisher)
@@ -4766,6 +4800,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             gw = s_ * gew
             ohne = s_ * (1 + gew) + uz + zk_einst + zk_auf
         t_ = ohne / (1 - skonto)
+        if zv:          # fester Verkaufspreis: nach Gewinn und Skonto, Differenz zu den Kosten ist Gewinn
+            t_, ohne, gw, sk_ = t_ + zv, ohne + zv, gw + zv - zv_kosten, sk_ + zv_kosten
         nicht = rohrstuecke(p) - ein[0] if (stangen and not _leer(p.get("stueck"))) else None
         pr = pruefungen(p, w, positionen, tabellen.get("zusatzarbeiten") or (), tabellen["gewinde"])
         if _n(nicht) > 0:
@@ -4805,6 +4841,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = ""
         z.update(zeit_manuell="ja" if manuell else "", zeit_extra=zeit_extra, gewinde_preis=gp,
                  zusatz_eigen_teil=ze, zusatz_fremd_teil=zfr, zusatz_teil=ze + zfr, zusatz_position=(ze + zfr) * c, zusatzarbeiten=zus[i],
+                 **(dict(zusatz_vk_teil=zv, zusatz_vk_kosten_teil=zv_kosten) if zv else {}),
                  zusatz_text="; ".join(f"{e['name']} {zahl(e['menge'])} {e['einheit']}" for e in zus[i]),
                  zusatz_arbeit_s=sum(e.get("arbeit_s", 0.0) for e in zus[i]),
                  zusatz_arbeit_teil=sum(e["teil"] for e in zus[i] if e.get("arbeit_s")),
@@ -4966,6 +5003,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   faktor_laserzeit=f_laser,
                   ausschuss_faktor=aus_f, wiederholt_prog=sum(1 for i in laser if positionen[i].get("id") in wdh
                                                                and _n(positionen[i].get("stueck")) > 0))
+    if any(z and z.get("zusatz_vk_teil") for z in zeilen):      # Preis = Verkaufspreis (23.11.2026)
+        summen.update(zusatz_vk=_summe("zusatz_vk_teil"), zusatz_vk_kosten=_summe("zusatz_vk_kosten_teil"))
     summen["zeiten"] = arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_lad)
     return zeilen, summen
 
@@ -5002,8 +5041,9 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0, zus=(), zus
     zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
     zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
     zf, zfl = zuschlaege
-    ze = sum(e["teil"] for e in zus if not e["fremd"])
-    zfr = sum(e["teil"] for e in zus if e["fremd"])
+    ze = sum(e["teil"] for e in zus if not e["fremd"] and not e.get("vk"))
+    zfr = sum(e["teil"] for e in zus if e["fremd"] and not e.get("vk"))
+    zv, zv_kosten = zusatz_vk_teil(zus)         # Preis = Verkaufspreis (23.11.2026), ohne: 0, bitgleich
     gp = float(gewinde or 0.0)
     herstell = (ze + gp) * (1 + zf) + zfr * (1 + zfl)
     sk_ = zk_einst + zk_auf + herstell
@@ -5013,6 +5053,8 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0, zus=(), zus
     else:
         gw, ohne = gewinn_fracht(sk_, herstell, fr, gew)
     t_ = ohne / (1 - skonto)
+    if zv:
+        t_, ohne, gw, sk_ = t_ + zv, ohne + zv, gw + zv - zv_kosten, sk_ + zv_kosten
     if not zk:
         hinweis = "Zukaufteil: kein Zukaufartikel"
     elif any(x["fehler"] for x in zk):
@@ -5042,7 +5084,7 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0, zus=(), zus
              eingeplant=None, nicht_eingeplant=None, zukaufteil=True, kundenmaterial="")
     if zus:
         z.update(zusatz_eigen_teil=ze, zusatz_fremd_teil=zfr, zusatz_teil=ze + zfr, zusatz_position=(ze + zfr) * c,
-                 zusatzarbeiten=list(zus),
+                 **(dict(zusatz_vk_teil=zv, zusatz_vk_kosten_teil=zv_kosten) if zv else {}), zusatzarbeiten=list(zus),
                  zusatz_text="; ".join(f"{e['name']} {zahl(e['menge'])} {e['einheit']}" for e in zus),
                  zusatz_arbeit_s=sum(e.get("arbeit_s", 0.0) for e in zus),
                  zusatz_arbeit_teil=sum(e["teil"] for e in zus if e.get("arbeit_s")),
@@ -5364,7 +5406,10 @@ KOSTENARTEN = (
     ("Frachtfrei", "frachtfrei", False),
     ("Rabatt", "rabatt", False), ("Rundung", "rundung", False), ("Skonto", "skonto", False),
     ("Anhebung auf Mindestpreis", "mindestpreis_anhebung", False),
-    ("Musterkosten weiterer Abrufe", "muster_spaeter", False), ("Verkaufspreis", "verkauf", True))
+    ("Musterkosten weiterer Abrufe", "muster_spaeter", False),
+    # Zusatzarbeiten flexibel (Patrick 23.11.2026): allgemeine Zusatzarbeiten des Angebots (zusatz_global.py), eigene
+    # Zeilen im Angebot, Verkaufspreis je Einheit × Menge; ohne Einträge 0
+    ("Allgemeine Zusatzarbeiten", "zusatz_global", False), ("Verkaufspreis", "verkauf", True))
 
 
 # Kostenübersicht im Angebot: Gruppen aus Kostenarten (Titel, Schlüssel, Summenzeile); jede Kostenart genau einmal
@@ -5383,7 +5428,8 @@ KOSTEN_GRUPPEN = (
     ("Gewinn", ("gewinn",), False), ("Angebotsregeln", ("regel",), False), ("Fracht", ("fracht",), False),
     ("Kundenkonditionen und Rundung", ("frachtfrei", "rabatt", "rundung"), False),
     ("Skonto", ("skonto",), False), ("Mindestpreis", ("mindestpreis_anhebung",), False),
-    ("Muster: Anteil weiterer Abrufe", ("muster_spaeter",), False), ("Verkaufspreis", ("verkauf",), True))
+    ("Muster: Anteil weiterer Abrufe", ("muster_spaeter",), False),
+    ("Allgemeine Zusatzarbeiten", ("zusatz_global",), False), ("Verkaufspreis", ("verkauf",), True))
 assert sorted(n for _, ns, _ in KOSTEN_GRUPPEN for n in ns) == sorted(n for _, n, _ in KOSTENARTEN)
 
 
@@ -5447,6 +5493,8 @@ def kostenarten(summen, einst):
         "mindestpreis_anhebung": (f" (kalkuliert {z(summen.get('verkauf_kalkuliert', 0), 2)} €, Mindestpreis "
                                   f"{z(summen.get('mindestpreis', 0), 2)} € netto)" if summen.get("mindestpreis_gilt")
                                   else ""),
+        "zusatz_global": (f" ({summen.get('zusatz_global_n', 0)} Einträge, Verkaufspreis; interne Kosten "
+                          f"{z(summen.get('zusatz_global_kosten', 0), 2)} €)" if summen.get("zusatz_global") else ""),
         "verkauf": muster_text(summen)}
     return [(t + zusatz.get(n, ""), summen.get(n, 0.0), fett) for t, n, fett in KOSTENARTEN]
 
