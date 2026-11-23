@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.455", "<b>Anfragen: Rückfrage nachfassen, Wichtig zuerst, breiter lernen, Erkennung je Woche</b> "
+                "([[anfrage_stufe2]]). Wartet eine Rückfrage an den Kunden länger als 3 Arbeitstage (einstellbar), "
+                "zeigt die Anfrage das in Rot, der Schnellfilter „Nachfassen“ findet sie, und „Erinnerung …“ öffnet "
+                "in Outlook eine Antwort mit den Fragen der Rückfrage (gesendet wird nur von dir). Nach der Antwort "
+                "steht da, welche fehlenden Angaben jetzt da sind. „Wichtig zuerst“ sortiert nach Frist, Priorität, "
+                "Mail-Art, Kunde und Menge und zeigt die Gründe. Das Lernen aus Korrekturen gibt es jetzt auch für "
+                "das Sachgebiet und den Bearbeiter, jeweils erst nach Freigabe durch einen Admin. Die Auswertung "
+                "zeigt die Erkennung je Woche.",
+     "Anfragen: Rückfragen nachfassen, Wichtig zuerst, Lernen für Sachgebiet und Bearbeiter, Erkennung je Woche."],
     ["0.9.454", "<b>Fehler behoben</b>: Das Info-Panel rechts meldete einen unerwarteten Fehler, wenn es sich zeigte, "
                 "während ein Angebot gerade geöffnet wurde. Es wartet jetzt, bis das Angebot fertig aufgebaut ist.",
      "Info-Panel: kein Fehler mehr beim Öffnen eines Angebots."],

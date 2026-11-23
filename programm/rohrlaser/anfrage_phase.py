@@ -32,6 +32,7 @@ ORDNER_PHASEN = {PRUEFUNG: ak.BEARBEITUNG, RUECKFRAGE: ak.BEARBEITUNG, ANGEBOT: 
                  AUFTRAG: ak.BEARBEITUNG, PRODUKTION: ak.BEARBEITUNG, NICHT_RELEVANT: ak.ERLEDIGT}
 ORDNER_EINSTELLUNG = "outlook_ordner_phase_"        # + Phase: Outlook-Pfad (leer = nicht benutzt)
 AUTO = "anfragen_auto_zuweisen"                     # ja: sichere Bearbeiter-Vorschläge automatisch zuweisen
+GELERNT = 40                                        # Punkte für den Tipp des freigegebenen Bearbeiter-Modells
 
 _RANG = {p: i for i, p in enumerate(PHASEN)}
 
@@ -110,9 +111,11 @@ def ordner_einstellungen(db):
 
 
 # ---------------------------------------------------------------------------------------------- Bearbeiter
-def vorschlag(akte, akten, kunden=(), mitarbeiter=(), sachgebiete=None):
+def vorschlag(akte, akten, kunden=(), mitarbeiter=(), sachgebiete=None, gelernt=None):
     """Bearbeiter-Vorschlag: dict(kuerzel, punkte, sicher, gruende=[…], weitere=[(Kürzel, Punkte)]) oder None.
-    mitarbeiter: Kürzel der möglichen Bearbeiter (leer = alle, die in den Akten vorkommen)."""
+    mitarbeiter: Kürzel der möglichen Bearbeiter (leer = alle, die in den Akten vorkommen). gelernt: (Kürzel, p, n)
+    aus dem freigegebenen Bearbeiter-Modell (anfrage_lernen.bearbeiter_tipp, 23.11.2026): +GELERNT Punkte, macht
+    den Vorschlag aber nie „sicher“."""
     punkte, gruende = {}, {}
 
     def dazu(k, p, g):
@@ -144,6 +147,8 @@ def vorschlag(akte, akten, kunden=(), mitarbeiter=(), sachgebiete=None):
                 erfahrung[a.bearbeiter] = erfahrung.get(a.bearbeiter, 0) + 1
         for k, n in erfahrung.items():
             dazu(k, min(n * 5, 30), f"{n} Anfrage(n) im selben Sachgebiet")
+    if gelernt:
+        dazu(gelernt[0], GELERNT, f"gelernt aus {gelernt[2]} Zuweisungen ({round(100 * gelernt[1])} %)")
     offen = {}
     for a in akten:
         wer = a.bearbeiter if a.status == ak.BEARBEITUNG else (a.stand.get("zugewiesen") if a.status == ak.NEU

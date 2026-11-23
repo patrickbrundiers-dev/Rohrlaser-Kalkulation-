@@ -1855,6 +1855,8 @@ EINSTELLUNGEN = (
     # Automationen im Arbeitsablauf (Patrick 03.11.2026 „Alle Empfehlungen“, automatik.py)
     Einstellung("anfrage_frist", "Anfrage-Ampel: Anfrage beantworten in [Arbeitstagen] (0 = aus; je Kunde in den "
                 "Kundenvorgaben)", "Automatik", "ganz", 2, 0, 60),
+    Einstellung("anfragen_nachfassen_tage", "Anfragen: Rückfrage an den Kunden nachfassen nach [Arbeitstagen] ohne "
+                "Antwort (0 = aus)", "Automatik", "ganz", 3, 0, 30),
     # Vorschläge 11.11.2026 V2/V3 (vertrieb.py)
     Einstellung("anfragen_sortierung", "Anfrage-Karte: offene Anfragen sortieren nach", "Automatik", "auswahl",
                 "Dringlichkeit", auswahl="anfragensortierung"),

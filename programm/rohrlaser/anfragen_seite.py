@@ -34,6 +34,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
 from . import anfrage_art as aa
 from . import anfrage_ki_lokal as ki
 from . import anfrage_lernen as al
+from . import anfrage_nachfassen as anf
+from . import anfrage_reihenfolge as ar
 from . import anhang_analyse as an
 from . import protokoll
 from . import anfragen_akten as ak
@@ -81,6 +83,7 @@ class AnfragenSeite(QWidget):
         self._erkannt = {}
         self._anhang_cache = {}      # 20.11.2026: Nr -> (Dateistand, anhang_analyse)
         self._ang_phase = {}         # 20.11.2026 (anfrage_phase): Angebotsnummern -> Phase aus Angebot/Auftrag
+        self._kw = None              # 23.11.2026 (Wichtig zuerst): Kundenwerte aus den Angeboten, je Laden einmal
         lay = QVBoxLayout(self)
         # Zählerleiste
         oben = QHBoxLayout()
@@ -170,6 +173,13 @@ class AnfragenSeite(QWidget):
             schnell.addWidget(b)
             self.schnell[k] = b
         schnell.addStretch(1)
+        self.wichtig_zuerst = QToolButton()     # 23.11.2026: Reihenfolge mit Gründen (anfrage_reihenfolge)
+        self.wichtig_zuerst.setText("Wichtig zuerst")
+        self.wichtig_zuerst.setToolTip("Sortiert nach Frist, Priorität, Mail-Art (Bestellung, Reklamation …), "
+                                       "Kunde und Menge; die Gründe stehen rechts im Kopf der Anfrage")
+        self.wichtig_zuerst.setCheckable(True)
+        self.wichtig_zuerst.toggled.connect(lambda _an: self.liste_fuellen())
+        schnell.addWidget(self.wichtig_zuerst)
         lay.addLayout(schnell)
         self.hinweis = QLabel()
         self.hinweis.setWordWrap(True)
@@ -406,6 +416,7 @@ class AnfragenSeite(QWidget):
             self.hinweis.setVisible(True)
         self._erkannt = {}
         self._ang_phase = {}
+        self._kw = None
         self._modell_cache = None
         if not takt:
             with tempo.abschnitt("Anfragen: Outlook-Status"):
@@ -442,14 +453,17 @@ class AnfragenSeite(QWidget):
             self.akten = [abl.neu_lesen(a) if a.nr in dict(erg) else a for a in self.akten]
         return erg
 
-    def _modell(self):
-        """Freigegebenes Wortmodell der Mail-Art (anfrage_lernen) oder {} (je Laden einmal gelesen)."""
+    def _modell(self, ziel="art"):
+        """Freigegebenes Modell (anfrage_lernen; Mail-Art, Sachgebiet oder Bearbeiter) oder {} (je Laden einmal
+        gelesen)."""
         if getattr(self, "_modell_cache", None) is None:
+            self._modell_cache = {}
+        if ziel not in self._modell_cache:
             try:
-                self._modell_cache = al.aktiv_lesen(self.ablage().wurzel)
+                self._modell_cache[ziel] = al.aktiv_lesen(self.ablage().wurzel, ziel)
             except OSError:
-                self._modell_cache = {}
-        return self._modell_cache
+                self._modell_cache[ziel] = {}
+        return self._modell_cache[ziel]
 
     def ki_fragen(self, senden=None):
         """Optionale lokale KI (Einstellung anfragen_ki_lokal, Vorgabe aus): Vorschläge zu technischen Angaben, nur
@@ -488,7 +502,11 @@ class AnfragenSeite(QWidget):
         if a is None or a.status != ak.NEU:
             return None
         try:
-            return ph.vorschlag(a, self.akten, self.db.zeilen("kunden"), list(self.mitarbeiter_liste()))
+            ein = a.einordnung or {}
+            gelernt = al.bearbeiter_tipp(self._modell("bearbeiter"), a.betreff, a.kunde or "",
+                                         ein.get("sachgebiete") or ())
+            return ph.vorschlag(a, self.akten, self.db.zeilen("kunden"), list(self.mitarbeiter_liste()),
+                                gelernt=gelernt)
         except Exception as fehler:     # noqa: BLE001 – Hilfe, nie ein Fehler
             protokoll.warnung(f"Anfragen: kein Bearbeiter-Vorschlag ({type(fehler).__name__}: {fehler})")
             return None
@@ -717,8 +735,14 @@ class AnfragenSeite(QWidget):
             return ""
         amp = self._ampeln_setzen(jetzt)
         warten = [a for a in self.akten if (amp.get(a.nr) or (None,))[0] in ("rot", "gelb")]
-        if not warten:
+        nach = [a for a in self.akten if (self.nachfassen_stand(a, jetzt) or {}).get("faellig_ist")]
+        if not warten and not nach:
             return ""
+        if not warten:                  # 23.11.2026: nur Rückfragen nachzufassen
+            self.db.einstellung_setzen(ERINNERT, heute)
+            titel = ("1 Rückfrage" if len(nach) == 1 else f"{len(nach)} Rückfragen") + " ohne Antwort: nachfassen"
+            self.f.meldung(f"{titel}: " + ", ".join(a.nr for a in nach[:5]) + (" …" if len(nach) > 5 else ""))
+            return titel
         self.db.einstellung_setzen(ERINNERT, heute)
         if all(amp[a.nr][1] is None for a in warten):          # ohne Frist: alte Regel
             titel = ("1 Anfrage wartet" if len(warten) == 1 else f"{len(warten)} Anfragen warten") + \
@@ -726,6 +750,8 @@ class AnfragenSeite(QWidget):
         else:
             titel = ("1 Anfrage ist" if len(warten) == 1 else f"{len(warten)} Anfragen sind") + \
                 " heute fällig oder überfällig"
+        if nach:
+            titel += f", {len(nach)} Rückfrage{'n' if len(nach) != 1 else ''} nachfassen"
         self.f.meldung(f"{titel}: " + ", ".join(a.nr for a in warten[:5]) + (" …" if len(warten) > 5 else ""))
         try:
             from .teilen_fenster import windows_meldung
@@ -793,7 +819,32 @@ class AnfragenSeite(QWidget):
         for k, b in getattr(self, "schnell", {}).items():
             if b.isChecked():
                 liste = [a for a in liste if self.schnell_passt(a, k)]
+        if getattr(self, "wichtig_zuerst", None) is not None and self.wichtig_zuerst.isChecked():
+            liste = ar.sortieren(liste, {a.nr: self.reihenfolge(a) for a in liste})
         return liste
+
+    def nachfassen_stand(self, a, jetzt=None):
+        """anfrage_nachfassen.stand der Akte (Einstellung TAGE, Bundesland wie die Ampel)."""
+        try:
+            land = self.db.einstellung("versand_bundesland")
+        except Exception:               # noqa: BLE001
+            land = None
+        return anf.stand(a, anf.tage(self.db), jetzt=jetzt, land=land)
+
+    def reihenfolge(self, a, voll=False):
+        """(Punkte, Teile) für „Wichtig zuerst“. Technische Werte (Menge) nur, wenn die Akte schon erkannt ist oder
+        voll=True (Kopf der Akte), damit die Liste ohne Mail-Texte auskommt."""
+        if self._kw is None:
+            from . import vertrieb
+            try:
+                self._kw = vertrieb.kunden_werte(self.db.angebote())
+            except Exception:           # noqa: BLE001 – ohne Angebote: kein Kundenwert
+                self._kw = {}
+        from . import vertrieb
+        erk = self.erkennung(a) if voll else self._erkannt.get(a.nr) or {}
+        ein = erk.get("einordnung") or a.einordnung
+        return ar.punkte(a, (self.ampeln.get(a.nr) or (None,))[0], ein, erk.get("technik") or (),
+                         vertrieb.wichtigkeit(self._kw, a.kunde), self.nachfassen_stand(a))
 
     def schnell_passt(self, a, k):
         """Schnellfilter k (SCHNELL) für die Akte a."""
@@ -814,6 +865,8 @@ class AnfragenSeite(QWidget):
             return any(e.get("zweiter_weg") for e in a.verlauf)
         if k == "anhaenge":
             return _neue_anhaenge(a)
+        if k == "nachfassen":
+            return bool((self.nachfassen_stand(a) or {}).get("faellig_ist"))
         return True
 
     def liste_fuellen(self):
@@ -970,8 +1023,28 @@ class AnfragenSeite(QWidget):
             zeilen.append(f"<span style='color:#A66A00'>{e(a.kennzeichen())}</span> · „Kalkulieren“ legt ein Angebot "
                           "ohne Positionen an (Kunde, Anfrage-Nr. und Termin aus der Mail)")
         if s.get("rueckfrage"):
-            zeilen.append(f"<span style='color:{AMPEL_FARBE['gelb']}'>● Rückfrage am {ak._zeit_text(s['rueckfrage'])}"
-                          " · wartet auf Kunde</span> · <a href='antwort:'>Antwort erhalten</a>")
+            nf = self.nachfassen_stand(a)
+            if nf and nf["faellig_ist"]:      # 23.11.2026: nachfassen
+                zeilen.append(f"<span style='color:{AMPEL_FARBE['rot']}'>● {e(nf['text'])}</span> · "
+                              "<a href='nachfassen:'>Erinnerung …</a> · <a href='antwort:'>Antwort erhalten</a>")
+            else:
+                zeilen.append(f"<span style='color:{AMPEL_FARBE['gelb']}'>● Rückfrage am "
+                              f"{ak._zeit_text(s['rueckfrage'])} · wartet auf Kunde</span>"
+                              + (f" ({e(nf['text'])})" if nf else "") + " · <a href='antwort:'>Antwort erhalten</a>")
+        elif a.status != ak.ERLEDIGT:
+            try:
+                gl = anf.geliefert_text(anf.geliefert(a, self.erkennung(a)["fehlt"]))
+            except Exception:           # noqa: BLE001 – Hilfe, nie ein Fehler
+                gl = ""
+            if gl:
+                zeilen.append(f"<span style='color:#2F6FB3'>● {e(gl)}</span>")
+        if a.status != ak.ERLEDIGT and not a.aussortiert:
+            try:
+                p, teile = self.reihenfolge(a, voll=True)
+            except Exception:           # noqa: BLE001
+                p, teile = None, []
+            if p is not None and teile:
+                zeilen.append(f"<span style='color:#666'>Wichtig: {p} Punkte – {e(ar.text(teile))}</span>")
         self.kopf.setText("<br>".join(z for z in zeilen if z))
         teile = []
         n, grund = ak.aussortier_vorschlag(self.akten, a)
@@ -1144,6 +1217,8 @@ class AnfragenSeite(QWidget):
             self.aussortieren(wert)
         elif art == "rueckfrage" and a:
             self.rueckfrage()
+        elif art == "nachfassen" and a:
+            self.nachfassen()
         elif art == "art" and a:
             self.art_aendern()
         elif art == "phase" and a:
@@ -1290,7 +1365,8 @@ class AnfragenSeite(QWidget):
         akte = self._ausfuehren(lambda abl, x: abl.zuweisen(x, an),
                                 "Anfrage {nr} " + (f"für {an} vorgeschlagen." if an else "nicht mehr zugewiesen."))
         if akte is not None and v:      # 20.11.2026: Vorschlag angenommen oder anders entschieden (Auswertung)
-            self._rueckmelden(a, "bearbeiter", v["kuerzel"], an)
+            self._rueckmelden(a, "bearbeiter", v["kuerzel"], an, betreff=a.betreff, kunde=a.kunde or "",
+                              sachgebiete=list((a.einordnung or {}).get("sachgebiete") or []))
         return akte
 
     def _rueckmelden(self, a, feld, auto, neu, **weitere):
@@ -1496,6 +1572,7 @@ class AnfragenSeite(QWidget):
                     ein = aa.kompakt(aa.einordnen(text, a.betreff, namen))
                 if not a.stand.get("art_korr"):     # freigegebenes gelerntes Modell (nur unsichere Fälle)
                     ein = al.anwenden(self._modell(), ein, text, a.betreff)
+                    ein = al.sachgebiete_anwenden(self._modell("sachgebiet"), ein, text, a.betreff)
                 technik = aa.technik(text)
             except Exception as fehler:     # noqa: BLE001 – Hilfe, nie ein Fehler
                 protokoll.warnung(f"Anfragen: Mail-Art/Werte nicht erkannt ({type(fehler).__name__}: {fehler})")
@@ -2008,8 +2085,53 @@ class AnfragenSeite(QWidget):
             except OSError as e:
                 self.f.meldung(f"Rückfrage nicht zu öffnen: {fehler} {fehler_text(e)}", fehler=True)
                 return None
-        return self._ausfuehren(lambda abl, a: abl.rueckfrage(a, text),
+        try:
+            fehlt = list(self.erkennung(a)["fehlt"])
+        except Exception:               # noqa: BLE001
+            fehlt = []
+        return self._ausfuehren(lambda abl, a: abl.rueckfrage(a, text, fehlt=fehlt),
                                 "Rückfrage zu Anfrage {nr} geöffnet – sie wartet jetzt auf den Kunden.")
+
+    def nachfassen(self, text=None):
+        """Erinnerung an eine offene Rückfrage (23.11.2026): Antwort in Outlook mit den Fragen der Rückfrage (nie
+        automatisch gesendet), dann läuft die Wartezeit neu. text: ohne Dialog (Tests)."""
+        from . import anfrage_erkennung as ae
+        from . import materialanfrage as ma
+        a = self.akte()
+        if a is None or not a.stand.get("rueckfrage"):
+            return None
+        if text is None:
+            try:
+                absender = self.db.einstellung("versand_absender") or ""
+            except Exception:           # noqa: BLE001
+                absender = ""
+            text = anf.erinnerung_text(self._kunde(a), a, absender)
+            if self.f.stumm:
+                return None
+            text, gut = QInputDialog.getMultiLineText(self, "Erinnerung an die Rückfrage",
+                                                      "Text der Erinnerung (öffnet sich in Outlook, gesendet wird "
+                                                      "erst von Ihnen):", text)
+            if not gut or not text.strip():
+                return None
+        an, betreff = a.absender_adresse, ae.rueckfrage_betreff(a)
+        msg = self._mail_pfad(a)
+        if (a.kopf.get("zuordnung") or {}).get("art") in ("weitergeleitet", "intern") or a.kopf.get("weitergeleitet"):
+            msg = None
+        gut, fehler = ma.outlook_oeffnen(an, betreff, text, ausfuehren=getattr(self, "rueckfrage_ausfuehren", None),
+                                         signatur_=True, antwort=msg if msg and msg.suffix.lower() == ".msg" else None)
+        if not gut:
+            try:
+                import tempfile
+                ziel = ak.Path(tempfile.gettempdir()) / "rohrlaser_rueckfrage"
+                ziel.mkdir(parents=True, exist_ok=True)
+                pfad = ma.eml(ziel / f"Erinnerung_{a.nr}.eml", an, betreff, text)
+                if not self.f.stumm:
+                    self.f.datei_oeffnen(pfad)
+            except OSError as e:
+                self.f.meldung(f"Erinnerung nicht zu öffnen: {fehler} {fehler_text(e)}", fehler=True)
+                return None
+        return self._ausfuehren(lambda abl, a: abl.rueckfrage(a, text, nachfassen=True),
+                                "Erinnerung zu Anfrage {nr} geöffnet – sie wartet weiter auf den Kunden.")
 
     def antwort_erhalten(self):
         """Antwort von Hand vermerkt (z. B. am Telefon): die Frist läuft ab jetzt neu."""
@@ -2256,12 +2378,41 @@ class AuswertungDialog(QDialog):
             for c, b in enumerate(breiten):
                 tab.setColumnWidth(c, b)
             lay.addWidget(tab, 1)
+        # 23.11.2026 (Stufe 2 Punkt 4): Erkennung je Woche (aus den Akten gerechnet, nichts gespeichert)
+        from . import anfrage_messung
+        try:
+            vl = anfrage_messung.verlauf(seite.akten, self._wurzel()) if seite is not None else []
+        except OSError:
+            vl = []
+        v = QTableWidget(len(vl), 8)
+        v.setHorizontalHeaderLabels(("Woche", "Eingänge", "Mail-Art unklar", "von Hand korrigiert",
+                                     "Kunde eindeutig", "Ø bis Übernahme", "Rückfragen", "nachgefasst"))
+        for r, x in enumerate(reversed(vl)):
+            j, kw = x["woche"].split("-W")
+            for c, wert in enumerate((f"KW {int(kw)}/{j}", x["eingaenge"], _prozent(x["unklar"]), _prozent(x["korrigiert"]),
+                                      _prozent(x["kunde_sicher"]), ak.dauer_text(x["std_bis_uebernahme"]),
+                                      x["rueckfragen"], x["nachgefasst"])):
+                v.setItem(r, c, QTableWidgetItem(str(wert)))
+        v.verticalHeader().setVisible(False)
+        v.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        v.setMaximumHeight(190)
+        for c, b in enumerate((100, 75, 120, 150, 120, 125, 90, 95)):
+            v.setColumnWidth(c, b)
+        self.verlauf = v
+        lay.addWidget(QLabel("<b>Erkennung je Woche</b> (nach Eingang; weniger „unklar“ und „korrigiert“ ist besser)"))
+        lay.addWidget(v)
         # 20.11.2026 (Plan K9/K11): Erkennung – Trefferquote je Feld, gelerntes Modell im Schatten, Freigabe
         lay.addWidget(QLabel("<b>Erkennung</b> (aus den Korrekturen von Hand)"))
         self.erkennung = QTextBrowser()
         self.erkennung.setMaximumHeight(170)
         lay.addWidget(self.erkennung)
         zeile = QHBoxLayout()
+        zeile.addWidget(QLabel("Gelernt für:"))
+        self.ziel = QComboBox()             # 23.11.2026: Mail-Art, Sachgebiet, Bearbeiter, je eigene Freigabe
+        for k, t_ in al.ZIELE.items():
+            self.ziel.addItem(t_, k)
+        self.ziel.currentIndexChanged.connect(lambda _i: self.erkennung_zeigen())
+        zeile.addWidget(self.ziel)
         self.k_trainieren = QPushButton("Modell prüfen")
         self.k_trainieren.setToolTip("Aus allen Korrekturen ein Wortmodell rechnen und gegen die Regeln testen (nur "
                                      "Schatten, ändert nichts)")
@@ -2279,7 +2430,7 @@ class AuswertungDialog(QDialog):
         knopf = QDialogButtonBox(QDialogButtonBox.Close)
         knopf.rejected.connect(self.reject)
         lay.addWidget(knopf)
-        self.resize(980, 720)
+        self.resize(980, 860)
 
     def _wurzel(self):
         return self.seite.ablage().wurzel if self.seite is not None else None
@@ -2291,7 +2442,8 @@ class AuswertungDialog(QDialog):
             return ""
         try:
             aus = al.auswertung(w, self.seite.akten)
-            schatten, aktiv = al.modell_lesen(w), al.aktiv_lesen(w)
+            ziel = self.ziel.currentData() or "art"
+            schatten, aktiv = al.modell_lesen(w, ziel), al.aktiv_lesen(w, ziel)
         except OSError as e:
             self.erkennung.setHtml(f"<i>nicht lesbar: {html.escape(str(e))}</i>")
             return ""
@@ -2306,7 +2458,8 @@ class AuswertungDialog(QDialog):
         sich = ", ".join(f"{html.escape(k)} {n}" for k, n in sorted(aus["sicherheit"].items()))
         p = (schatten or {}).get("pruefung") or {}
         ok, grund = al.freigabe_moeglich(schatten)
-        m = (f"Schatten-Modell {schatten.get('version')}: {p.get('n')} Beispiele, im Test {p.get('modell')} % "
+        m = f"<b>{html.escape(al.ZIELE.get(ziel, ziel))}:</b> "
+        m += (f"Schatten-Modell {schatten.get('version')}: {p.get('n')} Beispiele, im Test {p.get('modell')} % "
              f"richtig, Regeln {p.get('regeln')} %. " if schatten else "Noch kein Modell geprüft. ")
         m += (f"Freigegeben: Modell {aktiv.get('version')} ({html.escape(str(aktiv.get('freigegeben_von') or ''))})."
               if aktiv else "Kein Modell freigegeben, es gelten nur die Regeln.")
@@ -2317,7 +2470,7 @@ class AuswertungDialog(QDialog):
         return self.erkennung.toPlainText()
 
     def trainieren(self):
-        m = al.trainieren(self._wurzel())
+        m = al.trainieren(self._wurzel(), ziel=self.ziel.currentData() or "art")
         self.erkennung_zeigen()
         return m
 
@@ -2326,7 +2479,7 @@ class AuswertungDialog(QDialog):
         if not admin_schutz.ist_admin(self.seite.db):
             self.seite.f.meldung("Nur ein Admin kann ein gelerntes Modell freigeben.", fehler=True)
             return False
-        ok, text = al.freigeben(self._wurzel(), self.seite.ich())
+        ok, text = al.freigeben(self._wurzel(), self.seite.ich(), ziel=self.ziel.currentData() or "art")
         self.seite.f.meldung(text, fehler=not ok)
         self.seite._modell_cache = None
         self.seite._erkannt = {}
@@ -2338,7 +2491,7 @@ class AuswertungDialog(QDialog):
         if not admin_schutz.ist_admin(self.seite.db):
             self.seite.f.meldung("Nur ein Admin kann die Freigabe zurücknehmen.", fehler=True)
             return ""
-        t = al.zuruecknehmen(self._wurzel())
+        t = al.zuruecknehmen(self._wurzel(), ziel=self.ziel.currentData() or "art")
         self.seite.f.meldung(t)
         self.seite._modell_cache = None
         self.seite._erkannt = {}
@@ -2615,7 +2768,13 @@ SCHNELL = {"ohne": ("Nicht zugeordnet", "Neue Anfragen ohne Bearbeiter"),
            "unklar": ("Unklar", "Mail-Art nicht sicher erkannt"),
            "anhaenge": ("Neue Anhänge", "Seit der letzten eigenen Bearbeitung sind Dateien dazugekommen"),
            "doppelt": ("Doppelt", "Dieselbe Mail kam auf zwei Wegen (z. B. direkt und weitergeleitet)"),
-           "ueberfaellig": ("Überfällig", "Antwortfrist überschritten")}
+           "ueberfaellig": ("Überfällig", "Antwortfrist überschritten"),
+           "nachfassen": ("Nachfassen", "Rückfrage an den Kunden ohne Antwort (Einstellung „Rückfrage nachfassen "
+                                        "nach … Arbeitstagen“)")}
+
+
+def _prozent(x):
+    return "–" if x is None else f"{x} %"
 
 
 def _neue_anhaenge(a):
