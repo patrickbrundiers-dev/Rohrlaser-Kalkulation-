@@ -30,9 +30,14 @@ NEUERUNGEN = [
                 "<b>Dublettenprüfung</b> (Name ohne Rechtsform, USt-ID, E-Mail/Domain, Telefon, Anschrift; nie "
                 "automatisch zusammengeführt), Archivieren und Duplizieren. Im Angebotskopf Kundensuche <b>…</b>, "
                 "Auswahl von Ansprechpartner und Lieferadresse; beides steht im PDF, in der Angebotsakte und geht in "
-                "den Auftrag. Bestehende Kunden werden beim Update ergänzt (nichts geht verloren). Datenbank Schema 102.",
+                "den Auftrag. Bestehende Kunden werden beim Update ergänzt (nichts geht verloren). "
+                "<b>Kunde aus der Anfrage</b> ([[anfragen]]): <i>Kunde ändern …</i> zeigt erkannte Kunden mit Punkten "
+                "und Gründen (auch E-Mail der Ansprechpartner, USt-ID, Telefon) und die Gegenüberstellung "
+                "<i>Datenbank | Neue E-Mail</i>; übernommen wird nur, was du anhakst. <i>Neuen Kunden anlegen …</i> "
+                "füllt die Eingabemaske aus der Signatur (Firma, Anschrift, Telefon, Mobil, Website, USt-ID, "
+                "Ansprechpartner mit Position). Datenbank Schema 102.",
      "Kundenverwaltung: Menü Kunden, Kundenprofil, Ansprechpartner, Lieferadressen, Dublettenprüfung, im Angebot "
-     "wählbar."],
+     "wählbar; Kunde aus der Anfrage mit Gegenüberstellung."],
     ["0.9.454", "<b>Fehler behoben</b>: Das Info-Panel rechts meldete einen unerwarteten Fehler, wenn es sich zeigte, "
                 "während ein Angebot gerade geöffnet wurde. Es wartet jetzt, bis das Angebot fertig aufgebaut ist.",
      "Info-Panel: kein Fehler mehr beim Öffnen eines Angebots."],

@@ -1555,6 +1555,25 @@ def kapitel_angebote(i):
             "<i>Angebot per E-Mail</i> eine neue Mail an den Kunden, nie eine Antwort auf die interne Mail. So geht "
             "der interne Verlauf nicht mit.")
 
+    i.genauer("Kunde aus der Anfrage")
+    i.text("<i>Kunde ändern …</i> öffnet das Fenster <b>Kunde aus der Anfrage</b>. Links stehen die erkannten Kunden "
+           "mit Punkten und Gründen (E-Mail eines Ansprechpartners, USt-ID, Domain, Name auch mit anderer "
+           "Rechtsform, Telefon, Anschrift). <i>Eindeutig</i> ist ein Kunde nur bei gleicher E-Mail-Adresse oder "
+           "USt-ID und klarem Abstand zum nächsten; sonst wählst du selbst. <i>Anderen Kunden suchen …</i> öffnet "
+           "die Kundensuche, <i>Neuen Kunden anlegen …</i> die Eingabemaske der Kundenverwaltung, vorbelegt mit "
+           "Firma, Anschrift, Telefon, Website, USt-ID und dem Ansprechpartner aus der Signatur. Passt dabei schon "
+           "ein vorhandener Kunde, kommt die Dubletten-Warnung; zusammengeführt wird nie automatisch.")
+    i.text("Rechts steht die Gegenüberstellung <b>Übernehmen | Feld | Datenbank | Neue E-Mail | Stand</b> für "
+           "die Kundendaten und den Ansprechpartner. <i>Neu</i> (grün) heißt, im Kundenstamm ist das Feld leer; diese "
+           "Zeilen sind vorgehakt. <i>Abweichend</i> (gelb) ist nicht vorgehakt, damit nichts still überschrieben "
+           "wird. <i>Gleich</i> (grau) und <i>nur in der Datenbank</i> bleiben unverändert. Eine weitere E-Mail-Adresse "
+           "wird ergänzt, nicht ersetzt. Beim Ansprechpartner wählst du einen vorhandenen, <i>Neu: … (aus der "
+           "Mail)</i> oder <i>– Ansprechpartner nicht ändern –</i>.")
+    i.text("<i>Zuordnen und übernehmen</i> ordnet die Anfrage zu und speichert nur die angehakten Werte (mit Kürzel "
+           "und Zeit in der Historie des Kunden). <i>Nur zuordnen</i> ändert am Kundenstamm nichts. Hat ein Kollege "
+           "den Kunden inzwischen geändert, kommt ein Hinweis und nichts wird halb gespeichert. Ist die Mail "
+           "beschädigt, meldet das Programm das und du wählst den Kunden von Hand.")
+
     i.abschnitt("Mail-Art, Sachgebiet und technische Angaben", marke="anfrage_art")
     i.text("Das Programm erkennt bei jeder Mail, was sie ist: neue Anfrage, Angebotsnachfrage, Angebotsänderung, "
            "Bestellung, Auftragsänderung, technische Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, "

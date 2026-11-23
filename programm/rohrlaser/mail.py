@@ -933,8 +933,8 @@ FIRMA = re.compile(r"\b(?:GmbH|mbH|AG|KG|OHG|UG|GbR|e\.\s?K\.|SE|Co\.|Ltd\.?|S\.
 TELEFON = re.compile(r"(?:^|\s)(?:Tel(?:efon)?|Fon|Phone|T|Mobil|Handy)\.?\s*[:.]?\s*(\+?[\d][\d \t/()\-.]{5,}\d)", re.I)
 PLZ_ORT = re.compile(r"(?:^|,\s*|\s{2,})(?:(?:D|DE)\s*-\s*)?(\d{5})\s+([A-ZÄÖÜ][\wäöüß.\- ]{1,40}?)\s*$", re.M)
 STRASSE = re.compile(r"^\s*([A-ZÄÖÜ][\wäöüß.\- ]{2,40}?(?:str\.|straße|strasse|weg|platz|allee|ring|gasse|damm|ufer|"
-                     r"chaussee|park|feld|hof|berg|[A-ZÄÖÜ][\wäöüß]+)\s+\d{1,4}\s?[a-zA-Z]?(?:\s?-\s?\d{1,4})?)\s*"
-                     r"(?:,|$)", re.M)
+                     r"chaussee|park|feld|hof|berg|[A-ZÄÖÜ][\wäöüß]+)[ \t]+\d{1,4}[ \t]?[a-zA-Z]?(?:[ \t]?-[ \t]?\d{1,4})?)"
+                     r"[ \t]*(?:,|$)", re.M)       # nur innerhalb der Zeile (23.11.2026: nicht „12\nD-58099“)
 
 
 def _signatur(text):
