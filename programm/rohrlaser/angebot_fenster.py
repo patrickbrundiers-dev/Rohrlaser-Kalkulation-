@@ -4393,6 +4393,59 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             self._fracht_auto_rechnen()
         self.neu_laden()
 
+    def kunde_suchen(self, kundennr=None):
+        """Knopf „…“ am Kundenfeld: Kundensuche (mit „Neuer Kunde …“, vorbelegt mit dem getippten Text); der gewählte
+        Kunde wird mit Name, Konditionen, Ansprechpartner und Lieferadresse übernommen. Gesperrte Kunden: Rückfrage.
+        kundennr (Tests): ohne Dialog. Ergebnis: Kundennummer oder None."""
+        from . import kunden_daten
+        if kundennr is None:
+            if self.f.stumm:
+                return None
+            from .kunden_seite import KundenSuche
+            text = self.felder["kundennr"].currentText() if "kundennr" in self.felder else ""
+            if self.kopf.get("kundennr") and text.startswith(str(self.kopf["kundennr"])):
+                text = ""
+            d = KundenSuche(self, self.db, text, titel="Kunde für das Angebot wählen",
+                            neu=lambda s: self.f.kunden.neuer_kunde(vorschlag={"name": s}, oeffnen=False))
+            if d.exec() != QDialog.Accepted or not d.kundennr:
+                return None
+            kundennr = d.kundennr
+        k = kunden_daten.kunde(self.db, kundennr) or {}
+        if k.get("status") == kunden_daten.GESPERRT and not self.f.stumm:
+            if QMessageBox.question(self, "Kunde gesperrt", f"{kundennr} {k.get('name') or ''} ist gesperrt. Trotzdem "
+                                                            "übernehmen?") != QMessageBox.Yes:
+                return None
+        self.kunde_waehlen(kundennr)
+        return kundennr
+
+    def ansprech_waehlen(self, uid):
+        """Ansprechpartner des Angebots (Auswahl im Kopf); steht im Angebot als „z. Hd.“."""
+        from . import kunden_daten
+        if self._laden:
+            return None
+        p = kunden_daten.angebot_person_setzen(self.db, self.id, uid)
+        self.f.meldung(f"Ansprechpartner {kunden_daten.name_voll(p)} übernommen." if p else "Ohne Ansprechpartner.")
+        self.neu_laden()
+        return p
+
+    def liefer_waehlen(self, uid):
+        """Lieferadresse des Angebots; bei automatischer Fracht wird sie das Frachtziel."""
+        from . import kunden_daten
+        if self._laden:
+            return None
+        a = kunden_daten.angebot_adresse_setzen(self.db, self.id, uid, self.kopf.get("kundennr"))
+        self.f.meldung("Lieferadresse übernommen." if a else "Lieferung an die Firmenanschrift.")
+        if fracht_angebot.auto(self.db.angebot(self.id)):
+            k = self.db.kunde(self.kopf.get("kundennr")) or {}
+            plz, land = (a.get("plz"), a.get("land") or "DE") if a and a.get("plz") else \
+                fracht_angebot.ziel_aus_kunde(k)
+            if plz:
+                self.db.angebot_aendern(self.id, "fracht_plz", plz)
+                self.db.angebot_aendern(self.id, "fracht_land", land)
+                self._fracht_auto_rechnen()
+        self.neu_laden()
+        return a
+
     def kunde_zeigen(self):
         """Doppelklick auf Kunde im Angebotskopf: Kunden des Angebots im Reiter Kunden zeigen."""
         return self.f.kunde_zeigen(self.kopf.get("kundennr"), self.kopf.get("kunde"))

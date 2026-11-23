@@ -14,7 +14,7 @@ FELD = "englisch"
 # feste Bezeichnungen im PDF (genau so, wie pdf.py sie schreibt)
 BEZEICHNUNGEN = {
     "Angebot": "Quotation", "Auftragsbestätigung": "Order confirmation", "Angebots-Nr.": "Quotation no.",
-    "Datum": "Date", "Gültig bis": "Valid until", "Kunden-Nr.": "Customer no.", "Ihre Anfrage": "Your inquiry",
+    "Datum": "Date", "Gültig bis": "Valid until", "Kunden-Nr.": "Customer no.", "Ihre Anfrage": "Your inquiry", "Lieferanschrift": "Delivery address",
     "AB-Nr.": "Confirmation no.", "Unser Angebot": "Our quotation", "vom": "dated", "Ihre Bestellung": "Your order",
     "Liefertermin": "Delivery date", "Ansprechpartner": "Contact", "Telefon": "Phone",
     "Pos.": "Item", "Art.-Nr.": "Part no.", "Bezeichnung": "Description", "Menge": "Qty", "Einh.": "Unit",

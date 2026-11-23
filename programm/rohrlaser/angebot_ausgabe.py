@@ -120,7 +120,9 @@ class AusgabeMixin:
         if zeilen is None:
             zeilen, _ = self._rechnung()
         ang = ausgabe.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst, sp, ergebnis=self.ergebnis)
-        ang["anschrift"] = ausgabe.anschrift(self.db.kunde(self.kopf.get("kundennr")))
+        ang["anschrift"] = ausgabe.anschrift(self.db.kunde(self.kopf.get("kundennr")), self.kopf.get("kunde_ansprech"))
+        # Kundenverwaltung: abweichende Lieferadresse des Angebots (Stand beim Wählen) im Briefkopf
+        ang["lieferadresse"] = [z for z in str(self.kopf.get("lieferadresse") or "").splitlines() if z.strip()]
         if ang.get("lieferzeit"):       # frei Haus bzw. ab Werk hinter die Lieferzeit (frachtzeit.py, F4a)
             from . import frachtzeit
             from .angebot import lieferzeit_text

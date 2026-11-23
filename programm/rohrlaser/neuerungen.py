@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.458", "<b>Zukaufartikel ohne zentrale Datenbank</b> ([[zukauf_optional]]): Neuer Schalter Einstellungen → "
+    ["0.9.459", "<b>Zukaufartikel ohne zentrale Datenbank</b> ([[zukauf_optional]]): Neuer Schalter Einstellungen → "
                 "Funktionen → <b>Zentrale Zukaufartikelverwaltung</b>, Vorgabe aus. Dann gehören Zukaufartikel nur "
                 "zum Angebot: keine Auswahl aus dem Stamm, STEP-Import, Blech-Editor, Schnellanlage und EK eintragen "
                 "legen alles nur im Angebot an, und beim Öffnen, Rechnen und Prüfen wird der Artikelstamm nicht "
@@ -31,6 +31,23 @@ NEUERUNGEN = [
                 "brutto. Umschalten ändert keine Angebote und keine Stammartikel; Kalkulation und PDFs bleiben gleich.",
      "Zukaufartikel nur im Angebot (zentrale Verwaltung optional), Dialog mit Reihenfolge, Mehrere hinzufügen, "
      "Kopie aus anderem Angebot und Summe mit MwSt."],
+    ["0.9.458", "<b>Kundenverwaltung mit eigenem Menü</b> ([[kunden]]): Reiter und Menü <i>Kunden</i> mit "
+                "Kundenübersicht (Tabelle oder Karten, Live-Suche, Filter Status und Gruppe, Export Excel/CSV), "
+                "<b>Kundenprofil</b> mit acht Reitern (Kennzahlen Umsatz, Angebote, Aufträge, Quote, offene Angebote; "
+                "Stammdaten mit Rechnungs-, Liefer- und Standortadressen; beliebig viele <b>Ansprechpartner</b> mit "
+                "Rollen Haupt/Einkauf/Technik/Buchhaltung; Angebote; Aufträge; Dokumente; Historie aller Änderungen; "
+                "interne Notizen), mehrstufige Eingabemaske (Kundennummer immer von Hand, Hinweis auf die zuletzt vergebene) und "
+                "<b>Dublettenprüfung</b> (Name ohne Rechtsform, USt-ID, E-Mail/Domain, Telefon, Anschrift; nie "
+                "automatisch zusammengeführt), Archivieren und Duplizieren. Im Angebotskopf Kundensuche <b>…</b>, "
+                "Auswahl von Ansprechpartner und Lieferadresse; beides steht im PDF, in der Angebotsakte und geht in "
+                "den Auftrag. Bestehende Kunden werden beim Update ergänzt (nichts geht verloren). "
+                "<b>Kunde aus der Anfrage</b> ([[anfragen]]): <i>Kunde ändern …</i> zeigt erkannte Kunden mit Punkten "
+                "und Gründen (auch E-Mail der Ansprechpartner, USt-ID, Telefon) und die Gegenüberstellung "
+                "<i>Datenbank | Neue E-Mail</i>; übernommen wird nur, was du anhakst. <i>Neuen Kunden anlegen …</i> "
+                "füllt die Eingabemaske aus der Signatur (Firma, Anschrift, Telefon, Mobil, Website, USt-ID, "
+                "Ansprechpartner mit Position). Datenbank Schema 102.",
+     "Kundenverwaltung: Menü Kunden, Kundenprofil, Ansprechpartner, Lieferadressen, Dublettenprüfung, im Angebot "
+     "wählbar; Kunde aus der Anfrage mit Gegenüberstellung."],
     ["0.9.457", "<b>Zusatzarbeiten: Zeit aus dem Stundensatz</b> ([[zusatz_global]]): Freie allgemeine "
                 "Zusatzarbeiten ohne eigene Zeit bekommen ihre Zeit automatisch: interne Kosten (ohne Kosten: Preis) "
                 "je Einheit ÷ Stundensatz. Der Stundensatz steht in Einstellungen → Zuschläge und Preise (Vorgabe 60 €/h). "

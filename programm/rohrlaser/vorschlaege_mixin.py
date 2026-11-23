@@ -484,7 +484,8 @@ class VorschlaegeMixin:
         ziel = pfad or self._ziel(schein["nummer"], ".pdf")
         if ziel is None:
             return None
-        anschrift = [self.kopf.get("kunde")] + ausgabe.anschrift(self.db.kunde(self.kopf.get("kundennr")))
+        anschrift = [self.kopf.get("kunde")] + ausgabe.anschrift(self.db.kunde(self.kopf.get("kundennr")),
+                                                                    self.kopf.get("kunde_ansprech"))
         pfad = self._schreiben("Lieferschein", ziel, lambda p: lieferschein.pdf(p, self.kopf, schein, self.einst,
                                                                                anschrift, rest),
                                oeffnen and not self.f.stumm)

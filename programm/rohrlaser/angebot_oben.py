@@ -353,7 +353,22 @@ class KopfBereich(QWidget):
                 f.setPointSizeF(f.pointSizeF() + 1)
                 w.setFont(f)
             b = QLabel(fd.titel)
+            if name == "kundennr":      # Kundenverwaltung 23.11.2026: Knopf „Kunde suchen oder neu anlegen“
+                w = self._mit_knopf(w, "…", "Kunde suchen (Firma, Ort, Ansprechpartner, Telefon, E-Mail) oder neuen "
+                                            "Kunden anlegen und übernehmen", seite.kunde_suchen)
+                self.kunde_suchen_knopf = w.findChild(QToolButton)
             self._kopf_paare[name] = (b, w)
+        # Ansprechpartner und Lieferadresse des Kunden (Kundenverwaltung): Vorschlag Haupt-/Standard, wählbar
+        self.ansprech_wahl = QComboBox()
+        self.ansprech_wahl.setToolTip("Ansprechpartner des Kunden für dieses Angebot (steht im Angebot als „z. Hd.“; "
+                                      "Pflege im Reiter Kunden → Kundenprofil → Ansprechpartner)")
+        self.ansprech_wahl.activated.connect(lambda i: seite.ansprech_waehlen(self.ansprech_wahl.itemData(i)))
+        self._kopf_paare["ansprech"] = (QLabel("Ansprechpartner"), self.ansprech_wahl)
+        self.liefer_wahl = QComboBox()
+        self.liefer_wahl.setToolTip("Lieferadresse für dieses Angebot (steht im Angebot und in der Auftragsbestätigung; "
+                                    "bei automatischer Fracht ist sie das Frachtziel). Leer = Firmenanschrift.")
+        self.liefer_wahl.activated.connect(lambda i: seite.liefer_waehlen(self.liefer_wahl.itemData(i)))
+        self._kopf_paare["liefer"] = (QLabel("Lieferadresse"), self.liefer_wahl)
         w = self._eingabe(KOPF_FELD["kundenreferenz"], self.felder)
         w.setPlaceholderText("z. B. Anfrage 4711 vom 20.10.2026")
         # kompakt (Layout-Plan L2, Patrick 25.10.2026): Anfrage | Bemerkung | Bearbeiter, Lieferzeit | Material; die
@@ -860,8 +875,9 @@ class KopfBereich(QWidget):
     KOPF_BREIT = {"nummer": (0, 0, 1), "kundennr": (0, 1, 1), "maschine": (0, 2, 1),
                   "datum": (1, 0, 1), "kunde": (1, 1, 1), "stange": (1, 2, 1),
                   "kundenreferenz": (2, 0, 1), "bemerkung": (2, 1, 1), "bearbeiter": (2, 2, 1),
-                  "lieferzeit": (3, 0, 3), "material_vorgabe": (3, 2, 1), "projekt": (5, 0, 3)}
-    KOPF_SCHMAL = ("nummer", "datum", "kundennr", "kunde", "maschine", "stange", "lieferzeit", "material_vorgabe",
+                  "lieferzeit": (3, 0, 3), "material_vorgabe": (3, 2, 1), "projekt": (5, 0, 3),
+                  "ansprech": (6, 0, 1), "liefer": (6, 1, 2)}
+    KOPF_SCHMAL = ("nummer", "datum", "kundennr", "kunde", "ansprech", "liefer", "maschine", "stange", "lieferzeit", "material_vorgabe",
                    "kundenreferenz", "projekt", "bemerkung", "bearbeiter")
 
     def kopf_anordnen(self, schmal):
@@ -1138,6 +1154,44 @@ class KopfBereich(QWidget):
         ablage[fd.name] = w
         return w
 
+    def _mit_knopf(self, feld, text, tipp, aktion):
+        zeile = QWidget()
+        h = QHBoxLayout(zeile)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(4)
+        h.addWidget(feld, 1)
+        k = QToolButton()
+        k.setText(text)
+        k.setToolTip(tipp)
+        k.clicked.connect(lambda _=False: aktion())
+        h.addWidget(k)
+        return zeile
+
+    def _kunde_auswahl_anzeigen(self):
+        """Ansprechpartner- und Lieferadressen-Auswahl zum Kunden des Angebots (Kundenverwaltung 23.11.2026). Steht
+        ein gewählter Eintrag nicht mehr im Kundenstamm, bleibt der Text des Angebots als eigener Eintrag stehen."""
+        from . import kunden_daten
+        s = self.s
+        nr = s.kopf.get("kundennr")
+        a = kunden_daten.fuer_angebot(s.db, nr) if nr and s.db.kunde(nr) else dict(personen=[], adressen=[])
+        for wahl, liste, uid, text, leer in (
+                (self.ansprech_wahl, a["personen"], s.kopf.get("kunde_ansprech_uid"), s.kopf.get("kunde_ansprech"),
+                 "– kein Ansprechpartner –"),
+                (self.liefer_wahl, a["adressen"], s.kopf.get("liefer_uid"), s.kopf.get("lieferadresse"),
+                 "– wie Firmenanschrift –")):
+            wahl.blockSignals(True)
+            wahl.clear()
+            wahl.addItem(leer, None)
+            for u, t in liste:
+                wahl.addItem(t, u)
+            i = wahl.findData(uid) if uid else 0
+            if i < 0 and text:
+                wahl.addItem(str(text).replace("\n", ", ") + " (im Angebot)", uid)
+                i = wahl.count() - 1
+            wahl.setCurrentIndex(max(i, 0))
+            wahl.setEnabled(bool(liste) or i > 0)
+            wahl.blockSignals(False)
+
     def _gewinn_zeile(self, feld):
         """Gewinnfeld mit dem Knopf „Gestaffelt“: nimmt den eigenen Gewinn des Angebots weg, dann gilt wieder der
         gestaffelte Gewinn der Einstellungen (sichtbar nur, wenn er dort eingeschaltet ist)."""
@@ -1245,11 +1299,12 @@ class KopfBereich(QWidget):
                 v = self.wert(name)
                 if name == "kundennr":
                     w.clear()
-                    for kd in s.db.zeilen("kunden"):
-                        if kd.get("kundennr"):
+                    for kd in s.db.zeilen("kunden"):     # archivierte Kunden nur, wenn sie im Angebot stehen
+                        if kd.get("kundennr") and (kd.get("archiviert") != "ja" or str(kd["kundennr"]) == str(v)):
                             w.addItem(f"{kd['kundennr']} – {kd.get('name') or ''}", kd["kundennr"])
                     w.setCurrentIndex(w.findData(v) if v else -1)
                     w.setEditText(w.currentText() if v and w.findData(v) >= 0 else (v or ""))
+                    w.lineEdit().setCursorPosition(0)        # Anfang (Nummer) sichtbar, nicht das Ende des Namens
                 elif isinstance(w, QDateEdit):
                     w.setDate(QDate.fromString(v, "yyyy-MM-dd") if v else QDate.currentDate())
                 elif isinstance(w, QComboBox):
@@ -1266,6 +1321,7 @@ class KopfBereich(QWidget):
                     w.setText(v or "")
         self._gewinn_anzeigen()
         self._lieferzeit_anzeigen()
+        self._kunde_auswahl_anzeigen()
         k = s.kopf.get("bearbeiter")
         name = teilen.mitarbeiter(s.db, k).get("name") if k else None
         self.bearbeiter.setText(f"{k} – {name}" if k and name else k or "–")

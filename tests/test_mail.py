@@ -336,10 +336,10 @@ assert {k["kundennr"] for k in db.zeilen("kunden")} == vorher, "Kunde nach Abbru
 AngebotSeite.step_importieren = step_importieren
 seite3 = fenster.angebote.neu_aus_step([str(neu_ordner)])
 AngebotSeite.step_importieren = orig
-neu_k = [k for k in db.zeilen("kunden") if k["kundennr"] not in vorher]
-assert len(neu_k) == 1 and neu_k[0]["name"] == "Neu Blechtechnik GmbH" and neu_k[0]["email"] == "jens@neu-blech.de"
-assert neu_k[0]["bemerkung"].startswith("Kunde prüfen") and neu_k[0]["plz_ort"] == "58093 Hagen", neu_k[0]
-assert str(seite3.kopf.get("kundennr")) == neu_k[0]["kundennr"] == "10702", seite3.kopf
-assert any("Neuer Kunde" in h for h in aufrufe[-1][2]["hinweis"])
-ok("unbekannter Absender: Kunde angelegt mit „Kunde prüfen“, bei Abbruch wieder entfernt")
+# Patrick 23.11.2026: Kundennummer bei Neukunden immer von Hand – kein automatisch angelegter Kunde mehr; mit
+# Bildschirm öffnet sich die Eingabemaske vorbelegt aus der Mail, ohne (Test) bleibt der Kunde leer
+assert {k["kundennr"] for k in db.zeilen("kunden")} == vorher, "Kunde automatisch angelegt"
+assert not seite3.kopf.get("kundennr"), seite3.kopf
+assert any("Neuer Kunde" in h and "Neu Blechtechnik GmbH" in h for h in aufrufe[-1][2]["hinweis"])
+ok("unbekannter Absender: kein Kunde automatisch, Hinweis „Neuer Kunde … anlegen mit eigener Kundennummer“")
 print("Alle Tests bestanden.")

@@ -163,6 +163,42 @@ def reiter_waehlen(s, text):
     raise KeyError(text)
 
 
+def kunden_bilder(f, db, foto):
+    from rohrlaser import kunden_daten as kd
+    from rohrlaser.kunden_seite import KundenFormular
+    k = f.kunden
+    vorhanden = next((x for x in db.zeilen("kunden") if x.get("kundennr")), None)
+    if vorhanden:
+        nr = vorhanden["kundennr"]
+        if not kd.ansprechpartner(db, nr):
+            kd.person_speichern(db, nr, dict(vorname="Erika", nachname="Muster", position="Einkauf", haupt="ja",
+                                             einkauf="ja", telefon="0201 123 45", email="einkauf@example.com"))
+        kd.person_speichern(db, nr, dict(vorname="Jan", nachname="Technik", position="Konstruktion", technik="ja",
+                                         email="technik@example.com"))
+        kd.adresse_speichern(db, nr, dict(art=kd.LIEFERUNG, bezeichnung="Werk 2", strasse="Hafenweg 3", plz="45127",
+                                          ort="Essen", land="DE", standard="ja"))
+    k.zeigen("uebersicht")
+    for _ in range(3):
+        QApplication.processEvents()
+    foto.foto("kunden_uebersicht", f, [(k.nav, 1), (k.uebersicht.suche, 2), (k.uebersicht.status, 3),
+                                       (k.uebersicht.knopf["neu"], 4), (k.uebersicht.als_karten, 5),
+                                       (k.uebersicht.ansicht, 6)])
+    if vorhanden:
+        k.oeffnen(vorhanden["kundennr"])
+        for _ in range(3):
+            QApplication.processEvents()
+        foto.foto("kunden_profil", f, [(k.profil.kacheln, 1), (k.profil.knopf["bearbeiten"], 2),
+                                       (k.profil.knopf["angebot"], 3), (k.profil.reiter.tabBar(), 4)])
+    d = KundenFormular(k, db, neu=True, vorschlag=dict(name=(vorhanden or {}).get("name") or "Muster Metallbau GmbH",
+                                                         plz="45127", ort="Essen"))
+    d.show()
+    for _ in range(3):
+        QApplication.processEvents()
+    foto.foto("kunden_formular", d, [(d.schritte.tabBar(), 1), (d.dub, 2), (d.speichern_knopf, 3)])
+    d.close()
+    k.zeigen("uebersicht")
+
+
 def main(ziel):
     from rohrlaser import staffeln
     from rohrlaser.datenbank import Datenbank
@@ -324,6 +360,8 @@ def main(ziel):
             (dict(artikelnr="Z-3001", bezeichnung="Drehteil Distanzhülse Ø20x30", kategorie="Fremdfertigung",
                   einheit="Stück"), [])):
         db.zukauf_speichern(None, werte, bezuege)
+    # Kundenverwaltung (23.11.2026): Übersicht, Kundenprofil, Eingabemaske
+    kunden_bilder(f, db, foto)
     f.alles_neu_laden()
     f.reiter.setCurrentWidget(f.zukauf)
     zs = f.zukauf.artikel

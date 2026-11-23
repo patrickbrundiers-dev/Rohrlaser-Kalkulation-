@@ -41,6 +41,7 @@ from . import protokoll
 from . import anfragen_akten as ak
 from . import anfragen_dokumente as adok
 from . import anfragen_sammeln as sa
+from . import kunden_daten as kd
 from . import mail_zuordnung as mz
 from . import anfrage_phase as ph
 from . import outlook_anfragen as ol
@@ -1248,6 +1249,11 @@ class AnfragenSeite(QWidget):
             self.kunde_zuordnen(wert, bestaetigen=True)
         elif art == "angebot_hand" and a:
             self.angebot_hand()
+        elif art == "kunde_profil" and wert:        # 23.11.2026: Kundenprofil der Kundenverwaltung
+            kb = getattr(self.f, "kunden", None)
+            if kb is not None and hasattr(kb, "oeffnen"):
+                self.f.reiter.setCurrentWidget(kb)
+                kb.oeffnen(wert)
         elif art == "kunde_wahl" and a:
             self.kunde_zuordnen()
         elif art == "kunde_neu" and a:
@@ -1804,23 +1810,38 @@ class AnfragenSeite(QWidget):
         return mails[0] if mails else None
 
     # ------------------------------------------------------------------ Herkunft und Kunde (19.11.2026)
-    def kunde_zuordnen(self, nr=None, bestaetigen=False, regel=False, domain=False, grund=""):
-        """Kunde von Hand zuordnen bzw. Vorschlag übernehmen (bestaetigen). Ohne nr: Fenster mit Suche und
-        „Als Regel merken“. regel/domain: Lernregel Adresse bzw. Domain → Kunde anlegen. Ergebnis: Akte oder None."""
+    def kunde_zuordnen(self, nr=None, bestaetigen=False, regel=False, domain=False, grund="", im_fenster=None):
+        """Kunde von Hand zuordnen bzw. Vorschlag übernehmen (bestaetigen). Ohne nr: Fenster „Kunde aus der Anfrage“
+        (erkannte Kunden, Suche, Gegenüberstellung Datenbank | Neue E-Mail, neuer Kunde, „Als Regel merken“; im_fenster(d): Tests bedienen es statt exec). regel/domain: Lernregel Adresse bzw. Domain → Kunde anlegen. Ergebnis: Akte oder None."""
         a = self.akte()
         if a is None:
             return None
-        try:
-            kunden = self.db.zeilen("kunden")
-        except Exception:               # noqa: BLE001
-            kunden = []
         if nr is None:
-            if self.f.stumm:
+            if self.f.stumm and im_fenster is None:
                 return None
-            d = adok.KundeDialog(self, kunden, a)
-            if d.exec() != QDialog.Accepted or not d.wahl():
+            # 23.11.2026 (MSG-Auftrag): erkannte Kunden mit Gründen, Gegenüberstellung Datenbank | Neue E-Mail,
+            # nur angehakte Werte übernehmen, Ansprechpartner wählen/neu, neuer Kunde mit Dublettenprüfung
+            from .anfrage_kunde_dialog import KundeAusMailDialog
+            vorschlag = a.kunde or next((v["kundennr"] for v in a.zuordnung.get("vorschlaege") or []), None)
+            d = KundeAusMailDialog(self, self.db, self._mail_daten(a) or {}, getattr(self.f, "kunden", None),
+                                   vorschlag=vorschlag, adresse=a.absender_adresse or "", stumm=im_fenster is not None)
+            self.kunde_fenster = d          # Tests: das offene Fenster
+            if im_fenster is not None:      # Tests: Bedienung statt exec (Haken, Knöpfe)
+                im_fenster(d)
+            elif d.exec() != QDialog.Accepted:
                 return None
-            nr, regel, domain, grund = d.wahl(), d.regel.isChecked(), d.domain.isChecked(), d.grund.text().strip()
+            if not d.ergebnis:
+                return None
+            erg = d.ergebnis
+            nr, regel, domain = erg["kundennr"], d.regel.isChecked(), d.domain.isChecked()
+            grund = d.grund_text.text().strip() or ("neu angelegt" if erg.get("angelegt") else "")
+            if erg.get("kunde") or erg.get("neu_person"):
+                self.f.meldung(f"Kunde {nr}: " + ", ".join(erg.get("kunde") or [])
+                               + (" · neuer Ansprechpartner" if erg.get("neu_person") else "") + " übernommen.")
+            if erg.get("person"):
+                p = next((x for x in kd.ansprechpartner(self.db, nr) if x["id"] == erg["person"]), None)
+                if p:
+                    self._ansprech_merken = kd.name_voll(p)
         name = self._kunden_namen().get(str(nr), "")
         r = None
         adresse = a.absender_adresse
@@ -1838,49 +1859,74 @@ class AnfragenSeite(QWidget):
                                 f"Anfrage {{nr}}: Kunde {nr} {name}".rstrip() + (" (als Regel gemerkt)." if r else "."))
         if akte is not None:            # 20.11.2026: Rückmeldung zur Kunden-Erkennung (Auswertung)
             self._rueckmelden(a, "kunde", auto, str(nr))
+            ap = getattr(self, "_ansprech_merken", None)
+            self._ansprech_merken = None
+            if ap:                      # gewählter Ansprechpartner aus dem Kundenstamm
+                self.ansprechpartner_setzen(ap)
         return akte
 
+    def _mail_daten(self, a):
+        """Kundendaten aus der Mail der Anfrage (bei interner Weiterleitung aus der Mail des Kunden darin): Firma,
+        Anschrift, Telefon, USt-ID, Website, Person (anfrage_kunde.kontakt_aus_mail); korrigierter Absender zählt.
+        None, wenn keine Mail lesbar ist."""
+        from . import anfrage_kunde, mail
+        m = None
+        p = self._mail_pfad(a)
+        if p is not None:
+            try:
+                m = mail.lesen(p)
+            except Exception as fehler:     # noqa: BLE001 – beschädigte .msg: melden, ohne Mail weiter
+                self.f.meldung(f"Mail nicht lesbar ({type(fehler).__name__}): {p.name}", fehler=True)
+                m = None
+            w = mail.weiterleitung(m, self._eigene_domains(), self.db.einstellung("briefkopf_1") or "") \
+                if m is not None else None
+            if w is not None and w.original is not None:
+                m = w.original
+        daten = (anfrage_kunde.kontakt_aus_mail(m, self._eigene_domains()) if m is not None else None) or {}
+        k = a.stand.get("absender_korr")
+        if k and k.get("adresse"):
+            daten["email"] = k["adresse"]
+            if daten.get("person"):
+                daten["person"]["email"] = k["adresse"]
+        return daten
+
     def kunde_neu_anlegen(self, daten=None, trotzdem=False):
-        """Neuen Kunden aus Absender und Signatur anlegen (Bemerkung „Kunde prüfen“) und zuordnen; vorher Dubletten im
-        Kundenstamm zeigen (trotzdem: ohne Rückfrage, Tests). Ergebnis: Kundennummer oder None."""
-        from . import mail, step_neu
+        """Neuen Kunden aus Absender und Signatur anlegen und zuordnen (23.11.2026: Kundenverwaltung mit
+        Ansprechpartner, Kundennummer reserviert, Dublettenprüfung ohne Rechtsform/USt-ID/Domain/Telefon). Mit
+        Bildschirm öffnet sich die Eingabemaske vorbelegt mit den Daten der Mail; stumm (Tests) mit Dubletten nur
+        mit trotzdem. Ergebnis: Kundennummer oder None."""
+        from . import anfrage_kunde
         a = self.akte()
         if a is None:
             return None
         if daten is None:
-            m = None
-            p = self._mail_pfad(a)
-            if p is not None:
-                m = mail.lesen(p)
-                w = mail.weiterleitung(m, self._eigene_domains(), self.db.einstellung("briefkopf_1") or "") \
-                    if m is not None else None
-                m = w.original if w is not None and w.original is not None else (None if w is not None else m)
-            daten = (mail.kunde_daten(m, "", self._eigene_domains()) if m is not None else None) or {}
-            k = a.stand.get("absender_korr")
-            if k and k.get("adresse"):
-                daten["email"] = k["adresse"]
-        if not daten.get("name"):
-            if self.f.stumm:
+            daten = self._mail_daten(a) or {}
+        daten = dict(daten)
+        if not daten.get("person") and daten.get("ansprechpartner"):     # alte Form (mail.kunde_daten)
+            an, vor, nach = kd.name_teilen(daten.pop("ansprechpartner"))
+            daten["person"] = dict(anrede=an, vorname=vor, nachname=nach, email=daten.get("email"))
+        kb = getattr(self.f, "kunden", None)
+        if not self.f.stumm and kb is not None and hasattr(kb, "neuer_kunde"):
+            nr = kb.neuer_kunde(vorschlag=anfrage_kunde.vorschlag_neu(daten), oeffnen=False)
+        else:
+            if not daten.get("name"):
+                self.f.meldung("Kein Firmenname in der Mail – bitte den Kunden von Hand anlegen.", fehler=True)
                 return None
-            name, gut = QInputDialog.getText(self, "Neuer Kunde", "Firmenname:")
-            if not gut or not name.strip():
-                return None
-            daten["name"] = name.strip()
-        dub = mz.kunden_dubletten(self.db.zeilen("kunden"), daten)
-        if dub and not trotzdem:
-            text = "\n".join(f"{k['kundennr']} {k.get('name') or ''} ({g})" for k, g in dub[:6])
-            if self.f.stumm:
+            dub = kd.dubletten(self.db, dict(daten, ansprechpartner=[daten["person"]] if daten.get("person") else []))
+            if dub and not trotzdem:
+                text = "; ".join(f"{k['kundennr']} {k.get('name') or ''} ({', '.join(g)})" for k, g, _ in dub[:6])
                 self.f.meldung(f"Möglicherweise schon im Kundenstamm: {text}", fehler=True)
                 return None
-            if QMessageBox.question(self, "Neuer Kunde", f"Diese Kunden passen schon:\n\n{text}\n\nTrotzdem einen "
-                                    f"neuen Kunden „{daten['name']}“ anlegen?") != QMessageBox.Yes:
+            try:
+                nr = anfrage_kunde.neu_anlegen(self.db, daten, dubletten_ok=True, kundennr=daten.get("kundennr"))
+            except Exception as fehler:     # noqa: BLE001 – Lesemodus, Eingabe: Meldung statt stiller Fehler
+                self.f.meldung(f"Kunde nicht angelegt: {fehler}", fehler=True)
                 return None
-        nr, _id = step_neu.kunde_anlegen(self.db, daten)
         if not nr:
-            self.f.meldung("Kunde nicht angelegt (Lesemodus?)", fehler=True)
             return None
-        self._ausfuehren(lambda abl, x: abl.zuordnung_aendern(x, "kunde", nr, daten["name"], grund="neu angelegt"),
-                         f"Neuer Kunde {nr} {daten['name']} angelegt (Bemerkung „Kunde prüfen“) und zugeordnet.")
+        name = (kd.kunde(self.db, nr) or {}).get("name") or daten.get("name") or ""
+        self._ausfuehren(lambda abl, x: abl.zuordnung_aendern(x, "kunde", nr, name, grund="neu angelegt"),
+                         f"Neuer Kunde {nr} {name} angelegt und zugeordnet.")
         return nr
 
     def angebot_hand(self, nummer=None):
@@ -2304,7 +2350,7 @@ class AnfragenSeite(QWidget):
         try:                            # Zeitgeber kann nach dem Schließen der Datendatei noch feuern
             if self._ol_lauf is not None or self.db.nur_lesen or not (immer or ol.an(self.db)):
                 return False
-            kunden = self.db.zeilen("kunden")
+            kunden = kd.mit_kontakten(self.db)     # 23.11.2026: auch E-Mail/Telefon der Ansprechpartner
             phasen = ph.ordner_einstellungen(self.db)
             # Phase mit Angeboten/Aufträgen hier rechnen (Datenbank nur im Hauptfaden), der Abruf liest nur die Liste
             phasen_je = {a.nr: self.phase(a) for a in self.akten if a.stand.get("angebote")} if phasen else {}
