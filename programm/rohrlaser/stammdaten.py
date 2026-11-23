@@ -1290,6 +1290,10 @@ class Einstellung:
     auswahl: str = None
 
 
+# Strategien der Verschachtelung (nesting.STRATEGIEN), erste Stelle = Kennbuchstabe
+NESTING_AUSWAHL = ("bisher", "A Minimaler Materialverbrauch", "B Geringste Materialkosten",
+                   "C Maximale Reststückverwertung", "D Schnellste Fertigung", "E Ausgewogen")
+
 EINSTELLUNGEN = (
     Einstellung("zuschlag_material", "Zuschlag Material", "Kalkulation", "anteil", 0, 0, 5),
     Einstellung("zuschlag_fertigung", "Zuschlag Fertigung", "Kalkulation", "anteil", 0, 0, 5),
@@ -1481,6 +1485,14 @@ EINSTELLUNGEN = (
     # möglich gleich (nie mit mehr Stangen als neu gerechnet); nein = jedes Optimieren rechnet den Plan neu
     Einstellung("stangenplan_stabil", "Schnittplan: bei kleiner Mengenänderung möglichst gleich lassen", "Lieferlängen",
                 "auswahl", "ja", auswahl="janein"),
+    # Nesting-Engine (Patrick 23.11.2026, nesting.py): Strategie je Abmessung für neue Optimierungen. Vorgabe
+    # „bisher“: offene Angebote behalten ihren Schnittplan und Preis; je Abmessung wählt man im Nesting-Arbeitsplatz
+    Einstellung("nesting_strategie", "Verschachtelung: Strategie für alle Abmessungen (bisher = wie bisher)",
+                "Lieferlängen", "auswahl", "bisher", auswahl="nesting"),
+    Einstellung("nesting_eur_belegung", "Verschachtelung ausgewogen: € je verschiedene Stangenbelegung (Programm)",
+                "Lieferlängen", "zahl", 5.0, 0, 10000),
+    Einstellung("rest_min_nutz", "Reststücke: verwertbar erst, wenn nach Endbeschnitt und Greiferrest so viel bleibt "
+                "[mm]", "Lager und Fertigung", "zahl", 100.0, 0, 20000),
     Einstellung("laenge_auto_huellkreis", "Lieferlängen: ohne Eintrag lieferbar ab Hüllkreis-Ø [mm] (0 = aus)",
                 "Lieferlängen", "zahl", 70.0, 0, 2000),
     Einstellung("laenge_auto", "Lieferlängen: Länge für Profile ab diesem Hüllkreis-Ø [mm]", "Lieferlängen", "ganz",
@@ -2326,7 +2338,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "kundentyp": ["Firma", "Privatkunde", "Händler", "Lieferant"], "kundenstatus": ["Aktiv", "Inaktiv", "Gesperrt"], "waehrung": ["EUR", "CHF", "USD", "GBP", "PLN", "CZK"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "nesting": list(NESTING_AUSWAHL), "kundentyp": ["Firma", "Privatkunde", "Händler", "Lieferant"], "kundenstatus": ["Aktiv", "Inaktiv", "Gesperrt"], "waehrung": ["EUR", "CHF", "USD", "GBP", "PLN", "CZK"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"], "sd_quelle": list(SD_QUELLEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),

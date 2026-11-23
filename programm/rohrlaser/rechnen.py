@@ -1418,6 +1418,265 @@ def _vorrat_eintragen(g, vorrat, folgen, uebrig, positionen, fehler, stangen, au
     return nr
 
 
+# ------------------------------------------------------------------ Nesting-Engine (Patrick 23.11.2026, nesting.py)
+NESTING_HAND = "Hand"
+
+
+def nesting_wahl(kopf, g, einst):
+    """Strategie der Gruppe: 'A' … 'E', NESTING_HAND (Belegung von Hand) oder '' (bisherige Rechnung, Vorgabe).
+    Je Abmessung aus kopf['nesting'] {laengen_schluessel: 'B' | 'bisher'}, sonst die Einstellung nesting_strategie.
+    Kundenmaterial und Musterteile rechnen immer wie bisher."""
+    from . import nesting
+    if g.beistellung or g.muster:
+        return ""
+    schl = laengen_schluessel(gruppe_schluessel(g))
+    if (kopf.get("stangen_hand") or {}).get(schl):
+        return NESTING_HAND
+    w = (kopf.get("nesting") or {}).get(schl)
+    if w is None:
+        w = (einst or {}).get("nesting_strategie") or "bisher"
+    w = str(w).strip()
+    w = "" if not w or w == "bisher" else w[:1].upper()
+    return w if w in nesting.STRATEGIEN else ""
+
+
+def reste_an(einst):
+    """Reststücke in der Verschachtelung nur mit Lager UND Reststücken (Patrick 23.11.2026: nur optional)."""
+    return (einst or {}).get("lager_aktiv") == "ja" and (einst or {}).get("reste_aktiv") == "ja"
+
+
+def nesting_daten(g, info, kopf, positionen, k, tabellen, einst, m):
+    """Eingaben der Nesting-Engine für eine Gruppe: dict(laengen=[nesting.Laenge] (lieferbar, ladbar, Preis je
+    Lieferstange aus lieferstange_preis, None = fehlt), reste=[nesting.Rest] (nur reste_an: tabellen['lager_reste'],
+    gleiche Abmessung, frei, Wert = Meterpreis der Stangenlänge × Länge × restwert_anteil), je_beladung (€ je geladene
+    Stange), min_rest, min_nutz, mehrverschnitt, gewichte)."""
+    from . import nesting
+    maxw = _n((m or {}).get("max_stange"))
+    # alle Lieferlängen der Abmessung (unabhängig vom Schalter laenge_vergleich), außer das Profil ist vom Vergleich
+    # ausgenommen; Längen über der max. Stangenlänge der Maschine (Zuschnitt beim Lieferanten) mischt die Engine nicht
+    zeilen = lieferlaengen(g.profil, g.werkstoff, k, tabellen, einst) if tabellen else []
+    aus = ((k.profile.get(g.profil) or {}).get("laengenvergleich") or "").strip().lower() == "nein"
+    ls = ([g.stange] if info is None or info.get("basis_lieferbar", True) else []) + \
+        ([] if aus else [_n(z.get("laenge")) for z in zeilen]) + list((info or {}).get("alternativen") or [])
+    ls = sorted({x for x in ls if not maxw or x <= maxw + EPS})
+    gr = (g.profil, g.werkstoff, g.oberflaeche, g.stange)
+    kgm = kg_je_m(g.profil, g.werkstoff, k)
+    mindest = {_n(z.get("laenge")): int(_n(z.get("mindest_stangen"))) for z in zeilen}
+    laengen = []
+    for laenge in ls:
+        preis, fehlt = lieferstange_preis(gr, laenge, laenge / 1000 * kgm if kgm is not None else None, kopf,
+                                          positionen, k, tabellen, einst) if tabellen else (None, "ohne Preise")
+        laengen.append(nesting.Laenge(laenge, None if fehlt else preis, mindest=mindest.get(laenge, 0)))
+    reste = []
+    if reste_an(einst):
+        basis = next((x.preis for x in laengen if abs(x.laenge - g.stange) < EPS and x.preis is not None), None)
+        if basis is None:
+            basis = next(((x.preis / x.laenge) * g.stange for x in laengen if x.preis is not None), None)
+        anteil = einstellung_wert(einst, "restwert_anteil")
+        for z in (tabellen or {}).get("lager_reste") or ():
+            if (z.get("profil"), z.get("werkstoff")) != (g.profil, g.werkstoff) or \
+                    (str(z.get("oberflaeche") or "").strip().lower() in ("", "roh")) != (not g.oberflaeche) or \
+                    (g.oberflaeche and z.get("oberflaeche") != g.oberflaeche):
+                continue
+            if (z.get("status") or "frei") != "frei" or _n(z.get("verfuegbar", 1)) < 1 or not _n(z.get("laenge")):
+                continue
+            laenge = _n(z["laenge"])
+            reste.append(nesting.Rest(str(z.get("kennung")), laenge,
+                                      basis / g.stange * laenge * anteil if basis is not None else 0.0, z.get("id")))
+    je_ws = je_werkstueck_kosten(kopf, k, tabellen, sn=any(t.drehung == opt.FEST for t in g.teile))[0] \
+        if tabellen else 0.0
+    # Lieferlängen über der Beladelänge (z. B. 12 m): der Lieferant schneidet zu, bezahlt wird immer die ganze Stange
+    # (Patrick 23.11.2026); gerechnet mit variante_planen wie im Vergleich der Lieferlängen
+    zuschnitt = []
+    if maxw and not aus:
+        for laenge in sorted({_n(z.get("laenge")) for z in zeilen if _n(z.get("laenge")) > maxw + EPS}):
+            preis, fehlt = lieferstange_preis(gr, laenge, laenge / 1000 * kgm if kgm is not None else None, kopf,
+                                              positionen, k, tabellen, einst)
+            zuschnitt.append(nesting.Laenge(laenge, None if fehlt else preis, mindest=mindest.get(laenge, 0)))
+    je_zs = _n(einstellung_wert(einst, "zuschnitt_kosten")) if neue_preisregeln(einst) else 0.0
+    return dict(laengen=laengen, reste=reste, je_beladung=je_ws, zuschnitt=zuschnitt, je_zuschnitt=je_zs,
+                min_rest=einstellung_wert(einst, "rest_min_laenge"),
+                min_nutz=einstellung_wert(einst, "rest_min_nutz"),
+                mehrverschnitt=einstellung_wert(einst, "muster_mehrverschnitt") or 0.02,
+                gewichte=dict(belegung=einstellung_wert(einst, "nesting_eur_belegung"), rest_mm=0.0))
+
+
+def nesting_planen(g, wahl, daten, bisher=None):
+    """Plan der Strategie wahl für die Gruppe (nesting.planen); C ohne Reststücke rechnet wie B."""
+    from . import nesting
+    if wahl == nesting.C and not daten["reste"]:
+        wahl = nesting.B
+    bisher_st = [(g.stange, f, "") for f in bisher] if bisher else None
+    return nesting.planen(g, wahl, daten["laengen"], daten["reste"], daten["je_beladung"], daten["min_rest"],
+                          daten["min_nutz"], daten["mehrverschnitt"], bisher_st, daten["gewichte"])
+
+
+def hand_planen(g, hand, daten, positionen):
+    """Belegung von Hand (Nesting-Arbeitsplatz): hand = [{laenge, rest, teile: [[ref, Länge], …]}]. Jede Stange wird
+    mit den noch vorhandenen Teilen derselben Kennung belegt und geprüft (passt sie nicht mehr, z. B. Teil geändert,
+    oder ist das Reststück weg, wird sie aufgelöst); übrige Teile plant die Strategie B. Ergebnis (nesting.Plan,
+    Zahl fester Stangen, Zahl aufgelöster Stangen)."""
+    from . import nesting
+    vorrat = {}
+    for t in opt.sortiert(g.teile):
+        vorrat.setdefault((schluessel(positionen[t.zeile - ZEILE0], t.zeile - ZEILE0), round(t.laenge, 2)),
+                          []).append(t)
+    reste = {r.kennung: r for r in daten["reste"]}
+    laengen = {x.laenge for x in daten["laengen"]}
+    fest, aufgeloest, gesehen = [], 0, set()
+    for st in hand or ():
+        laenge, rest = _n(st.get("laenge")), str(st.get("rest") or "")
+        teile = []
+        for ref, ln in st.get("teile") or ():
+            liste = vorrat.get((ref, round(_n(ln), 2)))
+            if liste:
+                teile.append(liste.pop(0))
+        ok = bool(teile) and (rest in reste and abs(reste[rest].laenge - laenge) < EPS and rest not in gesehen
+                              if rest else laenge in laengen) and nesting.passt_auf(g, laenge, teile)
+        if not ok:
+            aufgeloest += 1
+            for t in teile:
+                vorrat[(schluessel(positionen[t.zeile - ZEILE0], t.zeile - ZEILE0), round(t.laenge, 2))].append(t)
+            continue
+        if rest:
+            gesehen.add(rest)
+        fest.append((laenge, nesting._folge(g, laenge, teile), rest))
+    uebrig_t = [t for liste in vorrat.values() for t in liste]
+    neu, uebrig = [], []
+    if uebrig_t:
+        h = opt.replace(g, teile=uebrig_t, bewiesen=False, schranke=0)
+        d = dict(daten, reste=[r for r in daten["reste"] if r.kennung not in gesehen])
+        p = nesting_planen(h, nesting.B, d)
+        if p is None:
+            uebrig = uebrig_t
+        else:
+            neu, uebrig = p.stangen, p.uebrig
+    stangen = fest + neu
+    nesting.pruefe(g, stangen, uebrig, daten["laengen"], daten["reste"])
+    w = nesting.kennzahlen(g, stangen, uebrig, daten["laengen"], daten["reste"], daten["je_beladung"],
+                           daten["min_rest"], daten["min_nutz"])
+    return nesting.Plan(NESTING_HAND, stangen, uebrig, w, "Belegung von Hand"), len(fest), aufgeloest
+
+
+NESTING_SCHWANZ = 6        # so viele am schwächsten belegte Lieferstangen mit Zuschnitt werden höchstens ersetzt
+
+
+def nesting_zuschnitt(g, plan, wahl, daten, m, saege, puffer=0.0):
+    """Lieferlänge mit Zuschnitt (z. B. 12 m) gegen den Plan der Strategie: je Länge die ganze Zuschnitt-Variante
+    (variante_planen) und Mischungen, in denen die 1 … NESTING_SCHWANZ am schwächsten belegten Lieferstangen durch
+    einen Plan der Strategie B auf den ladbaren Längen ersetzt werden. Bewertet wie die Strategie: A Millimeter
+    (ganze Lieferstange), B/E Einkauf + Beladungen + Zuschnitte, D Beladungen; C und Belegung von Hand nie.
+    Ergebnis: None (Plan bleibt) oder dict(laenge, v=Variante mit den verbleibenden Lieferstangen, plan=Restplan
+    oder None, werte=dict(einkauf, gekauft_mm, beladungen, zuschnitte, gesamt))."""
+    from . import nesting
+    if wahl not in (nesting.A, nesting.B, nesting.D, nesting.E) or not daten.get("zuschnitt"):
+        return None
+
+    def bewertung(w):
+        if wahl == nesting.A:
+            return (w["gekauft_mm"], w["beladungen"])
+        if wahl == nesting.D:
+            return (w["beladungen"], w["gekauft_mm"])
+        return (w["gesamt"] if w["gesamt"] is not None else math.inf, w["gekauft_mm"])
+    je_ws, je_zs = daten["je_beladung"], daten["je_zuschnitt"]
+
+    def plan_werte(p):
+        if p is None:
+            return dict(einkauf=0.0, gekauft_mm=0.0, beladungen=0, zuschnitte=0, gesamt=0.0)
+        w = p.werte
+        return dict(einkauf=w["einkauf"], gekauft_mm=w["gekauft_mm"], beladungen=w["beladungen"], zuschnitte=0,
+                    gesamt=None if w["einkauf"] is None else w["einkauf"] + je_ws * w["beladungen"])
+    beste = (bewertung(plan_werte(plan)) if plan is not None else (math.inf,), None)
+    for x in daten["zuschnitt"]:
+        v = variante_planen(g, x.laenge, m, saege, puffer)
+        if v["fehler"] or not v["stangen"]:
+            continue
+        reihe = sorted(v["stangen"], key=lambda st: (sum(t.laenge for _, f in st for t, _ in f), len(st)))
+        for k in range(0, min(NESTING_SCHWANZ, len(reihe) - 1) + 1):
+            behalten, weg = reihe[k:], reihe[:k]
+            if x.mindest and len(behalten) < x.mindest:
+                continue
+            rest_p = None
+            if weg:
+                h = opt.replace(g, teile=[t for st in weg for _, f in st for t, _ in f], bewiesen=False, schranke=0)
+                rest_p = nesting_planen(h, nesting.B, dict(daten, reste=[]))
+                if rest_p is None or rest_p.uebrig:
+                    continue
+            vk = dict(v, stangen=behalten)
+            kz = variante_kennzahlen(g, vk, saege)
+            rw = plan_werte(rest_p)
+            einkauf = None if x.preis is None or rw["einkauf"] is None else x.preis * len(behalten) + rw["einkauf"]
+            w = dict(einkauf=einkauf, gekauft_mm=x.laenge * len(behalten) + rw["gekauft_mm"],
+                     beladungen=kz["werkstuecke"] + rw["beladungen"], zuschnitte=kz["zuschnitte"],
+                     gesamt=None if einkauf is None else einkauf + je_ws * (kz["werkstuecke"] + rw["beladungen"])
+                     + je_zs * kz["zuschnitte"])
+            b = bewertung(w)
+            if b < beste[0]:
+                beste = (b, dict(laenge=x.laenge, v=vk, plan=rest_p, werte=w))
+    return beste[1]
+
+
+NESTING_WERTE = ("einkauf", "kalkulatorisch", "gekauft_mm", "rest_eingesetzt_mm", "teile_mm", "schnitt_mm",
+                 "rest_verwertbar_mm", "verschnitt_mm", "ausnutzung", "beladungen", "belegungen", "reste")
+
+
+def _nesting_eintragen(g, plan, text, positionen, fehler, stangen, auswertung, nr, reste=(), zs=None, saege=0.0,
+                       strategie=None):
+    """Stangen und Auswertung einer Gruppe mit Nesting-Plan eintragen (wie _vorrat_eintragen): je Stange ihre Länge
+    (stange), die Stangenlänge der Gruppe (grundlaenge), die Strategie (nesting) und bei einem Reststück dessen
+    Kennung (rest) und kalkulatorischer Wert (rest_wert, Einkauf 0 €). zs (nesting_zuschnitt): zuerst die
+    Lieferstangen mit Zuschnitt (wie _variante_stangen), plan ist dann der Restplan oder None. Ergebnis: letzte
+    Stangennummer."""
+    wert = {r.kennung: r.wert for r in reste}
+    strategie = strategie or plan.strategie
+    s0 = len(stangen)
+    n_gem_zs = 0
+    if zs:
+        neu, n_gem_zs = _variante_stangen(g, zs["v"], zs["laenge"], positionen, saege, nr)
+        for x in neu:
+            x["nesting"] = strategie
+        stangen += neu
+        nr += len(neu)
+    if plan is None:
+        plan_stangen, uebrig, werte = [], [], {}
+    else:
+        plan_stangen, uebrig, werte = plan.stangen, plan.uebrig, plan.werte
+    for laenge, folge, rest in plan_stangen:
+        nr += 1
+        h = opt.replace(g, stange=laenge)
+        teile, verlust, n_gem, belegung = _folge_teile(h, folge, positionen)
+        s = dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche, stange=laenge,
+                 grundlaenge=g.stange, end=g.endbeschnitt, greif=opt.hinten(h, folge), greif_3d=_greif_3d(h, folge),
+                 stangenende=opt.am_stangenende(h, folge), verlust=round(verlust, 2), trennungen=len(folge),
+                 gemeinsam=n_gem, belegung=" | ".join(belegung), teile=teile, nesting=strategie)
+        if rest:
+            s.update(rest=rest, rest_wert=round(wert.get(rest, 0.0), 4))
+        stangen.append(s)
+    je_zeile = {}
+    for t in uebrig:
+        je_zeile.setdefault(t.zeile, []).append(t)
+    for zeile, ts in je_zeile.items():
+        p = positionen[zeile - ZEILE0]
+        fehler.append(dict(index=zeile - ZEILE0, pos=p.get("pos"), artikel=ts[0].artikel, anzahl=len(ts),
+                           grund="passt auf keine lieferbare Länge (Verschachtelung)"))
+    eingeplant = [t for _, f, _ in plan_stangen for t, _ in f] + \
+        [t for st in (zs["v"]["stangen"] if zs else ()) for _, f in st for t, _ in f]
+    lang = max([laenge for laenge, _, _ in plan_stangen] + ([zs["laenge"]] if zs else []), default=g.stange)
+    man = opt.manuell(g)
+    nw = {n: werte.get(n) for n in NESTING_WERTE}
+    if zs:
+        nw.update(zs["werte"], zuschnitt_laenge=zs["laenge"], zuschnitt_stangen=len(zs["v"]["stangen"]))
+    unter = opt.untergrenze(opt.replace(g, stange=lang, teile=eingeplant)) if eingeplant and not zs else len(
+        stangen) - s0
+    auswertung.append(dict(
+        profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche, stange=lang, grundlaenge=g.stange,
+        teile=len(eingeplant), stangen=len(stangen) - s0, manuell=len(man), untergrenze=unter,
+        ausnutzung_manuell=(sum(t.laenge for t in g.teile) / (len(man) * g.stange)) if man else 0,
+        gemeinsam=sum(opt.gemeinsame_schnitte(f) for _, f, _ in plan_stangen) + n_gem_zs, nesting=strategie,
+        nesting_werte=nw, bewertung=text))
+    return nr
+
+
 def _beistellung_markieren(g, zeilen):
     """Stangen und Auswertung einer Gruppe mit Kundenmaterial kennzeichnen (beistellung='Kunde'), Musterteile mit
     muster=True, Gruppen einer abweichenden Maschine mit maschine=ID."""
@@ -1593,6 +1852,38 @@ def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neu
             nr = _vorrat_eintragen(g, vorrat, *folgen, positionen, fehler, stangen, auswertung, nr)
             _beistellung_markieren(g, stangen[s0:] + auswertung[a0:])
             continue
+        wahl = nesting_wahl(kopf, g, einst)
+        if wahl:        # Nesting-Engine: Strategie bzw. Belegung von Hand je Abmessung (Patrick 23.11.2026)
+            from . import nesting
+            daten = nesting_daten(g, info, kopf, positionen, k, tabellen, einst, maschine_gruppe(g, m, k))
+            if wahl == NESTING_HAND:
+                plan, n_fest, n_weg = hand_planen(g, kopf["stangen_hand"][laengen_schluessel(gruppe_schluessel(g))],
+                                                  daten, positionen)
+                text = (f"Belegung von Hand: {n_fest} Stange{'n' if n_fest != 1 else ''} wie festgelegt, "
+                        f"{len(plan.stangen) - n_fest} neu geplant"
+                        + (f", {n_weg} aufgelöst (Teile oder Reststück geändert)" if n_weg else ""))
+            else:
+                plan = nesting_planen(g, wahl, daten, folgen) if daten["laengen"] else None
+                text = None
+            zs = nesting_zuschnitt(g, plan, wahl, daten, maschine_gruppe(g, m, k), saege,
+                                   _n(einstellung_wert(einst, "zuschnitt_puffer"))) if wahl != NESTING_HAND else None
+            if plan is not None or zs:
+                if text is None:
+                    rp = zs["plan"] if zs else plan
+                    teile_t = []
+                    if zs:
+                        teile_t.append(f"{len(zs['v']['stangen'])} × {m_text(zs['laenge'])} m mit Zuschnitt")
+                    if rp is not None:
+                        teile_t.append(nesting.laengen_text(rp.werte["je_laenge"]))
+                        if rp.werte["reste"]:
+                            teile_t.append(f"{rp.werte['reste']} Reststück{'e' if rp.werte['reste'] > 1 else ''}")
+                    text = f"Verschachtelung {wahl} {nesting.STRATEGIEN[wahl]}: " + " + ".join(
+                        x for x in teile_t if x and x != "keine")
+                    if rp is not None and not zs:
+                        text += f", Ausnutzung {zahl(100 * rp.werte['ausnutzung'], 1)} %"
+                nr = _nesting_eintragen(g, zs["plan"] if zs else plan, text, positionen, fehler, stangen, auswertung,
+                                        nr, daten["reste"], zs, saege, wahl)
+                continue
         vg, plaene = (laengen_vergleich_gruppe(g, k, tabellen, maschine_gruppe(g, m, k), saege, folgen, einst, info) if info is not None
                       else (None, {}))
         gewaehlt = laenge_waehlen(vg, plaene, kopf, positionen, k, tabellen, einst, auto)
@@ -1720,6 +2011,11 @@ def _stangen_werte(ergebnis, kopf, positionen, k, tabellen):
         if s.get("muster") and out[-1]["kosten"] is not None:
             out[-1]["kosten_voll"] = out[-1]["kosten"]
             out[-1]["kosten"] *= min(belegt / s["stange"], 1.0) if s["stange"] else 1.0
+        if s.get("rest"):       # Reststück aus dem Lager (Nesting C): kalkulatorisch der Restwert, Einkauf 0 €
+            out[-1]["kosten"] = _n(s.get("rest_wert"))
+            out[-1]["einkauf"] = 0.0
+        elif s.get("nesting"):
+            out[-1]["einkauf"] = out[-1]["kosten"]
         out[-1]["zuschnitte"] = zs
         out[-1]["schrott"] = 0.0
         if schrott > 0 and out[-1]["kosten"] and s["stange"] and not s.get("beistellung"):

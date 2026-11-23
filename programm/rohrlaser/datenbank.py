@@ -51,7 +51,7 @@ from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VO
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 102    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 103    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -212,6 +212,8 @@ SCHEMA_VERSION = 102    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #      Status, Gruppe, Ort, USt-ID, Kreditlimit, Notizen, Archiv …), Tabellen
                         #      kunden_ansprechpartner, kunden_adressen, kunden_historie (geteilt), angebote.kunde_ansprech,
                         #      kunde_ansprech_uid, liefer_uid, lieferadresse; Altdaten einmalig übernommen (migrieren)
+                        # 103: Verschachtelung je Abmessung (23.11.2026, nesting.py): angebote.nesting (JSON: Strategie
+                        #      und Belegung von Hand je Abmessung); leer = wie bisher gerechnet
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -612,6 +614,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN satz_daten TEXT")      # vor Schema 60: leer
             if "stangen_vorgabe" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN stangen_vorgabe TEXT")  # vor Schema 62: leer
+            if "nesting" not in set(db_verbindung.spalten(self.con, "angebote")):
+                self.con.execute("ALTER TABLE angebote ADD COLUMN nesting TEXT")  # vor Schema 103: leer
             if "vk_gewinn" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN vk_gewinn REAL")      # vor Schema 77: leer
             if "optimiert_erstmals" not in set(db_verbindung.spalten(self.con, "angebote")):
@@ -2257,6 +2261,18 @@ class Datenbank:
                              (json.dumps(vorgabe, ensure_ascii=False) if vorgabe else None, self._jetzt(), angebot_id))
 
     @schreibt
+    def nesting_speichern(self, angebot_id, strategie=None, hand=None):
+        """Verschachtelung je Abmessung (Nesting-Arbeitsplatz, Patrick 23.11.2026): strategie {laengen_schluessel:
+        'A' … 'E' | 'bisher'}, hand {laengen_schluessel: [{laenge, rest, teile: [[ref, Länge], …]}]}; leer = wie
+        bisher (Einstellung nesting_strategie)."""
+        strategie = {s: v for s, v in (strategie or {}).items() if v}
+        hand = {s: v for s, v in (hand or {}).items() if v}
+        wert = dict(strategie=strategie, hand=hand) if strategie or hand else None
+        with self.con:
+            self.con.execute("UPDATE angebote SET nesting=?, geaendert=? WHERE id=?",
+                             (json.dumps(wert, ensure_ascii=False) if wert else None, self._jetzt(), angebot_id))
+
+    @schreibt
     def naht_stangen_speichern(self, angebot_id, wahl):
         """Nahtlage der Lieferstange je Stangengruppe {naht.gruppe_schluessel: 'Breitseite'/'Schmalseite'}
         (leer = aus den Teilen mit fester Naht)."""
@@ -2656,6 +2672,10 @@ class Datenbank:
         a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         a["laengenwahl"] = json.loads(a["laengenwahl"]) if a.get("laengenwahl") else None
         a["stangen_vorgabe"] = json.loads(a["stangen_vorgabe"]) if a.get("stangen_vorgabe") else None
+        # Verschachtelung (Schema 103): kopf['nesting'] {Abmessung: Strategie}, kopf['stangen_hand'] {Abmessung: Stangen}
+        nst = json.loads(a.pop("nesting")) if a.get("nesting") else {}
+        a["nesting"] = nst.get("strategie") or None
+        a["stangen_hand"] = nst.get("hand") or None
         a["erp_preise"] = json.loads(a["erp_preise"]) if a.get("erp_preise") else None
         a["naht_stangen"] = json.loads(a["naht_stangen"]) if a.get("naht_stangen") else None
         a["radien"] = json.loads(a["radien"]) if a.get("radien") else None
@@ -2791,6 +2811,8 @@ class Datenbank:
             self.laengenwahl_speichern(neu, a["laengenwahl"])
         if a.get("stangen_vorgabe"):                # von Hand vorgegebene Stangen ebenso
             self.stangen_vorgabe_speichern(neu, a["stangen_vorgabe"])
+        if a.get("nesting") or a.get("stangen_hand"):   # Verschachtelung je Abmessung ebenso
+            self.nesting_speichern(neu, a.get("nesting"), a.get("stangen_hand"))
         if a.get("naht_stangen"):                   # Nahtlage der Lieferstangen ebenso
             self.naht_stangen_speichern(neu, a["naht_stangen"])
         if a.get("radien"):                         # Außenradien je Profil + Werkstoff ebenso
