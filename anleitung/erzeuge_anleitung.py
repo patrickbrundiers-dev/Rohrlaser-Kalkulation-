@@ -9825,6 +9825,18 @@ def kapitel_ausgabe(i, seiten, ablage):
            "weil der PROfirst-Import sonst mit <i>double</i> abbricht. Das bisherige Format (<i>&lt;Nr&gt; "
            "Angebotskopf.csv</i>, UTF-8 mit BOM) gibt es weiter über die Einstellung <i>CSV-Export: Format</i> "
            "(<i>bisher</i>).")
+    i.text("<b>Sätze und Texte für PPEASE</b> (seit 0.9.453): Wie bei PROfirst steht jeder <b>Satz als eine Zeile</b> "
+           "in <i>&lt;Nr&gt;.CSV</i>: <i>ArtikelNr.</i> = Name des Satzes, <i>Menge</i> = Anzahl Sätze, "
+           "<i>Stückpr.</i> = Satzpreis wie im Angebots-PDF, Gewicht, Einsatzgewicht und <i>HK()</i> je Satz, Zeiten, "
+           "Herstellkosten und Einkauf als Summe der Teile, <i>L.</i> und <i>Artikeltext</i> leer, in der Liste der "
+           "Arbeitsgänge alle Arbeitsgänge der Teile einmal. Sätze mit Schweißbaugruppe bleiben wie bisher. Satzteile "
+           "einzeln wie früher: Einstellung <i>CSV-Export (PROfirst): jeden Satz als eine Zeile</i> = <i>nein</i>.",
+           "PPEASE setzt den Positionstext selbst aus den Spalten zusammen: Profil aus <i>Liste der Arbeitsgänge</i> "
+           "und <i>Werkstofftyp</i>, darunter <i>Länge: &lt;L.&gt;mm</i>, darunter <i>inkl.</i> und die übrigen "
+           "Arbeitsgänge; den Artikeltext übernimmt es nicht. Weil PPEASE Sonderzeichen falsch liest (aus "
+           "<i>Oberfläche</i> wurde <i>Oberfl che</i>, aus Ø ein <i>?</i>), schreibt das Programm Werkstofftyp, "
+           "Artikeltext, Kommentar und Arbeitsgänge wie PROfirst nur mit einfachen Zeichen: <i>Rundrohr 54x2</i> "
+           "ohne Ø, Umlaute als ae/oe/ue, ß als ss, ° als <i>Grad</i>.")
     i.text("Format: Semikolon, UTF-8 mit BOM (bisheriges Format), Zeilenende CRLF (Windows), Dezimalpunkt (79.98) ohne Tausendertrennzeichen, Beträge mit "
            "2 Stellen, Zeiten <i>HH:MM:SS</i>, Datum <i>TT.MM.JJJJ</i>. Texte mit Semikolon, Anführungszeichen oder "
            "Zeilenumbruch stehen in Anführungszeichen. Spaltentitel und Reihenfolge sind fest vorgegeben, es gibt "
@@ -15444,7 +15456,8 @@ def kapitel_admin_datenbank(i):
             "wiederherstellen … → Andere Datei …</i> auch das Abbild wählen.",
             "<b>Angebotsdokumente</b>: Die Ablage (PDFs, Angebotsakte, STEP-Kopien) wird nach "
             "<i>Sicherung\\Dokumente</i> gespiegelt, nur geänderte Dateien werden kopiert. Ältere Stände geänderter "
-            "oder gelöschter Dateien bleiben 60 Tage unter <i>Dokumente\\alt</i>. Abschalten unter <i>Einstellungen → "
+            "oder gelöschter Dateien bleiben 60 Tage unter <i>Dokumente\\alt</i>. Auch Dateien mit sehr langem Pfad (über 260 "
+            "Zeichen, z. B. Mails mit langem Betreff im Anfrage-Ordner) werden mitgesichert (seit 0.9.453). Abschalten unter <i>Einstellungen → "
             "Ablage und Teilen → Datensicherung</i> (Angebotsdokumente mit jeder Sicherung sichern).",
             "Beim Wiederherstellen bringt der Haken <i>Angebotsdokumente auf den Stand dieser Sicherung bringen</i> "
             "auch die Ablage zurück: fehlende Dateien kommen zurück, abweichende werden ersetzt (der abweichende "

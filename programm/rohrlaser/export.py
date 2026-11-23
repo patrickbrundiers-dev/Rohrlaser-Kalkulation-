@@ -269,7 +269,7 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
             teile_abm[schl] = teile_abm.get(schl, 0) + _werte(z, "stueck")
     datum_angebot = datum(kopf.get("datum"))
     out = []
-    for p, z in zip(positionen, kalk_zeilen):
+    for i, (p, z) in enumerate(zip(positionen, kalk_zeilen)):
         if not z:
             continue
         zk = ist_zukaufteil(p)
@@ -342,14 +342,111 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
             "Liste der Arbeitsgänge": _arbeitsgaenge(p, z, k),
             "_bearbeitung_s": bearb,
             "_gesamt_s": gesamt_s,
+            # Rohwerte für die Satzzeile (saetze_zusammenfassen)
+            "_index": i, "_stueck": c, "_gewicht": kg_teil, "_flaeche": flaeche,
+            "_umfang": None if zk else _zahl(p.get("schneidweg")), "_einsatz_ges": einsatz_ges,
+            "_einkauf": einkauf, "_hk": hk, "_hand": hand, "_zukauf": zk,
         }
         out.append(zeile)
     return out
 
 
-def daten(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabellen, einst, kunde=None, ersteller=None):
-    """(Kopfzeile, Positionszeilen) als Listen von Texten in der Spaltenreihenfolge."""
+def _summe(werte):
+    """Summe oder None, sobald ein Wert fehlt."""
+    werte = list(werte)
+    return None if not werte or any(w is None for w in werte) else sum(werte)
+
+
+def saetze_zusammenfassen(kopf, positionen, kalk_zeilen, pos_zeilen, k, einst):
+    """Jeden Satz als eine Zeile ausgeben wie PROfirst (Supportpaket 23.11.2026, Vorlage 2613000575.CSV): ArtikelNr. =
+    Satzname, Menge = Anzahl Sätze, Stückpr. = Satzpreis wie im Angebots-PDF, Gesamt = Satzpreis × Sätze; Gewicht,
+    Einsatzgewicht und HK() je Satz, Zeiten, HK und Einkauf als Summe der Teile; L., B. und Artikeltext leer, Arbeitsgänge
+    aller Teile ohne Doppelte. Sätze mit Schweißbaugruppe und Positionen ohne Satz bleiben einzelne Zeilen.
+    Ergebnis: neue Liste (Art neu durchgezählt)."""
+    from . import satz_menge
+    inhalt = angebot_inhalt(kopf, positionen, kalk_zeilen, k, einst)
+    satzzeilen = {str(z["satz"]): z for z in inhalt["zeilen"] if z["art"] == "satz" and not z.get("baugruppe")}
+    gruppen = {}
+    for z in pos_zeilen:
+        name = satz_menge.name(positionen[z["_index"]])
+        if name in satzzeilen:
+            gruppen.setdefault(name, []).append(z)
+    out, erledigt = [], set()
+    for z in pos_zeilen:
+        name = satz_menge.name(positionen[z["_index"]])
+        if name not in gruppen:
+            out.append(dict(z))
+            continue
+        if name in erledigt:
+            continue
+        erledigt.add(name)
+        teile = gruppen[name]
+        sz = satzzeilen[name]
+        n = _zahl(sz.get("menge")) or 1
+        je = {id(t): satz_menge.je_satz(positionen[t["_index"]]) for t in teile}
+        erst = next((t for t in teile if not t["_zukauf"]), teile[0])
+        gesamt = _zahl(sz.get("gesamt")) or 0.0
+        hk = sum(t["_hk"] for t in teile)
+        einkauf = sum(t["_einkauf"] for t in teile)
+        einsatz_ges = _summe(t["_einsatz_ges"] for t in teile if not t["_zukauf"])
+        gew = _summe((t["_gewicht"] * je[id(t)]) if t["_gewicht"] is not None else None for t in teile)
+        flaeche = _summe((t["_flaeche"] * je[id(t)]) if t["_flaeche"] is not None else None
+                         for t in teile if not t["_zukauf"])
+        umfang_s = _summe((t["_umfang"] * je[id(t)]) if t["_umfang"] is not None else None
+                          for t in teile if not t["_zukauf"])
+        bearb = sum((t["_bearbeitung_s"] or 0.0) * je[id(t)] for t in teile)
+        gesamt_s = sum(t["_gesamt_s"] for t in teile)
+        einsatz = einsatz_ges / n if einsatz_ges is not None and n else None
+        gaenge = []
+        for t in teile:
+            for g in t["Liste der Arbeitsgänge"].split(", "):
+                if g and g not in gaenge:
+                    gaenge.append(g)
+        kommentare = []
+        for t in teile:
+            if t["Kommentar"] and t["Kommentar"] not in kommentare:
+                kommentare.append(t["Kommentar"])
+        neu = dict(erst)
+        neu.update({
+            "ArtikelNr.": name,
+            "Pos.": erst["Pos."],
+            "Anz. Baugruppe": "1",
+            "Menge": zahl(n),
+            "Stückpr.": geld(sz.get("preis")),
+            "Preis": geld(gesamt),
+            "Preis geändert": "1" if any(t["_hand"] for t in teile) else "0",
+            "Fläche": zahl(flaeche, 3),
+            "Gew.": zahl(gew, 3),
+            "Umfang": zahl(umfang_s, 0),
+            "L.": "", "B.": "", "Artikeltext": "",
+            "Bearbeitungszeit": zeit(bearb),
+            "Gesamtzeit": zeit(gesamt_s),
+            "Gesamt HK(€)": geld(hk),
+            "Marge Netto%": zahl(100 * (gesamt - hk) / hk, 1) if hk > 0 else "",
+            "Kommentar": "; ".join(kommentare),
+            "Preis/Kg": geld(einkauf / einsatz_ges) if einsatz_ges and einkauf > 0 else "",
+            "Einsatzgewicht": zahl(einsatz, 3),
+            "HK()": geld(hk / n) if n else "",
+            "Marge Netto()": geld(gesamt - hk),
+            "Gesamt Einkauf()": geld(einkauf),
+            "Gesamt Einkauf(Kg)": zahl(einsatz_ges, 2),
+            "Verschnitt": zahl(100 * (einsatz - gew) / einsatz, 0) if einsatz and gew is not None else "",
+            "Liste der Arbeitsgänge": ", ".join(gaenge),
+            "_bearbeitung_s": bearb, "_gesamt_s": gesamt_s,
+        })
+        out.append(neu)
+    for nr, z in enumerate(out, 1):
+        z["Art"] = str(nr)
+    return out
+
+
+def daten(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabellen, einst, kunde=None, ersteller=None,
+          als_satz=False):
+    """(Kopfzeile, Positionszeilen) als Listen von Texten in der Spaltenreihenfolge. als_satz: jeder Satz eine Zeile
+    (saetze_zusammenfassen, PROfirst-Vorlage)."""
     pz = positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabellen)
+    if als_satz:
+        pz = saetze_zusammenfassen(kopf, positionen, kalk_zeilen, pz, k, einst)
     kz = kopf_zeile(kopf, kalk_zeilen, summen, einst, positionen, k, kunde, ersteller, pz)
     return [kz[s] for s in KOPF_SPALTEN], [[z[s] for s in POSITION_SPALTEN] for z in pz]
 
@@ -497,6 +594,7 @@ def zip_name(kopf):
 CSV_FORMAT = "csv_format"           # Einstellung: "profirst" (Vorgabe) oder "bisher" (Angebotskopf.csv/-positionen.csv)
 PROFIRST, BISHER = "profirst", "bisher"
 PROFIRST_KODIERUNG = "cp1252"
+CSV_SATZ_ZEILE = "csv_satz_zeile"     # Einstellung: "nein" = Satzteile einzeln wie bisher (Vorgabe ja)
 
 
 def format_von(db_einstellung):
@@ -520,6 +618,26 @@ def _zeitstempel(w):
         except ValueError:
             pass
     return ""
+
+
+# PPEASE liest die Texte der Positionsdatei nicht als Windows-1252: aus „Oberfläche“ wurde „Oberfl che“, aus „Ø“ ein
+# „?“ (Supportpaket 23.11.2026). PROfirst schreibt dort nur ASCII („Profile [Rundrohr 54x2]“), also ebenso.
+PPEASE_TEXTSPALTEN = ("Werkstofftyp", "Artikeltext", "Kommentar", "Liste der Arbeitsgänge")
+_PPEASE_ERSATZ = (("Ø ", ""), ("Ø", ""), ("ø", ""), ("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("Ä", "Ae"), ("Ö", "Oe"),
+                  ("Ü", "Ue"), ("ß", "ss"), ("°", " Grad"), ("×", "x"), ("€", "EUR"), ("²", "2"), ("³", "3"),
+                  ("µ", "u"), ("±", "+/-"), ("–", "-"), ("—", "-"), ("„", '"'), ("“", '"'), ("”", '"'), ("‚", "'"),
+                  ("‘", "'"), ("’", "'"), ("\u00a0", " "))
+
+
+def ppease_text(w):
+    """Text nur aus ASCII-Zeichen, wie PROfirst ihn für PPEASE schreibt: Ø entfällt ('Rundrohr Ø 54x2' ->
+    'Rundrohr 54x2'), Umlaute als ae/oe/ue, ß als ss, ° als ' Grad'; übrige Akzente ohne Zeichen (é -> e)."""
+    import unicodedata
+    t = _text(w)
+    for alt, neu in _PPEASE_ERSATZ:
+        t = t.replace(alt, neu)
+    t = unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"  +", " ", t).strip()
 
 
 def profirst(kopf, kopfzeile, pos_zeilen, kunde=None):
@@ -547,6 +665,8 @@ def profirst(kopf, kopfzeile, pos_zeilen, kunde=None):
         z[pi["Pos."]] = "1"
         z[pi["Format"]] = ""
         z[pi["Date"]] = erstellt or z[pi["Date"]]
+        for s in PPEASE_TEXTSPALTEN:
+            z[pi[s]] = ppease_text(z[pi[s]])
         out.append(z)
     return k, out
 

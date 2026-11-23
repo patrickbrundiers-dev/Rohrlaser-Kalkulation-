@@ -65,7 +65,7 @@ SEITEN = (
            _a("Anfragen", "anfragen_ohne_step"),
            _a("PPEASE-Ablage (Dokumente je PPEASE-Angebotsnummer)", "ppease_ordner ppease_jahresordner ppease_ordnername "
                                                                     "ppease_praefix ppease_nummer_muster ppease_kategorien"),
-           _a("CSV-Export", "csv_format"),
+           _a("CSV-Export", "csv_format csv_satz_zeile"),
            _a("Datensicherung", "sicherung_dokumente"),
            _a("Archiv", "archiv_jahre"),
            _a("Datenschutz", "datenschutz_jahre"))),

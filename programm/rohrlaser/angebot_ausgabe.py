@@ -601,15 +601,16 @@ class AusgabeMixin:
         try:
             zeilen, summen = self._rechnung()
             bearbeiter = self.kopf.get("bearbeiter")
+            pf = export.format_von(self.db.einstellung(export.CSV_FORMAT)) == export.PROFIRST
             kopfzeile, pos_zeilen = export.daten(
                 self.kopf, self.positionen, self.ergebnis, zeilen, summen, self.k, self.tabellen, self.einst,
                 kunde=self.db.kunde(self.kopf.get("kundennr")),
-                ersteller=teilen.mitarbeiter(self.db, bearbeiter).get("name") if bearbeiter else None)
+                ersteller=teilen.mitarbeiter(self.db, bearbeiter).get("name") if bearbeiter else None,
+                als_satz=pf and self.db.einstellung(export.CSV_SATZ_ZEILE) != "nein")
             arten = ["kopf", "positionen"] if art == "alle" else [art]
             bg_zeilen = export.baugruppen_zeilen(self.positionen, zeilen) if art == "alle" else None
             if bg_zeilen:
                 arten.append("baugruppen")
-            pf = export.format_von(self.db.einstellung(export.CSV_FORMAT)) == export.PROFIRST
             if pf:          # wie PROfirst (Patrick 20.11.2026): <Nr>.CSV und <Nr>_HEADER.CSV, Windows-1252
                 pf_kopf, pf_pos = export.profirst(self.kopf, kopfzeile, pos_zeilen,
                                                   self.db.kunde(self.kopf.get("kundennr")))

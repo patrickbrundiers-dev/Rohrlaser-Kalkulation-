@@ -29,6 +29,20 @@ ZEIT_TOLERANZ_NS = 2_000_000_000     # Netzlaufwerke und FAT speichern Zeiten au
 _AUSLASSEN = (".tmp", ".part", ".lock", ".neu")
 
 
+def lang(p):
+    """Pfad, der unter Windows auch über 260 Zeichen geht (Präfix \\\\?\\): der Spiegel liegt eine Ebene tiefer als die
+    Ablage, lange Mail-Namen in Anfrage-Ordnern scheiterten sonst mit „[WinError 3] Das System kann den angegebenen
+    Pfad nicht finden“ (Supportpaket 23.11.2026). Andere Systeme: unverändert."""
+    if os.name != "nt":
+        return Path(p)
+    t = os.path.abspath(str(p))
+    if t.startswith("\\\\?\\"):
+        return Path(t)
+    if t.startswith("\\\\"):                       # Netzlaufwerk \\server\freigabe
+        return Path("\\\\?\\UNC\\" + t[2:])
+    return Path("\\\\?\\" + t)
+
+
 def ablage(db, vorgabe):
     """Ablage der Angebotsdokumente wie im Hauptfenster (Hauptfenster.ablage): mit gemeinsamem Ordner dessen
     Unterordner „Angebote“, sonst die eigene Ablage. Für die Sicherung beim Start, bevor das Fenster steht."""
@@ -82,7 +96,8 @@ def spiegeln(ablage, sicherungsordner, liste_fuer=None, heute=None, ordner=ORDNE
     """Ablage in <sicherungsordner>/Dokumente spiegeln. liste_fuer: Pfad der Datenbank-Sicherung, neben die die Liste
     <name>.dokumente.json kommt. ordner: anderer Spiegel-Ordner (ANFRAGEN: die Anfrage-Akten, 20.11.2026).
     Ergebnis: dict(neu=…, geaendert=…, weg=…, dateien=…, bytes=…, fehler=[…])."""
-    ablage, basis = Path(ablage), Path(sicherungsordner) / ordner
+    anzeige = Path(ablage)
+    ablage, basis = lang(ablage), lang(Path(sicherungsordner) / ordner)
     aktuell = basis / AKTUELL
     heute = heute or datetime.date.today()
     alt = basis / ALT / heute.isoformat()
@@ -112,7 +127,7 @@ def spiegeln(ablage, sicherungsordner, liste_fuer=None, heute=None, ordner=ORDNE
             z["fehler"].append(f"{rel}: {e}")
     if liste_fuer is not None:
         ziel = listenpfad(liste_fuer)
-        ziel.write_text(json.dumps(dict(ablage=str(ablage), erstellt=datetime.datetime.now().isoformat(
+        ziel.write_text(json.dumps(dict(ablage=str(anzeige), erstellt=datetime.datetime.now().isoformat(
             timespec="seconds"), dateien=jetzt), ensure_ascii=False), encoding="utf-8")
     aufraeumen(sicherungsordner, heute, ordner)
     return z
@@ -126,7 +141,7 @@ def listenpfad(sicherung):
 def aufraeumen(sicherungsordner, heute=None, ordner=ORDNER):
     """Ältere Stände nach ALT_TAGE Tagen löschen."""
     heute = heute or datetime.date.today()
-    alt = Path(sicherungsordner) / ordner / ALT
+    alt = lang(Path(sicherungsordner) / ordner / ALT)
     if not alt.is_dir():
         return
     for o in alt.iterdir():
@@ -166,7 +181,7 @@ def zurueckholen(sicherung, ablage, jetzt=None):
     daten = liste(sicherung)
     if daten is None:
         return None
-    ablage, basis = Path(ablage), Path(sicherung).parent / ORDNER
+    ablage, basis = lang(ablage), lang(Path(sicherung).parent / ORDNER)
     jetzt = jetzt or datetime.datetime.now()
     beiseite = ablage / VOR_WIEDERHERSTELLUNG / f"{jetzt:%Y-%m-%d_%H%M%S}"
     z = dict(zurueck=0, ersetzt=0, unveraendert=0, fehlt=[])
