@@ -13,7 +13,7 @@ import re
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QStandardItem, QStandardItemModel
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QPushButton, QSplitter,
                                QTableWidget, QVBoxLayout, QWidget)
 
@@ -23,13 +23,16 @@ from .stammdaten import ZUSATZ_EINHEIT, wert_aus_text, zahl_als_text, zahl_aus_t
 from .eingabe import RechenSpinGanz
 from .stil import GELB_FLAECHE, GELB_TEXT
 
-SPALTEN = ("Zusatzarbeit", "Abrechnung", "Menge je Teil", "Preis je Einheit", "€ je Teil", "Text (z. B. RAL-Farbe)")
+SPALTEN = ("Zusatzarbeit", "Abrechnung", "Menge je Teil", "Preis je Einheit", "€ je Teil", "Text (z. B. RAL-Farbe)",
+           "Preis = Verkauf")
 TIPPS = ("Zusatzarbeit aus den Stammdaten (oder nur in diesem Angebot angelegt)", "Abrechnung der Zusatzarbeit",
          "Menge je Teil: leer = automatisch (Gewicht, Außenfläche, Länge oder 1 Stück); bei €/h Sekunden je Teil",
          "Preis je Einheit: leer = Preisstand bzw. Stammdaten; bei s/Stück Zeit in s, bei €/h Stundensatz",
          "Betrag je Teil ohne Zuschläge und Gewinn (s/Stück: Zeit je Teil, kommt zur Laserzeit; €/Angebot: einmal)",
-         "Text im Angebot, z. B. RAL 7016")
-MENGE, PREIS, BETRAG, TEXT = 2, 3, 4, 5
+         "Text im Angebot, z. B. RAL 7016",
+         "Haken: der Preis je Einheit ist der Verkaufspreis an den Kunden (ohne Zuschlag und Gewinn), z. B. Entgraten "
+         "2,50 € je Stück. Interne Kosten = Preis der Stammdaten. Ohne Haken wie bisher: Preis + Zuschlag + Gewinn.")
+MENGE, PREIS, BETRAG, TEXT, VK = 2, 3, 4, 5, 6
 
 
 def _euro(w):
@@ -50,7 +53,7 @@ def _zahl(text, titel):
 
 def _gleich(e):
     """Vergleichswert einer Zusatzarbeit (Name, Menge, Preis, Text) für 'haben alle Positionen gemeinsam'."""
-    return e.get("name"), e.get("menge"), e.get("preis"), e.get("text") or None
+    return e.get("name"), e.get("menge"), e.get("preis"), e.get("text") or None, rechnen.vk_fest(e)
 
 
 def gemeinsam(positionen):
@@ -160,6 +163,7 @@ class ZusatzDialog(QDialog):
         self.neu_funktion = neu
         self.stand = {}         # Auswahlfeld -> (Name beim Öffnen, gespeicherter Preisstand)
         self.quelle = {}        # Auswahlfeld -> Herkunft des Eintrags (bohrbild.QUELLE, Erkannt …) oder None
+        self.kosten = {}        # Auswahlfeld -> interne Kosten je Einheit (aus allgemeinen Zusatzarbeiten übertragen)
         self.gewinde_tab = tabellen.get("gewinde") or []
         self.vorschlaege = zusatz_erkennung.offen(p, kopf, k, tabellen) if anzahl == 1 and k is not None else []
         self._sync = False
@@ -495,6 +499,12 @@ class ZusatzDialog(QDialog):
         betrag.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.tabelle.setCellWidget(r, BETRAG, betrag)
         self.tabelle.setCellWidget(r, TEXT, QLineEdit(e.get("text") or ""))
+        vk = QCheckBox()
+        vk.setChecked(rechnen.vk_fest(e))
+        vk.setToolTip(TIPPS[VK])
+        vk.toggled.connect(lambda _=None: self._betraege())
+        self.tabelle.setCellWidget(r, VK, vk)
+        self.kosten[cb] = e.get("kosten") if isinstance(e.get("kosten"), (int, float)) else None
         if e.get("quelle"):
             cb.setToolTip(f"Herkunft: {e['quelle']}")
         cb.currentTextChanged.connect(lambda _=None, cb=cb: self._gewechselt(cb))
@@ -615,6 +625,7 @@ class ZusatzDialog(QDialog):
             stand = self.eintrag(cb)[0]
             if stand:
                 e["stand"] = stand
+            self._vk_setzen(r, cb, e)
             out.append((r, e))
         return out
 
@@ -633,7 +644,7 @@ class ZusatzDialog(QDialog):
             werte = {}
         if self.satz:
             return self._betraege_satz([e for _, e in zeilen], probe)
-        summe = 0.0
+        summe = vk_summe = 0.0
         for r in range(self.tabelle.rowCount()):
             lab = self.tabelle.cellWidget(r, BETRAG)
             z = werte.get(self.tabelle.cellWidget(r, 0).currentText())
@@ -643,6 +654,9 @@ class ZusatzDialog(QDialog):
                 lab.setText(f"{rechnen.zahl(z['zeit'], 1)} s")
             elif z["art"] == "€/Angebot":
                 lab.setText(f"{rechnen.zahl(z['pauschal'])} €/Ang.")
+            elif z.get("vk"):           # fester Verkaufspreis: nicht in der Summe ohne Zuschläge
+                lab.setText(_euro(z["betrag"]) + " VK")
+                vk_summe += z["betrag"]
             else:
                 lab.setText(_euro(z["betrag"]))
                 summe += z["betrag"]
@@ -654,7 +668,8 @@ class ZusatzDialog(QDialog):
         stk = self.p.get("stueck") if self.anzahl == 1 else None
         self.summe.setText(f"Summe je Teil {_euro(summe)}" + (
             f" · Position ({stk:g} Stk) {_euro(summe * stk)}" if isinstance(stk, (int, float)) and stk
-            else "") + " (ohne Zuschläge und Gewinn)")
+            else "") + " (ohne Zuschläge und Gewinn)"
+            + (f" · Verkaufspreis fest {_euro(vk_summe)} je Teil" if vk_summe else ""))
 
     def _betraege_satz(self, eintraege, probe):
         """Ganzer Satz: € je Satz je Zeile = Σ über die Positionen des Satzes (€ je Teil × Stück je Satz)."""
@@ -736,11 +751,20 @@ class ZusatzDialog(QDialog):
                 e["stand"] = stand
             if self.quelle.get(cb) and name == self.stand.get(cb, (None,))[0]:
                 e["quelle"] = self.quelle[cb]
+            self._vk_setzen(r, cb, e)
             for n in ("menge", "preis"):
                 if e[n] is not None and e[n] < 0:
                     raise ValueError(f"Zeile {r + 1}: negative Werte sind nicht zulässig.")
             liste.append(e)
         return gewinde, (json.dumps(liste, ensure_ascii=False) if liste else None)
+
+    def _vk_setzen(self, r, cb, e):
+        """Haken „Preis = Verkauf“ und übertragene interne Kosten in den Eintrag."""
+        w = self.tabelle.cellWidget(r, VK)
+        if w is not None and w.isChecked():
+            e["vk"] = "ja"
+            if self.kosten.get(cb) is not None:
+                e["kosten"] = self.kosten[cb]
 
     def _ok(self):
         try:

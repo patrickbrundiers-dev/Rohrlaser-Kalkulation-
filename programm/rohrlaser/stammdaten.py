@@ -1707,6 +1707,11 @@ EINSTELLUNGEN = (
     Einstellung("lieferzeit_wert", "Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, KW/Jahr oder Datum)",
                 "Angebot", "text", ""),
     Einstellung("lieferzeit_zusatz", "Lieferzeit neuer Angebote: Freitext", "Angebot", "text", "nach Absprache"),
+    # Zusatzarbeiten flexibel (Patrick 23.11.2026, zusatz_global.py): Vorgabe für Angebote ohne eigene Wahl
+    Einstellung("zusatz_darstellung", "Zusatzarbeiten im Kundenangebot", "Angebot", "auswahl", "zusammengefasst",
+                auswahl="zusatzdarstellung"),
+    # zusammengefasst: „inkl. …“ im Positionstext (wie bisher); detailliert: Aufstellung je Position mit Menge,
+    # Einheitspreis und Gesamt; nur Gesamtpreis: keine Zusatzarbeiten im Text. Je Angebot im Reiter änderbar
     # Patrick 28.10.2026: einmal optimierte Angebote nicht mehr löschbar (Positionen schon; der Admin darf löschen).
     # Vorgabe aus; „von Hand“ zählt nur F9/Optimieren, nicht das automatische Optimieren der Entwürfe
     Einstellung("loeschschutz", "Löschschutz: optimierte Angebote nicht löschbar (immer = auch automatisch "
@@ -2315,7 +2320,7 @@ class Kontext:
                          "etikettformat": ["A4, 3 × 8 Etiketten (70 × 37 mm)", "A4, 2 × 7 Etiketten (105 × 42,3 mm)",
                                            "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "drehart": ["frei (alle Achsen)", "Drehteller (Hochachse bleibt)"], "drehzentrum": ["Punkt unter der Maus", "Modellmitte", "Gewähltes (Auswahl)"], **visualisierung.AUSWAHL, "mausbelegung": list(navigation3d.MAUSBELEGUNGEN), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schwenkueber": ["begrenzen (WARNUNG)", "FEHLER"], "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "drehart": ["frei (alle Achsen)", "Drehteller (Hochachse bleibt)"], "drehzentrum": ["Punkt unter der Maus", "Modellmitte", "Gewähltes (Auswahl)"], **visualisierung.AUSWAHL, "mausbelegung": list(navigation3d.MAUSBELEGUNGEN), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schwenkueber": ["begrenzen (WARNUNG)", "FEHLER"], "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "zusatzdarstellung": ["zusammengefasst", "detailliert", "nur Gesamtpreis"], "abrufmaterial": list(ABRUF_MATERIAL),
                          "nahtquelle": list(naht.QUELLEN), "geometrie": list(_geometrie.WERTE), "schneidtechnik": ["2,5D", "XY"], "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
