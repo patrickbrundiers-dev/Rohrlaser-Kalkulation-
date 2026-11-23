@@ -201,7 +201,8 @@ def verlauf_je_material(db):
             if pm is not None:
                 out.setdefault((pid, wid), []).append(pm)
     except Exception:           # noqa: BLE001
-        pass
+        from . import protokoll
+        protokoll.warnung("Materialprüfung: abgefangen, ohne diese Angabe weiter")
     return out
 
 

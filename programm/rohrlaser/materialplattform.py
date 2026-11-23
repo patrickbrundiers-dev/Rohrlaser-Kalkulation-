@@ -839,6 +839,8 @@ def _datum_text(t):
     m = re.match(r"^(\d{1,2})\.(\d{1,2})\.(\d{4})$", t)
     if m:
         return f"{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}"
+    if re.fullmatch(r"\d{5}", t):          # Excel-Tageszahl (aus .xlsx)
+        return (datetime.date(1899, 12, 30) + datetime.timedelta(days=int(t))).isoformat()
     return t[:10] if _datum(t) else None
 
 
@@ -905,7 +907,8 @@ def preisliste_importieren(db, zeilen):
     try:
         db.sicherung(zusatz="vor_Preisliste")
     except Exception:           # noqa: BLE001  (Tests ohne Sicherungsordner)
-        pass
+        from . import protokoll
+        protokoll.warnung("Materialplattform: abgefangen, ohne diese Angabe weiter")
     vorhanden = {(z.get("profil_id"), z.get("werkstoff_id"), z.get("lieferant"), _n(z.get("laenge"))): z
                  for z in db.zeilen(LIEFERANTEN_TABELLE)}
     neu = geaendert = 0
@@ -925,19 +928,21 @@ def preisliste_importieren(db, zeilen):
 
 
 def xlsx_als_csv(pfad):
-    """Erstes Blatt einer Excel-Datei als CSV-Text (openpyxl); None, wenn openpyxl fehlt."""
+    """Erstes Blatt einer Excel-Datei (.xlsx) als CSV-Text mit Semikolon (ohne Fremdpaket, stueckliste.xlsx_zeilen);
+    Dezimalpunkt wird Komma. None, wenn die Datei nicht lesbar ist."""
+    import zipfile
+    from xml.etree import ElementTree
+
+    from .stueckliste import xlsx_zeilen
     try:
-        import openpyxl
-    except ImportError:
+        with open(pfad, "rb") as f:
+            zeilen = xlsx_zeilen(f.read())
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile, ElementTree.ParseError):
         return None
-    wb = openpyxl.load_workbook(pfad, read_only=True, data_only=True)
-    ws = wb.worksheets[0]
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
-    for row in ws.iter_rows(values_only=True):
-        w.writerow(["" if v is None else (f"{v}".replace(".", ",") if isinstance(v, float) else
-                                          v.strftime("%d.%m.%Y") if hasattr(v, "strftime") else str(v)) for v in row])
-    wb.close()
+    for z in zeilen:
+        w.writerow([v.replace(".", ",") if re.fullmatch(r"-?\d+\.\d+", v) else v for v in z])
     return buf.getvalue()
 
 
@@ -954,7 +959,8 @@ def historie(db, profil_id, werkstoff_id):
                                  + (f" · {int(z['laenge'])} mm" if _n(z.get('laenge')) else "")
                                  + (f" · {z['lieferant']}" if z.get("lieferant") else "")))
     except Exception:           # noqa: BLE001
-        pass
+        from . import protokoll
+        protokoll.warnung("Materialplattform: abgefangen, ohne diese Angabe weiter")
     try:
         for r in db.con.execute("SELECT zeit, wer, tabelle, feld, alt, neu, bezug FROM teilen_verlauf WHERE tabelle IN "
                                 "('profile', 'werkstoffe', 'preise', 'lieferlaengen') ORDER BY zeit DESC LIMIT 2000"):
@@ -963,7 +969,8 @@ def historie(db, profil_id, werkstoff_id):
                 out.append(dict(zeit=str(r[0] or "")[:16], art=f"{r[2]} geändert ({r[1] or '?'})",
                                 text=f"{r[3]}: {r[4] or '–'} → {r[5] or '–'}"))
     except Exception:           # noqa: BLE001  (ohne Abgleich gibt es keinen Änderungsverlauf)
-        pass
+        from . import protokoll
+        protokoll.warnung("Materialplattform: abgefangen, ohne diese Angabe weiter")
     for p in preis_punkte(db, profil_id, werkstoff_id)["erp"]:
         out.append(dict(zeit=p["datum"].isoformat(), art="ERP-Einkauf" + (f" {p['ober']}" if p["ober"] else ""),
                         text=f"{_zelle(p['preis'], 2)} €/m · {_zelle(p['menge'], 0)} m"
@@ -993,7 +1000,8 @@ def preis_punkte(db, profil_id, werkstoff_id, gruppe=None):
             if d is not None and pm is not None:
                 stamm[d] = pm
     except Exception:           # noqa: BLE001
-        pass
+        from . import protokoll
+        protokoll.warnung("Materialplattform: abgefangen, ohne diese Angabe weiter")
     g = gruppe if gruppe is not None else erp_gruppen(db).get((profil_id, werkstoff_id))
     erp = [dict(datum=x["datum"], preis=x["preis"], menge=x["menge"], zaehlt=bool(x.get("gerechnet")),
                 ober=(g or {}).get("oberflaeche") or "", artikelnr=x.get("artikelnr") or "")

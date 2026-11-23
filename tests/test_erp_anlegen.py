@@ -50,6 +50,21 @@ assert A.familie("QR 40x40x3 S235") is None
 assert A.naht("RR 33,7x2 nahtlos") == "nahtlos" and A.naht("RR 33,7x2 geschweißt") == "geschweißt"
 ok("Güte, Norm-Familie (EN 10219/10210/10305) und Naht aus der EK-Bezeichnung")
 
+# ------------------------------------------------------------------ Excel-Preisliste ohne Fremdpaket
+import zipfile  # noqa: E402
+
+NSX = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+xlsx = tmp / "preisliste.xlsx"
+with zipfile.ZipFile(xlsx, "w") as z:
+    z.writestr("xl/sharedStrings.xml", f'<sst {NSX}><si><t>Profil</t></si><si><t>Preis</t></si><si><t>Gültig ab</t>'
+                                      '</si><si><t>RR 42,4x2,0</t></si></sst>')
+    z.writestr("xl/worksheets/sheet1.xml", f'<worksheet {NSX}><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c>'
+               '<c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c></row><row r="2"><c r="A2" t="s"><v>3</v>'
+               '</c><c r="B2"><v>1.45</v></c><c r="C2"><v>46037</v></c></row></sheetData></worksheet>')
+assert mp.xlsx_als_csv(xlsx).splitlines() == ["Profil;Preis;Gültig ab", "RR 42,4x2,0;1,45;46037"]
+assert mp._datum_text("46037") == "2026-01-15" and mp.xlsx_als_csv(tmp / "fehlt.xlsx") is None
+ok("Excel-Preisliste (.xlsx) ohne Fremdpaket gelesen, Excel-Tageszahl als Datum")
+
 # ------------------------------------------------------------------ Anlegen
 db = Datenbank(tmp / "rohrlaser.db")
 TEXTE = ["Rundrohr 42,4x2,6 S235 nahtlos", "QR 50x50x4 S355 EN10210 warmgefertigt", "QR 60x60x3 S235JRH EN 10219",

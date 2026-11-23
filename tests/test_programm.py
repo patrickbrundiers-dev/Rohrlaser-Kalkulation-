@@ -183,11 +183,11 @@ assert db.einstellung("gewinn") == 0.125
 # Reiter: Kunden eigener Reiter, die übrigen Stammdaten und die Vorgaben unter Einstellungen (mit Passwort)
 haupt = [fenster.reiter.tabText(i) for i in range(fenster.reiter.count())]
 assert haupt == ["Start", "Anfragen", "Materialanfragen", "Angebote", "Aufträge", "Rahmenaufträge", "Produktion", "Auswertung", "Versand", "Fertigung", "Lager", "Kunden", "Frachtkosten", "Zukaufartikel",
-                 "Einstellungen"], haupt
+                 "Material", "Einstellungen"], haupt
 b = fenster.bereich
 from rohrlaser.einstellungen_ordnung import SEITEN as EINST_SEITEN  # noqa: E402
 assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())] == [s.titel for s in EINST_SEITEN] + ["★ Favoriten", "Profile", "Werkstoffe", "Oberflächen",
-                                                                 "Preise", "Lieferlängen", "Materialindex", "Maschinen", "Schneiddaten", "Gewinde",
+                                                                 "Preise", "Lieferlängen", "Material-Lieferanten", "Materialindex", "Maschinen", "Schneiddaten", "Gewinde",
                                                                  "Zusatzarbeiten", "Blech-Werkstoffe",
                                                                  "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)", "Dreh-/Fräs-Werkstoffe",
                                                                  "Prüfregeln (Fertigung)",

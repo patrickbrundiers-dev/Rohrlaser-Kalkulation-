@@ -14324,7 +14324,11 @@ def kapitel_material(i):
            "Werkstoff mit Norm gekauft hat, diesen Werkstoff vorgewählt, mit Hinweis <i>Werkstoff laut "
            "EK-Einkauf</i> im Prüfdialog. Ein Werkstoff aus der STEP-Datei, aus der E-Mail oder aus dem "
            "Importprofil des Kunden geht vor; im Prüfdialog bleibt er änderbar. Abschalten mit der Einstellung "
-           "<i>erp_werkstoff_vorwahl</i>.")
+           "<i>erp_werkstoff_vorwahl</i>.",
+           "Die Einstellungen dazu stehen unter <i>Einstellungen → ERP-Preisimport → Auswertung</i>: <b>ERP-Preise: "
+           "direkt einsetzen, wenn der Kauf höchstens so alt ist</b> [Tage], <b>ERP-Preise: direkt einsetzen bei "
+           "Stangenzahl ±</b> [Stangen] und <b>ERP-Preise: Werkstoff je Profil nach dem Einkauf vorwählen</b> "
+           "(STEP-Import). Der Menüpunkt <i>ERP-Einkauf einlesen</i> (EK-CSV) steht unter <i>Mehr</i>.")
     i.abschnitt("Vergleichen und Prüfvorschläge", marke="material_vergleich")
     i.text("<b>Vergleichen</b> stellt bis zu acht markierte Materialien nebeneinander: Preis je m und kg, Gewicht, "
            "Güte, Handelslängen, Lieferanten, Preisstand und, wenn ein Angebot offen ist, den <b>Verschnitt</b> bei "
@@ -14368,6 +14372,8 @@ def kapitel_material(i):
            "Material-Lieferanten</i>): Profil-ID, Werkstoff-ID, Lieferant (aus dem Lieferantenstamm der "
            "Zukaufartikel), Artikelnr. des Lieferanten, Preisbasis, Preis, Lieferlänge, Gültig ab, Gültig bis, "
            "Lieferzeit, Mindestabnahme und Bemerkung. Je Profil, Werkstoff, Lieferant und Lieferlänge eine Zeile.")
+    i.bild("stamm_material_lieferanten", "Einstellungen, Material-Lieferanten: Lieferantenpreise je Material",
+           hoehe=70 * mm, kurz=False)
     i.abschnitt("Materialbilanz je Abmessung", marke="material_bilanz")
     i.text("Im Abmessungs-Fenster (Doppelklick im Fenster <i>Material …</i> des Angebots) steht unter der Meter- und "
            "Gewichtsbilanz der <b>theoretische Verbrauch</b> (Teilelängen × Meterpreis) gegen den <b>Einkauf</b> "
