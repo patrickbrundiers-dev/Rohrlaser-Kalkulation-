@@ -122,16 +122,17 @@ def _datum(w):
 
 # ------------------------------------------------------------------ Varianten
 def varianten(k, tabellen, lieferanten=(), nutzung=None, bestand=None, favoriten=(), alle=False,
-              mit_archiv=False, heute=None, stange=None):
+              mit_archiv=False, heute=None, stange=None, erp=None):
     """Eine Zeile je Material (Profil + Werkstoff).
 
     alle=False: nur Kombinationen, die es schon gibt (Zeile in Preise, Lieferlängen oder Lieferanten, oder in einer
     Angebotsposition verwendet); alle=True: jede Abmessung mit jedem Werkstoff (Pflege, neue Kombinationen).
     nutzung = {(profil, werkstoff): (Anzahl Angebote, zuletzt ISO)}, bestand = {(profil, werkstoff): dict(stangen,
     reste)} (nur mit eingeschaltetem Lager), favoriten = [[profil, werkstoff]], stange = Stangenlänge des Angebots
-    für €/Stange (Vorgabe 6.000 mm). Archivierte Profile und Werkstoffe nur mit mit_archiv."""
+    für €/Stange (Vorgabe 6.000 mm), erp = {(profil, werkstoff): ERP-Gruppe aus erp_gruppen()} (Einkauf aus der
+    ERP-CSV, nur Anzeige). Archivierte Profile und Werkstoffe nur mit mit_archiv."""
     heute = heute or datetime.date.today()
-    nutzung, bestand = nutzung or {}, bestand or {}
+    nutzung, bestand, erp = nutzung or {}, bestand or {}, erp or {}
     fav = {tuple(f) for f in favoriten or () if isinstance(f, (list, tuple)) and len(f) == 2}
     preise = {}
     for z in (tabellen or {}).get("preise") or ():
@@ -144,7 +145,7 @@ def varianten(k, tabellen, lieferanten=(), nutzung=None, bestand=None, favoriten
     if alle:
         kombis = [(p, w) for p in k.profile for w in k.werkstoffe]
     else:
-        kombis = list(dict.fromkeys(list(preise) + list(laengen) + list(lief) + list(nutzung) + list(fav)))
+        kombis = list(dict.fromkeys(list(preise) + list(laengen) + list(lief) + list(nutzung) + list(fav) + list(erp)))
     std = _n(stange) or 6000.0
     out = []
     for pid, wid in kombis:
@@ -156,11 +157,11 @@ def varianten(k, tabellen, lieferanten=(), nutzung=None, bestand=None, favoriten
             continue
         out.append(_zeile(pid, wid, pr, ws, preise.get((pid, wid)), laengen.get((pid, wid), []),
                           lief.get((pid, wid), []), nutzung.get((pid, wid)), bestand.get((pid, wid)),
-                          (pid, wid) in fav, arch, heute, std))
+                          (pid, wid) in fav, arch, heute, std, erp.get((pid, wid))))
     return out
 
 
-def _zeile(pid, wid, pr, ws, preis, laengen, lief, nutz, best, fav, arch, heute, std):
+def _zeile(pid, wid, pr, ws, preis, laengen, lief, nutz, best, fav, arch, heute, std, erp=None):
     kgm = kg_je_m(pr, ws)
     quelle, preis_m, stand, lieferant, mindest = QUELLE_FEHLT, None, None, "", None
     if preis is not None:
@@ -200,7 +201,22 @@ def _zeile(pid, wid, pr, ws, preis, laengen, lief, nutz, best, fav, arch, heute,
         nutzung=(nutz or (0, ""))[0], zuletzt=str((nutz or (0, ""))[1] or "")[:10],
         bestand_stangen=(best or {}).get("stangen"), bestand_reste=(best or {}).get("reste"),
         favorit=fav, archiviert=arch, bemerkung=pr.get("bemerkung") or "",
+        **_erp_felder(erp, preis_m if quelle != QUELLE_TONNE else None),
         _such=_suchtext(pid, wid, pr, ws, namen))
+
+
+def _erp_felder(g, preis_m):
+    """ERP-Einkauf eines Materials: Ø €/m (nach Menge gewichtet, Zeitraum erp_monate), letzter Kauf, Meter, Anzahl
+    und Abweichung des Ø vom Stammdatenpreis in % (nur gegen Preise/Lieferlängen, nicht gegen den Tonnenpreis)."""
+    if not g:
+        return dict(erp_schnitt=None, erp_letzter=None, erp_datum="", erp_meter=None, erp_anzahl=0, erp_abw=None,
+                    erp_ober="")
+    schnitt = g.get("durchschnitt")
+    d = g.get("letzter_datum")
+    return dict(erp_schnitt=schnitt, erp_letzter=g.get("letzter"), erp_datum=d.isoformat() if d else "",
+                erp_meter=g.get("meter"), erp_anzahl=len(g.get("kaeufe") or ()),
+                erp_abw=(schnitt / preis_m - 1) * 100 if schnitt and preis_m and not g.get("oberflaeche") else None,
+                erp_ober=g.get("oberflaeche") or "")
 
 
 _WS_TEXT = {}
@@ -349,6 +365,8 @@ FILTER = (("kategorie", "Materialgruppe"), ("form", "Profilart"), ("wand", "Wand
           ("werkstoff_id", "Werkstoff"), ("lieferant", "Lieferant"), ("zustand", "Zustand"))
 ZUSTAND_ALT, ZUSTAND_OHNE, ZUSTAND_TONNE, ZUSTAND_ARCHIV, ZUSTAND_FAV, ZUSTAND_BENUTZT = (
     "Preis älter als 30 Tage", "ohne Preis", "nur Tonnenpreis", "archiviert", "Favorit", "in Angeboten")
+ZUSTAND_ERP, ZUSTAND_ERP_ABW, ZUSTAND_VORSCHLAG = "mit ERP-Einkauf", "ERP weicht über 10 % ab", "mit Preisvorschlag"
+ERP_ABW_PCT = 10.0
 
 
 def zustaende(z, alt_tage=STAND_ALT_TAGE):
@@ -365,6 +383,12 @@ def zustaende(z, alt_tage=STAND_ALT_TAGE):
         out.append(ZUSTAND_ARCHIV)
     if z.get("nutzung"):
         out.append(ZUSTAND_BENUTZT)
+    if z.get("erp_anzahl"):
+        out.append(ZUSTAND_ERP)
+        if z.get("erp_abw") is not None and abs(z["erp_abw"]) > ERP_ABW_PCT:
+            out.append(ZUSTAND_ERP_ABW)
+    if z.get("vorschlag_m") is not None:
+        out.append(ZUSTAND_VORSCHLAG)
     return out
 
 
@@ -415,7 +439,8 @@ VERGLEICH = (("preis_m", "Preis [€/m]", 2), ("preis_kg", "Preis [€/kg]", 2),
              ("werkstoff_id", "Werkstoff / Güte", None), ("norm", "Norm", None), ("quelle", "Preisquelle", None),
              ("stand", "Preisstand", None), ("handelslaengen", "Handelslängen [mm]", None),
              ("lieferanten", "Lieferanten", None), ("mindest", "Mindestabnahme [Stangen]", 0),
-             ("bestand_stangen", "Bestand [Stangen]", 0), ("verschnitt", "Verschnitt bei den Teilen", None))
+             ("bestand_stangen", "Bestand [Stangen]", 0), ("erp_schnitt", "ERP-Einkauf Ø [€/m]", 2),
+             ("verschnitt", "Verschnitt bei den Teilen", None))
 
 
 def vergleich(zeilen, teile_mm=None, maschine=None):
@@ -611,9 +636,32 @@ def favorit_setzen(db, profil_id, werkstoff_id, an=True):
 
 
 def alle_varianten(db, alle=False, mit_archiv=False):
-    """varianten() mit den Daten der Datenbank (Kontext, Tabellen, Lieferanten, Nutzung, Lager, Favoriten)."""
+    """varianten() mit den Daten der Datenbank (Kontext, Tabellen, Lieferanten, Nutzung, Lager, Favoriten, ERP)."""
     return varianten(db.kontext(), db.tabellen(), db.zeilen(LIEFERANTEN_TABELLE), nutzung(db), lager_bestand(db),
-                     favoriten(db), alle=alle, mit_archiv=mit_archiv)
+                     favoriten(db), alle=alle, mit_archiv=mit_archiv, erp=erp_gruppen(db))
+
+
+def erp_gruppen(db, heute=None):
+    """ERP-Einkauf je Material aus der eingelesenen EK-CSV (erp_preise.auswerten, Zeitraum erp_monate, Ausreißer
+    erp_ausreisser): {(profil, werkstoff): Gruppe}. Rohware geht vor; nur mit Oberfläche gekauft: diese Gruppe.
+    Nur die zugeordneten Artikel (grün). Leer ohne Käufe. Ändert keine Preise (Patrick 30.10.2026)."""
+    from . import erp_preise
+    try:
+        kaeufe = erp_preise.gespeicherte(db)
+    except Exception:           # noqa: BLE001  (Datei ohne ERP-Tabellen)
+        return {}
+    if not kaeufe:
+        return {}
+    k = db.kontext()
+    art = erp_preise.artikel(kaeufe, erp_preise.zuordnungen(db), k)
+    monate = _n(db.einstellung("erp_monate")) or 12
+    grenze = _n(db.einstellung("erp_ausreisser")) or 0.25
+    out = {}
+    for g in erp_preise.auswerten(kaeufe, art, k, db.tabellen(), heute=heute, monate=int(monate), grenze=grenze):
+        schl = (g["profil_id"], g["werkstoff_id"])
+        if schl not in out or (out[schl].get("oberflaeche") and not g["oberflaeche"]):
+            out[schl] = g
+    return out
 
 
 def _zeile_von(db, tabelle, feld, wert):
@@ -740,7 +788,8 @@ EXPORT = (("profil_id", "Profil-ID"), ("form", "Profilform"), ("a", "A [mm]"), (
           ("dichte", "Dichte [kg/dm³]"), ("kgm", "Gewicht [kg/m]"), ("preis_kg", "Preis [€/kg]"),
           ("preis_m", "Preis [€/m]"), ("quelle", "Preisquelle"), ("stand", "Preisstand"),
           ("lieferant", "Lieferant"), ("handelslaengen", "Handelslängen [mm]"), ("mindest", "Mindestabnahme"),
-          ("nutzung", "Angebote"))
+          ("nutzung", "Angebote"), ("erp_schnitt", "ERP-Einkauf Ø [€/m]"), ("erp_letzter", "ERP letzter Kauf [€/m]"),
+          ("erp_datum", "ERP letzter Kauf am"), ("erp_abw", "ERP Abweichung [%]"))
 
 
 def _zelle(v, stellen=None):
@@ -915,5 +964,46 @@ def historie(db, profil_id, werkstoff_id):
                                 text=f"{r[3]}: {r[4] or '–'} → {r[5] or '–'}"))
     except Exception:           # noqa: BLE001  (ohne Abgleich gibt es keinen Änderungsverlauf)
         pass
+    for p in preis_punkte(db, profil_id, werkstoff_id)["erp"]:
+        out.append(dict(zeit=p["datum"].isoformat(), art="ERP-Einkauf" + (f" {p['ober']}" if p["ober"] else ""),
+                        text=f"{_zelle(p['preis'], 2)} €/m · {_zelle(p['menge'], 0)} m"
+                             + (f" · {p['artikelnr']}" if p.get("artikelnr") else "")
+                             + ("" if p["zaehlt"] else " · zählt nicht (Ausreißer/alt)")))
+    for z in db.zeilen(LIEFERANTEN_TABELLE):
+        if schluessel(z) == (profil_id, werkstoff_id):
+            out.append(dict(zeit=str(z.get("gueltig_ab") or "")[:10], art=f"Lieferantenpreis {z.get('lieferant') or ''}",
+                            text=f"{_zelle(_n(z.get('preis')), 2)} {z.get('basis') or ''}"
+                                 + (f" · {int(z['laenge'])} mm" if _n(z.get("laenge")) else "")
+                                 + (f" · gültig bis {_zelle(z.get('gueltig_bis'))}" if z.get("gueltig_bis") else "")))
     out.sort(key=lambda z: z["zeit"], reverse=True)
     return out
+
+
+def preis_punkte(db, profil_id, werkstoff_id, gruppe=None):
+    """Preishistorie eines Materials in €/m für die Kurve: dict(stamm=[(date, €/m)] Preisstände der Stammdaten
+    (Preise/Lieferlängen, umgerechnet mit kg/m), erp=[dict(datum, preis, menge, zaehlt, ober, artikelnr)] Käufe aus
+    der ERP-CSV, lieferanten=[dict(datum, preis, lieferant)], schnitt = ERP-Ø €/m oder None)."""
+    from . import preisverlauf
+    k = db.kontext()
+    kgm = kg_je_m(k.profile.get(profil_id) or {}, k.werkstoffe.get(werkstoff_id) or {})
+    stamm = {}
+    try:
+        for e in preisverlauf.eintraege(db.con, profil_id=profil_id, werkstoff_id=werkstoff_id):
+            d, pm = _datum(e.get("datum")), je_meter(e.get("basis"), e.get("preis"), kgm, e.get("laenge") or 6000)
+            if d is not None and pm is not None:
+                stamm[d] = pm
+    except Exception:           # noqa: BLE001
+        pass
+    g = gruppe if gruppe is not None else erp_gruppen(db).get((profil_id, werkstoff_id))
+    erp = [dict(datum=x["datum"], preis=x["preis"], menge=x["menge"], zaehlt=bool(x.get("gerechnet")),
+                ober=(g or {}).get("oberflaeche") or "", artikelnr=x.get("artikelnr") or "")
+           for x in (g or {}).get("kaeufe") or ()]
+    lief = []
+    for z in db.zeilen(LIEFERANTEN_TABELLE):
+        if schluessel(z) == (profil_id, werkstoff_id):
+            d = _datum(z.get("gueltig_ab"))
+            pm = je_meter(z.get("basis"), z.get("preis"), kgm, z.get("laenge") or 6000)
+            if d is not None and pm is not None:
+                lief.append(dict(datum=d, preis=pm, lieferant=z.get("lieferant") or "", gueltig=gueltig(z)))
+    return dict(stamm=sorted(stamm.items()), erp=erp, lieferanten=sorted(lief, key=lambda x: x["datum"]),
+                schnitt=(g or {}).get("durchschnitt"))

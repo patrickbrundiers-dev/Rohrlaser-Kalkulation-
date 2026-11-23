@@ -31,9 +31,16 @@ NEUERUNGEN = [
                 "Archivieren, Zuweisen an Positionen (im Angebot: <i>Material suchen und zuweisen …</i>). "
                 "<b>Prüfvorschläge</b> laufen lokal ohne Internet und ändern nur nach Übernehmen, nie Güte oder "
                 "technische Werte. Im Abmessungs-Fenster: theoretischer Verbrauch gegen Einkauf, Mindestabnahme und "
-                "Reststücke (nur Meldung). Festgeschriebene Angebote halten jetzt auch die Dichte fest. Bestehende "
-                "Preise und Angebote bleiben gleich.",
-     "Neue Seite Material: Suche, Filter, Matrix, mehrere Lieferanten, Vergleich, Prüfvorschläge, Materialbilanz."],
+                "Reststücke (nur Meldung). Festgeschriebene Angebote halten jetzt auch die Dichte fest. "
+                "<b>ERP-Einkauf (EK-CSV)</b> direkt auf der Seite: Spalten ERP Ø, letzter Kauf, Abweichung und "
+                "Vorschlag, Reiter <b>Preishistorie</b> mit Kurve, Trend und Tabelle je Monat, <b>Preisvorschläge</b> "
+                "aus der Historie (nur mit Klick übernommen) ([[material_erp]]). Im Angebot wird ein ERP-Kauf nur noch "
+                "<b>direkt eingesetzt</b>, wenn er höchstens 4 Wochen alt ist und die Stangenzahl auf ±2 passt "
+                "(einstellbar), sonst nur Vorschlag. <b>Profile und Werkstoffe aus dem EK anlegen</b> mit Norm und "
+                "Naht (EN 10219 geschweißt, EN 10210 nahtlos/warm, EN 10305), und beim STEP-Import der Werkstoff je "
+                "Profil nach dem Einkauf als <b>Vorauswahl</b>. Bestehende Stammdatenpreise ändern sich nicht von "
+                "selbst.",
+     "Neue Seite Material: Suche, Filter, Matrix, Lieferanten, Vergleich, EK-Historie, Preisvorschläge, EK-Anlegen."],
     ["0.9.456", "<b>Anfragen: Rückfrage nachfassen, Wichtig zuerst, breiter lernen, Erkennung je Woche</b> "
                 "([[anfrage_stufe2]]). Wartet eine Rückfrage an den Kunden länger als 3 Arbeitstage (einstellbar), "
                 "zeigt die Anfrage das in Rot, der Schnellfilter „Nachfassen“ findet sie, und „Erinnerung …“ öffnet "

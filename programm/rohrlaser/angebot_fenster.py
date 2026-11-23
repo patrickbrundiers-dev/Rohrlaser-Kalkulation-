@@ -10412,6 +10412,11 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in importprofil.EINSTELLUNGEN})
         from . import step_material         # Werkstoff aus den Material-Einträgen der STEP als Vorschlag (Paket 2)
         step_material.anwenden(messwerte, self.k.werkstoffe, werkstoff)
+        if werkstoff == self.db.einstellung("step_werkstoff") and not vorgaben.get("werkstoff") \
+                and self.db.einstellung("erp_werkstoff_vorwahl") != "nein":
+            # Patrick 23.11.2026: Werkstoff je Profil nach dem EK vorwählen (Mail und Importprofil des Kunden gehen vor)
+            from . import erp_anlegen
+            erp_anlegen.vorauswahl(messwerte, self.k.profile, erp_anlegen.werkstoff_je_profil(self.db), werkstoff)
         if "anbau_weglassen" in vorgaben:
             for m in messwerte:
                 m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])

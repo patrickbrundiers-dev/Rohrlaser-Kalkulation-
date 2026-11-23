@@ -33,7 +33,9 @@ SPALTEN = (("favorit", "★", None, True), ("profil_id", "Abmessung", None, True
            ("n_lieferanten", "Lieferanten", 0, False), ("stand", "Preisstand", None, True),
            ("mindest", "Mindestabnahme", 0, False), ("nutzung", "Angebote", 0, True), ("zuletzt", "Zuletzt", None, False),
            ("bestand_stangen", "Bestand", 0, False), ("werkstoff_nr", "Werkstoff-Nr.", None, False),
-           ("norm", "Norm", None, False))
+           ("norm", "Norm", None, False), ("erp_schnitt", "ERP Ø €/m", 2, True),
+           ("erp_letzter", "ERP letzter €/m", 2, False), ("erp_datum", "ERP letzter Kauf", None, False),
+           ("erp_abw", "ERP Abw. %", 1, True), ("vorschlag_m", "Vorschlag €/m", 2, True))
 LISTE, MATRIX = "Liste", "Matrix"
 
 
@@ -45,7 +47,7 @@ def _text(z, feld, stellen):
         return " · ".join(f"{x / 1000:g} m".replace(".", ",") for x in v or [])
     if feld == "stand":
         return _datum(v)
-    if feld == "zuletzt":
+    if feld in ("zuletzt", "erp_datum"):
         return _datum(v)
     if isinstance(v, (int, float)) and not isinstance(v, bool):
         return zahl_als_text(v, stellen)
@@ -105,6 +107,10 @@ class MaterialModell(QAbstractTableModel):
                 return QBrush(stil.farbe(stil.ORANGE))
             if feld == "stand" and z.get("alter_tage") is not None and z["alter_tage"] > mp.STAND_ALT_TAGE:
                 return QBrush(stil.farbe(stil.ORANGE))
+            if feld == "vorschlag_m" and z.get("vorschlag_m") is not None:
+                return QBrush(stil.farbe(stil.AKZENT))
+            if feld == "erp_abw" and z.get("erp_abw") is not None and abs(z["erp_abw"]) > mp.ERP_ABW_PCT:
+                return QBrush(stil.farbe(stil.ORANGE))
             if feld in ("preis_m", "preis_kg") and z.get("quelle") == mp.QUELLE_TONNE:
                 return QBrush(stil.farbe(stil.TEXT_GRAU))
             if z.get("archiviert"):
@@ -115,6 +121,13 @@ class MaterialModell(QAbstractTableModel):
                                                             if z.get("quelle") == mp.QUELLE_TONNE else "")
             if feld == "stand" and z.get("alter_tage") is not None:
                 return f"{z['alter_tage']} Tage alt"
+            if feld == "vorschlag_m" and z.get("vorschlag_m") is not None:
+                return (f"Preisvorschlag aus der Historie, Sicherheit {z.get('vorschlag_sicher')}; Begründung und "
+                        "Übernehmen im Reiter Preishistorie")
+            if feld.startswith("erp_") and z.get("erp_anzahl"):
+                return (f"ERP-Einkauf: {z['erp_anzahl']} Käufe, {zahl_als_text(z['erp_meter'], 0)} m, Ø "
+                        f"{zahl_als_text(z['erp_schnitt'], 2)} €/m" + (f" (mit {z['erp_ober']})" if z["erp_ober"] else "")
+                        + ". Nur Anzeige: ändert die Stammdaten-Preise nicht.")
         if role == Qt.UserRole:
             return z
         return None
@@ -190,6 +203,8 @@ class MaterialBereich(QWidget):
         mm = QMenu(mehr)
         mm.addAction("Liste als CSV exportieren …", lambda: self.exportieren())
         mm.addAction("Preisliste eines Lieferanten importieren (CSV/Excel) …", lambda: self.preisliste_importieren())
+        mm.addAction("ERP-Einkauf (EK-CSV) einlesen …", lambda: self.erp_einlesen())
+        mm.addAction("Profile und Werkstoffe aus dem EK anlegen …", lambda: self.erp_anlegen())
         mm.addSeparator()
         self.alle_box = mm.addAction("Alle Kombinationen Abmessung × Werkstoff zeigen")
         self.alle_box.setCheckable(True)
@@ -296,8 +311,43 @@ class MaterialBereich(QWidget):
         self.verwendung = QListWidget()
         self.verwendung.itemDoubleClicked.connect(lambda it: self._angebot_oeffnen(it.data(Qt.UserRole)))
         self.detail.addTab(self.verwendung, "Verwendung")
+        hw = QWidget()
+        hl = QVBoxLayout(hw)
+        self.kurve = PreisKurve()
+        hl.addWidget(self.kurve)
+        self.kurve_text = QLabel()
+        self.kurve_text.setWordWrap(True)
+        self.kurve_text.setTextFormat(Qt.RichText)
+        hl.addWidget(self.kurve_text)
+        self.vorschlag_box = QLabel()
+        self.vorschlag_box.setWordWrap(True)
+        self.vorschlag_box.setTextFormat(Qt.RichText)
+        self.vorschlag_knopf = QPushButton("Vorschlag übernehmen")
+        self.vorschlag_knopf.setToolTip("Schreibt den vorgeschlagenen Preis nach 'Preise' (Gültig ab heute, in der "
+                                        "Preisbasis der Zeile); nur mit Admin-Freischaltung, Eintrag im KI-Protokoll")
+        self.vorschlag_knopf.clicked.connect(lambda: self.vorschlag_uebernehmen())
+        vk = QHBoxLayout()
+        vk.addWidget(self.vorschlag_box, 1)
+        vk.addWidget(self.vorschlag_knopf, 0, Qt.AlignTop)
+        hl.addLayout(vk)
+        self.monate_tab = QTableWidget(0, 7)
+        self.monate_tab.setHorizontalHeaderLabels(["Monat", "Käufe", "Meter", "Ø €/m", "Min–Max €/m",
+                                                   "Stammdaten €/m", "Abw. %"])
+        self.monate_tab.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.monate_tab.verticalHeader().setVisible(False)
+        self.monate_tab.setToolTip("Historie je Monat: ERP-Käufe (nur die, die zählen, im Ø), Stammdatenpreis am "
+                                   "Monatsende und Ereignisse (Preisänderungen, Lieferantenpreise)")
+        self.historie_reiter = QTabWidget()
+        self.historie_reiter.addTab(self.monate_tab, "Je Monat")
         self.verlauf = QListWidget()
-        self.detail.addTab(self.verlauf, "Verlauf")
+        self.historie_reiter.addTab(self.verlauf, "Alle Einträge")
+        hl.addWidget(self.historie_reiter, 1)
+        self.erp_knopf = QPushButton("ERP-Käufe …")
+        self.erp_knopf.setToolTip("Alle Käufe dieses Materials aus der ERP-CSV; Ausreißer von Hand mitrechnen oder "
+                                  "weglassen")
+        self.erp_knopf.clicked.connect(lambda: self.erp_kaeufe())
+        hl.addWidget(self.erp_knopf, 0, Qt.AlignLeft)
+        self.detail.addTab(hw, "Preishistorie")
 
         self.stapel = QSplitter(Qt.Horizontal)
         self.stapel.addWidget(self.filter_baum)
@@ -327,15 +377,30 @@ class MaterialBereich(QWidget):
             stand = self.db.stammdaten_stand()
         except Exception:           # noqa: BLE001
             stand = None
-        schluessel = (stand, self.alle_box.isChecked(), self.archiv_box.isChecked(), len(mp.favoriten(self.db)))
+        schluessel = (stand, self.alle_box.isChecked(), self.archiv_box.isChecked(), len(mp.favoriten(self.db)),
+                      self._erp_stand())
         if not erzwingen and schluessel == self._stand and self.alle_zeilen:
             self.anwenden()
             return
         self._stand = schluessel
-        self.alle_zeilen = mp.alle_varianten(self.db, alle=self.alle_box.isChecked(),
-                                             mit_archiv=self.archiv_box.isChecked())
+        self._erp = mp.erp_gruppen(self.db)
+        self.alle_zeilen = mp.varianten(self.db.kontext(), self.db.tabellen(), self.db.zeilen(mp.LIEFERANTEN_TABELLE),
+                                        mp.nutzung(self.db), mp.lager_bestand(self.db), mp.favoriten(self.db),
+                                        alle=self.alle_box.isChecked(), mit_archiv=self.archiv_box.isChecked(),
+                                        erp=self._erp)
+        from . import material_historie as mh
+        for schl, v in mh.alle_vorschlaege(self.db, self.alle_zeilen, self._erp).items():
+            for z in self.alle_zeilen:
+                if (z["profil_id"], z["werkstoff_id"]) == schl:
+                    z.update(vorschlag_m=v["preis_m"], vorschlag_sicher=v["sicherheit"])
         self.filter_fuellen()
         self.anwenden()
+
+    def _erp_stand(self):
+        try:
+            return tuple(self.db.con.execute("SELECT COUNT(*), MAX(importiert) FROM erp_kaeufe").fetchone())
+        except Exception:           # noqa: BLE001
+            return None
 
     def showEvent(self, e):
         super().showEvent(e)
@@ -505,6 +570,11 @@ class MaterialBereich(QWidget):
                   ("Mindestabnahme", f"{int(z['mindest'])} Stangen" if z["mindest"] else "–"),
                   ("In Angeboten", f"{z['nutzung']}" + (f", zuletzt {_datum(z['zuletzt'])}" if z["zuletzt"] else "")),
                   ]
+        if z.get("erp_anzahl"):
+            zeilen.append(("ERP-Einkauf", f"Ø {zahl_als_text(z['erp_schnitt'], 2)} €/m ({z['erp_anzahl']} Käufe, "
+                           f"{zahl_als_text(z['erp_meter'], 0)} m)" + (
+                               f", {zahl_als_text(z['erp_abw'], 1)} % zum Stammdatenpreis"
+                               if z.get("erp_abw") is not None else "")))
         if z.get("bestand_stangen") is not None:
             zeilen.append(("Lager (verfügbar)", f"{z['bestand_stangen']} Stangen, {z['bestand_reste']} Reststücke"))
         if z.get("archiviert"):
@@ -546,8 +616,63 @@ class MaterialBereich(QWidget):
             it = QListWidgetItem(f"{a['nummer']} · {a.get('kunde') or ''} · {_datum(a.get('geaendert'))}")
             it.setData(Qt.UserRole, a["id"])
             self.verwendung.addItem(it)
-        for h in mp.historie(self.db, z["profil_id"], z["werkstoff_id"])[:200]:
-            self.verlauf.addItem(f"{h['zeit']} · {h['art']} · {h['text']}")
+        g = self._erp.get((z["profil_id"], z["werkstoff_id"])) if hasattr(self, "_erp") else None
+        pp = mp.preis_punkte(self.db, z["profil_id"], z["werkstoff_id"], gruppe=g or {})
+        self.kurve.setzen(pp, z.get("preis_m"))
+        teile = []
+        if pp["stamm"]:
+            erster = pp["stamm"][0][1]
+            teile.append(f"Stammdaten {zahl_als_text(pp['stamm'][-1][1], 2)} €/m"
+                         + (f" ({zahl_als_text((pp['stamm'][-1][1] / erster - 1) * 100, 1)} % seit "
+                            f"{pp['stamm'][0][0].strftime('%d.%m.%Y')})" if erster and len(pp["stamm"]) > 1 else ""))
+        if z.get("erp_anzahl"):
+            teile.append(f"ERP-Einkauf Ø {zahl_als_text(z['erp_schnitt'], 2)} €/m aus {z['erp_anzahl']} Käufen, "
+                         f"zuletzt {zahl_als_text(z['erp_letzter'], 2)} €/m am {_datum(z['erp_datum'])}"
+                         + (f" (mit {z['erp_ober']})" if z["erp_ober"] else ""))
+        self.kurve_text.setText(" · ".join(teile) or "Noch keine Preisstände, Käufe oder Lieferantenpreise.")
+        self.erp_knopf.setEnabled(bool(g))
+        from . import material_historie as mh
+        tr = mh.trend(pp)
+        if tr:
+            teile = [f"Ø {m} Mon. {zahl_als_text(tr[f'mittel_{m}'], 2)}" for m in (3, 6, 12) if tr.get(f"mittel_{m}")]
+            if tr.get("pct_jahr") is not None:
+                teile.append(f"Trend {zahl_als_text(tr['pct_jahr'], 1)} % je Jahr")
+            self.kurve_text.setText(self.kurve_text.text() + "<br>" + " · ".join(teile))
+        self._vorschlag = mh.vorschlag(z, pp, kg_ref=mh.kg_referenz(self.alle_zeilen, self._erp)
+                                       if getattr(self, "_erp", None) else None)
+        v = self._vorschlag
+        if v:
+            farbe = stil.umsetzen({mh.HOCH: stil.GRUEN, mh.MITTEL: stil.ORANGE}.get(v["sicherheit"], stil.TEXT_GRAU))
+            self.vorschlag_box.setText(
+                f"<b>Preisvorschlag {zahl_als_text(v['preis_m'], 2)} €/m</b>"
+                + (f" ({'+' if v['abw'] > 0 else ''}{zahl_als_text(v['abw'], 1)} %)" if v["abw"] is not None else "")
+                + f" · Sicherheit <span style='color:{farbe}'><b>{v['sicherheit']}</b></span><br>"
+                + f"<span style='color:{stil.umsetzen(stil.TEXT_GRAU)}'>{v['begruendung']}</span>")
+        else:
+            self.vorschlag_box.setText("Kein Preisvorschlag: der heutige Preis passt zur Historie oder es fehlen "
+                                       "Käufe und Lieferantenpreise.")
+        self.vorschlag_knopf.setEnabled(bool(v))
+        ms = mh.monate(pp)
+        self.monate_tab.setRowCount(len(ms))
+        for r, m in enumerate(ms):
+            werte = [f"{m['monat'][5:]}.{m['monat'][:4]}", str(m["kaeufe"] or ""),
+                     zahl_als_text(m["meter"], 0) if m["meter"] else "",
+                     zahl_als_text(m["schnitt"], 2) if m["schnitt"] is not None else "",
+                     f"{zahl_als_text(m['min'], 2)}–{zahl_als_text(m['max'], 2)}" if m["min"] is not None else "",
+                     zahl_als_text(m["stamm"], 2) if m["stamm"] is not None else "",
+                     zahl_als_text(m["abw"], 1) if m["abw"] is not None else ""]
+            for c, w in enumerate(werte):
+                it = QTableWidgetItem(w)
+                if c:
+                    it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                if m["ereignisse"]:
+                    it.setToolTip("\n".join(m["ereignisse"]))
+                if c == 6 and m["abw"] is not None and abs(m["abw"]) > mp.ERP_ABW_PCT:
+                    it.setForeground(QBrush(stil.farbe(stil.ORANGE)))
+                self.monate_tab.setItem(r, c, it)
+        self.monate_tab.resizeColumnsToContents()
+        for h in mp.historie(self.db, z["profil_id"], z["werkstoff_id"])[:300]:
+            self.verlauf.addItem(f"{_datum(h['zeit']) if len(h['zeit']) == 10 else h['zeit']} · {h['art']} · {h['text']}")
 
     def _preis_exakt(self, z):
         """€/m wie im Angebot (rechnen.meterpreis mit Teuerung, Lieferlängen, Mindestabnahme-Regeln)."""
@@ -963,6 +1088,88 @@ class MaterialBereich(QWidget):
         self.neu_laden(erzwingen=True)
         return dict(r, fehler=erg["fehler"])
 
+    def erp_einlesen(self, pfad=None, **kw):
+        """ERP-Einkaufs-CSV einlesen (vorhandener Import mit Spaltenzuordnung und Prüfliste); danach zeigt die Liste
+        Ø, letzten Kauf und Abweichung je Material. Die Stammdaten-Preise bleiben unverändert."""
+        d = self.f.erp_preise(pfad, **kw) if hasattr(self.f, "erp_preise") else None
+        self.erp_anlegen(still_wenn_leer=True)     # Patrick 23.11.2026: Profile/Werkstoffe aus dem EK anlegen
+        self.neu_laden(erzwingen=True)
+        return d
+
+    def erp_anlegen(self, frage=True, still_wenn_leer=False):
+        """Profile und Werkstoffe aus dem ERP-Einkauf anlegen (erp_anlegen.plan/ausfuehren): erkannte Abmessungen
+        als Profil, Güte mit Norm und Naht als Werkstoff (EN 10219 geschweißt, EN 10210 warmgefertigt/nahtlos,
+        EN 10305), Zuordnung der EK-Artikel gemerkt. Admin-Schutz: ohne Freigabe für Werkstoffe nur Profile.
+        Ergebnis: dict wie erp_anlegen.ausfuehren oder None."""
+        from . import erp_anlegen
+        p = erp_anlegen.plan(self.db)
+        if not (p["profile"] or p["werkstoffe"] or p["zuordnungen"]):
+            if not still_wenn_leer:
+                self.f.meldung("Aus dem EK ist nichts anzulegen: alle erkannten Profile und Werkstoffe gibt es schon"
+                               + (f" ({len(p['offen'])} EK-Artikel unklar, siehe Prüfliste des ERP-Imports)"
+                                  if p["offen"] else ""))
+            return None
+        if not self.darf("profile"):
+            return None
+        from . import admin_schutz
+        mit_w = bool(p["werkstoffe"]) and ("werkstoffe" not in admin_schutz.tabellen_geschuetzt(self.db)
+                                           or admin_schutz.ist_admin(self.db))
+        text = (f"{len(p['profile'])} Profile, {len(p['werkstoffe']) if mit_w else 0} Werkstoffe und "
+                f"{len(p['zuordnungen'])} EK-Zuordnungen anlegen?\n\n"
+                + "\n".join(f"Profil {x['profil_id']}" for x in p["profile"][:12])
+                + ("\n" if p["profile"] else "")
+                + "\n".join(f"Werkstoff {w['werkstoff_id']}: {w['norm']}, {w['rohrart']}" for w in
+                            (p["werkstoffe"] if mit_w else [])[:8])
+                + (f"\n\nUnklar (bleibt in der Prüfliste): {len(p['offen'])}" if p["offen"] else "")
+                + ("" if mit_w or not p["werkstoffe"] else
+                   "\n\nWerkstoffe sind admin-geschützt: nur Profile werden angelegt."))
+        if frage and not getattr(self.f, "stumm", False):
+            if QMessageBox.question(self, "Aus dem EK anlegen", text) != QMessageBox.Yes:
+                return None
+        erg = erp_anlegen.ausfuehren(self.db, p, mit_werkstoffen=mit_w)
+        f = self.window()
+        f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else None
+        self.neu_laden(erzwingen=True)
+        self.f.meldung(f"Aus dem EK angelegt: {erg['profile']} Profile, {erg['werkstoffe']} Werkstoffe, "
+                       f"{erg['zuordnungen']} Zuordnungen")
+        return erg
+
+    def vorschlag_uebernehmen(self, frage=True):
+        """Preisvorschlag des markierten Materials übernehmen (Admin-Schutz, Protokoll wie die Prüfvorschläge)."""
+        z, v = self.aktuelle(), getattr(self, "_vorschlag", None)
+        if not z or not v or not self.darf("preise"):
+            return None
+        if frage and not getattr(self.f, "stumm", False):
+            if QMessageBox.question(self, "Preisvorschlag", f"{z['profil_id']} · {z['werkstoff_id']}: "
+                                    f"{zahl_als_text(v['preis_m'], 2)} €/m als aktiven Preis übernehmen?\n\n"
+                                    f"{v['begruendung']}") != QMessageBox.Yes:
+                return None
+        b = material_ki.befund(material_ki.VORSCHLAG, "historie", f"{z['profil_id']} · {z['werkstoff_id']}",
+                               f"Preisvorschlag {zahl_als_text(v['preis_m'], 2)} €/m", v["begruendung"],
+                               aktion="preis_aus_historie",
+                               daten=dict(profil_id=z["profil_id"], werkstoff_id=z["werkstoff_id"],
+                                          preis_m=v["preis_m"], quelle=v["quelle"]))
+        text = material_ki.anwenden(self.db, b)
+        self.f.meldung(text + ". Offene Angebote meldet der Preiswächter; festgeschriebene bleiben.")
+        self.neu_laden(erzwingen=True)
+        self.auswaehlen(z["profil_id"], z["werkstoff_id"])
+        return text
+
+    def erp_kaeufe(self, dialog=None):
+        """Käufe des markierten Materials (Fenster aus dem ERP-Import, Haken „zählt“ je Kauf)."""
+        z = self.aktuelle()
+        g = self._erp.get((z["profil_id"], z["werkstoff_id"])) if z and hasattr(self, "_erp") else None
+        if not g:
+            return None
+        from .erp_preise_dialog import VerlaufDialog
+        d = VerlaufDialog(self, self.db, g)
+        if dialog:
+            dialog(d)
+        else:
+            d.exec()
+        self.neu_laden(erzwingen=True)
+        return d
+
     def stammdaten_zeigen(self, name):
         """Tabellenseite unter Einstellungen → Material zeigen (z. B. 'preise')."""
         for s in getattr(self.f, "seiten", []):
@@ -974,6 +1181,85 @@ class MaterialBereich(QWidget):
 
     def sizeHint(self):
         return QSize(1200, 700)
+
+
+# ---------------------------------------------------------------------- Preishistorie
+class PreisKurve(QWidget):
+    """Preishistorie €/m: Stufenlinie der Stammdaten-Preisstände (blau), ERP-Käufe als Punkte (grün, rot = zählt
+    nicht), ERP-Ø gestrichelt, Lieferantenpreise als Rauten (orange)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.pp, self.aktuell = dict(stamm=[], erp=[], lieferanten=[], schnitt=None), None
+        self.setMinimumHeight(170)
+
+    def setzen(self, pp, aktuell=None):
+        self.pp, self.aktuell = pp, aktuell
+        self.update()
+
+    def werte(self):
+        pp = self.pp
+        return ([(d, p) for d, p in pp["stamm"]] + [(x["datum"], x["preis"]) for x in pp["erp"]]
+                + [(x["datum"], x["preis"]) for x in pp["lieferanten"]])
+
+    def paintEvent(self, _):
+        import datetime
+
+        from PySide6.QtCore import QPointF, QRectF
+        from PySide6.QtGui import QPainter, QPen, QPolygonF
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        text = self.palette().color(self.palette().ColorRole.WindowText)
+        punkte = self.werte()
+        if not punkte:
+            p.setPen(text)
+            p.drawText(self.rect(), Qt.AlignCenter, "Noch keine Preishistorie")
+            p.end()
+            return
+        r = QRectF(self.rect()).adjusted(52, 8, -10, -22)
+        heute = datetime.date.today()
+        t0 = min(d for d, _ in punkte)
+        t1 = max(max(d for d, _ in punkte), heute)
+        t1 = t1 if t1 > t0 else t0 + datetime.timedelta(days=1)
+        ws = [w for _, w in punkte] + ([self.pp["schnitt"]] if self.pp.get("schnitt") else [])
+        lo, hi = min(ws), max(ws)
+        if hi - lo < 0.01:
+            lo, hi = lo * 0.95, hi * 1.05
+        lo, hi = lo - (hi - lo) * 0.08, hi + (hi - lo) * 0.08
+
+        def pt(d, w):
+            return QPointF(r.left() + (d - t0).days / (t1 - t0).days * r.width(),
+                           r.bottom() - (w - lo) / (hi - lo) * r.height())
+        grau = stil.farbe(stil.TEXT_GRAU)
+        p.setPen(QPen(grau, 1))
+        p.drawLine(r.bottomLeft(), r.bottomRight())
+        p.drawLine(r.bottomLeft(), r.topLeft())
+        for w in (lo + (hi - lo) * 0.08, hi - (hi - lo) * 0.08):
+            p.drawText(QPointF(2, pt(t0, w).y() + 4), zahl_als_text(w, 2))
+        p.drawText(QPointF(r.left(), r.bottom() + 15), t0.strftime("%d.%m.%Y"))
+        p.drawText(QPointF(r.right() - 64, r.bottom() + 15), t1.strftime("%d.%m.%Y"))
+        st = self.pp["stamm"]
+        if st:
+            p.setPen(QPen(stil.farbe(stil.AKZENT), 2))
+            for i, (d, w) in enumerate(st):
+                bis = st[i + 1][0] if i + 1 < len(st) else t1
+                p.drawLine(pt(d, w), pt(bis, w))
+                if i + 1 < len(st):
+                    p.drawLine(pt(bis, w), pt(bis, st[i + 1][1]))
+        if self.pp.get("schnitt"):
+            p.setPen(QPen(stil.farbe(stil.GRUEN), 1, Qt.DashLine))
+            y = pt(t0, self.pp["schnitt"]).y()
+            p.drawLine(QPointF(r.left(), y), QPointF(r.right(), y))
+        p.setPen(Qt.NoPen)
+        for x in self.pp["erp"]:
+            p.setBrush(QBrush(stil.farbe(stil.GRUEN if x["zaehlt"] else stil.ROT)))
+            p.drawEllipse(pt(x["datum"], x["preis"]), 3.5, 3.5)
+        p.setBrush(QBrush(stil.farbe(stil.ORANGE)))
+        for x in self.pp["lieferanten"]:
+            c = pt(x["datum"], x["preis"])
+            p.drawPolygon(QPolygonF([QPointF(c.x(), c.y() - 5), QPointF(c.x() + 5, c.y()), QPointF(c.x(), c.y() + 5),
+                                     QPointF(c.x() - 5, c.y())]))
+        p.end()
 
 
 # ---------------------------------------------------------------------- Dialoge
@@ -1187,7 +1473,8 @@ class PruefDialog(QDialog):
         b = self.befunde[r] if 0 <= r < len(self.befunde) else None
         if not b or not b.get("aktion"):
             return None
-        if not self.seite.darf(*(("preise", "lieferlaengen") if b["aktion"] == "preis_uebernehmen" else ("profile",))):
+        if not self.seite.darf(*{"preis_uebernehmen": ("preise", "lieferlaengen"),
+                                  "preis_aus_historie": ("preise",)}.get(b["aktion"], ("profile",))):
             return None
         try:
             text = material_ki.anwenden(self.db, b)

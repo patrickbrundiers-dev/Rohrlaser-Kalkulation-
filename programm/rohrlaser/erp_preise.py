@@ -22,6 +22,7 @@ Angebot gewählten Preise gehen mit dem Angebot an alle Plätze. Ohne Qt-Fenster
 import csv
 import datetime
 import io
+import math
 import re
 from statistics import median
 
@@ -641,6 +642,34 @@ def kauf_waehlen(kaeufe_gruppe, bedarf_m, heute=None, monate=12, grenze=None):
     return (aehnlich or im)[-1], bool(aehnlich)
 
 
+DIREKT_TAGE, DIREKT_STANGEN = 28, 2      # Vorgaben der Einstellungen erp_direkt_tage / erp_direkt_stangen
+
+
+def direkt_kauf(kaeufe_gruppe, bedarf_stangen, stange_mm, heute=None, tage=DIREKT_TAGE, stangen=DIREKT_STANGEN,
+                grenze=None):
+    """Kauf, dessen Preis das Angebot direkt einsetzt (Patrick 23.11.2026): höchstens tage alt und Stangenzahl des
+    Kaufs (Menge ÷ Stangenlänge, gerundet) höchstens ±stangen vom Bedarf. Von mehreren der neueste, bei gleichem Tag
+    der mit der passendsten Stangenzahl. Käufe, die von Hand ausgeschlossen sind, zählen nicht, mit grenze auch keine
+    Ausreißer (wie kauf_waehlen, Median der letzten 12 Monate). None sonst."""
+    if not stange_mm or bedarf_stangen is None:
+        return None
+    heute = heute or datetime.date.today()
+    kandidaten = list(kaeufe_gruppe)
+    if grenze:
+        im = [x for x in kandidaten if x["datum"] >= _monate_zurueck(heute, 12) and x.get("rechnen") != 0]
+        if len(im) >= 3:
+            med = median(x["preis"] for x in im)
+            kandidaten = [x for x in kandidaten if x.get("rechnen") == 1 or abs(x["preis"] / med - 1) <= grenze]
+    passend = []
+    for x in kandidaten:
+        if x.get("rechnen") == 0 or not 0 <= (heute - x["datum"]).days <= tage:
+            continue
+        st = round(x["menge"] * 1000 / stange_mm)
+        if abs(st - bedarf_stangen) <= stangen:
+            passend.append((x["datum"], -abs(st - bedarf_stangen), x.get("id") or 0, x))
+    return max(passend, key=lambda t: t[:3])[3] if passend else None
+
+
 def schnitt(kaeufe_gruppe, heute=None, monate=12):
     """Nach Menge gewichteter Durchschnitt [€/m] der Käufe der letzten monate Monate (ohne „nie mitrechnen“) oder None."""
     ab = _monate_zurueck(heute or datetime.date.today(), monate)
@@ -705,7 +734,11 @@ def angebot_vorschlag(db, kopf, positionen, ergebnis, k, tabellen, heute=None):
         a = zu.get(kauf["schluessel"])
         if a is not None:
             je.setdefault(rechnen.erp_schluessel(a["profil_id"], a["werkstoff_id"], a["oberflaeche"]), []).append(kauf)
-    bedarf, stange = {}, {}
+    tage = db.einstellung("erp_direkt_tage")
+    tage = DIREKT_TAGE if tage is None else tage
+    toleranz = db.einstellung("erp_direkt_stangen")
+    toleranz = DIREKT_STANGEN if toleranz is None else toleranz
+    bedarf, stange, stangen = {}, {}, {}
     ohne_erp = dict(kopf, erp_preise=None)
     for g in rechnen.material_abmessungen(ohne_erp, positionen, ergebnis, k, tabellen):
         if g["kunde"]:
@@ -713,9 +746,13 @@ def angebot_vorschlag(db, kopf, positionen, ergebnis, k, tabellen, heute=None):
         s = rechnen.erp_schluessel(g["profil"], g["werkstoff"], g["oberflaeche"])
         bedarf[s] = bedarf.get(s, 0.0) + (g["meter"] if g["stangen"] else g["teile_m"])
         stange.setdefault(s, g["stange"])
+        # Stangen laut Schnittplan, ohne Plan aus den Teilemetern geschätzt
+        stangen[s] = stangen.get(s, 0) + (g["stangen"] or (math.ceil(g["teile_m"] * 1000 / g["stange"])
+                                                          if g["stange"] else 0))
     out = {}
     for s, m in bedarf.items():
-        w = kauf_waehlen(je.get(s, ()), m, heute, monate, grenze)
+        d = direkt_kauf(je.get(s, ()), stangen.get(s), stange.get(s), heute, tage, toleranz, grenze)
+        w = (d, True) if d is not None else kauf_waehlen(je.get(s, ()), m, heute, monate, grenze)
         if w is None:
             continue
         kauf, aehnlich = w
@@ -726,9 +763,21 @@ def angebot_vorschlag(db, kopf, positionen, ergebnis, k, tabellen, heute=None):
         mittel = schnitt(je.get(s, ()), heute, monate)
         if mittel and abs(mittel - kauf["preis"]) >= 0.005:
             bem += f"; Ø {monate} Monate {_t(mittel)} €/m"
+        alter = ((heute or datetime.date.today()) - kauf["datum"]).days
+        kauf_st = round(kauf["menge"] * 1000 / stange[s]) if stange.get(s) else None
+        if d is None:
+            gruende = []
+            if alter > tage:
+                gruende.append(f"Kauf {alter} Tage alt (direkt nur bis {int(tage)} Tage)")
+            if kauf_st is not None and abs(kauf_st - stangen.get(s, 0)) > toleranz:
+                gruende.append(f"{kauf_st} statt {stangen.get(s, 0)} Stangen (±{int(toleranz)})")
+            bem += "; nur Vorschlag, nicht eingesetzt: " + (", ".join(gruende) or "passt nicht")
+        else:
+            bem += f"; direkt eingesetzt (Kauf {alter} Tage alt, {kauf_st} Stangen, Bedarf {stangen.get(s, 0)})"
         out[s] = dict(preis=kauf["preis"], datum=kauf["datum"].isoformat(), menge=kauf["menge"],
                       artikelnr=kauf.get("artikelnr") or "", bezeichnung=kauf["bezeichnung"], aehnlich=aehnlich,
-                      bedarf=round(m, 1), bemerkung=bem)
+                      bedarf=round(m, 1), bemerkung=bem, direkt=d is not None, stangen_kauf=kauf_st,
+                      stangen_bedarf=stangen.get(s, 0))
     return out
 
 

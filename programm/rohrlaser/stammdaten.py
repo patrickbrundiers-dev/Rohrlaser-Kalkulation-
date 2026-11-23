@@ -2192,6 +2192,14 @@ EINSTELLUNGEN += (
     Einstellung("erp_monate", "ERP-Preise: Zeitraum der Käufe [Monate]", "ERP-Preisimport", "ganz", 12, 1, 120),
     Einstellung("erp_ausreisser", "ERP-Preise: Ausreißer ab Abweichung vom Median", "ERP-Preisimport", "anteil",
                 0.25, 0.01, 5),
+    # Patrick 23.11.2026: ERP-Kauf nur direkt einsetzen, wenn er jung ist und die Stangenzahl passt; sonst Vorschlag
+    Einstellung("erp_direkt_tage", "ERP-Preise: direkt einsetzen, wenn der Kauf höchstens so alt ist [Tage]",
+                "ERP-Preisimport", "ganz", 28, 0, 365),
+    Einstellung("erp_direkt_stangen", "ERP-Preise: direkt einsetzen bei Stangenzahl ± [Stangen]", "ERP-Preisimport",
+                "ganz", 2, 0, 100),
+    # Patrick 23.11.2026: Werkstoff je Profil nach dem EK vorwählen (erp_anlegen.werkstoff_je_profil)
+    Einstellung("erp_werkstoff_vorwahl", "ERP-Preise: Werkstoff je Profil nach dem Einkauf vorwählen (STEP-Import)",
+                "ERP-Preisimport", "auswahl", "ja", auswahl="janein"),
 )
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
 

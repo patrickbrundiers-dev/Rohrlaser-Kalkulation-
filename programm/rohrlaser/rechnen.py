@@ -1880,10 +1880,20 @@ def erp_schluessel(profil, werkstoff, oberflaeche):
     return f"{profil}|{werkstoff}|{oberflaeche or ''}"
 
 
-def erp_preis(kopf, gr):
+def erp_preis(kopf, gr, vorschlag=False):
     """ERP-Einkaufspreis, den das Angebot nach dem Optimieren für Profil + Werkstoff + Oberfläche gewählt hat (Plan
     ERP-Preise 30.10.2026: Vorschlag nach Bedarf, angebote.erp_preise): dict(preis €/m, datum, menge, stangen,
-    artikelnr, bemerkung) oder None (dann wie bisher Lieferlängen/Preise/Tonnenpreis). Nie bei Kundenmaterial."""
+    artikelnr, bemerkung) oder None (dann wie bisher Lieferlängen/Preise/Tonnenpreis). Nie bei Kundenmaterial.
+    Seit 23.11.2026 (Patrick) wird nur ein Kauf direkt eingesetzt, der jung genug ist und zur Stangenzahl passt
+    (direkt=True, erp_preise.angebot_vorschlag); die anderen sind nur Vorschlag (vorschlag=True liefert sie).
+    Ältere Angebote ohne das Feld rechnen wie bisher."""
+    z = _erp_eintrag(kopf, gr)
+    if z is None:
+        return None
+    return z if bool(z.get("direkt", True)) != vorschlag else None
+
+
+def _erp_eintrag(kopf, gr):
     e = (kopf or {}).get("erp_preise")
     if not e or "Kunde" in tuple(gr[4:]):
         return None

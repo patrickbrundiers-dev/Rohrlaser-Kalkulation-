@@ -70,6 +70,12 @@ def pruefen(zeilen, k, tabellen, lieferanten=(), verlauf=None, einst=None, heute
             out.append(befund(HINWEIS, "alt", name, f"Preis {z['alter_tage']} Tage alt",
                               f"Gültig ab {z['stand']}, Grenze {int(alt_tage)} Tage (Einstellung Preisalter); "
                               "Materialanfrage oder Preisliste aktualisieren."))
+        if z.get("erp_abw") is not None and abs(z["erp_abw"]) > mp.ERP_ABW_PCT:
+            out.append(befund(HINWEIS, "erp", name, f"ERP-Einkauf {_zahl(z['erp_abw'], 1)} % "
+                              + ("über" if z["erp_abw"] > 0 else "unter") + " dem Stammdatenpreis",
+                              f"Eingekauft im Schnitt {_zahl(z['erp_schnitt'])} €/m ({z['erp_anzahl']} Käufe, "
+                              f"zuletzt {_zahl(z['erp_letzter'])} €/m), Stammdaten {_zahl(z['preis_m'])} €/m. "
+                              "ERP-Preise ändern die Stammdaten nie selbst; Preis bei Bedarf in 'Preise' anpassen."))
         ref = [p for pid, p in nachbarn.get((z["werkstoff_id"], z["form"]), []) if pid != z["profil_id"]]
         if z.get("preis_kg") is not None and len(ref) >= 3 and z.get("quelle") != mp.QUELLE_TONNE:
             med = statistics.median(ref)
@@ -148,6 +154,10 @@ def anwenden(db, b):
             raise ValueError("Die Lieferantenzeile gibt es nicht mehr.")
         ziel = mp.lieferant_uebernehmen(db, lz)
         text = f"Preis von {lz.get('lieferant')} für {b['material']} in '{ziel}' übernommen"
+    elif b.get("aktion") == "preis_aus_historie":
+        from . import material_historie
+        d = b["daten"]
+        text = material_historie.uebernehmen(db, d["profil_id"], d["werkstoff_id"], d["preis_m"], d.get("quelle", ""))
     elif b.get("aktion") == "archivieren":
         mp.archivieren(db, "profile", b["daten"]["profil_id"])
         text = f"Profil {b['daten']['profil_id']} archiviert"
@@ -195,12 +205,33 @@ def verlauf_je_material(db):
     return out
 
 
+def historie_befunde(db, zeilen, erp_gruppen=None, heute=None):
+    """Preisvorschläge aus der Preishistorie (material_historie) als Befunde mit Aktion „preis_aus_historie“."""
+    from . import material_historie as mh
+    out = []
+    for (pid, wid), v in mh.alle_vorschlaege(db, zeilen, erp_gruppen, heute).items():
+        name = f"{pid} · {wid}"
+        richtung = "" if v["abw"] is None else f" ({'+' if v['abw'] > 0 else ''}{_zahl(v['abw'], 1)} %)"
+        b = befund(VORSCHLAG, "historie", name, f"Preisvorschlag {_zahl(v['preis_m'])} €/m{richtung}, Sicherheit "
+                   f"{v['sicherheit']}", v["begruendung"] + ". Übernehmen schreibt den Preis nach 'Preise' "
+                   "(Gültig ab heute); festgeschriebene Angebote bleiben.", aktion="preis_aus_historie",
+                   daten=dict(profil_id=pid, werkstoff_id=wid, preis_m=v["preis_m"], quelle=v["quelle"],
+                              sicherheit=v["sicherheit"]))
+        b["schluessel"] = f"{AGENT}|historie|{name}|{round(v['preis_m'], 1)}"     # neuer Preis: neuer Vorschlag
+        out.append(b)
+    rang = {mh.HOCH: 0, mh.MITTEL: 1, mh.NIEDRIG: 2}
+    return sorted(out, key=lambda b: (rang.get(b["daten"]["sicherheit"], 3), b["material"]))
+
+
 def alle(db, zeilen=None):
     """Prüfung mit den Daten der Datenbank; abgelehnte Befunde fehlen."""
     zeilen = zeilen if zeilen is not None else mp.alle_varianten(db)
     weg = abgelehnt(db)
     erg = pruefen(zeilen, db.kontext(), db.tabellen(), db.zeilen(mp.LIEFERANTEN_TABELLE), verlauf_je_material(db),
                   db.einstellungen())
+    vs = historie_befunde(db, zeilen)
+    mit = {b["material"] for b in vs}
+    erg = vs + [b for b in erg if not (b["typ"] == "erp" and b["material"] in mit)]
     from . import ki_protokoll
     ki_protokoll.schreiben(db, AGENT, "Prüfung", ergebnis=f"{len(erg)} Befunde")
     return [b for b in erg if b["schluessel"] not in weg]
