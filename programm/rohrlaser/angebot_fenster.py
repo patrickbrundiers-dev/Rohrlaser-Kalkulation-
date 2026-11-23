@@ -10247,7 +10247,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             if not ausgabe.exists():
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")
                 return None
-            messwerte = step.struktur_anhaengen(step.lade_netze(step.lies_messwerte(ausgabe), netze), ergebnis)
+            with tempo.abschnitt("STEP: Messwerte einlesen"):
+                messwerte = step.struktur_anhaengen(step.lade_netze(step.lies_messwerte(ausgabe), netze), ergebnis)
             messwerte += cad_import.fehler_zeilen(vorbereitung, messwerte[0] if messwerte else None)
             if messwerte and vorbereitung.befunde:
                 messwerte[0]["_import_befunde"] = list(vorbereitung.befunde)
@@ -10441,7 +10442,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 wahl[datei] = w
                 formular_bericht = anwenden()
 
-            formular_bericht = anwenden()
+            with tempo.abschnitt("STEP: Formular/Zeichnungen zuordnen"):
+                formular_bericht = anwenden()
         # Art wie beim letzten Mal von Hand gewählt (Blech, Rohr/Profil, Dreh-/Frästeil; Patrick 04.11.2026)
         step.arten_gelernt_anwenden(messwerte, self.db.einstellung(step.ART_GELERNT) or {})
         # Profil wie beim letzten Mal bei diesem Kunden von Hand gewählt (Optimierungsplan C3, automatisch, gelb)
@@ -10455,7 +10457,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                            laserdaten=self.db.zeilen("blechlaser"),
                            einst=self.db.blech_einstellungen())
         kopieren = self.db.einstellung("step_kopieren") == "ja"    # STEP-Dateien in den Angebotsordner
-        fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
+        with tempo.abschnitt("STEP: Vorprüfung"):
+            fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
         neue_profile, erneut, pdf_danach = True, False, False   # ohne Dialog: Profile anlegen, Doppelte überspringen
         fertig_danach = False
         gelernt = None
@@ -10463,24 +10466,25 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             from .step_dialog import StepPruefDialog
             # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)
             knick = {n: self.db.einstellung(f"knick_{n}") for n in ("z", "freistich", "k")}
-            dlg = StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
-                                  zukauf_liste, blech_daten["werkstoffe"], knick, step_kopieren=kopieren,
-                                  maschine_3d=dreid.kann_3d(rechnen.maschine(self.kopf, self.k)),
-                                  kunden=self.db.zeilen("kunden") if kunde_waehlen else None,
-                                  kundennr=self.kopf.get("kundennr"), kunde_gewechselt=lambda nr: self._step_kunde_gewechselt(nr, messwerte),
-                                  vorpruefung=lambda: step.vorpruefung(messwerte, self.positionen, self.k),
-                                  lernen=True, maschine=rechnen.maschine(self.kopf, self.k),
-                                  zusatzarbeiten=katalog_namen, zusatz_vorgabe=vorgaben.get("zusatz"),
-                                  referenz=(self.kopf.get("kundenreferenz") or referenz or "") if kunde_waehlen
-                                  or referenz else None, hinweis=hinweis,
-                                  pdf_formulare=[f for f in formulare or () if f.get("seiten")], pdf_neu=pdf_neu,
-                                  vorhandene_artikel=[p.get("artikel") for p in self.positionen],
-                                  flach_grenzen=(self.db.einstellung("flachstahl_bis") or 150,
-                                                 self.db.einstellung("step_flach_laenge") or 3.0),
-                                  blech_daten=blech_daten, aufteilen=self._aufteilen_messen,
-                                  nachmessung=getattr(self, "nachmessung", None),
-                                  profil_anlegen=None if self.fremd() or self.db.nur_lesen else self.abmessung_neu,
-                                  mail_werte=mail_werte)
+            with tempo.abschnitt("STEP: Prüfdialog aufbauen"):
+                dlg = StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
+                                      zukauf_liste, blech_daten["werkstoffe"], knick, step_kopieren=kopieren,
+                                      maschine_3d=dreid.kann_3d(rechnen.maschine(self.kopf, self.k)),
+                                      kunden=self.db.zeilen("kunden") if kunde_waehlen else None,
+                                      kundennr=self.kopf.get("kundennr"), kunde_gewechselt=lambda nr: self._step_kunde_gewechselt(nr, messwerte),
+                                      vorpruefung=lambda: step.vorpruefung(messwerte, self.positionen, self.k),
+                                      lernen=True, maschine=rechnen.maschine(self.kopf, self.k),
+                                      zusatzarbeiten=katalog_namen, zusatz_vorgabe=vorgaben.get("zusatz"),
+                                      referenz=(self.kopf.get("kundenreferenz") or referenz or "") if kunde_waehlen
+                                      or referenz else None, hinweis=hinweis,
+                                      pdf_formulare=[f for f in formulare or () if f.get("seiten")], pdf_neu=pdf_neu,
+                                      vorhandene_artikel=[p.get("artikel") for p in self.positionen],
+                                      flach_grenzen=(self.db.einstellung("flachstahl_bis") or 150,
+                                                     self.db.einstellung("step_flach_laenge") or 3.0),
+                                      blech_daten=blech_daten, aufteilen=self._aufteilen_messen,
+                                      nachmessung=getattr(self, "nachmessung", None),
+                                      profil_anlegen=None if self.fremd() or self.db.nur_lesen else self.abmessung_neu,
+                                      mail_werte=mail_werte)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None

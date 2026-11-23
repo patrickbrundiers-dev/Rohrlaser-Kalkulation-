@@ -27,7 +27,8 @@ NEUERUNGEN = [
                 "Artikeltext, Kommentar und Arbeitsgänge enthalten nur noch einfache Zeichen (<i>Rundrohr 54x2</i> "
                 "ohne Ø, <i>Oberflaeche</i>), weil PPEASE aus Ø ein <i>?</i> und aus ä ein Leerzeichen machte. "
                 "<b>Sicherung</b>: Angebotsdokumente mit sehr langem Pfad (Mails mit langem Betreff) werden jetzt "
-                "mitgesichert statt als <i>nicht lesbar</i> gemeldet.",
+                "mitgesichert statt als <i>nicht lesbar</i> gemeldet. Das tempo.log nennt beim Öffnen der Anfragen "
+                "und zwischen <i>Messen</i> und dem Prüfdialog jetzt die einzelnen Schritte (für Hänger).",
      "CSV: Satz als eine Zeile wie PROfirst, Texte ohne Ø/Umlaute für PPEASE; Sicherung mit langen Pfaden."],
     ["0.9.452", "<b>STEP-Import messbar</b>: Das tempo.log nennt jetzt auch bei Dateien, die in einem Prozess gemessen "
                 "werden, die Zeit je Schritt (Lesen, Umwandeln/Heilen, Struktur, Kopien, Körper messen, Baugruppe "
