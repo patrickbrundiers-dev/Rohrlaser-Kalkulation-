@@ -281,6 +281,22 @@ if maxw and maxw < 12000:
 else:
     print("Zuschnitt 12 m: Maschine lädt 12 m selbst, kein Zuschnitt nötig")
 
+# ------------------------------------------------------------------ 9c ohne eigene Lieferlängen: 6 m + 12 m Zuschnitt
+# Patrick 23.11.2026: „6 Meter und Zuschnitte aus 12 Meter bei Berechnung der ganzen 12-Meter-Stange“ – ohne Zeilen
+# in 'Lieferlängen' rechnen die Strategien mit der Angebotsstange und laenge_auto (12 m), auch bei kleinen Profilen
+assert not rechnen.lieferlaengen(QR, VA, k, tab, einst, auto=False)
+pva = [dict(pos=10, artikel="V", profil_id=QR, werkstoff_id=VA, laenge=3100, stueck=20)]
+schl_va = rechnen.laengen_schluessel((QR, VA, "", 6000))
+erg_b = rechnen.optimieren(kopf, pva, k, tab, e_zs)
+erg_a = rechnen.optimieren(dict(kopf, nesting={schl_va: "A"}), pva, k, tab, e_zs)
+assert {s["stange"] for s in erg_b["stangen"]} == {6000} and len(erg_b["stangen"]) == 20      # bisher unverändert
+assert sum(len(s["teile"]) for s in erg_a["stangen"]) == 20
+if maxw and maxw < 12000:
+    assert all(s["stange"] == 12000 for s in erg_a["stangen"] if s.get("werkstuecke")), erg_a["stangen"]
+    mma = sum(s["stange"] for s in erg_a["stangen"])
+    assert mma <= 84000, mma                                     # 20 × 3.100: 3 Teile je 12 m statt 1 je 6 m
+    print("Ohne Lieferlängen: 6 m + 12 m Zuschnitt OK:", 120000, "->", mma, "mm")
+
 # ------------------------------------------------------------------ 10 Gespeichert je Angebot (Schema 104)
 aid = db.angebot_neu(dict(nummer="NEST-1", kunde="Test", maschine="T03", stange=6000))
 db.nesting_speichern(aid, {schl: "B"}, {schl: hand})

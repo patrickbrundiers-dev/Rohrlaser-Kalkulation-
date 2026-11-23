@@ -1487,9 +1487,20 @@ def nesting_daten(g, info, kopf, positionen, k, tabellen, einst, m):
         if tabellen else 0.0
     # Lieferlängen über der Beladelänge (z. B. 12 m): der Lieferant schneidet zu, bezahlt wird immer die ganze Stange
     # (Patrick 23.11.2026); gerechnet mit variante_planen wie im Vergleich der Lieferlängen
+    # Ohne eigene Zeilen in 'Lieferlängen' gelten für die Strategien die Standardlängen: Stangenlänge des Angebots
+    # (6 m) und laenge_auto (12 m) – auch bei kleinen Profilen (Patrick 23.11.2026: „6 Meter und Zuschnitte aus
+    # 12 Meter bei Berechnung der ganzen 12-Meter-Stange“). Der bisherige Plan bleibt davon unberührt.
+    auto = _n(einstellung_wert(einst, "laenge_auto")) if tabellen and not aus and \
+        not any(not z.get("automatisch") for z in zeilen) else 0.0
+    if auto and (not maxw or auto <= maxw + EPS) and all(abs(auto - x.laenge) > EPS for x in laengen):
+        preis, fehlt = lieferstange_preis(gr, auto, auto / 1000 * kgm if kgm is not None else None, kopf,
+                                          positionen, k, tabellen, einst)
+        laengen.append(nesting.Laenge(auto, None if fehlt else preis))
+        laengen.sort(key=lambda x: x.laenge)
     zuschnitt = []
     if maxw and not aus:
-        for laenge in sorted({_n(z.get("laenge")) for z in zeilen if _n(z.get("laenge")) > maxw + EPS}):
+        for laenge in sorted({_n(z.get("laenge")) for z in zeilen if _n(z.get("laenge")) > maxw + EPS}
+                             | ({auto} if auto > maxw + EPS else set())):
             preis, fehlt = lieferstange_preis(gr, laenge, laenge / 1000 * kgm if kgm is not None else None, kopf,
                                               positionen, k, tabellen, einst)
             zuschnitt.append(nesting.Laenge(laenge, None if fehlt else preis, mindest=mindest.get(laenge, 0)))

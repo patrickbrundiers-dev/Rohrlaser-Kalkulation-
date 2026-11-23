@@ -3825,6 +3825,10 @@ def abschnitte_profirst_angebot(i):
             "(z. B. 10 × 12 m mit Zuschnitt + 1 × 6 m); die Zeile zeigt dann „Zuschnitt“.",
             "<b>Mindestabnahme</b> (Stammdaten Lieferlängen, z. B. Walzlängen vom Werk ab ca. 20 t): eine solche "
             "Länge nimmt die Strategie nur, wenn der Plan mindestens so viele Stangen braucht.",
+            "<b>Standard 6 m und 12 m</b>: Ohne eigene Zeilen in den Stammdaten <i>Lieferlängen</i> rechnen die "
+            "Strategien mit der Stangenlänge des Angebots (6 m) und 12 m als Zuschnitt, bei dem die ganze 12-m-Stange "
+            "bezahlt wird. Andere Längen (z. B. 6,5 oder 7 m) nur eintragen, wenn der Lieferant sie wirklich so "
+            "liefert und berechnet.",
             "<b>Nahtlose Rohre mit Herstelllänge 5 bis 7 m</b>: als Lieferlänge die kürzeste zugesagte Länge "
             "(5.000 mm) eintragen; so passt der Plan auf jede gelieferte Stange.")
     i.text("Die Tabelle zeigt je Strategie: Stangen je Länge, eingekaufte Länge, Einkauf und kalkulatorische "

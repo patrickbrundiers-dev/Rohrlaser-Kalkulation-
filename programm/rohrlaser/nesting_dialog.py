@@ -54,7 +54,7 @@ def segmente(g, laenge, folge, min_rest=0.0, min_nutz=ne.REST_MIN_NUTZ):
 class NestingBild(QWidget):
     """Maßstäbliches Bild der Stangen eines Plans. Signale: teil_gewaehlt(Stange, Teil), ziel(Stange; -1 = neue
     Stange)."""
-    ZEILE, LINKS, RECHTS, OBEN = 26, 70, 90, 6
+    ZEILE, LINKS, RECHTS, OBEN = 26, 100, 90, 6
     teil_gewaehlt = Signal(int, int)
     ziel = Signal(int)
 
@@ -62,13 +62,16 @@ class NestingBild(QWidget):
         super().__init__()
         self.g, self.stangen, self.auswahl = None, [], None
         self.min_rest, self.min_nutz = 0.0, ne.REST_MIN_NUTZ
+        self.marken, self.gesperrt = [], False
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setMouseTracking(True)
         self.setToolTip("Klick auf ein Teil: wählen · Klick auf eine andere Stange: Teil dorthin · Klick rechts neben "
                         "die Stangen: Teil auf eine neue Stange")
 
-    def setzen(self, g, stangen, min_rest=0.0, min_nutz=ne.REST_MIN_NUTZ):
+    def setzen(self, g, stangen, min_rest=0.0, min_nutz=ne.REST_MIN_NUTZ, marken=None, gesperrt=False):
+        """marken: Beschriftung je Stange statt der Nummer (Zuschnitt: „12 m Nr. 3“); gesperrt: nur ansehen."""
         self.g, self.stangen, self.auswahl = g, list(stangen), None
+        self.marken, self.gesperrt = list(marken or []), gesperrt
         self.min_rest, self.min_nutz = min_rest, min_nutz
         self.setMinimumHeight(self.OBEN * 2 + self.ZEILE * max(len(self.stangen), 1))
         self.update()
@@ -92,7 +95,7 @@ class NestingBild(QWidget):
             hoehe = self.ZEILE - 8
             p.setPen(QPen(text))
             p.drawText(QRectF(0, y, self.LINKS - 6, hoehe), Qt.AlignRight | Qt.AlignVCenter,
-                       f"{i + 1}" + (f" {rest}" if rest else ""))
+                       self.marken[i] if i < len(self.marken) else f"{i + 1}" + (f" {rest}" if rest else ""))
             n_teil = 0
             for art, von, bis, t in segmente(self.g, laenge, folge, self.min_rest, self.min_nutz):
                 r = QRectF(self.LINKS + von * sk, y, max((bis - von) * sk, 1), hoehe)
@@ -140,6 +143,8 @@ class NestingBild(QWidget):
         return i, None
 
     def mousePressEvent(self, e):
+        if self.gesperrt:
+            return
         i, n = self.treffer(QPointF(e.position()))
         if i is None:
             return
@@ -294,11 +299,47 @@ class NestingDialog(QDialog):
             return
         self.hand_stangen, self.verlauf = None, []
         zs = v["zuschnitt"].get(self.strategie_der_zeile())
-        self.hinweis.setText("Mit Zuschnitt beim Lieferanten (ganze Lieferstange bezahlt) ist diese Strategie "
-                             "günstiger; das Bild zeigt die Stangen ohne Zuschnitt. Übernehmen plant wie in der Zeile."
-                             if zs else "")
-        self._bild(p.stangen if p else [])
+        self.hinweis.setText("")
+        if zs:
+            self._bild_zuschnitt(zs)
+        else:
+            self._bild(p.stangen if p else [])
         self.k_hand.setEnabled(False)
+
+    def _bild_zuschnitt(self, zs):
+        """Zuschnitt-Variante: je Lieferstange (z. B. 12 m) die zugeschnittenen Stücke mit ihren Teilen, danach die
+        übrigen ladbaren Stangen. Nur ansehen (die Stücke legt der Zuschnitt fest), Kennzahlen aus der Zeile."""
+        v = self.aktuell()
+        d, g = v["daten"], v["gruppe"]
+        stangen, marken = [], []
+        lm = rechnen.m_text(zs["laenge"])
+        for j, lief in enumerate(zs["v"]["stangen"]):
+            for n, (laenge, f) in enumerate(lief):
+                stangen.append((laenge, f, ""))
+                marken.append(f"{lm} m Nr. {j + 1}" if n == 0 else "↳")
+            uebrig = zs["laenge"] - sum(laenge for laenge, _ in lief)
+            if uebrig > 50.0:                              # nicht gebrauchtes Stück (ohne Sägeschnitte) der bezahlten Lieferstange
+                stangen.append((uebrig, [], ""))
+                marken.append("↳ übrig")
+        rest = zs["plan"].stangen if zs["plan"] is not None else []
+        for i, (laenge, f, r) in enumerate(rest):
+            stangen.append((laenge, f, r))
+            marken.append(f"{len(zs['v']['stangen']) + i + 1}")
+        self.bild.setzen(g, stangen, d["min_rest"], d["min_nutz"], marken, gesperrt=True)
+        z, w = rechnen.zahl, zs["werte"]
+        teile = sum(t.laenge for _, f, _ in stangen for t, _ in f)
+        ungenutzt = sum(laenge for laenge, f, _ in stangen if not f)
+        self.kennzahlen.setText(
+            f"{len(zs['v']['stangen'])} × {lm} m mit Zuschnitt beim Lieferanten (ganze Stange bezahlt)"
+            + (f" + {ne.laengen_text(zs['plan'].werte['je_laenge'])}" if zs["plan"] is not None else "")
+            + f": eingekauft {z(w['gekauft_mm'] / 1000)} m, Einkauf "
+            f"{z(w['einkauf']) if w.get('einkauf') is not None else 'Preis fehlt'} €, Teile {z(teile / 1000)} m, "
+            f"{w['beladungen']} Beladungen"
+            + (f", davon {z(ungenutzt / 1000)} m bezahlt, aber nicht gebraucht (Reststücke)" if ungenutzt else "")
+            + ".")
+        self.hinweis.setText("Zuschnitt: Teile hier nicht umsetzbar, die Stücke legt der Zuschnitt fest. "
+                             "Übernehmen plant genau so.")
+        self.pos_tabelle.setRowCount(0)
 
     def _bild(self, stangen):
         v = self.aktuell()
