@@ -92,3 +92,11 @@ Abgleich über den gemeinsamen Ordner sie mitnimmt. Kopie und neue Fassung über
 | + | Überschneidung, Übertragen, Kopie, Staffeln | Warnung, 2 Positionen, Kopie übernimmt, Staffeln ohne |
 
 Bestehende Tests: `test_ein_rechenweg.py` (40 Angebote, Staffel = PDF Cent für Cent) unverändert grün.
+
+## Nachtrag 0.9.456: Zeit aus dem Stundensatz (Patrick 23.11.2026)
+
+Freie allgemeine Zusatzarbeiten ohne eigene Zeit (Einheit nicht h/min/%) bekommen ihre interne Zeit je Einheit aus
+der Einstellung `zusatz_stundensatz` (*Zusatzarbeiten: Stundensatz für die Zeit [€/h]*, Einstellungen → Zuschläge und
+Preise, Vorgabe 60 €/h, 0 = aus): Kosten je Einheit ÷ Stundensatz × 60 min, ohne Kosten Preis je Einheit ÷
+Stundensatz × 60 min (`zusatz_global.zeit_je_einheit`). Anzeige grau in der Spalte Zeit, eigene Zeit überschreibt,
+leer machen rechnet wieder. Die Zeit geht nur in die Summe Zeit, kein Preis ändert sich.

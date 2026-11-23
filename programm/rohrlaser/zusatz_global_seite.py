@@ -9,6 +9,7 @@ Zusatzarbeiten, netto, MwSt, brutto, interne Kosten, Deckungsbeitrag).
 Jede Änderung wird sofort im Angebot gespeichert (eine Schreibtransaktion je Änderung, Abgleich über „geändert am“)
 und die Kalkulation neu gerechnet."""
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
                                QHBoxLayout, QHeaderView, QLabel, QListWidget, QListWidgetItem, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
@@ -165,7 +166,7 @@ class ZusatzGlobalSeite(QWidget):
             self.eintraege = zg.liste(self.s.kopf)
             self.tabelle.setRowCount(0)         # keine Zellen-Widgets älterer Zeilen behalten
             basis = rechnen._n(summen.get("verkauf_positionen", summen.get("verkauf")))
-            gerechnet = {r.get("id"): r for r in zg.zeilen(self.eintraege, basis)}
+            gerechnet = {r.get("id"): r for r in zg.zeilen(self.eintraege, basis, zg.stundensatz(self.s.einst))}
             self.tabelle.setRowCount(len(self.eintraege))
             for r, e in enumerate(self.eintraege):
                 self._zeile(r, e, gerechnet.get(e.get("id")) or {})
@@ -221,8 +222,17 @@ class ZusatzGlobalSeite(QWidget):
         self.tabelle.setItem(r, TEXT, self._item(e.get("beschreibung") or ""))
         self.tabelle.setItem(r, KOSTEN, self._item("" if e.get("kosten") is None else
                                                    zahl_als_text(e["kosten"], 2, tausender=False), rechts=True))
-        self.tabelle.setItem(r, ZEIT, self._item("" if e.get("zeit_min") is None else
-                                                 zahl_als_text(e["zeit_min"], tausender=False), rechts=True))
+        if g.get("zeit_auto"):          # Zeit aus dem Stundensatz (Patrick 23.11.2026): grau, überschreibbar
+            it = self._item(zahl_als_text(round(g["zeit_einheit"], 1), tausender=False), rechts=True)
+            it.setForeground(QColor("#8A94A3"))
+            satz = zg.stundensatz(self.s.einst)
+            it.setToolTip(f"Zeit aus dem Stundensatz {_z(satz)} €/h ({'Kosten' if rechnen._n(e.get('kosten')) else 'Preis'}"
+                          " je Einheit ÷ Stundensatz). Eigene Zeit eintragen überschreibt; leer machen rechnet wieder "
+                          "aus dem Stundensatz.")
+            self.tabelle.setItem(r, ZEIT, it)
+        else:
+            self.tabelle.setItem(r, ZEIT, self._item("" if e.get("zeit_min") is None else
+                                                     zahl_als_text(e["zeit_min"], tausender=False), rechts=True))
         if prozent:
             b = QComboBox()
             b.addItems(zg.BASIS)

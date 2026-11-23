@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.456", "<b>Zusatzarbeiten: Zeit aus dem Stundensatz</b> ([[zusatz_global]]): Freie allgemeine "
+                "Zusatzarbeiten ohne eigene Zeit bekommen ihre Zeit automatisch: interne Kosten (ohne Kosten: Preis) "
+                "je Einheit ÷ Stundensatz. Der Stundensatz steht in Einstellungen → Zuschläge und Preise (Vorgabe 60 €/h). "
+                "Die Zeit steht grau in der Spalte Zeit, eine eigene Zeit überschreibt sie. Preise ändern sich nicht.",
+     "Zusatzarbeiten: Zeit automatisch aus dem Stundensatz."],
     ["0.9.455", "<b>Zusatzarbeiten flexibel</b> ([[zusatz_global]]): Neuer Unterreiter <b>Kalkulation → Zusatzarbeiten</b> im Angebot "
                 "für Leistungen des <b>ganzen Angebots</b> (Bezeichnung, Menge, Einheit Stück/m/m²/h/min/kg/pauschal/%, "
                 "Preis je Einheit, Gesamt, Beschreibung; intern Kosten und Zeit). Standardpreis aus der Verwaltung "
