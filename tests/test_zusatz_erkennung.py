@@ -53,6 +53,7 @@ tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
 fvz = next(z for z in db.zeilen("zusatzarbeiten") if z["name"] == "Feuerverzinken")
 assert "fvz" in fvz["erkennung"] and db.einstellung("erkennung_stand") == ERKENNUNG_STAND
+strahlen_wort = next(z["erkennung"] for z in db.zeilen("zusatzarbeiten") if z["name"] == "Strahlen")
 alt = tmp / "alt.db"
 d2 = Datenbank(alt)
 d2.schliessen()
@@ -69,6 +70,9 @@ z2 = {z["name"]: z.get("erkennung") for z in d2.zeilen("zusatzarbeiten")}
 assert "fvz" in z2["Feuerverzinken"] and z2["Strahlen"] == "eigen" and not z2["Gravur extra"]
 assert "nietmutter" in z2["Einnietmuttern setzen"]          # Einnietmuttern einmalig ergänzt
 d2.schliessen()
+# seit PostgreSQL (0.9.407) liegen beide Dateien in derselben Datenbank: eigenes Wort wieder zurücksetzen
+db.con.execute("UPDATE zusatzarbeiten SET erkennung=? WHERE name='Strahlen'", (strahlen_wort,))
+db.con.commit()
 ok("E2 Schema 75: Erkennungswörter vorbelegt, alte Datei ergänzt nur leere Felder (eigene bleiben)")
 
 # ------------------------------------------------------------------ E3 Vorschläge in der Positionsliste

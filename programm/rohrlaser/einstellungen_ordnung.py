@@ -98,7 +98,7 @@ SEITEN = (
                                        "auslastung_jahr", experte=True))),
     Seite("e_neue_angebote", "Neue Angebote", ALLE_PLAETZE,
           (_a("Grundwerte", "standard_maschine standard_stange staffeln_standard lieferzeit_art lieferzeit_wert "
-                            "lieferzeit_zusatz"),
+                            "lieferzeit_zusatz zusatz_darstellung"),
            _a("Zahlung und Gültigkeit", "skonto skonto_tage zahlungsziel gueltigkeit gueltigkeit_kategorie bedingungen"),
            _a("Nummern", "letzte_angebotsnummer ab_nummer auftrag_letzte_nummer"),
            _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"),

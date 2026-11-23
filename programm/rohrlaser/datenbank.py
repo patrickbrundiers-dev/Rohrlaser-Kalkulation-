@@ -2782,6 +2782,10 @@ class Datenbank:
             self.rohrarten_speichern(neu, a["rohrarten"])
         for satz, d in self.satz_daten(angebot_id).items():     # Steckverbindungen je Satz (über die Kennung)
             self.satz_daten_speichern(neu, satz, d)
+        from . import zusatz_global         # allgemeine Zusatzarbeiten und ihre Darstellung (23.11.2026)
+        for schl in (zusatz_global.SCHLUESSEL, zusatz_global.SCHLUESSEL_DARSTELLUNG):
+            if (a.get("zusatz") or {}).get(schl):
+                self.zusatz_setzen(neu, schl, a["zusatz"][schl])
         netze = self.netze(angebot_id)
         for p in self.positionen(angebot_id):
             i = self.position_neu(neu, p)

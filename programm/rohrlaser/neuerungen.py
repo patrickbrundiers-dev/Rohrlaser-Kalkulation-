@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.455", "<b>Zusatzarbeiten flexibel</b> ([[zusatz_global]]): Neuer Unterreiter <b>Kalkulation → Zusatzarbeiten</b> im Angebot "
+                "für Leistungen des <b>ganzen Angebots</b> (Bezeichnung, Menge, Einheit Stück/m/m²/h/min/kg/pauschal/%, "
+                "Preis je Einheit, Gesamt, Beschreibung; intern Kosten und Zeit). Standardpreis aus der Verwaltung "
+                "wird vorgeschlagen und im Angebot festgehalten. Im Kundenangebot stehen sie als eigene Zeilen unter "
+                "den Positionen. Je Position neu der Haken <b>Preis = Verkauf</b> für feste Einheitspreise (z. B. "
+                "Entgraten 2,50 € je Stück). Warnung bei doppelt hinterlegten Leistungen, Übertragen auf mehrere "
+                "Positionen, Darstellung im PDF wählbar: zusammengefasst (wie bisher), detailliert oder nur "
+                "Gesamtpreis. Ohne neue Einträge bleiben alle Preise gleich.",
+     "Zusatzarbeiten fürs ganze Angebot, feste Einheitspreise je Position, PDF-Darstellung wählbar."],
     ["0.9.454", "<b>Fehler behoben</b>: Das Info-Panel rechts meldete einen unerwarteten Fehler, wenn es sich zeigte, "
                 "während ein Angebot gerade geöffnet wurde. Es wartet jetzt, bis das Angebot fertig aufgebaut ist.",
      "Info-Panel: kein Fehler mehr beim Öffnen eines Angebots."],
