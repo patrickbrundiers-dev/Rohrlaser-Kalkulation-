@@ -2494,32 +2494,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.material_knopf = QPushButton("Material …")
         self.material_knopf.setToolTip("Materialeinsatz je Abmessung; Werkstoff, Oberfläche, Lieferlänge, Material und "
                                        "Meterpreis ändern")
-        # Auswahlmenü passend zur Materialdatenbank (Patrick 23.11.2026): Material im Angebot und Sprünge in die Bereiche
-        mm = QMenu(self.material_knopf)
-        mm.setToolTipsVisible(True)
-        self.material_menue = mm
-        for text, fn, tipp in (
-                ("Material je Abmessung …", lambda: self.material_einstellen(),
-                 "Materialeinsatz dieses Angebots: Werkstoff, Oberfläche, Lieferlänge, Eigen-/Kundenmaterial, Meterpreis"),
-                ("Material suchen und zuweisen …", lambda: self.material_plattform(),
-                 "Materialübersicht, gefiltert auf die markierte Position; dort den Positionen zuweisen"),
-                ("Lieferantenvergleich für die Position …", lambda: self.material_lieferanten(),
-                 "Lieferantenpreise des Materials der markierten Position für einen Bedarf vergleichen"),
-                (None, None, None),
-                ("Materialdatenbank: Dashboard", lambda: self.material_bereich("Dashboard"), ""),
-                ("Materialdatenbank: Materialübersicht", lambda: self.material_bereich("Materialübersicht"), ""),
-                ("Materialdatenbank: Einkaufspreise", lambda: self.material_bereich("Einkaufspreise"), ""),
-                ("Materialdatenbank: Lieferanten", lambda: self.material_bereich("Lieferanten"), ""),
-                ("Materialdatenbank: Preisverlauf", lambda: self.material_bereich("Preisverlauf"), ""),
-                ("Materialdatenbank: ERP-Import …", lambda: self.material_bereich("ERP-Import"),
-                 "Materialstamm/EK-Preise oder Einkäufe (EK-CSV) einlesen, mit Vorschau")):
-            if text is None:
-                mm.addSeparator()
-                continue
-            a = mm.addAction(text, fn)
-            a.setToolTip(tipp)
-        self.material_knopf.setMenu(mm)
-        self.material_knopf.setStyleSheet("QPushButton::menu-indicator { image: none; width: 0px; }")
+        # Patrick 23.11.2026: der Knopf öffnet weiter direkt das Fenster; Materialdatenbank, Zuweisen und
+        # Lieferantenvergleich stehen im Fenster selbst (meterpreis_dialog.py)
+        self.material_knopf.clicked.connect(lambda: self.material_einstellen())
         leiste.addWidget(self.material_knopf)
         ansicht = QPushButton("3D-Ansicht …")
         ansicht.clicked.connect(lambda: self.ansicht_3d())

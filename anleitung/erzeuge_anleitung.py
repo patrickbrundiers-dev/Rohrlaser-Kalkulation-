@@ -14489,12 +14489,13 @@ def kapitel_material(i):
            "<b>nur Änderungen ab 10 %</b> filtert; <b>Preisentwicklung des Materials …</b> öffnet die Kurve im "
            "Reiter Preishistorie. Angebote ändern sich durch einen Import nie rückwirkend (festgeschriebene Preise, "
            "[[preise_festschreiben]]).")
-    i.text("<b>Im Angebot</b> ist der Knopf <b>Material …</b> ein Auswahlmenü: <b>Material je Abmessung …</b> (das "
-           "bisherige Fenster, [[material_fenster]]), <b>Material suchen und zuweisen …</b>, <b>Lieferantenvergleich "
-           "für die Position …</b> (Material der markierten Position) und darunter die Sprünge <b>Materialdatenbank: "
-           "Dashboard</b>, <b>Materialdatenbank: Materialübersicht</b>, <b>Materialdatenbank: Einkaufspreise</b>, "
-           "<b>Materialdatenbank: Lieferanten</b>, <b>Materialdatenbank: Preisverlauf</b> und <b>Materialdatenbank: "
-           "ERP-Import …</b>. Das Angebot bleibt offen; <i>Zuweisen</i> auf der Seite Material wirkt auf dieses Angebot.")
+    i.text("<b>Im Angebot</b> öffnet der Knopf <b>Material …</b> wie bisher direkt das Fenster <i>Material je "
+           "Abmessung</i> ([[material_fenster]]). Es hat oben jetzt Kennzahlen als Kacheln (Abmessungen, Stangen, "
+           "Meter Einkauf, Gewicht, Material €, Kundenmaterial, ohne Preis) und die Knöpfe <b>Material suchen und "
+           "zuweisen …</b> (übernimmt die Eingaben und zeigt die Materialübersicht mit dem Material der markierten "
+           "Abmessung), <b>Lieferantenvergleich …</b> (Bedarf laut Schnittplan) und <b>Materialdatenbank</b> mit den "
+           "Bereichen Dashboard, Materialübersicht, Einkaufspreise, Lieferanten, Preisverlauf und ERP-Import. Die "
+           "markierte Zeile ist die Abmessung für diese Knöpfe; beide stehen auch im Kontextmenü der Zeile.")
     i.text("<b>Lieferanten</b>: beliebig viele je Material mit Bestellnummer, Lieferzeit, Mindestabnahme, "
            "<b>Staffel ab [m]</b>, <b>Verpackungseinheit [Stangen]</b>, Gültigkeit und <b>Bevorzugter Lieferant</b>. "
            "<b>Lieferantenvergleich …</b> (Bereich Lieferanten oder Kontextmenü der Materialübersicht) rechnet für "

@@ -272,16 +272,33 @@ sys.path.insert(0, str(HIER))
 import beispiel_angebot  # noqa: E402
 
 an = f.angebot_oeffnen(beispiel_angebot.anlegen(db))
-texte = [a.text() for a in an.material_menue.actions() if a.text()]
-assert texte[:3] == ["Material je Abmessung …", "Material suchen und zuweisen …",
-                     "Lieferantenvergleich für die Position …"], texte
-assert {"Materialdatenbank: Dashboard", "Materialdatenbank: ERP-Import …", "Materialdatenbank: Preisverlauf"} <= \
-    set(texte) and an.material_knopf.menu() is an.material_menue
+assert an.material_knopf.menu() is None, "Knopf öffnet direkt das Fenster"
 assert an.material_bereich("ERP-Import") is m and m.bereiche.tabText(m.bereiche.currentIndex()) == "ERP-Import"
 assert f.reiter.currentWidget() is m
-lv = an.material_lieferanten(bedarf=30, frage=False)
-assert lv is None or isinstance(lv, tuple)
-ok("Angebot: Knopf „Material …“ als Menü mit Material je Abmessung, Zuweisen, Lieferantenvergleich und Sprüngen "
-   "in die Materialdatenbank")
+f.reiter.setCurrentWidget(an)
+an.optimieren()
+gesehen = {}
+
+
+def fenster(d):
+    gesehen["kacheln"] = {k: w.text() for k, w in d.kacheln.items()}
+    gesehen["knoepfe"] = list(d.aktionen)
+    gesehen["bereiche"] = [a.text() for a in d.datenbank_menue.actions()]
+    gesehen["menue"] = [t for t, _, _ in d.menue_eintraege(0) if t]
+    gesehen["vergleich"] = d.lieferantenvergleich(0, frage=False)
+    d.datenbank_menue.actions()[3].trigger()        # Lieferanten: übernimmt und springt in die Materialdatenbank
+    return True
+
+
+an.material_einstellen(fenster)
+assert gesehen["knoepfe"] == ["Material suchen und zuweisen …", "Lieferantenvergleich …", "Materialdatenbank"], gesehen
+assert gesehen["bereiche"] == ["Dashboard", "Materialübersicht", "Einkaufspreise", "Lieferanten", "Preisverlauf",
+                               "ERP-Import …"], gesehen["bereiche"]
+assert int(gesehen["kacheln"]["abmessungen"]) >= 1 and gesehen["kacheln"]["stangen"] != "–", gesehen["kacheln"]
+assert {"Lieferantenvergleich …", "Material suchen und zuweisen …"} <= set(gesehen["menue"])
+assert isinstance(gesehen["vergleich"], tuple)
+assert f.reiter.currentWidget() is m and m.bereiche.tabText(m.bereiche.currentIndex()) == "Lieferanten"
+ok("Angebot: „Material …“ öffnet direkt das Fenster; dort Kacheln, Material suchen und zuweisen, "
+   "Lieferantenvergleich und Sprünge in die Materialdatenbank")
 
 print("Alle Tests Materialdatenbank bestanden")

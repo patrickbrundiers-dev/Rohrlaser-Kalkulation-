@@ -263,7 +263,7 @@ class DashboardSeite(QWidget):
 
 
 # ------------------------------------------------------------------ Lieferantenvergleich
-def lieferantenvergleich(seite, profil_id=None, werkstoff_id=None, bedarf=None, frage=True):
+def lieferantenvergleich(seite, profil_id=None, werkstoff_id=None, bedarf=None, frage=True, eltern=None):
     """Lieferantenvergleich für das markierte Material (Materialübersicht oder Tabelle Lieferanten). Ergebnis:
     (Liste aus material_stamm.angebote_fuer, Vorschlag) oder None."""
     if profil_id is None:
@@ -280,7 +280,7 @@ def lieferantenvergleich(seite, profil_id=None, werkstoff_id=None, bedarf=None, 
         if getattr(seite.f, "stumm", False) or not frage:
             bedarf = 30.0
         else:
-            bedarf, ok = QInputDialog.getDouble(seite, "Lieferantenvergleich", f"Bedarf für {profil_id} · "
+            bedarf, ok = QInputDialog.getDouble(eltern or seite, "Lieferantenvergleich", f"Bedarf für {profil_id} · "
                                                 f"{werkstoff_id} [m]:", 30.0, 0.1, 100000, 1)
             if not ok:
                 return None
@@ -290,7 +290,7 @@ def lieferantenvergleich(seite, profil_id=None, werkstoff_id=None, bedarf=None, 
     alle = ms.angebote_fuer(zeilen, profil_id, werkstoff_id, kgm, bedarf)
     v = ms.lieferant_vorschlag(zeilen, profil_id, werkstoff_id, kgm, bedarf)
     if not getattr(seite.f, "stumm", False) and frage:
-        d = QDialog(seite)
+        d = QDialog(eltern or seite)
         d.setWindowTitle(f"Lieferantenvergleich {profil_id} · {werkstoff_id}, Bedarf {bedarf:g} m")
         lay = QVBoxLayout(d)
         t = _tabelle(["Lieferant", "Länge [mm]", "€/m", "Stangen", "Meter", "Kosten [€]", "Lieferzeit [Tage]",

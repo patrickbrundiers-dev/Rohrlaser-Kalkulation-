@@ -12,8 +12,8 @@ Gewicht öffnet das Abmessungs-Fenster (Stangenbild, Schnittmuster, Bilanz, Teil
 """
 from PySide6.QtCore import QPointF, QSize, Qt
 from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHeaderView,
-                               QLabel, QLineEdit, QMenu, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
+from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame,
+                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
 from . import hilfe, naht, querschnitt, rechnen, stil, wand_dialog
 from .stammdaten import (EIGENMATERIAL, KUNDENMATERIAL, MATERIAL_HERKUNFT, ROH, ROHR_FORMEN, ROHRARTEN, zahl_als_text,
@@ -26,6 +26,8 @@ VORGABE = 13        # Spalte mit dem Knopf für die von Hand vorgegebenen Stange
 ROHRART = 14        # Rohrart je Abmessung (Patrick 31.10.2026, Plan 6a), nur Rund-, Quadrat- und Rechteckrohr
 WIE_WERKSTOFF = "wie Werkstoff"
 BILD = 44
+# Bereiche der Materialdatenbank im Knopf „Materialdatenbank“ (material_bereiche.BEREICHE)
+DATENBANK_BEREICHE = ("Dashboard", "Materialübersicht", "Einkaufspreise", "Lieferanten", "Preisverlauf", "ERP-Import")
 # Doppelklick je Spalte: (Ziel, Tooltip); Ziel = Fenster ('abmessung:<Fokus>', 'preis', 'profil')
 DOPPELKLICK = {0: ("profil", "Profil-Info: Querschnitt, Kennwerte, passende Maschinen"),
                1: ("profil", "Profil-Info: Querschnitt, Kennwerte, passende Maschinen"),
@@ -109,8 +111,71 @@ class MeterpreisDialog(QDialog):
         self.seite, self.veraltet, self.ohne_plan, self.nachher = seite, veraltet, ohne_plan, None
         self.zeigen = lambda fenster: fenster.exec()        # Tests ersetzen das Öffnen der Zusatzfenster
         self.setWindowTitle("Material je Abmessung")
-        self.resize(1500, 250 + 52 * min(len(gruppen), 8))
+        self.resize(1500, 360 + 52 * min(len(gruppen), 8))
         lay = QVBoxLayout(self)
+        # Kopf wie die Materialdatenbank (Patrick 23.11.2026): Titel, Kennzahlen als Kacheln, Aktionen
+        kopfzeile = QHBoxLayout()
+        titel = QLabel("Material je Abmessung")
+        tf = titel.font()
+        tf.setPointSizeF(tf.pointSizeF() * 1.4)
+        tf.setBold(True)
+        titel.setFont(tf)
+        kopfzeile.addWidget(titel)
+        kopfzeile.addStretch(1)
+        self.aktionen = {}
+        if seite is not None:
+            for text, fn, tipp in (
+                    ("Material suchen und zuweisen …", lambda: self.datenbank_zuweisen(),
+                     "Übernimmt die Eingaben und zeigt die Materialübersicht mit dem Material der markierten "
+                     "Abmessung; dort den Positionen ein anderes Material zuweisen"),
+                    ("Lieferantenvergleich …", lambda: self.lieferantenvergleich(),
+                     "Lieferantenpreise der markierten Abmessung für den Bedarf laut Schnittplan vergleichen")):
+                b = QPushButton(text)
+                b.setToolTip(tipp)
+                b.clicked.connect(fn)
+                self.aktionen[text] = b
+                kopfzeile.addWidget(b)
+            db_knopf = QPushButton("Materialdatenbank")
+            db_knopf.setObjectName("primaer")
+            db_knopf.setToolTip("Übernimmt die Eingaben und öffnet einen Bereich der Materialdatenbank (Seite Material)")
+            self.datenbank_menue = QMenu(db_knopf)
+            for name in DATENBANK_BEREICHE:
+                self.datenbank_menue.addAction(name + (" …" if name == "ERP-Import" else ""),
+                                               lambda n=name: self.schliessen_mit("datenbank", n))
+            db_knopf.setMenu(self.datenbank_menue)
+            self.aktionen["Materialdatenbank"] = db_knopf
+            kopfzeile.addWidget(db_knopf)
+        lay.addLayout(kopfzeile)
+        self.kacheln = {}
+        kz = QHBoxLayout()
+        geplant = [g for g in gruppen if g["stangen"]]
+        for key, text, wert in (
+                ("abmessungen", "Abmessungen", str(len(gruppen))),
+                ("stangen", "Stangen", _z(sum(g["stangen"] for g in geplant), 0) if geplant else "–"),
+                ("meter", "Meter Einkauf", _z(sum(g["meter"] for g in geplant), 1) if geplant else "–"),
+                ("kg", "Gewicht [kg]", _z(sum(g["kg"] for g in geplant), 1) if geplant else "–"),
+                ("kosten", "Material [€]", _z(sum(g["kosten"] for g in geplant)) if geplant else "–"),
+                ("kunde", "davon Kundenmaterial", str(sum(1 for g in gruppen if g["kunde"]))),
+                ("ohne_preis", "ohne Preis", str(sum(1 for g in gruppen if g["berechnet"] is None
+                                                     and g["manuell"] is None and not g["kunde"])))):
+            fr = QFrame()
+            fr.setObjectName("karte")
+            fl = QVBoxLayout(fr)
+            fl.setContentsMargins(12, 8, 12, 8)
+            w = QLabel(wert)
+            wf = w.font()
+            wf.setPointSizeF(wf.pointSizeF() * 1.5)
+            wf.setBold(True)
+            w.setFont(wf)
+            if key == "ohne_preis" and wert != "0":
+                w.setStyleSheet("color: #B42318;")
+            t = QLabel(text)
+            t.setStyleSheet(f"color: {GRAU};")
+            fl.addWidget(w)
+            fl.addWidget(t)
+            self.kacheln[key] = w
+            kz.addWidget(fr, 1)
+        lay.addLayout(kz)
         lay.addWidget(hilfe.Hinweis(
             "Alles zum Material dieses Angebots je Abmessung: Werkstoff, Oberfläche, Lieferlänge, Eigen- oder Kundenmaterial und "
             "Meterpreis gelten für alle Positionen der Abmessung und gehen nach 'Übernehmen' in die Kalkulation ein. "
@@ -131,7 +196,10 @@ class MeterpreisDialog(QDialog):
         self.tabelle.verticalHeader().setDefaultSectionSize(BILD + 6)
         self.tabelle.setIconSize(QSize(BILD, BILD))
         self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tabelle.setSelectionMode(QAbstractItemView.NoSelection)
+        self.tabelle.setSelectionMode(QAbstractItemView.SingleSelection)     # markierte Abmessung für die Aktionen oben
+        self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabelle.setAlternatingRowColors(True)
+        self.tabelle.setShowGrid(False)
         self.felder, self.werkstoffe, self.oberflaechen, self.laengen, self.herkunft = [], [], [], [], []
         self.rohrarten = []         # je Zeile QComboBox oder None (kein Hohlprofil)
         fett = QFont()
@@ -222,11 +290,14 @@ class MeterpreisDialog(QDialog):
                 lambda punkt: self.kontextmenue(self.tabelle.indexAt(punkt).row(),
                                                 self.tabelle.viewport().mapToGlobal(punkt)))
         lay.addWidget(self.tabelle, 1)
+        if gruppen:
+            self.tabelle.selectRow(0)
         summe = sum(g["kosten"] for g in gruppen)
         self.summe = QLabel(f"Material gesamt laut Schnittplan: {_z(summe)} €  ·  "
                             f"{_z(sum(g['meter'] for g in gruppen), 1)} m  ·  {_z(sum(g['kg'] for g in gruppen), 1)} kg")
         self.summe.setStyleSheet(f"color: {GRAU};")
         lay.addWidget(self.summe)
+        self.summe.setVisible(False)        # steht oben in den Kacheln
         unten = QFormLayout()
         self.handling = QLineEdit(_z(kopf.get("handling_beistellung"), 3) if kopf.get("handling_beistellung") else "")
         self.handling.setPlaceholderText("0")
@@ -249,6 +320,7 @@ class MeterpreisDialog(QDialog):
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.button(QDialogButtonBox.Ok).setText("Übernehmen")
         knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+        knoepfe.button(QDialogButtonBox.Ok).setObjectName("primaer")
         knoepfe.accepted.connect(self.annehmen)
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
@@ -460,7 +532,10 @@ class MeterpreisDialog(QDialog):
                 ("Materialanfrage nur für diese Abmessung …", lambda: self.schliessen_mit("anfrage", g),
                  geplant and not g["kunde"]),
                 ("Schnittplan dieser Abmessung drucken …", lambda: self.drucken(g), geplant),
-                ("Positionen dieser Abmessung im Angebot markieren", lambda: self.schliessen_mit("markieren", g), True)]
+                ("Positionen dieser Abmessung im Angebot markieren", lambda: self.schliessen_mit("markieren", g), True),
+                (None, None, None),
+                ("Lieferantenvergleich …", lambda: self.lieferantenvergleich(r), True),
+                ("Material suchen und zuweisen …", lambda: self.datenbank_zuweisen(r), True)]
 
     def onlinepreise(self, r, zeigen=True):
         """Online-Preise der Lieferanten für diese Abmessung (Menge = Meter laut Schnittplan für den Einstand)."""
@@ -471,6 +546,28 @@ class MeterpreisDialog(QDialog):
         if zeigen:
             self.zeigen(d)
         return d
+
+    def zeile(self):
+        """Markierte Abmessung (Zeile) für die Aktionen im Kopf; ohne Markierung die erste."""
+        r = self.tabelle.currentRow()
+        return r if 0 <= r < len(self.gruppen) else (0 if self.gruppen else -1)
+
+    def datenbank_zuweisen(self, r=None):
+        """Eingaben übernehmen und die Materialübersicht mit dem Material der Abmessung zeigen (Zuweisen dort)."""
+        r = self.zeile() if r is None else r
+        return self.schliessen_mit("zuweisen", self.gruppen[r]) if r >= 0 else False
+
+    def lieferantenvergleich(self, r=None, frage=True):
+        """Lieferantenvergleich der Abmessung mit dem Bedarf laut Schnittplan (ohne Plan: Meter der Teile)."""
+        r = self.zeile() if r is None else r
+        m = getattr(getattr(self.seite, "f", None), "material", None)
+        if r < 0 or m is None:
+            return None
+        g = self.gruppen[r]
+        from . import material_bereiche
+        bedarf = g.get("meter") or g.get("teile_m") or None
+        return material_bereiche.lieferantenvergleich(m, g["profil"], self.werkstoffe[r].currentText(), bedarf,
+                                                      frage=frage, eltern=self)
 
     def kontextmenue(self, r, wo):
         if self.seite is None or not 0 <= r < len(self.gruppen):

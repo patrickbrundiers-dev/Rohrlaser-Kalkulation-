@@ -171,7 +171,7 @@ ok("ungültige Eingabe: Fenster bleibt offen, kein Sprung")
 def markieren(d):
     eintraege = d.menue_eintraege(0)
     texte = [t for t, _, _ in eintraege if t]
-    assert len(texte) == 10 and dict((t, a) for t, _, a in eintraege if t)["Schnittplan dieser Abmessung drucken …"]
+    assert len(texte) == 12 and dict((t, a) for t, _, a in eintraege if t)["Schnittplan dieser Abmessung drucken …"]
     next(f for t, f, _ in eintraege if t and t.startswith("Positionen"))()
 
 
