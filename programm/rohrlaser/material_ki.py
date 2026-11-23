@@ -23,7 +23,8 @@ AGENT = "Materialprüfung"
 AUSREISSER = 1.6            # €/kg mehr als 1,6-mal bzw. weniger als 1/1,6 des Medians der Nachbarn
 SPRUNG = 0.25               # Preisänderung über 25 % zum vorigen Stand
 MIN_ERSPARNIS = 2.0         # günstigerer Lieferant ab 2 % Ersparnis
-DICHTE = {"Stahl": (7.7, 8.0), "Edelstahl": (7.75, 8.1), "Aluminium": (2.6, 2.85), "Buntmetall": (7.3, 9.0)}
+# Edelstahl ab 7,6: ferritische Sorten (1.4003, 1.4016, 1.4509) haben 7,7 kg/dm³
+DICHTE = {"Stahl": (7.7, 8.0), "Edelstahl": (7.6, 8.1), "Aluminium": (2.6, 2.85), "Buntmetall": (7.3, 9.0)}
 
 
 def _n(v):
@@ -117,14 +118,17 @@ def _werkstoffe(k):
     return out
 
 
+OHNE_DUBLETTE = ("RP-Profil", "Sonderprofil")
+
+
 def _dubletten(k):
     out, gesehen = [], {}
     for pid, p in sorted(k.profile.items()):
-        if mp.archiviert(p) or _n(p.get("a")) is None or _n(p.get("wand")) is None:
-            continue
+        if mp.archiviert(p) or _n(p.get("a")) is None or _n(p.get("wand")) is None or p.get("form") in OHNE_DUBLETTE:
+            continue        # RP- und Sonderprofile: gleiche Hüllmaße, aber eigene Kontur
         b = _n(p.get("b"))
         schl = (p.get("form"), round(p["a"], 1), round(b, 1) if b is not None and p.get("form") != "Quadratrohr" else None,
-                round(p["wand"], 2))
+                round(p["wand"], 2), _n(p.get("flaeche_manuell")))
         if schl in gesehen:
             out.append(befund(HINWEIS, "dublette", pid, f"Gleiche Abmessung wie {gesehen[schl]}",
                               f"{p.get('form')} mit gleichen Maßen und Wandstärke unter zwei Profil-IDs. Preise und "

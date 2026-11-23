@@ -22,9 +22,9 @@ EINSTELLUNG = "navigation_breite"
 GRUPPEN = ("Arbeiten", "Auftrag", "Pflege")
 GRUPPE = {"Start": "Arbeiten", "Anfragen": "Arbeiten", "Materialanfragen": "Arbeiten", "Angebote": "Arbeiten", "Kunden": "Arbeiten",
           "Aufträge": "Auftrag", "Rahmenaufträge": "Auftrag", "Produktion": "Auftrag", "Auswertung": "Auftrag", "Versand": "Auftrag", "Fertigung": "Auftrag", "Lager": "Auftrag",
-          "Zukaufartikel": "Pflege", "Frachtkosten": "Pflege", "Einstellungen": None}
+          "Material": "Pflege", "Zukaufartikel": "Pflege", "Frachtkosten": "Pflege", "Einstellungen": None}
 SYMBOL = {"Start": "start", "Anfragen": "mail", "Materialanfragen": "material", "Angebote": "angebote", "Kunden": "kunden", "Aufträge": "auftraege", "Rahmenaufträge": "auftraege", "Produktion": "produktion", "Auswertung": "auswertung", "Versand": "versand", "Fertigung": "fertigung",
-          "Lager": "lager", "Zukaufartikel": "zukauf", "Frachtkosten": "fracht", "Einstellungen": "einstellungen"}
+          "Lager": "lager", "Material": "materialstamm", "Zukaufartikel": "zukauf", "Frachtkosten": "fracht", "Einstellungen": "einstellungen"}
 TIPP = {"Start": "Übersicht: Kennzahlen, zuletzt bearbeitete Angebote, Datensicherung",
         "Anfragen": "Kundenanfragen: Neu, In Bearbeitung, Erledigt; übernehmen, zuweisen, kalkulieren",
         "Materialanfragen": "Anfragen an Lieferanten: Entwurf, Versendet, Angebot erhalten, Abgeschlossen",
@@ -37,6 +37,7 @@ TIPP = {"Start": "Übersicht: Kennzahlen, zuletzt bearbeitete Angebote, Datensic
         "Versand": "Beauftragte Angebote: Palettenschein, Lieferdatum, Stand",
         "Fertigung": "Freigabe und Status beauftragter Angebote",
         "Lager": "Materialbestand und Reststücke",
+        "Material": "Materialien suchen, vergleichen und pflegen: Abmessungen, Werkstoffe, Preise, Lieferanten",
         "Zukaufartikel": "Zukaufartikel, Kategorien und Lieferanten",
         "Frachtkosten": "Frachtkosten nach PLZ rechnen",
         "Einstellungen": "Stammdaten, Vorgaben und Einstellungen"}

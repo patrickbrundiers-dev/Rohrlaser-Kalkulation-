@@ -3417,6 +3417,11 @@ class Hauptfenster(QMainWindow):
         from .zukauf_seite import ZukaufBereich
         self.zukauf = ZukaufBereich(db, self.meldung)
         self.reiter.addTab(self.zukauf, self.zukauf.titel)
+        # Material: Abmessung × Werkstoff mit Suche, Filter, Lieferanten, Vergleich, Prüfvorschlägen (23.11.2026);
+        # liest und schreibt die Stammdaten-Tabellen, keine zweite Materialverwaltung
+        from .material_seite import MaterialBereich
+        self.material = MaterialBereich(self)
+        self.reiter.addTab(self.material, self.material.titel)
         self.reiter.addTab(self.bereich, "Einstellungen")
         self.reiter.gruppe_setzen(self.angebote)     # ab hier: geöffnete Angebote in der Zeile unter „Angebote“
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
@@ -4454,7 +4459,8 @@ class Hauptfenster(QMainWindow):
             self.kuerzel_aktionen[name].setEnabled(False)
         for text in self.SCHREIBENDE_DATEI:
             self.datei_aktionen[text].setEnabled(False)
-        for w in [self.angebote, self.kunden, self.fracht, self.zukauf, self.bereich, *self.offen.values()]:
+        for w in [self.angebote, self.kunden, self.fracht, self.zukauf, self.material, self.bereich,
+                  *self.offen.values()]:
             lesemodus_anwenden(w)
         self.einstellungen.setEnabled(False)
         self.einstellungen.setToolTip(LESEMODUS_TIPP)
@@ -4918,6 +4924,7 @@ class Hauptfenster(QMainWindow):
         for s in self.seiten:
             s.neu_laden()
         self.zukauf.neu_laden()
+        self.material.neu_laden(erzwingen=True)
         self.zusatz.neu_laden()
         self.einstellungen.neu_laden()
         self.fracht.neu_laden()
