@@ -179,7 +179,7 @@ p2 = tmp / "zweit.msg"
 p2.write_bytes(t.msg("WG: Weiter", "Bitte anbieten. (weitergeleitet)", "Kollege", "k@kunde.example", D, []))
 sa.dateien_dazu(z, [p2], jetzt=D, zweiter_weg="weitergeleitet")
 seite.neu_laden()
-assert set(seite.schnell) == {"ohne", "kunde", "dringend", "fehlt", "unklar", "anhaenge", "doppelt", "ueberfaellig"}
+assert set(seite.schnell) == {"ohne", "kunde", "dringend", "fehlt", "unklar", "anhaenge", "doppelt", "ueberfaellig", "nachfassen"}
 seite.schnell["doppelt"].setChecked(True)
 assert [a.nr for a in seite.sichtbare()] == [z.nr]
 seite.schnell["doppelt"].setChecked(False)

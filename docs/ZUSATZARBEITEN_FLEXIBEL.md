@@ -93,7 +93,7 @@ Abgleich über den gemeinsamen Ordner sie mitnimmt. Kopie und neue Fassung über
 
 Bestehende Tests: `test_ein_rechenweg.py` (40 Angebote, Staffel = PDF Cent für Cent) unverändert grün.
 
-## Nachtrag 0.9.456: Zeit aus dem Stundensatz (Patrick 23.11.2026)
+## Nachtrag 0.9.457: Zeit aus dem Stundensatz (Patrick 23.11.2026)
 
 Freie allgemeine Zusatzarbeiten ohne eigene Zeit (Einheit nicht h/min/%) bekommen ihre interne Zeit je Einheit aus
 der Einstellung `zusatz_stundensatz` (*Zusatzarbeiten: Stundensatz für die Zeit [€/h]*, Einstellungen → Zuschläge und

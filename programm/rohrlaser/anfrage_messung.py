@@ -4,6 +4,8 @@ korpus_messen()        Mail-Art an festen Beispielen (die Fälle aus dem Auftrag
                        Trefferquote, Verwechslungen, Anteil „unklar“, Zeit je Mail
 akten_messen(abl, db)  im echten Akten-Ordner: Anfragen je Mail-Art/Sicherheit/Phase, Korrekturanteil je Feld,
                        Kunde automatisch erkannt, Ø bis Übernahme, wartende Mails, letzter Abruf, gelerntes Modell
+verlauf(akten, wurzel)  je Kalenderwoche (23.11.2026, Stufe 2 Punkt 4): Eingänge, Mail-Art unklar, von Hand
+                       korrigiert, Kunde sicher erkannt, Ø bis Übernahme, Rückfragen, nachgefasst
 bericht(werte)         lesbarer Text
 Aufruf: python werkzeuge/anfrage_messung.py [AKTEN-ORDNER] [--json]. Ohne Qt."""
 import time
@@ -82,6 +84,60 @@ def akten_messen(abl, db=None):
                 else None, wartet=len(ol.fehler_lesen(abl)), abruf=ol.abruf_status(abl),
                 modell=dict(schatten=(al.modell_lesen(abl.wurzel) or {}).get("pruefung"),
                             aktiv=(al.aktiv_lesen(abl.wurzel) or {}).get("version")))
+
+
+def _woche(d):
+    j, w, _ = d.isocalendar()
+    return f"{j}-W{w:02d}"
+
+
+def _anteil(n, von):
+    return round(100 * n / von) if von else None
+
+
+def verlauf(akten, wurzel=None, wochen=12, jetzt=None):
+    """[dict(woche, eingaenge, unklar, korrigiert, kunde_sicher (Prozent oder None), std_bis_uebernahme, rueckfragen,
+    nachgefasst)] der letzten wochen Kalenderwochen, älteste zuerst; nach dem Eingang der Anfrage. korrigiert: Anteil
+    der Anfragen, bei denen jemand Mail-Art oder Kunde von Hand geändert hat (Rückmeldung mit richtig=False). Nur
+    lesen, nichts wird gespeichert."""
+    import datetime
+    jetzt = jetzt or datetime.datetime.now()
+    reihe = [_woche(jetzt - datetime.timedelta(weeks=i)) for i in range(wochen - 1, -1, -1)]
+    je = {w: dict(woche=w, eingaenge=0, _unklar=0, _ein=0, _korr=0, _sicher=0, _std=[], rueckfragen=0,
+                  nachgefasst=0) for w in reihe}
+    falsch = set()
+    if wurzel:
+        for e in al.rueckmeldungen(wurzel):
+            if e.get("feld") in ("art", "kunde") and not e.get("richtig") and e.get("nr"):
+                falsch.add(e["nr"])
+    for a in akten:
+        if not a.eingang or a.stand.get("zusammengefuehrt_in"):
+            continue
+        x = je.get(_woche(a.eingang))
+        if x is None:
+            continue
+        x["eingaenge"] += 1
+        ein = a.kopf.get("einordnung") or {}
+        if ein:
+            x["_ein"] += 1
+            x["_unklar"] += ein.get("sicherheit") == aa.UNKLAR
+        x["_korr"] += a.nr in falsch or bool(a.stand.get("art_korr"))
+        x["_sicher"] += (a.kopf.get("zuordnung") or {}).get("stufe") == "eindeutig" and a.nr not in falsch
+        bis = ak._datum(a.stand.get("uebernommen_am") or "")
+        if bis:
+            x["_std"].append((bis - a.eingang).total_seconds() / 3600)
+        rf = [e for e in a.verlauf if e.get("aktion") == ak.RUECKFRAGE]
+        x["rueckfragen"] += sum(1 for e in rf if not e.get("nachfassen"))
+        x["nachgefasst"] += sum(1 for e in rf if e.get("nachfassen"))
+    out = []
+    for w in reihe:
+        x = je[w]
+        n = x["eingaenge"]
+        out.append(dict(woche=w, eingaenge=n, unklar=_anteil(x["_unklar"], x["_ein"]), korrigiert=_anteil(
+            x["_korr"], n), kunde_sicher=_anteil(x["_sicher"], n), std_bis_uebernahme=round(
+            sum(x["_std"]) / len(x["_std"]), 1) if x["_std"] else None, rueckfragen=x["rueckfragen"],
+            nachgefasst=x["nachgefasst"]))
+    return out
 
 
 def bericht(k=None, a=None):

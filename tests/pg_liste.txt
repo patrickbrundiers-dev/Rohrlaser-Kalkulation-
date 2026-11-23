@@ -417,3 +417,4 @@ test_anfrage_art.py
 test_anhang_analyse.py
 test_anfrage_phase.py
 test_anfrage_lernen.py
+test_anfrage_stufe2.py

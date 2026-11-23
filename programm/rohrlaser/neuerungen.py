@@ -21,11 +21,23 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.456", "<b>Zusatzarbeiten: Zeit aus dem Stundensatz</b> ([[zusatz_global]]): Freie allgemeine "
+    ["0.9.457", "<b>Zusatzarbeiten: Zeit aus dem Stundensatz</b> ([[zusatz_global]]): Freie allgemeine "
                 "Zusatzarbeiten ohne eigene Zeit bekommen ihre Zeit automatisch: interne Kosten (ohne Kosten: Preis) "
                 "je Einheit ÷ Stundensatz. Der Stundensatz steht in Einstellungen → Zuschläge und Preise (Vorgabe 60 €/h). "
                 "Die Zeit steht grau in der Spalte Zeit, eine eigene Zeit überschreibt sie. Preise ändern sich nicht.",
      "Zusatzarbeiten: Zeit automatisch aus dem Stundensatz."],
+    ["0.9.456", "<b>Anfragen: Rückfrage nachfassen, Wichtig zuerst, breiter lernen, Erkennung je Woche</b> "
+                "([[anfrage_stufe2]]). Wartet eine Rückfrage an den Kunden länger als 3 Arbeitstage (einstellbar), "
+                "zeigt die Anfrage das in Rot, der Schnellfilter „Nachfassen“ findet sie, und „Erinnerung …“ öffnet "
+                "in Outlook eine Antwort mit den Fragen der Rückfrage (gesendet wird nur von dir). Nach der Antwort "
+                "steht da, welche fehlenden Angaben jetzt da sind. „Wichtig zuerst“ sortiert nach Frist, Priorität, "
+                "Mail-Art, Kunde und Menge und zeigt die Gründe. Das Lernen aus Korrekturen gibt es jetzt auch für "
+                "das Sachgebiet und den Bearbeiter, jeweils erst nach Freigabe durch einen Admin. Die Auswertung "
+                "zeigt die Erkennung je Woche. <b>Fehler behoben</b>: „Kunde ändern …“, „Neuen Kunden anlegen …“, "
+                "„Intern (ohne Kunde)“ und „Angebot verknüpfen …“ in einer Anfrage taten nichts. Eingeschaltete "
+                "Schnellfilter sind jetzt deutlich blau, und „Filter zurücksetzen“ stellt alle Filter auf Vorgabe.",
+     "Anfragen: Rückfragen nachfassen, Wichtig zuerst, Lernen für Sachgebiet und Bearbeiter, Erkennung je Woche; "
+     "Kunde ändern/anlegen geht wieder, Filter zurücksetzen."],
     ["0.9.455", "<b>Zusatzarbeiten flexibel</b> ([[zusatz_global]]): Neuer Unterreiter <b>Kalkulation → Zusatzarbeiten</b> im Angebot "
                 "für Leistungen des <b>ganzen Angebots</b> (Bezeichnung, Menge, Einheit Stück/m/m²/h/min/kg/pauschal/%, "
                 "Preis je Einheit, Gesamt, Beschreibung; intern Kosten und Zeit). Standardpreis aus der Verwaltung "
