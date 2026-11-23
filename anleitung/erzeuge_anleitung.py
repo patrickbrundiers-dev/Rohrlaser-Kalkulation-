@@ -1653,8 +1653,8 @@ def kapitel_angebote(i):
            "<b>Wichtig zuerst</b> sortiert die Liste nach Frist, Priorität, Mail-Art, Kunde und Menge und zeigt die "
            "Gründe. Die Auswertung zeigt die Erkennung <b>je Woche</b>.", kurz=True)
     i.genauer()
-    i.liste("<b>Nachfassen</b>: Nach <i>Einstellungen → Automatik → Anfragen: Rückfrage an den Kunden nachfassen "
-            "nach … Arbeitstagen</i> (Vorgabe 3, 0 = aus) steht rechts im Kopf „Rückfrage vom … ohne Antwort“ in "
+    i.liste("<b>Nachfassen</b>: Nach der Einstellung <i>Anfragen: Rückfrage an den Kunden nachfassen nach "
+            "[Arbeitstagen] ohne Antwort (0 = aus)</i> (Einstellungen → Ablage und Teilen → Anfragen, Vorgabe 3) steht rechts im Kopf „Rückfrage vom … ohne Antwort“ in "
             "Rot, der Schnellfilter <i>Nachfassen</i> zeigt alle diese Anfragen und die tägliche Erinnerung nennt "
             "sie. <i>Erinnerung …</i> öffnet in Outlook eine Antwort mit den Fragen der ersten Rückfrage. Gesendet "
             "wird erst von dir. Danach läuft die Wartezeit neu, und der Kopf zeigt, wie oft schon erinnert wurde.",
@@ -10549,8 +10549,6 @@ def kapitel_automatik(i):
            "([[einstellungen]]):")
     i.liste("<i>Anfrage-Ampel: Anfrage beantworten in [Arbeitstagen] (0 = aus; je Kunde in den Kundenvorgaben)</i>, "
             "Vorgabe 2.",
-            "<i>Anfragen: Rückfrage an den Kunden nachfassen nach [Arbeitstagen] ohne Antwort (0 = aus)</i>, Vorgabe 3 "
-            "(seit 0.9.455, [[anfrage_stufe2]]).",
             "<i>Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)</i>.",
             "<i>Neue Anfragen automatisch zuweisen (gemeinsamer Ordner)</i>: an den Zuständigen des Kunden, sonst an "
             "den, der am wenigsten offene Anfragen hat.",
