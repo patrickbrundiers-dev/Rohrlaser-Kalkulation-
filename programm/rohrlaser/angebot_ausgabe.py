@@ -10,7 +10,8 @@ from pathlib import Path
 from PySide6.QtCore import QItemSelectionModel, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox
 
-from . import abmessung, angebot_check, ausgabe, baugruppe, englisch, export, materialanfrage, pdf, plausibel, rechnen, teilen
+from . import (abmessung, angebot_check, ausgabe, baugruppe, englisch, export, funktionen, materialanfrage, pdf, plausibel,
+               rechnen, teilen)
 from .klartext import fehler_text
 from . import nummern as angebotsnummern
 from .angebot import aktiv as position_aktiv, kein_laserteil
@@ -784,7 +785,7 @@ class AusgabeMixin:
         # Blech-, Zukauf- und Dreh-/Frästeile je Teil (Materialanfragen über Outlook, F1a; nicht bei der Bestellung
         # und nicht im Material-Fenster einer Abmessung)
         zukauf_zeilen = [] if (bestellung or gruppe is not None) else materialanfragen.zukauf_bedarf(
-            self.positionen, {z["id"]: z for z in self.db.zeilen("zukauf_artikel")})
+            self.positionen, {z["id"]: z for z in self.db.zeilen("zukauf_artikel")} if funktionen.zukauf_stamm(self.db) else None)
         if (not self.ergebnis or not self.ergebnis.get("stangen")) and not zukauf_zeilen:
             self.f.meldung("Materialanfrage: bitte zuerst optimieren (der Stangenbedarf kommt aus der Optimierung).",
                            fehler=True)

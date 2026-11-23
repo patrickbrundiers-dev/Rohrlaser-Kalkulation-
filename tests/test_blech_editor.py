@@ -75,6 +75,7 @@ ok("B1 Abwicklung: Ausgleich je Biegung (90° = 3,82 mm bei 2 mm/r2), Biegelinie
 # ------------------------------------------------------------------ B2 Richtpreis
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 werkstoffe = {z["blech_werkstoff_id"]: z for z in db.zeilen("blech_werkstoffe")}
 laser = db.zeilen("blechlaser")
 assert {"S235JR", "1.4301 2B", "AlMg3"} <= set(werkstoffe) and len(laser) == 33
@@ -114,10 +115,12 @@ db_verbindung.schema_version_setzen(con, 36)
 con.commit()
 con.close()
 db2 = Datenbank(alt)
+db2.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 assert db_verbindung.schema_version(db2.con) == SCHEMA_VERSION
 assert len(db2.zeilen("blech_werkstoffe")) == len(werkstoffe) and len(db2.zeilen("blechlaser")) == 33
 db2.schliessen()
 db = Datenbank(tmp / "rohrlaser.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 ok("B3 Ältere Datei (Schema 36) bekommt Blech-Werkstoffe und Blechlaser-Richtwerte")
 
 # ------------------------------------------------------------------ B4 Angebot

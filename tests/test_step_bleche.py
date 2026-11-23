@@ -76,6 +76,7 @@ def _():
 def _():
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         k = db.kontext()
         assert step.gleiche_teile(MW) == {0: [0]}, step.gleiche_teile(MW)
         erg = step.uebernehmen(MW, [], k, db.zeilen("gewinde"), None, "S235-10219", 1)
@@ -89,6 +90,7 @@ def _():
 def _():
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         assert db.einstellung("flachstahl_bis") == 150.0
         db.con.close()
     mw, _ = messen("B10_Blech_1000x160x8")
@@ -102,6 +104,7 @@ def _():
     from rohrlaser import zukauf
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         k = db.kontext()
         mw = [dict(m) for m in MW]
         erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 2, zukauf_liste=[])
@@ -159,6 +162,7 @@ def _():
     assert mw[0]["pruefstatus"] == "prüfen", mw[0]["pruefstatus"]
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         k = db.kontext()
         erg = step.uebernehmen([dict(mw[0])], [], k, db.zeilen("gewinde"), None, None, 1, zukauf_liste=[])
         assert not erg["positionen"] and "ungeprüft" in erg["bericht"][0], erg["bericht"]
@@ -173,6 +177,7 @@ def _():
 def _():
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         k = db.kontext()
         mw = [dict(m) for m in MW[:3]]
         assert step.mehrteilig(mw) == {} and step.mehrteilig(mw, True) == {"B14_Baugruppe_Rohr_2Bleche.step": (3, 2)}
@@ -192,6 +197,7 @@ def _():
     app = QApplication.instance() or QApplication([])
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         f = Hauptfenster(db, HIER.parent / "programm", stumm=True)
         s = f.angebot_oeffnen(db.angebot_neu(dict(kunde="Test")))
         erg = s.step_importieren([str(BL / "B02_Blech_400x200x4_Bohrungen.step")], stueck=3)
@@ -223,6 +229,7 @@ def _():
     mw = [dict(m) for m in MW] + [dict(gek[0])]
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         i = db.zukauf_speichern(None, *zukauf.blech_artikel(step.blech(MW[3]), "S235-10219", "alt.step"))
         d = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
         assert d.anbau_weg.isChecked() and not next(z for z in d.zeilen if z.datei.startswith("B14") and z.blech
@@ -292,6 +299,7 @@ def _():
     # Prüfdialog: Art vorbelegt, Wechsel verschiebt die Zeile in die andere Gruppe
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         d = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
         zfl = next(z for z in d.zeilen if z.liste == [0])
         art = d.baum.itemWidget(zfl.it, d.SP_ART)
@@ -341,6 +349,7 @@ def _():
     app = QApplication.instance() or QApplication([])
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         bw = {z["blech_werkstoff_id"]: z for z in db.zeilen("blech_werkstoffe")}
         wid = next(iter(sorted(bw)))
         mw = [dict(m) for m in MW]
@@ -407,6 +416,7 @@ def _():
     q = dict(e, form=blech.RECHTECK, konturen=[dict(art=sw.LANGLOCH, anzahl=1, l=40, b=10, x=100, y=100, quer=True)])
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         d = BlechDialog(None, db, q, neu=False)
         assert d.eingaben()["konturen"][0].get("quer") is True
         d.skizze.grab()
@@ -459,6 +469,7 @@ def _():
     mw, _ = messen("B10_Blech_1000x160x8", "B02_Blech_400x200x4_Bohrungen", "B11_Blech_100x40x8")
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         for grenzen, erwartet in ((None, [False, False, False]), ((200, 3), [True, False, False]),
                                   ((150, 2), [False, False, True])):
             d = StepPruefDialog(None, [dict(m) for m in mw], db.kontext(), "S235-10219", 1, [],
@@ -479,6 +490,7 @@ def _():
 def _():
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         k = db.kontext()
         bw = {z["blech_werkstoff_id"]: z for z in db.zeilen("blech_werkstoffe")}
         passend = {r: step.blech_werkstoff_passend(r, k.werkstoffe, bw) for r in

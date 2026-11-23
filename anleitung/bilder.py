@@ -216,6 +216,9 @@ def main(ziel):
     programmordner = tmp / "Rohrlaser-Angebotskalkulation"
     (programmordner / "Daten").mkdir(parents=True)
     db = Datenbank(programmordner / "Daten" / "rohrlaser.db")
+    # Die Bilder der Artikelverwaltung zeigen die zentrale Zukaufartikelverwaltung (Vorgabe aus seit 23.11.2026);
+    # das Bild zukauf_dialog_angebot zeigt den Dialog ohne sie
+    db.einstellung_setzen("funktion_zukauf_stamm", "ja")
     f = Hauptfenster(db, programmordner, stumm=True)
     f.resize(1280, 760)
     f.show()
@@ -923,6 +926,25 @@ def main(ziel):
         d.accept()
         return QDialog.Accepted
     sz.zukaufteile([0], dialog=zukauf_ausfuellen)
+
+    # Zentrale Zukaufartikelverwaltung aus (Vorgabe, 23.11.2026): Dialog nur mit Artikeln des Angebots
+    db.einstellung_setzen("funktion_zukauf_stamm", "nein")
+    f.funktionen_anwenden()
+
+    def zukauf_nur_angebot(d):
+        d.mehrere_hinzufuegen("Scheibe DIN 125 M8\t8\t0,02\nGriff Edelstahl; 1; 7,90; G-100; Muster GmbH")
+        d.tabelle.selectRow(len(d.eintraege) - 1)
+        d.resize(1250, 430)
+        QApplication.processEvents()
+        foto.foto("zukauf_dialog_angebot", d, [(d.auswahl, 1), (knopf(d, "▲"), 2),
+                                               (knopf(d, "Mehrere hinzufügen …"), 3),
+                                               (knopf(d, "Aus anderem Angebot …"), 4), (d.tabelle, 5),
+                                               (d.summe, 6)])
+        d.reject()
+        return QDialog.Rejected
+    sz.zukaufteile([0], dialog=zukauf_nur_angebot)
+    db.einstellung_setzen("funktion_zukauf_stamm", "ja")
+    f.funktionen_anwenden()
 
     def schnell_ausfuellen(d):
         d.bezeichnung.setText("Blech Lasche 80x40x5")

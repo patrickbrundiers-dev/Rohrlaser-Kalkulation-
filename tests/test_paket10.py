@@ -52,6 +52,7 @@ except ValueError as e:
 ok("L5: Preisliste mit Semikolon/Komma, cp1252/UTF-8, deutsche Zahlen; ohne Preis-Spalte klare Meldung")
 
 db = Datenbank(TMP / "n.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 
 
 def normteil(name, artnr=None):

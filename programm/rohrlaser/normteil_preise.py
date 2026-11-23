@@ -274,7 +274,8 @@ class NormteilPreisSeite(QWidget):
         self.neu_laden()
 
     def neu_laden(self):
-        self.artikel = ohne_preis(self.db)
+        from . import funktionen        # zentrale Zukaufartikelverwaltung aus (23.11.2026): Stamm nicht lesen
+        self.artikel = ohne_preis(self.db) if funktionen.zukauf_stamm(self.db) else []
         if hasattr(self, "lieferant"):
             text = self.lieferant.currentText()
             self.lieferant.clear()

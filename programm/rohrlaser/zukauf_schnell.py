@@ -116,6 +116,8 @@ class SchnellDialog(QDialog):
                               "gespeichert. An: zusätzlich im Artikelstamm anlegen (dann Lieferant und EK Pflicht).")
         self.stamm.toggled.connect(lambda _: self._pflicht_zeigen())
         form.addRow("", self.stamm)
+        from . import funktionen        # zentrale Zukaufartikelverwaltung aus (Vorgabe, 23.11.2026): nur im Angebot
+        form.setRowVisible(self.stamm, funktionen.zukauf_stamm(db))
         lay.addLayout(form)
         if hinweis:
             h = QLabel(hinweis)
@@ -218,7 +220,8 @@ class SchnellDialog(QDialog):
     def speichern(self):
         """Artikel aus den Eingaben übernehmen (ohne Häkchen nur für die Position, mit Häkchen auch im Artikelstamm);
         Ergebnis ID (im Stamm), 0 (nur Position) oder None (Meldung im Dialog)."""
-        stamm = self.stamm.isChecked()
+        from . import funktionen
+        stamm = self.stamm.isChecked() and funktionen.zukauf_stamm(self.db)
         try:
             bez = self.bezeichnung.text().strip()
             if not bez and not self.voll():
@@ -271,6 +274,9 @@ class SchnellDialog(QDialog):
         if self.voll():       # Vollmaterial: Preisstand wie ein Stammartikel (EK aus Gewicht × €/kg)
             b = dict(bezuege[0]) if bezuege else None
             st = zukauf.stand(dict(werte, aufschlag_quelle=zukauf.KATEGORIE), b, kat, std)
+            merk = {n: werte[n] for n in zukauf.MERKMAL_FELDER if werte.get(n) not in (None, "")}
+            if merk:            # Maße, Werkstoff, Gewicht für Materialanfrage und Anzeige ohne Stamm (23.11.2026)
+                st[zukauf.MERKMALE] = merk
             return {zukauf.FREI: True, "menge": 1, "aufschlag": auf, "stand": st}
         return zukauf.frei_eintrag(werte["bezeichnung"], 1, aufschlag=auf, artikelnr=werte["artikelnr"],
                                    lieferant=lief, ek=ek, kategorie=werte.get("kategorie"), regeln=regeln)

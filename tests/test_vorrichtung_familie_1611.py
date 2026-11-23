@@ -40,6 +40,7 @@ for _n in ("information", "warning", "critical", "question"):
     setattr(QMessageBox, _n, staticmethod(lambda *a, **k: QMessageBox.No))
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 f = Hauptfenster(db, tmp, stumm=True)
 KOPF = {k: v for k, v in B.KOPF.items() if k not in ("nummer", "kundennr", "kunde")}
 ROHR = dict(B.POSITIONEN[0], satz=None, je_satz=None)          # RR 42,4x2,0 S235

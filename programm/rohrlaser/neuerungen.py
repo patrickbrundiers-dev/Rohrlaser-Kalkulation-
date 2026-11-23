@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.462", "<b>Zukaufartikel ohne zentrale Datenbank</b> ([[zukauf_optional]]): Neuer Schalter Einstellungen → "
+                "Funktionen → <b>Zentrale Zukaufartikelverwaltung</b>, Vorgabe aus. Dann gehören Zukaufartikel nur "
+                "zum Angebot: keine Auswahl aus dem Stamm, STEP-Import, Blech-Editor, Schnellanlage und EK eintragen "
+                "legen alles nur im Angebot an, und beim Öffnen, Rechnen und Prüfen wird der Artikelstamm nicht "
+                "gelesen. Kategorien, Lieferanten und Materialgruppen bleiben. Neu im Dialog <b>Zukaufteile …</b>: "
+                "▲▼ für die Reihenfolge, <b>Mehrere hinzufügen …</b> (Liste, auch aus Excel), <b>Aus anderem "
+                "Angebot …</b> (unabhängige Kopie), Spalte EK gesamt und die Summe mit EK, VK netto, MwSt. und "
+                "brutto. Umschalten ändert keine Angebote und keine Stammartikel; Kalkulation und PDFs bleiben gleich.",
+     "Zukaufartikel nur im Angebot (zentrale Verwaltung optional), Dialog mit Reihenfolge, Mehrere hinzufügen, "
+     "Kopie aus anderem Angebot und Summe mit MwSt."],
     ["0.9.461", "<b>Nesting-Arbeitsplatz und Verschachtelung auf CAD/CAM-Niveau</b> ([[nesting]]): im Reiter "
                 "Optimierung je Abmessung fünf Strategien gegen den bisherigen Schnittplan (A wenigstes Material, "
                 "B geringste Materialkosten, C Reststücke zuerst, D schnellste Fertigung, E ausgewogen in €). "

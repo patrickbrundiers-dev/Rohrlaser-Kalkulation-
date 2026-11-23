@@ -194,7 +194,7 @@ def zukauf_bedarf(positionen, artikel=None):
     for p in positionen:
         for e in zukauf.eintraege(p):
             st = e.get("stand") or {}
-            a = artikel.get(e.get("artikel_id")) or {}
+            a = artikel.get(e.get("artikel_id")) or zukauf.merkmale(e)    # nur im Angebot: Merkmale im Preisstand
             schl = (e.get("artikel_id"), st.get("bezeichnung"), st.get("artikelnr"))
             menge = (_zahl(e.get("menge")) or 0) * zukauf.bezugsmenge(e, p)
             if menge <= 0:

@@ -194,6 +194,7 @@ def _():
 def _():
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         k = db.kontext()
         einst = db.drehfraes_einstellungen()
         assert einst["df_stundensatz_drehen"] == 85 and "Edelstahl" in einst["df_schnittwerte"]
@@ -249,6 +250,7 @@ def _():
     app = QApplication.instance() or QApplication([])
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
+        db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
         a = db.angebot_neu(dict(kunde="Test", maschine="T03"))
         fenster = Hauptfenster(db, stumm=True)
         s = fenster.angebot_oeffnen(a)
@@ -396,6 +398,7 @@ def _():
 def _():
     pfad = Path(tempfile.mkdtemp()) / "rohrlaser.db"
     db = Datenbank(pfad)
+    db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
     einst = db.drehfraes_einstellungen()
     tab = einst["werkstoffe"]
     assert {"S235JR", "1.4301", "1.4404", "CW614N", "EN AW-6082", "POM"} <= set(tab), sorted(tab)
@@ -425,6 +428,7 @@ def _():
     db.con.commit()
     db.con.close()
     db = Datenbank(pfad)
+    db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
     assert db.anzahl("drehfraes_werkstoffe") >= 10
     db.con.close()
 
@@ -443,6 +447,7 @@ def _():
     assert not rechnen.rundung_kaufm({"einstellungen": {"rundung_kaufm": "nein"}})
     tmp = Path(tempfile.mkdtemp())
     db = Datenbank(tmp / "r.db")
+    db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
     k, tab = db.kontext(), db.tabellen()
     kopf = dict(maschinen_id=next(iter(k.maschinen)))
     pb = rechnen.preisbasis_aus(kopf, [], k, tab)

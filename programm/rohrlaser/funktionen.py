@@ -12,6 +12,8 @@ from collections import namedtuple
 # vorgabe = Wert für neue Dateien (fast alle „ja“; neue Zusatzfunktionen wie die CO₂-Bilanz „nein“)
 Funktion = namedtuple("Funktion", "name titel text seiten datei reiter vorgabe", defaults=((), (), None, "ja"))
 
+ZUKAUF_STAMM = "funktion_zukauf_stamm"
+
 FUNKTIONEN = (
     Funktion("funktion_blech", "Bleche und Kantteile",
              "Neue Position „Blech / Kantteil“, Blech-Richtpreis, Blech-Werkstoffe, Blechlaser und K-Faktoren",
@@ -20,6 +22,13 @@ FUNKTIONEN = (
              "Reiter Zukaufartikel, Knopf „Zukaufteile …“, neue Position „Zukaufteil“ und der Richtpreis für Dreh- und "
              "Frästeile mit seinen Einstellungen", reiter="zukauf",
              seiten=("e_drehfraes", "e_drehfraes_grenzen", "drehfraes_werkstoffe")),
+    # Master-Auftrag Patrick 23.11.2026: zentrale Zukaufartikel-Datenbank nur auf Wunsch (Vorgabe aus). Aus = Zukaufartikel
+    # gehören nur zum Angebot (eigener Preisstand je Position); kein Lesen oder Schreiben im Artikelstamm beim Öffnen,
+    # Rechnen, Prüfen, STEP-Import, Blech-Editor und EK eintragen. Vorhandene Angebote und Stammartikel bleiben unverändert.
+    Funktion(ZUKAUF_STAMM, "Zentrale Zukaufartikelverwaltung",
+             "Ein: Zukaufartikel zusätzlich zentral speichern und im Angebot aus dem Artikelstamm wählen. Aus: "
+             "Zukaufartikel nur im jeweiligen Angebot (Kategorien, Lieferanten und Materialgruppen bleiben)",
+             vorgabe="nein"),
     Funktion("funktion_fracht", "Frachtkosten",
              "Reiter Frachtkosten und Knopf „Fracht berechnen …“ (der Frachtbetrag von Hand bleibt)",
              reiter="fracht"),
@@ -131,6 +140,11 @@ def an(name, db=None):
         return d.einstellung(name) != "nein"
     except Exception:           # geschlossene Datenbank (Programmende): nichts ausblenden
         return True
+
+
+def zukauf_stamm(db=None):
+    """Zentrale Zukaufartikelverwaltung an? (Zukaufteile an und Schalter an; ohne Datenbank: ja wie an())."""
+    return an("funktion_zukauf", db) and an(ZUKAUF_STAMM, db)
 
 
 def seite_an(schluessel, db=None):

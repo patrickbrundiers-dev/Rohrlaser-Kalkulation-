@@ -128,12 +128,14 @@ class PreisaenderungenSeite(QWidget):
         return d
 
     def neu_laden(self):
-        self.daten = self.db.zukauf_historie()
+        from . import funktionen        # zentrale Zukaufartikelverwaltung aus (23.11.2026): Stamm nicht lesen
+        stamm = funktionen.zukauf_stamm(self.db)
+        self.daten = self.db.zukauf_historie() if stamm else []
         gewaehlt = self.artikel_filter.currentData()
         self.artikel_filter.blockSignals(True)
         self.artikel_filter.clear()
         self.artikel_filter.addItem("Alle", None)
-        for a in sorted(self.db.zukauf_artikel_liste(), key=lambda a: (a.get("artikelnr") or "", a.get("bezeichnung") or "")):
+        for a in sorted(self.db.zukauf_artikel_liste() if stamm else (), key=lambda a: (a.get("artikelnr") or "", a.get("bezeichnung") or "")):
             self.artikel_filter.addItem(" – ".join(x for x in (a.get("artikelnr"), a.get("bezeichnung")) if x), a["id"])
         i = self.artikel_filter.findData(gewaehlt)
         self.artikel_filter.setCurrentIndex(max(i, 0))

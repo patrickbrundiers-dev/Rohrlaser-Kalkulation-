@@ -34,6 +34,7 @@ def nah(a, b, text, eps=1e-6):
 
 
 db = Datenbank(tmp / "e.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 B = dict(laenge=500.0, breite=300.0, dicke=5.0, kontur="rechteckig", fingerabdruck="x")
 blech = db.zukauf_speichern(None, *zukauf.blech_artikel(B, "S235-10219", "Rahmen.step"))
 blech2 = db.zukauf_speichern(None, *zukauf.blech_artikel(dict(B, laenge=400), None))

@@ -8426,8 +8426,49 @@ def kapitel_zukauf_angebot(i):
     i.genauer()
     i.text("Eingekaufte Teile kommen auf zwei Arten ins Angebot: als eigene <b>Zukaufteil-Position</b> (z. B. ein "
            "Blech, das mitgeliefert wird) oder als <b>Zukaufteile an einer Position</b> (z. B. Schrauben je Rahmen). "
-           "Die Artikel selbst, ihre Preise und Aufschläge werden im Reiter <i>Zukaufartikel</i> gepflegt "
-           "([[zukauf]]).")
+           "Die Artikel gehören immer zum Angebot: jede Position speichert sie mit ihrem eigenen Preisstand. Eine "
+           "zentrale Artikelverwaltung im Reiter <i>Zukaufartikel</i> ([[zukauf]]) ist optional "
+           "([[zukauf_optional]]).")
+    i.abschnitt("Zentrale Zukaufartikelverwaltung ein oder aus", marke="zukauf_optional")
+    i.text("Einstellungen → <b>Funktionen</b> → <b>Zentrale Zukaufartikelverwaltung</b>. Vorgabe: <b>aus</b>. "
+           "Dann werden Zukaufartikel nur im jeweiligen Angebot gespeichert; zum Anlegen eines Angebots braucht es "
+           "keinen Artikelstamm.", kurz=True)
+    i.genauer()
+    i.bild("zukauf_dialog_angebot", "Dialog Zukaufteile ohne zentrale Verwaltung: alle Artikel gehören nur zum "
+           "Angebot (Beispielwerte)", hoehe=72 * mm, legende=[
+               (1, "Bezeichnung eintippen; ohne zentrale Verwaltung gibt es keine Auswahl aus dem Stamm"),
+               (2, "<b>▲</b> / <b>▼</b>: markierte Zeilen nach oben bzw. unten (Reihenfolge im Angebot und in den "
+                   "PDFs)"),
+               (3, "<b>Mehrere hinzufügen …</b> (Fenster <i>Mehrere Zukaufartikel hinzufügen</i>): je Zeile "
+                   "Bezeichnung; Menge; EK; Artikelnr.; Lieferant, auch als Zellen aus Excel eingefügt"),
+               (4, "<b>Aus anderem Angebot …</b> (Fenster <i>Zukaufartikel aus anderem Angebot kopieren</i>): "
+                   "Zukaufartikel eines anderen Angebots als unabhängige Kopie"),
+               (5, "Spalten mit EK je Einheit, <b>EK gesamt</b> (Einstand aller Teile der Position), Aufschlag, VK; "
+                   "Herkunft <i>nur im Angebot</i>"),
+               (6, "Summe der Position: EK, VK netto, MwSt. (Satz des Angebots), VK brutto und Aufschlag – nur "
+                   "intern")])
+    i.liste("<b>Aus</b> (Vorgabe): keine Unterreiter Artikel, Preisänderungen und Normteile ohne Preis, keine "
+            "Auswahl aus dem Stamm, kein <i>Im Artikelstamm merken</i>, kein <i>Aus Stammdaten aktualisieren</i>. "
+            "STEP-Import, Blech-Editor, Schnellanlage, Richtpreis Dreh-/Frästeil und <i>EK eintragen …</i> legen "
+            "Artikel und Preise nur im Angebot an; Maße, Werkstoff und Gewicht eines Blechs stehen dann bei der "
+            "Position (Materialanfrage, Aufschlag Bleche, Spalte EK Blech gehen weiter). Beim Öffnen, Rechnen und "
+            "Prüfen eines Angebots liest das Programm den Artikelstamm nicht. Kategorien, Lieferanten und "
+            "Materialgruppen bleiben im Reiter <i>Zukaufartikel</i> (Aufschlag der Kategorie, Materialanfrage).",
+            "<b>Ein</b>: wie bisher zusätzlich zentral speichern, im Angebot aus dem Stamm suchen und übernehmen, "
+            "Preisänderungen des Stamms in Angebote übernehmen ([[zukauf]]).",
+            "<b>Umschalten</b> geht jederzeit und ändert nichts an vorhandenen Angeboten oder Stammartikeln: jede "
+            "Position hatte schon immer ihren eigenen Preisstand. Das Programm prüft dabei alle Angebote (nur lesen) "
+            "und meldet z. B. <i>Geprüft: 120 Zukaufartikel in 80 Positionen von 35 Angeboten, alle mit eigenem "
+            "Preisstand – nichts geändert</i>. Kalkulation und PDFs bleiben in beiden Fällen gleich.",
+            "<b>Wiederverwenden ohne Stamm</b>: <i>Duplizieren</i> im Dialog, <b>Aus anderem Angebot …</b> (Angebot "
+            "suchen, Artikel markieren, <b>Kopieren</b>), ganze Positionen mit <i>Neue Position → Aus anderem "
+            "Angebot</i> ([[position_kopieren]]) oder das ganze Angebot duplizieren. Kopien sind unabhängig: "
+            "Bezeichnung und Preise frei änderbar, spätere Änderungen im Ursprungsangebot ändern die Kopie nicht. "
+            "Die Herkunft steht in der Spalte Herkunft (<i>kopiert aus Angebot …</i>).",
+            "<b>Allgemeine Zusatzposition</b>: ein Zukaufartikel, der zu keiner Position gehört, wird eine eigene "
+            "Position der Art <i>Zukaufteil</i> ([[zukauf_positionen]]).",
+            "Die MwSt. gilt für das ganze Angebot (Einstellung MwSt.-Satz). EK, Aufschlag, Lieferant und interne "
+            "Bemerkung stehen nie im Kundenangebot.")
     i.abschnitt("Zukaufteil-Positionen", marke="zukauf_positionen")
     i.bild("angebot_berechnet", "Mit Häkchen „Berechnete Werte“: Gewicht, Laserzeit, Stück- und Positionspreis je "
                                 "Zeile", hoehe=125 * mm)
@@ -8491,7 +8532,8 @@ def kapitel_zukauf_angebot(i):
                (3, "je Zeile direkt änderbar: Bezeichnung, Menge, Artikelnr., EK, Aufschlag % und VK je Einheit; "
                    "Gesamt je Teil und Herkunft (<i>ohne Artikelstamm</i> bzw. Stand des Stammartikels). In die leere "
                    "Zeile unten tippen legt einen weiteren Artikel an"),
-               (4, "<b>Duplizieren</b>, <b>Entfernen</b>, <b>Aus Stammdaten aktualisieren …</b> und "
+               (4, "<b>▲ ▼</b>, <b>Duplizieren</b>, <b>Entfernen</b>, <b>Mehrere hinzufügen …</b>, <b>Aus anderem "
+                   "Angebot …</b>, <b>Aus Stammdaten aktualisieren …</b> (nur mit zentraler Verwaltung) und "
                    "<b>Details ▸</b>"),
                (5, "Details der markierten Zeile: Hersteller, Lieferant, Bezugskosten je Bestellung, Kategorie, "
                    "Beschreibung, Bemerkung, Einheit, <i>im Angebotstext nennen</i>, <b>Im Artikelstamm merken</b> "
@@ -14663,7 +14705,10 @@ def kapitel_zukauf(i):
            "Einkaufspreise je Lieferant, eine Mengeneinheit und eine eigene Aufschlagsregel. Arbeiten am Teil "
            "(Verzinken, Entgraten) bleiben Zusatzarbeiten ([[stammdaten]]).",
            "Der Reiter <i>Zukaufartikel</i> ist ohne Passwort zugänglich und hat fünf Unterreiter: <b>Artikel</b>, "
-           "<b>Kategorien</b>, <b>Lieferanten</b>, <b>Preisänderungen</b> und <b>Normteile ohne Preis</b>.")
+           "<b>Kategorien</b>, <b>Lieferanten</b>, <b>Preisänderungen</b> und <b>Normteile ohne Preis</b>.",
+           "Artikel, Preisänderungen und Normteile ohne Preis gibt es nur mit eingeschalteter <b>zentraler "
+           "Zukaufartikelverwaltung</b> (Einstellungen → Funktionen, Vorgabe aus, [[zukauf_optional]]). Ohne sie "
+           "bleiben Kategorien, Lieferanten und Materialgruppen, und Zukaufartikel stehen nur im Angebot.")
     i.text("Eingekaufte Teile (Bleche, Schrauben, Normteile …) mit Einkaufspreis je Lieferant und Aufschlag. Reiter "
            "<i>Zukaufartikel</i>, ohne Passwort.", kurz=True)
     i.abschnitt("Übersicht der Artikel")

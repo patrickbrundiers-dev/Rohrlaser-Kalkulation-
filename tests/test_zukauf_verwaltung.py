@@ -47,6 +47,7 @@ def staffel(tab, zeilen):
 
 
 db = Datenbank(tmp / "z.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 f = Hauptfenster(db, stumm=True)
 f.resize(1920, 1000)
 f.show()
