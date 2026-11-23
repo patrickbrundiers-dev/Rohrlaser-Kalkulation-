@@ -1630,7 +1630,7 @@ def kapitel_angebote(i):
            "Phase) wird gemerkt; daraus zeigt die <b>Auswertung</b>, wie gut die Erkennung ist.", kurz=True)
     i.genauer()
     i.liste("<b>Schnellfilter</b>: Knöpfe zum Ein- und Ausschalten; mehrere zugleich zeigen nur Anfragen, auf die alle "
-            "passen. Neue Anhänge = seit der letzten eigenen Bearbeitung kamen Dateien dazu. Doppelt = dieselbe Mail "
+            "passen. Eingeschaltete Filter sind blau. Ist ein Filter aktiv, erscheint <i>✕ Filter zurücksetzen</i>: es stellt Schnellfilter, Suche und alle Auswahlfelder wieder auf Vorgabe. Neue Anhänge = seit der letzten eigenen Bearbeitung kamen Dateien dazu. Doppelt = dieselbe Mail "
             "kam auf zwei Wegen.",
             "<b>Auswertung → Erkennung</b>: je Feld (Mail-Art, Kunde, Bearbeiter, Phase …) wie oft die Erkennung "
             "stimmte und was am häufigsten korrigiert wurde.",
@@ -1647,6 +1647,36 @@ def kapitel_angebote(i):
             "Adressen im Internet (Cloud-Dienste) lehnt das Programm ab; es entstehen keine Kosten.",
             "<b>Messwerte</b> (für die Entwicklung): <i>werkzeuge/anfrage_messung.py</i> misst die Mail-Art an festen "
             "Beispielen und liest die Kennzahlen eines Anfragen-Ordners, ohne etwas zu ändern.")
+
+    i.abschnitt("Rückfrage nachfassen, Wichtig zuerst und Erkennung je Woche", marke="anfrage_stufe2")
+    i.text("Wartet eine <b>Rückfrage</b> an den Kunden zu lange auf Antwort, erinnert das Programm daran. "
+           "<b>Wichtig zuerst</b> sortiert die Liste nach Frist, Priorität, Mail-Art, Kunde und Menge und zeigt die "
+           "Gründe. Die Auswertung zeigt die Erkennung <b>je Woche</b>.", kurz=True)
+    i.genauer()
+    i.liste("<b>Nachfassen</b>: Nach der Einstellung <i>Anfragen: Rückfrage an den Kunden nachfassen nach "
+            "[Arbeitstagen] ohne Antwort (0 = aus)</i> (Einstellungen → Ablage und Teilen → Anfragen, Vorgabe 3) steht rechts im Kopf „Rückfrage vom … ohne Antwort“ in "
+            "Rot, der Schnellfilter <i>Nachfassen</i> zeigt alle diese Anfragen und die tägliche Erinnerung nennt "
+            "sie. <i>Erinnerung …</i> öffnet in Outlook eine Antwort mit den Fragen der ersten Rückfrage. Gesendet "
+            "wird erst von dir. Danach läuft die Wartezeit neu, und der Kopf zeigt, wie oft schon erinnert wurde.",
+            "<b>Was die Antwort liefert</b>: Die Rückfrage merkt sich, welche Angaben fehlten. Kommt die Antwort des "
+            "Kunden, steht im Kopf „Die Antwort liefert: Werkstoff · fehlt weiter: Stückzahl“. Übernommen wird "
+            "dabei nichts.",
+            "<b>Wichtig zuerst</b> (Knopf rechts neben den Schnellfiltern): Punkte für überfällige (+40) oder heute "
+            "fällige (+25) Antworten, Priorität (Eilt +30, Hoch +15, Niedrig −10), Mail-Art (Bestellung +35, "
+            "Reklamation +30, Auftragsänderung +25, Nachfrage/Änderung zum Angebot +15, Liefertermin +10, "
+            "Allgemein −10, Werbung −50), den erwarteten Auftragswert des Kunden (bis +20) und große Mengen (ab 100 "
+            "Stück +5, ab 500 +10). Rückfragen zum Nachfassen bekommen +10, Anfragen, die auf den Kunden warten, "
+            "−20. Rechts im Kopf steht „Wichtig: … Punkte“ mit allen Gründen. Es wird nur sortiert, nichts "
+            "geändert.",
+            "<b>Breiter lernen</b>: In der <i>Auswertung → Erkennung</i> wählst du bei <i>Gelernt für</i> zwischen "
+            "Mail-Art, Sachgebiet und Bearbeiter. Jedes Modell hat eigenes Prüfen, Freigeben (nur Admin, ab 20 "
+            "Beispielen und nicht schlechter als die Regeln) und Zurücknehmen. Das Sachgebiet-Modell ändert nur "
+            "unsichere Einordnungen. Das Bearbeiter-Modell lernt aus angenommenen und geänderten Vorschlägen und gibt "
+            "dem gelernten Bearbeiter Punkte im Vorschlag; einen „sicheren“ Vorschlag (automatisch zuweisen) macht "
+            "es nie.",
+            "<b>Erkennung je Woche</b> (Auswertung): je Kalenderwoche Eingänge, Anteil Mail-Art unklar, Anteil von "
+            "Hand korrigiert (Mail-Art oder Kunde), Kunde eindeutig erkannt, Ø bis Übernahme, Rückfragen und "
+            "Erinnerungen. Gerechnet wird aus den Akten, gespeichert wird nichts.")
 
     i.abschnitt("Anfragen sammeln, verschieben und zusammenführen", marke="anfragen_sammeln")
     i.text("Eine Anfrage ist ein Vorgang mit beliebig vielen Mails und Dokumenten. Der Reiter <b>Dokumente & "

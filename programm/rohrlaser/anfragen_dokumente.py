@@ -206,7 +206,7 @@ def herkunft_html(akte, kunden_namen=None):
     if not kunde and not z.get("ohne_kunde"):
         for v in z.get("vorschlaege") or []:
             zeilen.append(f"&nbsp;&nbsp;Vorschlag {e(v['kundennr'])} {e(v['name'])} ({v['punkte']} Punkte: "
-                          f"{e('; '.join(v['gruende']))}) · <a href='kunde_ok:{e(v['kundennr'])}'>übernehmen</a>")
+                          f"{e('; '.join(v['gruende']))}) · <a href='kunde-ok:{e(v['kundennr'])}'>übernehmen</a>")
     o = z.get("original") or {}
     korr = akte.stand.get("absender_korr")
     if korr:
@@ -232,9 +232,9 @@ def herkunft_html(akte, kunden_namen=None):
         zeilen.append(f"<span style='color:#A66A00'>{e(h)}</span>")
     if z.get("kriterien"):
         zeilen.append(f"<span style='color:#666'>Erkannt über: {e('; '.join(z['kriterien']))}</span>")
-    zeilen.append("<a href='kunde_wahl:'>Kunde ändern …</a> · <a href='kunde_neu:'>Neuen Kunden anlegen …</a> · "
+    zeilen.append("<a href='kunde-wahl:'>Kunde ändern …</a> · <a href='kunde-neu:'>Neuen Kunden anlegen …</a> · "
                   "<a href='ansprechpartner:'>Ansprechpartner …</a> · <a href='absender:'>Absender korrigieren …</a> · "
-                  "<a href='ohne_kunde:'>Intern (ohne Kunde)</a> · <a href='angebot_hand:'>Angebot verknüpfen …</a> · "
+                  "<a href='ohne-kunde:'>Intern (ohne Kunde)</a> · <a href='angebot-hand:'>Angebot verknüpfen …</a> · "
                   "<a href='zuruecksetzen:'>Zurücksetzen</a>")
     rand = farbe.get("eindeutig" if kunde or z.get("ohne_kunde") else stufe, "#666")
     return (f"<div style='border-left:3px solid {rand}; padding-left:6px; margin-bottom:6px'><b>Herkunft und Kunde"
@@ -433,7 +433,7 @@ class AnfrageWahlDialog(QDialog):
 def regeln_html(regeln):
     if not regeln:
         return "<i>Noch keine Regeln. Sie entstehen beim Korrigieren eines Kunden mit „Als Regel merken“.</i>"
-    return "<br>".join(f"{html.escape(mz.regel_text(r))} · <a href='regel_weg:{html.escape(r['id'])}'>löschen</a>"
+    return "<br>".join(f"{html.escape(mz.regel_text(r))} · <a href='regel-weg:{html.escape(r['id'])}'>löschen</a>"
                        for r in regeln)
 
 

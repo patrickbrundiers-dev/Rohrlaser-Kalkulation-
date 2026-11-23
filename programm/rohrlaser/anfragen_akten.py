@@ -210,7 +210,7 @@ def stand_aus_verlauf(ereignisse):
              kunde=None, kunde_name="", kunde_bestaetigt=False, ohne_kunde=False, ansprechpartner=None,
              absender_korr=None, internet_ids=[], zuordnung_von="", weg={}, kategorien={}, zusammen=[],
              zusammengefuehrt_in="", status_vor="", mids_weg=[], art_korr=None, nachtrag_gesehen=0, phase="",
-             phase_von="")
+             phase_von="", nachgefasst=0, rueckfrage_fehlt=[])
     for e in sorted(ereignisse, key=lambda e: (e.get("zeit", ""), e.get("kuerzel", ""), e.get("nr", 0))):
         a, k, z = e.get("aktion"), e.get("kuerzel", ""), e.get("zeit", "")
         e["ungueltig"] = False
@@ -285,7 +285,12 @@ def stand_aus_verlauf(ereignisse):
                 s.update(kunde=None, kunde_name="", kunde_bestaetigt=False, ohne_kunde=False, ansprechpartner=None,
                          absender_korr=None, zuordnung_von="")
         elif a == RUECKFRAGE:
-            s.update(rueckfrage=z, rueckfrage_text=e.get("neu", ""))
+            if e.get("nachfassen"):         # 23.11.2026: Erinnerung, die Fragen der ersten Rückfrage bleiben
+                s["nachgefasst"] += 1
+                s["rueckfrage"] = z
+            else:
+                s.update(rueckfrage=z, rueckfrage_text=e.get("neu", ""), nachgefasst=0,
+                         rueckfrage_fehlt=list(e.get("fehlt") or []))
         elif a == ANTWORT_DA:
             s.update(antwort_am=z, rueckfrage="")
         elif a == VIREN:
@@ -927,10 +932,14 @@ class OrdnerAblage:
         return self.neu_lesen(akte)
 
     # ---------------------------------------------- Paket 6
-    def rueckfrage(self, akte, text, jetzt=None):
-        """Rückfrage an den Kunden vermerkt (die Mail öffnet die Seite in Outlook): Ampel ruht bis zur Antwort."""
+    def rueckfrage(self, akte, text, jetzt=None, fehlt=(), nachfassen=False):
+        """Rückfrage an den Kunden vermerkt (die Mail öffnet die Seite in Outlook): Ampel ruht bis zur Antwort.
+        fehlt: die erfragten Angaben (anfrage_erkennung.FEHLT); nachfassen: Erinnerung an eine offene Rückfrage."""
         akte = self.neu_lesen(akte)
-        self.ereignis(akte, RUECKFRAGE, neu=str(text or "")[:2000], jetzt=jetzt)
+        if nachfassen and not akte.stand.get("rueckfrage"):
+            raise AblageFehler("Es ist keine Rückfrage offen.")
+        extra = dict(nachfassen=True) if nachfassen else dict(fehlt=[str(k) for k in fehlt or ()])
+        self.ereignis(akte, RUECKFRAGE, neu=str(text or "")[:2000], jetzt=jetzt, **extra)
         return self.neu_lesen(akte)
 
     def antwort_erhalten(self, akte, jetzt=None):
@@ -1276,7 +1285,7 @@ def verlauf_text(e):
     elif a == UEBERNOMMEN:
         t += f" für {neu}" if neu and neu != e.get("kuerzel") else ""
     elif a == RUECKFRAGE:
-        t += ": " + " ".join(str(neu or "").split())[:80]
+        t = ("Erinnerung an die Rückfrage" if e.get("nachfassen") else t) + ": " + " ".join(str(neu or "").split())[:80]
     elif a in (NOTIZ, STAND, ANGEBOT, AUSSORTIERT, VORMESSUNG, NACHTRAG_GESEHEN):
         t += f": {neu}" if neu else ""
     elif a == VERSENDET:
