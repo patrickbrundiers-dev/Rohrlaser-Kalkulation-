@@ -480,12 +480,15 @@ def _angebot_kopf(kopf, ang, einst, ab=None):
                  ("Gültig bis", bis.strftime("%d.%m.%Y") if bis else ""), ("Kunden-Nr.", kopf.get("kundennr"))]
         if ang.get("kundenreferenz"):
             daten.append(("Ihre Anfrage", ang["kundenreferenz"]))
+        if ang.get("lieferadresse"):        # Kundenverwaltung: gewählte Lieferadresse des Kunden
+            daten.append(("Lieferanschrift", ", ".join(ang["lieferadresse"])))
         titel = f"{_b('Angebot')} {kopf.get('nummer') or ''}".strip()
     else:
         daten = [("AB-Nr.", ab.get("nummer")), ("Datum", ausgabe.datum_text(ab.get("datum"))),
                  ("Unser Angebot", kopf.get("nummer")), ("vom", ausgabe.datum_text(kopf.get("datum"))),
                  ("Kunden-Nr.", kopf.get("kundennr")), ("Ihre Bestellung", ab.get("bestellung")),
-                 ("Ihre Anfrage", ang.get("kundenreferenz")), ("Liefertermin", ab_termin_text(ab.get("liefertermin"), ab.get("lieferart")))]
+                 ("Ihre Anfrage", ang.get("kundenreferenz")), ("Liefertermin", ab_termin_text(ab.get("liefertermin"), ab.get("lieferart"))),
+                 ("Lieferanschrift", ", ".join(ang.get("lieferadresse") or ()))]
         titel = f"{_b('Auftragsbestätigung')} {ab.get('nummer') or ''}".strip()
     daten = [(_b(a), w) for a, w in daten]
     # Bearbeiter des Angebots (Benutzer und Kürzel, teilen.mitarbeiter)

@@ -3372,10 +3372,13 @@ class Hauptfenster(QMainWindow):
         self.seiten = [StammdatenSeite(db, t, self.meldung) for t in TABELLEN]
         for s in self.seiten:           # Kunden als eigener Reiter, die übrigen Stammdaten unter Einstellungen
             if s.t.name == "kunden":
-                self.reiter.addTab(s, s.t.titel)
-                self.kunden = s
+                # Kundenverwaltung (23.11.2026): eigener Bereich mit Übersicht, Profil und Eingabemaske; die bisherige
+                # Tabelle bleibt darin als „Tabellenansicht (alle Felder)“
+                from .kunden_seite import KundenBereich
                 s.doppelklick_setzen(lambda z: self.kunden_angebote(z.get("kundennr"), z.get("name")),
                                      "Doppelklick: Angebote dieses Kunden zeigen · Tippen oder F2: Wert ändern")
+                self.kunden = KundenBereich(self, s, stumm=stumm)
+                self.reiter.addTab(self.kunden, s.t.titel)
         # Einstellungen nach Themen (Plan „Einstellungen aufräumen“, 29.10.2026): je Seite der Ordnung ein Formular
         from .einstellungen_ordnung import SEITEN as EINSTELLUNGS_SEITEN
         funktionen.db_setzen(db)
@@ -3766,6 +3769,8 @@ class Hauptfenster(QMainWindow):
             a.triggered.connect(lambda _=False, name=name: self.kuerzel(name))
             bearbeiten.addAction(a)
             self.kuerzel_aktionen[name] = a
+        from .kunden_seite import menue_einrichten
+        self.kunden_menue = menue_einrichten(self, self.menuBar().addMenu("&Kunden"))
         ansicht = self.menuBar().addMenu("&Ansicht")
         for text, taste, schritt, innen in (("Nächster Reiter", "Ctrl+Tab", 1, False),
                                             ("Vorheriger Reiter", "Ctrl+Shift+Tab", -1, False),
@@ -4536,17 +4541,14 @@ class Hauptfenster(QMainWindow):
         return d
 
     def kunde_zeigen(self, kundennr, name=None):
-        """Reiter Kunden mit diesem Kunden (gesucht nach Kundennummer, sonst Name) zeigen. Ergebnis: Treffer."""
+        """Reiter Kunden mit diesem Kunden (gesucht nach Kundennummer, sonst Name) zeigen, eindeutig: Kundenprofil.
+        Ergebnis: Treffer."""
         such = str(kundennr or name or "").strip()
         if not such:
             self.meldung("Im Angebot ist noch kein Kunde eingetragen.", fehler=True)
             return 0
-        self.reiter.setCurrentWidget(self.kunden)
-        self.kunden.suche.setText(such)
-        n = self.kunden.filter.rowCount()
-        if n:
-            self.kunden.ansicht.selectRow(0)
-        else:
+        n = self.kunden.kunde_suchen(such)     # genau ein Treffer bzw. Kundennummer: gleich das Kundenprofil
+        if not n:
             self.meldung(f"„{such}“ steht nicht im Kundenstamm.", fehler=True)
         return n
 
@@ -4638,6 +4640,9 @@ class Hauptfenster(QMainWindow):
             seite = self.zeitvorgaben
         if getattr(seite, "t", None) is not None and seite.t.name == "zusatzarbeiten":
             seite = self.zusatz
+        if hasattr(self, "kunden") and seite is self.kunden.tabelle:   # Kundentabelle steht im Bereich Kunden
+            self.kunden.zeigen("tabelle")
+            seite = self.kunden
         if self.bereich.unter.indexOf(seite) >= 0:
             self.bereich.zeigen(seite)
             seite = self.bereich

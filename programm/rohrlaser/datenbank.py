@@ -33,6 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, rahmenauftrag, reklamation, step_pruefung
+from . import kunden_daten
 from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, ki_protokoll, material_import, lst_lernen, lst_vergleich, onlinepreise, pg_lokal, produktion_lst, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
@@ -207,8 +208,14 @@ SCHEMA_VERSION = 103    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     (rahmenauftrag.py); neue Tabellen leer, Angebote unverändert
                         # 101: Lokale KI-Plattform (20.11.2026): Tabellen ki_aktionen (Protokoll aller KI-Aktionen) und
                         #      ki_empfehlungen (offene KI-Empfehlungen), ki_protokoll.py; nur dieser PC, leer = nichts
+                        # 102: Kundenverwaltung (23.11.2026, kunden_daten.py): neue Felder in kunden (Firmenzusatz,
+                        #      Status, Gruppe, Ort, USt-ID, Kreditlimit, Notizen, Archiv …), Tabellen
+                        #      kunden_ansprechpartner, kunden_adressen, kunden_historie (geteilt), angebote.kunde_ansprech,
+                        #      kunde_ansprech_uid, liefer_uid, lieferadresse; Altdaten einmalig übernommen (migrieren)
                         # 103: Materialplattform (23.11.2026): Tabelle material_lieferanten (mehrere Lieferanten je
-                        #      Material), Spalte archiviert in profile und werkstoffe; leer = wie bisher
+                        #      Material, Staffel/VE/bevorzugt), Spalte archiviert in profile und werkstoffe, Tabelle
+                        #      materialstamm (Abmessung × Werkstoff mit Materialnummer, einmalig aus dem Bestand),
+                        #      material_importe/material_import_posten (ERP-Import mit Rückgängig, nur dieser PC)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -224,15 +231,18 @@ SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Si
 ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE,
                                                                 POSITIONSVORLAGEN, lernen.GELERNT,
                                                                 bg_zeitlernen.BG_ZEITEN) + onlinepreise.TABELLEN + \
-    (lst_vergleich.ZUORDNUNG, lst_lernen.ENTSCHEIDUNGEN)
+    (lst_vergleich.ZUORDNUNG, lst_lernen.ENTSCHEIDUNGEN) + kunden_daten.TABELLEN
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
                 POSITIONSVORLAGEN.name: POSITIONSVORLAGEN,
                 KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
                 kennwerte.HISTORIE.name: kennwerte.HISTORIE, lernen.GELERNT.name: lernen.GELERNT,
                 bg_zeitlernen.BG_ZEITEN.name: bg_zeitlernen.BG_ZEITEN,
                 **{t.name: t for t in onlinepreise.TABELLEN}, lst_vergleich.ZUORDNUNG.name: lst_vergleich.ZUORDNUNG,
-                lst_lernen.ENTSCHEIDUNGEN.name: lst_lernen.ENTSCHEIDUNGEN}
+                lst_lernen.ENTSCHEIDUNGEN.name: lst_lernen.ENTSCHEIDUNGEN, **{t.name: t for t in kunden_daten.TABELLEN}}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
+# Kundenverwaltung: Ansprechpartner, Adressen und Historie ziehen beim Umbenennen der Kundennummer mit
+ALLE_VERWEISE[("kunden", "kundennr")] = ALLE_VERWEISE[("kunden", "kundennr")] + tuple(
+    (t.name, "kundennr") for t in kunden_daten.TABELLEN)
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
 RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
@@ -750,6 +760,9 @@ class Datenbank:
             produktion_lst.einrichten(self.con)        # Lernsystem L1: Produktionsdaten aus TRUMPF-LST
             ki_protokoll.einrichten(self.con)
             material_import.einrichten(self.con)       # ERP-Materialimport: Läufe und Posten (Rückgängig)
+            for t in kunden_daten.TABELLEN:          # Kundenverwaltung: Suche je Kunde
+                self.con.execute(f'CREATE INDEX IF NOT EXISTS "{t.name}_kunde" ON "{t.name}" (kundennr)')
+            kunden_daten.migrieren(self)            # einmalig: PLZ/Ort, Status, Ansprechpartner aus den Altdaten
             db_verbindung.schema_version_setzen(self.con, SCHEMA_VERSION)
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")
@@ -2554,6 +2567,8 @@ class Datenbank:
             self.angebot_aendern(angebot_id, "kunde", k["name"])
             for n, w in self.zahlungsbedingungen(kundennr).items():
                 self.angebot_aendern(angebot_id, n, w)
+        # Kundenverwaltung: Hauptansprechpartner und Standard-Lieferadresse des neuen Kunden (ohne Kunde leer)
+        kunden_daten.angebot_kunde_setzen(self, angebot_id, kundennr if k else None)
         geaendert = self.kundenvorgaben_anwenden(angebot_id, a, kundennr)
         if k:
             k["vorgaben"] = geaendert
@@ -2786,7 +2801,11 @@ class Datenbank:
             kopf["kundennr"] = kundennr or None
             kopf["kunde"] = k["name"] if k else None
             kopf.update(self.zahlungsbedingungen(kundennr))
+            for n in ("kunde_ansprech_uid", "kunde_ansprech", "liefer_uid", "lieferadresse"):
+                kopf.pop(n, None)
         neu = self.angebot_neu(kopf, zaehler=not nummer)
+        if kundennr is not None and kundennr != a.get("kundennr") and kundennr:
+            kunden_daten.angebot_kunde_setzen(self, neu, kundennr)
         if a.get("laengenwahl"):                    # übernommene Lieferlängen gelten auch für die Kopie
             self.laengenwahl_speichern(neu, a["laengenwahl"])
         if a.get("stangen_vorgabe"):                # von Hand vorgegebene Stangen ebenso

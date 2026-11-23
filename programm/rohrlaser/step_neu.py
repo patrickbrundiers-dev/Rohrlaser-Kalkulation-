@@ -4,7 +4,6 @@ STEP-Dateien oder ein Ordner auf die Angebotsliste bzw. die Startseite ziehen od
 Das Programm schlägt den Kunden vor (kunde_vorschlag), legt das Angebot an (mit den Kundenvorgaben, W2), öffnet es
 und startet den STEP-Import wie in der Positionsliste.
 """
-import datetime
 import re
 from pathlib import Path
 
@@ -140,7 +139,7 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
     waehlen = kundennr is None and not fenster.stumm     # Plan Bedienung B1: Kunde oben im Prüfdialog
     neu_angelegt = None
     if kundennr is None and not vorschlag and neuer_kunde:
-        vorschlag, neu_angelegt = kunde_anlegen(db, neuer_kunde)
+        vorschlag, neu_angelegt = kunde_anlegen(fenster, neuer_kunde)
     if kundennr is None:
         kundennr = vorschlag or kunde_vorschlag(db, dateien) or ""
     i = db.angebot_neu(dict(kopf or {}, kundennr=kundennr or None))
@@ -166,18 +165,25 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
 PRUEFEN = "Kunde prüfen"
 
 
-def kunde_anlegen(db, daten):
-    """Kunden aus mail.kunde_daten anlegen: nächste freie Kundennummer, Bemerkung „Kunde prüfen – aus E-Mail vom
-    …“. Ergebnis (Kundennummer, Zeilen-ID) bzw. (None, None) wenn nicht möglich."""
-    from . import mail, stammdaten
-    try:
-        nr = mail.neue_kundennr([k.get("kundennr") for k in db.zeilen("kunden")])
-        felder = {f.name for f in stammdaten.KUNDEN.felder}
-        werte = {k: v for k, v in daten.items() if k in felder and v}
-        if not re.fullmatch(r"[A-Z]{2}", werte.get("land") or "DE"):
-            werte.pop("land")
-        werte.update(kundennr=nr, bemerkung=f"{PRUEFEN} – automatisch aus der Anfrage angelegt am "
-                                            f"{datetime.date.today().strftime('%d.%m.%Y')}")
-        return nr, db.neu("kunden", werte)
-    except Exception:       # z. B. Lesemodus: dann ohne Kunden weiter
+def kunde_anlegen(fenster, daten):
+    """Unbekannter Absender: Eingabemaske „Neuen Kunden anlegen“, vorbelegt aus mail.kunde_daten (Firma, Anschrift,
+    Ansprechpartner). Die Kundennummer gibt man immer von Hand ein (Patrick 23.11.2026, ersetzt das automatische
+    Anlegen mit „Kunde prüfen“ vom 28.10.). Ohne Bildschirm oder bei Abbruch kein Kunde. Ergebnis (Kundennummer,
+    None) bzw. (None, None)."""
+    from . import anfrage_kunde
+    from . import kunden_daten as kd
+    kb = getattr(fenster, "kunden", None)
+    if fenster.stumm or kb is None or not hasattr(kb, "neuer_kunde") or not daten:
         return None, None
+    d = dict(daten)
+    if d.get("plz_ort") and not (d.get("plz") or d.get("ort")):
+        d["plz"], d["ort"] = kd.plz_ort_teilen(d["plz_ort"])
+    if d.get("ansprechpartner") and not d.get("person"):
+        an, vor, nach = kd.name_teilen(d.pop("ansprechpartner"))
+        d["person"] = dict(anrede=an, vorname=vor, nachname=nach, email=d.get("email"))
+    try:
+        nr = kb.neuer_kunde(vorschlag=anfrage_kunde.vorschlag_neu(d), oeffnen=False)
+    except Exception as fehler:     # noqa: BLE001 – ohne Kunden weiter
+        fenster.meldung(f"Kunde nicht angelegt: {fehler}", fehler=True)
+        nr = None
+    return (nr, None) if nr else (None, None)

@@ -212,12 +212,20 @@ def _():
         QTest.mouseDClick(feld, Qt.LeftButton, Qt.NoModifier, QPoint(5, 5))
         assert fenster.reiter.currentWidget() is fenster.kunden and fenster.kunden.suche.text() == kunde["kundennr"]
         assert fenster.kunden.filter.rowCount() >= 1
-        # Kundenliste: Doppelklick zeigt die Angebote des Kunden
+        # Kundenübersicht (23.11.2026): Doppelklick öffnet das Kundenprofil
         k = fenster.kunden
+        k.zeigen("uebersicht")
         k.ansicht.doubleClicked.emit(k.filter.index(0, 0))
+        assert fenster.reiter.currentWidget() is k and k.stapel.currentWidget() is k.profil
+        assert k.profil.kundennr == kunde["kundennr"]
+        # Tabellenansicht (alle Felder): Doppelklick zeigt wie bisher die Angebote des Kunden
+        t = k.tabelle
+        k.zeigen("tabelle")
+        t.suche.setText(kunde["kundennr"])
+        t.ansicht.doubleClicked.emit(t.filter.index(0, 0))
         assert fenster.reiter.currentWidget() is fenster.angebote
         assert fenster.angebote.suche.text() == kunde["kundennr"] and fenster.angebote.filter.rowCount() == 1
-        assert not k.ansicht.editTriggers() & QAbstractItemView.DoubleClicked
+        assert not t.ansicht.editTriggers() & QAbstractItemView.DoubleClicked
         assert fenster.kunde_zeigen(None) == 0
         fenster.close()
         db.con.close()

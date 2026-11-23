@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.458", "<b>Neue Seite Material</b> ([[material_seite]]) in der Seitenleiste: jedes Material (Abmessung × "
+    ["0.9.459", "<b>Neue Seite Material</b> ([[material_seite]]) in der Seitenleiste: jedes Material (Abmessung × "
                 "Werkstoff) als eine Zeile mit Gewicht, €/kg, €/m, Handelslängen, Lieferant, Preisstand und "
                 "Verwendung. <b>Suche</b> beim Tippen (<i>40x40x2</i>, <i>Rundrohr 42,4x2 S235</i>, <i>1.4301</i>, "
                 "<i>V2A</i>), Filter mit Anzahl, Favoriten, Zuletzt, Häufig und eine <b>Preismatrix</b> je Profilart. "
@@ -39,8 +39,35 @@ NEUERUNGEN = [
                 "(einstellbar), sonst nur Vorschlag. <b>Profile und Werkstoffe aus dem EK anlegen</b> mit Norm und "
                 "Naht (EN 10219 geschweißt, EN 10210 nahtlos/warm, EN 10305), und beim STEP-Import der Werkstoff je "
                 "Profil nach dem Einkauf als <b>Vorauswahl</b>. Bestehende Stammdatenpreise ändern sich nicht von "
-                "selbst.",
-     "Neue Seite Material: Suche, Filter, Matrix, Lieferanten, Vergleich, EK-Historie, Preisvorschläge, EK-Anlegen."],
+                "selbst. <b>Materialdatenbank</b> ([[material_datenbank]]): Die Seite hat jetzt die Bereiche "
+                "Dashboard, Materialübersicht, Werkstoffe, Abmessungen, Materialkombinationen, Einkaufspreise, "
+                "Lieferanten, ERP-Import, Preisverlauf, Importhistorie und Einstellungen. Neuer <b>Materialstamm</b> je "
+                "Abmessung × Werkstoff mit <b>Artikelnummer aus dem ERP</b> (aus beiden Importen), aktiv/inaktiv. "
+                "Neuer <b>Import Materialstamm und EK-Preise</b> (CSV oder Excel, Spalten zuordnen, Importprofile, "
+                "€/m, €/kg, €/t, €/Stange) mit <b>Vorschau</b> in sieben Gruppen, Übernahme erst nach Bestätigung, "
+                "<b>Importhistorie mit Rückgängig</b> und Preisverlauf mit Herkunft. Vorhandene Materialien werden "
+                "zuerst über <b>Artikelnummer und Bestellnummer</b> erkannt; unklare Werkstoffe rät das Programm nie. "
+                "Lieferanten mit Staffel, Verpackungseinheit und bevorzugtem Lieferanten, dazu "
+                "<b>Lieferantenvergleich</b>; Export auch als Excel. Datenbank Schema 103.",
+     "Neue Seite Material mit Materialdatenbank: Materialstamm mit Artikelnummern, ERP-Import mit Vorschau und "
+     "Rückgängig, Preisverlauf, Lieferantenvergleich, EK-Historie, Preisvorschläge."],
+    ["0.9.458", "<b>Kundenverwaltung mit eigenem Menü</b> ([[kunden]]): Reiter und Menü <i>Kunden</i> mit "
+                "Kundenübersicht (Tabelle oder Karten, Live-Suche, Filter Status und Gruppe, Export Excel/CSV), "
+                "<b>Kundenprofil</b> mit acht Reitern (Kennzahlen Umsatz, Angebote, Aufträge, Quote, offene Angebote; "
+                "Stammdaten mit Rechnungs-, Liefer- und Standortadressen; beliebig viele <b>Ansprechpartner</b> mit "
+                "Rollen Haupt/Einkauf/Technik/Buchhaltung; Angebote; Aufträge; Dokumente; Historie aller Änderungen; "
+                "interne Notizen), mehrstufige Eingabemaske (Kundennummer immer von Hand, Hinweis auf die zuletzt vergebene) und "
+                "<b>Dublettenprüfung</b> (Name ohne Rechtsform, USt-ID, E-Mail/Domain, Telefon, Anschrift; nie "
+                "automatisch zusammengeführt), Archivieren und Duplizieren. Im Angebotskopf Kundensuche <b>…</b>, "
+                "Auswahl von Ansprechpartner und Lieferadresse; beides steht im PDF, in der Angebotsakte und geht in "
+                "den Auftrag. Bestehende Kunden werden beim Update ergänzt (nichts geht verloren). "
+                "<b>Kunde aus der Anfrage</b> ([[anfragen]]): <i>Kunde ändern …</i> zeigt erkannte Kunden mit Punkten "
+                "und Gründen (auch E-Mail der Ansprechpartner, USt-ID, Telefon) und die Gegenüberstellung "
+                "<i>Datenbank | Neue E-Mail</i>; übernommen wird nur, was du anhakst. <i>Neuen Kunden anlegen …</i> "
+                "füllt die Eingabemaske aus der Signatur (Firma, Anschrift, Telefon, Mobil, Website, USt-ID, "
+                "Ansprechpartner mit Position). Datenbank Schema 102.",
+     "Kundenverwaltung: Menü Kunden, Kundenprofil, Ansprechpartner, Lieferadressen, Dublettenprüfung, im Angebot "
+     "wählbar; Kunde aus der Anfrage mit Gegenüberstellung."],
     ["0.9.457", "<b>Zusatzarbeiten: Zeit aus dem Stundensatz</b> ([[zusatz_global]]): Freie allgemeine "
                 "Zusatzarbeiten ohne eigene Zeit bekommen ihre Zeit automatisch: interne Kosten (ohne Kosten: Preis) "
                 "je Einheit ÷ Stundensatz. Der Stundensatz steht in Einstellungen → Zuschläge und Preise (Vorgabe 60 €/h). "

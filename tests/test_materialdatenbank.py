@@ -267,4 +267,21 @@ xp = m.exportieren(m.alle_zeilen[:20], str(tmp / "material.xlsx"))
 assert zipfile.is_zipfile(xp) and "RR" in (mp.xlsx_als_csv(xp) or "")
 ok("Lieferantenvergleich, Materialstamm aktiv/inaktiv per Kontextmenü, Excel-Export der Materialliste")
 
+# Menü „Material …“ im Angebot
+sys.path.insert(0, str(HIER))
+import beispiel_angebot  # noqa: E402
+
+an = f.angebot_oeffnen(beispiel_angebot.anlegen(db))
+texte = [a.text() for a in an.material_menue.actions() if a.text()]
+assert texte[:3] == ["Material je Abmessung …", "Material suchen und zuweisen …",
+                     "Lieferantenvergleich für die Position …"], texte
+assert {"Materialdatenbank: Dashboard", "Materialdatenbank: ERP-Import …", "Materialdatenbank: Preisverlauf"} <= \
+    set(texte) and an.material_knopf.menu() is an.material_menue
+assert an.material_bereich("ERP-Import") is m and m.bereiche.tabText(m.bereiche.currentIndex()) == "ERP-Import"
+assert f.reiter.currentWidget() is m
+lv = an.material_lieferanten(bedarf=30, frage=False)
+assert lv is None or isinstance(lv, tuple)
+ok("Angebot: Knopf „Material …“ als Menü mit Material je Abmessung, Zuweisen, Lieferantenvergleich und Sprüngen "
+   "in die Materialdatenbank")
+
 print("Alle Tests Materialdatenbank bestanden")

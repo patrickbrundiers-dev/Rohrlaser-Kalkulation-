@@ -2494,7 +2494,32 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.material_knopf = QPushButton("Material …")
         self.material_knopf.setToolTip("Materialeinsatz je Abmessung; Werkstoff, Oberfläche, Lieferlänge, Material und "
                                        "Meterpreis ändern")
-        self.material_knopf.clicked.connect(lambda: self.material_einstellen())
+        # Auswahlmenü passend zur Materialdatenbank (Patrick 23.11.2026): Material im Angebot und Sprünge in die Bereiche
+        mm = QMenu(self.material_knopf)
+        mm.setToolTipsVisible(True)
+        self.material_menue = mm
+        for text, fn, tipp in (
+                ("Material je Abmessung …", lambda: self.material_einstellen(),
+                 "Materialeinsatz dieses Angebots: Werkstoff, Oberfläche, Lieferlänge, Eigen-/Kundenmaterial, Meterpreis"),
+                ("Material suchen und zuweisen …", lambda: self.material_plattform(),
+                 "Materialübersicht, gefiltert auf die markierte Position; dort den Positionen zuweisen"),
+                ("Lieferantenvergleich für die Position …", lambda: self.material_lieferanten(),
+                 "Lieferantenpreise des Materials der markierten Position für einen Bedarf vergleichen"),
+                (None, None, None),
+                ("Materialdatenbank: Dashboard", lambda: self.material_bereich("Dashboard"), ""),
+                ("Materialdatenbank: Materialübersicht", lambda: self.material_bereich("Materialübersicht"), ""),
+                ("Materialdatenbank: Einkaufspreise", lambda: self.material_bereich("Einkaufspreise"), ""),
+                ("Materialdatenbank: Lieferanten", lambda: self.material_bereich("Lieferanten"), ""),
+                ("Materialdatenbank: Preisverlauf", lambda: self.material_bereich("Preisverlauf"), ""),
+                ("Materialdatenbank: ERP-Import …", lambda: self.material_bereich("ERP-Import"),
+                 "Materialstamm/EK-Preise oder Einkäufe (EK-CSV) einlesen, mit Vorschau")):
+            if text is None:
+                mm.addSeparator()
+                continue
+            a = mm.addAction(text, fn)
+            a.setToolTip(tipp)
+        self.material_knopf.setMenu(mm)
+        self.material_knopf.setStyleSheet("QPushButton::menu-indicator { image: none; width: 0px; }")
         leiste.addWidget(self.material_knopf)
         ansicht = QPushButton("3D-Ansicht …")
         ansicht.clicked.connect(lambda: self.ansicht_3d())
@@ -4368,6 +4393,59 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 self.db.angebot_aendern(self.id, "fracht_land", land)
             self._fracht_auto_rechnen()
         self.neu_laden()
+
+    def kunde_suchen(self, kundennr=None):
+        """Knopf „…“ am Kundenfeld: Kundensuche (mit „Neuer Kunde …“, vorbelegt mit dem getippten Text); der gewählte
+        Kunde wird mit Name, Konditionen, Ansprechpartner und Lieferadresse übernommen. Gesperrte Kunden: Rückfrage.
+        kundennr (Tests): ohne Dialog. Ergebnis: Kundennummer oder None."""
+        from . import kunden_daten
+        if kundennr is None:
+            if self.f.stumm:
+                return None
+            from .kunden_seite import KundenSuche
+            text = self.felder["kundennr"].currentText() if "kundennr" in self.felder else ""
+            if self.kopf.get("kundennr") and text.startswith(str(self.kopf["kundennr"])):
+                text = ""
+            d = KundenSuche(self, self.db, text, titel="Kunde für das Angebot wählen",
+                            neu=lambda s: self.f.kunden.neuer_kunde(vorschlag={"name": s}, oeffnen=False))
+            if d.exec() != QDialog.Accepted or not d.kundennr:
+                return None
+            kundennr = d.kundennr
+        k = kunden_daten.kunde(self.db, kundennr) or {}
+        if k.get("status") == kunden_daten.GESPERRT and not self.f.stumm:
+            if QMessageBox.question(self, "Kunde gesperrt", f"{kundennr} {k.get('name') or ''} ist gesperrt. Trotzdem "
+                                                            "übernehmen?") != QMessageBox.Yes:
+                return None
+        self.kunde_waehlen(kundennr)
+        return kundennr
+
+    def ansprech_waehlen(self, uid):
+        """Ansprechpartner des Angebots (Auswahl im Kopf); steht im Angebot als „z. Hd.“."""
+        from . import kunden_daten
+        if self._laden:
+            return None
+        p = kunden_daten.angebot_person_setzen(self.db, self.id, uid)
+        self.f.meldung(f"Ansprechpartner {kunden_daten.name_voll(p)} übernommen." if p else "Ohne Ansprechpartner.")
+        self.neu_laden()
+        return p
+
+    def liefer_waehlen(self, uid):
+        """Lieferadresse des Angebots; bei automatischer Fracht wird sie das Frachtziel."""
+        from . import kunden_daten
+        if self._laden:
+            return None
+        a = kunden_daten.angebot_adresse_setzen(self.db, self.id, uid, self.kopf.get("kundennr"))
+        self.f.meldung("Lieferadresse übernommen." if a else "Lieferung an die Firmenanschrift.")
+        if fracht_angebot.auto(self.db.angebot(self.id)):
+            k = self.db.kunde(self.kopf.get("kundennr")) or {}
+            plz, land = (a.get("plz"), a.get("land") or "DE") if a and a.get("plz") else \
+                fracht_angebot.ziel_aus_kunde(k)
+            if plz:
+                self.db.angebot_aendern(self.id, "fracht_plz", plz)
+                self.db.angebot_aendern(self.id, "fracht_land", land)
+                self._fracht_auto_rechnen()
+        self.neu_laden()
+        return a
 
     def kunde_zeigen(self):
         """Doppelklick auf Kunde im Angebotskopf: Kunden des Angebots im Reiter Kunden zeigen."""
@@ -7130,6 +7208,26 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if hasattr(self.f, "material_zeigen"):
             return self.f.material_zeigen(p, self)
         return None
+
+    def material_bereich(self, name):
+        """Seite Material mit diesem Bereich der Materialdatenbank zeigen (Menü „Material …“)."""
+        if not hasattr(self.f, "material_zeigen"):
+            return None
+        m = self.f.material_zeigen(None, self)
+        from . import material_bereiche
+        material_bereiche.bereich_zeigen(m, name)
+        return m
+
+    def material_lieferanten(self, bedarf=None, frage=True):
+        """Lieferantenvergleich für das Material der markierten Position (Bedarf in m wird gefragt)."""
+        zeilen = self._markierte_zeilen()
+        p = self.positionen[zeilen[0]] if zeilen else None
+        if not p or not p.get("profil_id") or not p.get("werkstoff_id") or not hasattr(self.f, "material"):
+            self.f.meldung("Bitte zuerst eine Rohr-Position mit Profil und Werkstoff markieren.")
+            return None
+        from . import material_bereiche
+        return material_bereiche.lieferantenvergleich(self.f.material, p["profil_id"], p["werkstoff_id"], bedarf,
+                                                      frage=frage)
 
     def _pos_menue_anpassen(self):
         """Rechtsklick-Menü passend zu den markierten Positionen (B5)."""
