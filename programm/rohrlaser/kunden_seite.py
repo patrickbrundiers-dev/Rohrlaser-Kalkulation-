@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QTableView, QTableWidget, QTableWidgetItem, QTabWidget, QToolButton, QVBoxLayout,
                                QWidget)
 
+from . import protokoll
 from . import kunden_daten as kd
 from . import stil
 from .kacheln import KachelZeile
@@ -294,8 +295,8 @@ class Uebersicht(QWidget):
         try:
             from .spaltenbreite import AutoGroesse
             AutoGroesse(self.ansicht)
-        except Exception:
-            pass
+        except Exception:       # noqa: BLE001 – nur Anzeige/Bequemlichkeit, weiter ohne
+            protokoll.warnung("Kundenübersicht: Spaltenbreite")
         self.karten = QListView()
         self.karten.setModel(self.filter)
         self.karten.setViewMode(QListView.IconMode)
@@ -316,8 +317,8 @@ class Uebersicht(QWidget):
         self.stapel.setCurrentIndex(1 if karten else 0)
         try:
             self.db.einstellung_setzen("kunden_ansicht", "Karten" if karten else "Tabelle")
-        except Exception:
-            pass
+        except Exception:       # noqa: BLE001 – nur Anzeige/Bequemlichkeit, weiter ohne
+            protokoll.warnung("Kundenübersicht: Ansicht merken")
 
     def neu_laden(self):
         gewaehlt = self.gewaehlt()
@@ -1460,13 +1461,13 @@ class KundenBereich(QWidget):
         self.uebersicht.neu_laden()
         try:
             self.tabelle.neu_laden()
-        except Exception:
-            pass
+        except Exception:       # noqa: BLE001 – nur Anzeige/Bequemlichkeit, weiter ohne
+            protokoll.warnung("Kunden: Tabellenansicht neu laden")
         if self.f is not None and hasattr(self.f, "puls"):
             try:
                 self.f.puls()
-            except Exception:
-                pass
+            except Exception:       # noqa: BLE001 – nur Anzeige/Bequemlichkeit, weiter ohne
+                protokoll.warnung("Kunden: Puls")
 
     # ---------------------------------------------------------- Vorgänge
     def neuer_kunde(self, vorschlag=None, stumm=None, werte=None, dubletten_ok=None, oeffnen=True):

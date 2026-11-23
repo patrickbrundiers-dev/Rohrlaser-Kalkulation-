@@ -30,6 +30,7 @@ import socket
 import unicodedata
 from pathlib import Path
 
+from . import protokoll
 from .stammdaten import Feld, Tabelle
 
 STATUS = ("Aktiv", "Inaktiv", "Gesperrt")
@@ -468,8 +469,8 @@ def kennzahlen_alle(db):
                 z["laufend"] += 1
             d = str(a.get("auftragsdatum") or a.get("angelegt") or "")[:10]
             z["letzter_auftrag"] = max(z["letzter_auftrag"], d)
-    except Exception:
-        pass
+    except Exception:       # noqa: BLE001 – nur Anzeige/Bequemlichkeit, weiter ohne
+        protokoll.warnung("Kunden-Kennzahlen: Aufträge nicht lesbar")
     for nr, zeit in db.con.execute("SELECT kundennr, MAX(zeit) FROM kunden_historie WHERE art IN (?, ?) "
                                    "GROUP BY kundennr", (H_KONTAKT, H_NOTIZ)).fetchall():
         z = je.setdefault(str(nr), neu())
@@ -1205,23 +1206,71 @@ def export_csv(zeilen, pfad):
     return pfad
 
 
+def _xlsx_spalte(i):
+    t = ""
+    while i:
+        i, r = divmod(i - 1, 26)
+        t = chr(65 + r) + t
+    return t
+
+
 def export_xlsx(zeilen, pfad):
-    """Übersicht als Excel-Datei (openpyxl); ohne openpyxl RuntimeError."""
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font
-    except ImportError:
-        raise RuntimeError("Excel-Export braucht openpyxl; bitte CSV verwenden.")
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Kunden"
-    ws.append([t for _, t in EXPORT_SPALTEN])
-    for c in ws[1]:
-        c.font = Font(bold=True)
-    for z in zeilen:
-        ws.append([z.get(n) for n, _ in EXPORT_SPALTEN])
-    ws.freeze_panes = "A2"
-    for i, (n, t) in enumerate(EXPORT_SPALTEN, start=1):
-        ws.column_dimensions[ws.cell(1, i).column_letter].width = max(10, min(40, len(t) + 4))
-    wb.save(pfad)
+    """Übersicht als Excel-Datei (.xlsx, Office Open XML ohne Zusatzpaket: im Windows-Paket ist kein openpyxl).
+    Kopfzeile fett und fixiert, Zahlen als Zahlen, Texte als Inline-Text."""
+    import zipfile
+    from xml.sax.saxutils import escape
+
+    def zelle(r, c, w, stil=0):
+        ref = f"{_xlsx_spalte(c)}{r}"
+        if w is None or w == "":
+            return ""
+        if isinstance(w, (int, float)) and not isinstance(w, bool):
+            return f'<c r="{ref}"><v>{w}</v></c>'
+        t = escape(str(w)).replace("\n", "&#10;")
+        t = "".join(ch for ch in t if ch in "\t&#10;" or ord(ch) >= 32)
+        return f'<c r="{ref}" t="inlineStr"{f" s={chr(34)}{stil}{chr(34)}" if stil else ""}><is><t xml:space="preserve">{t}</t></is></c>'
+
+    reihen = [[t for _, t in EXPORT_SPALTEN]] + [[z.get(n) for n, _ in EXPORT_SPALTEN] for z in zeilen]
+    daten = "".join(f'<row r="{r}">' + "".join(zelle(r, c, w, 1 if r == 1 else 0) for c, w in enumerate(z, 1))
+                    + "</row>" for r, z in enumerate(reihen, 1))
+    breiten = "".join(f'<col min="{i}" max="{i}" width="{max(10, min(40, len(t) + 4))}" customWidth="1"/>'
+                      for i, (_, t) in enumerate(EXPORT_SPALTEN, 1))
+    blatt = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+             '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+             '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" '
+             f'state="frozen"/></sheetView></sheetViews><cols>{breiten}</cols><sheetData>{daten}</sheetData>'
+             '</worksheet>')
+    ns = "http://schemas.openxmlformats.org"
+    dateien = {
+        "[Content_Types].xml": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="'
+        f'{ns}/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-'
+        'package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override '
+        'PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.'
+        'sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.'
+        'openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
+        "_rels/.rels": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="{ns}/package/'
+        f'2006/relationships"><Relationship Id="rId1" Type="{ns}/officeDocument/2006/relationships/officeDocument" '
+        'Target="xl/workbook.xml"/></Relationships>',
+        "xl/workbook.xml": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="{ns}/'
+        f'spreadsheetml/2006/main" xmlns:r="{ns}/officeDocument/2006/relationships"><sheets><sheet name="Kunden" '
+        'sheetId="1" r:id="rId1"/></sheets></workbook>',
+        "xl/_rels/workbook.xml.rels": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships '
+        f'xmlns="{ns}/package/2006/relationships"><Relationship Id="rId1" Type="{ns}/officeDocument/2006/'
+        f'relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="{ns}/'
+        'officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+        "xl/styles.xml": f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="{ns}/'
+        'spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/>'
+        '<sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/>'
+        '</fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/>'
+        '<top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" '
+        'fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" '
+        'borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+        '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+        '</styleSheet>',
+        "xl/worksheets/sheet1.xml": blatt,
+    }
+    with zipfile.ZipFile(pfad, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, inhalt in dateien.items():
+            z.writestr(name, inhalt)
     return pfad
