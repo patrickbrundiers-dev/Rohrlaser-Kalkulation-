@@ -727,6 +727,13 @@ class AusgabeMixin:
                 auswahl.select(self.pos_modell.index(r, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
             self.f.meldung(f"{wert['profil']}: {len(zeilen)} Position(en) markiert.")
             return zeilen
+        if aktion == "datenbank":           # Bereich der Materialdatenbank (Seite Material) zeigen
+            return self.material_bereich(wert)
+        if aktion == "zuweisen":            # Materialübersicht mit dem Material dieser Abmessung, Ziel = dieses Angebot
+            if not hasattr(self.f, "material_zeigen"):
+                return None
+            self._material_nachher("markieren", wert)
+            return self.f.material_zeigen(dict(profil_id=wert["profil"], werkstoff_id=wert["werkstoff"]), self)
         if aktion == "optimieren":         # danach das Material-Fenster mit dem neuen Schnittplan wieder zeigen
             ok = self.optimieren()
             if ok and not self.f.stumm:

@@ -3420,6 +3420,11 @@ class Hauptfenster(QMainWindow):
         from .zukauf_seite import ZukaufBereich
         self.zukauf = ZukaufBereich(db, self.meldung)
         self.reiter.addTab(self.zukauf, self.zukauf.titel)
+        # Material: Abmessung × Werkstoff mit Suche, Filter, Lieferanten, Vergleich, Prüfvorschlägen (23.11.2026);
+        # liest und schreibt die Stammdaten-Tabellen, keine zweite Materialverwaltung
+        from .material_seite import MaterialBereich
+        self.material = MaterialBereich(self)
+        self.reiter.addTab(self.material, self.material.titel)
         self.reiter.addTab(self.bereich, "Einstellungen")
         self.reiter.gruppe_setzen(self.angebote)     # ab hier: geöffnete Angebote in der Zeile unter „Angebote“
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
@@ -4459,7 +4464,8 @@ class Hauptfenster(QMainWindow):
             self.kuerzel_aktionen[name].setEnabled(False)
         for text in self.SCHREIBENDE_DATEI:
             self.datei_aktionen[text].setEnabled(False)
-        for w in [self.angebote, self.kunden, self.fracht, self.zukauf, self.bereich, *self.offen.values()]:
+        for w in [self.angebote, self.kunden, self.fracht, self.zukauf, self.material, self.bereich,
+                  *self.offen.values()]:
             lesemodus_anwenden(w)
         self.einstellungen.setEnabled(False)
         self.einstellungen.setToolTip(LESEMODUS_TIPP)
@@ -4647,6 +4653,23 @@ class Hauptfenster(QMainWindow):
         self.reiter.setCurrentWidget(self.materialanfragen)
         self.materialanfragen.zeigen_fuer(nummer)
         return self.materialanfragen
+
+    def material_zeigen(self, position=None, seite=None):
+        """Seite Material zeigen; mit Position: gefiltert auf deren Profilart, deren Material markiert. Die Seite merkt
+        sich das Angebot als Ziel für „Zuweisen“."""
+        m = self.material
+        m.ziel_seite = seite
+        self.reiter.setCurrentWidget(m)
+        m.neu_laden()
+        if position:
+            pr = self.db.kontext().profile.get(position.get("profil_id")) or {}
+            m.suche.setText("")
+            if pr.get("form"):
+                m.filter_setzen("form", {pr["form"]})
+            if not m.auswaehlen(position.get("profil_id"), position.get("werkstoff_id")):
+                m.alle_box.setChecked(True)
+                m.auswaehlen(position.get("profil_id"), position.get("werkstoff_id"))
+        return m
 
     def einstellung_zeigen(self, name):
         """Seite der Einstellungen mit dieser Einstellung zeigen (Befehlspalette, Hinweise)."""
@@ -4923,6 +4946,7 @@ class Hauptfenster(QMainWindow):
         for s in self.seiten:
             s.neu_laden()
         self.zukauf.neu_laden()
+        self.material.neu_laden(erzwingen=True)
         self.zusatz.neu_laden()
         self.einstellungen.neu_laden()
         self.fracht.neu_laden()

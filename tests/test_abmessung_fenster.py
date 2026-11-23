@@ -116,6 +116,9 @@ assert arten == ["ProfilFenster", "ProfilFenster", "AbmessungFenster", "Abmessun
                  "AbmessungFenster", "PreisFenster", "PreisFenster"], arten
 fokus = [x for x in offen if isinstance(x, AbmessungFenster)]
 assert "border" in fokus[2].bilanz_box.styleSheet() and not fokus[1].bilanz_box.styleSheet()
+eb = fokus[1].einkauf_bilanz      # Materialplattform 23.11.2026: theoretischer Verbrauch gegen Einkauf
+assert eb and eb["einkauf_stangen"] > 0 and eb["einkauf_m"] >= eb["theorie_m"] > 0 and eb["mehr_eur"] >= 0
+assert "Theoretisch" in fokus[1].einkauf.text() and "Einkauf" in fokus[1].einkauf.text()
 assert "Einkauf gesamt" in offen[-1].ansicht.toPlainText() and "Verteilung" in offen[-1].ansicht.toPlainText()
 assert isinstance(offen[0], ProfilFenster) and offen[0].tab.rowCount() == len(s.k.maschinen)
 ok("Doppelklick: Querschnitt/Abmessung = Profil-Info, Pos./Stangen/Meter/Gewicht = Abmessung, Material €/€/m = "
@@ -168,7 +171,7 @@ ok("ungültige Eingabe: Fenster bleibt offen, kein Sprung")
 def markieren(d):
     eintraege = d.menue_eintraege(0)
     texte = [t for t, _, _ in eintraege if t]
-    assert len(texte) == 10 and dict((t, a) for t, _, a in eintraege if t)["Schnittplan dieser Abmessung drucken …"]
+    assert len(texte) == 12 and dict((t, a) for t, _, a in eintraege if t)["Schnittplan dieser Abmessung drucken …"]
     next(f for t, f, _ in eintraege if t and t.startswith("Positionen"))()
 
 

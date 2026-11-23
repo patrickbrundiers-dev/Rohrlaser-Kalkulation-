@@ -89,7 +89,7 @@ class NestingBild(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, False)
         sk = self._skala()
-        text = QColor(stil.farbe("#222222"))
+        text = QColor(stil.farbe("#333333"))
         for i, (laenge, folge, rest) in enumerate(self.stangen):
             y = self.OBEN + i * self.ZEILE
             hoehe = self.ZEILE - 8
@@ -101,21 +101,21 @@ class NestingBild(QWidget):
                 r = QRectF(self.LINKS + von * sk, y, max((bis - von) * sk, 1), hoehe)
                 if art == "teil":
                     gew = self.auswahl == (i, n_teil)
-                    p.fillRect(r, QColor("#FF7F0E") if gew else self._farbe(t))
-                    p.setPen(QPen(QColor("#ffffff")))
+                    p.fillRect(r, stil.farbe("#FF7F0E") if gew else self._farbe(t))
+                    p.setPen(QPen(QColor("#ffffff")))  # fest: Schrift auf farbigem Teil
                     if r.width() > 34:
                         p.drawText(r, Qt.AlignCenter, rechnen.zahl(t.laenge, 0))
                     n_teil += 1
                 elif art == "schnitt":
-                    p.fillRect(QRectF(r.x(), r.y(), max(r.width(), 1.5), r.height()), QColor("#222222"))
+                    p.fillRect(QRectF(r.x(), r.y(), max(r.width(), 1.5), r.height()), stil.farbe("#333333"))
                 elif art == "rest":
-                    p.fillRect(r, QColor("#B9E4C0"))
+                    p.fillRect(r, stil.farbe("#A5D6A7"))
                 elif art == "abfall":
-                    p.fillRect(r, QBrush(QColor("#E15759"), Qt.BDiagPattern))
+                    p.fillRect(r, QBrush(stil.farbe("#E15759"), Qt.BDiagPattern))
                 elif art == "greif":
-                    p.fillRect(r, QColor("#7F7F7F"))
+                    p.fillRect(r, stil.farbe("#7F7F7F"))
                 else:
-                    p.fillRect(r, QColor("#BBBBBB"))
+                    p.fillRect(r, stil.farbe("#BBBBBB"))
             p.setPen(QPen(text))
             p.drawRect(QRectF(self.LINKS, y, laenge * sk, hoehe))
             p.drawText(QRectF(self.LINKS + laenge * sk + 4, y, self.RECHTS - 6, hoehe), Qt.AlignLeft | Qt.AlignVCenter,

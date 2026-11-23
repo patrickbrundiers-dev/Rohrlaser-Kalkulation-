@@ -272,7 +272,9 @@ PROFILE = Tabelle(
      # hinten angefügt: Beispieldaten und Import älterer Dateien zählen die Felder nach Reihenfolge
      Feld("wand_max", "Wandstärke max. [mm]", "zahl", 0, 500, stellen=2),
      Feld("laengenvergleich", "Lieferlängen vergleichen", "auswahl", auswahl="janein", breite=85),
-     Feld("r_aussen", "Außenradius [mm]", "zahl", 0, 100, stellen=1)),
+     Feld("r_aussen", "Außenradius [mm]", "zahl", 0, 100, stellen=1),
+     # Materialplattform (Schema 103, 23.11.2026): archiviert = nicht mehr in neuen Auswahllisten, leer = aktiv
+     Feld("archiviert", "Archiviert", "auswahl", auswahl="janein", breite=75)),
     ("profil_id",),
     "Abmessung A = Ø (Rundrohr) bzw. Breite, Abmessung B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, "
     "B = Flansch; L-Profil: A und B = Schenkel; Flachstahl: A = Breite, Wandstärke = Dicke; I-/H-Träger und "
@@ -318,7 +320,9 @@ WERKSTOFFE = Tabelle(
      Feld("teuerung_wert", "Teuerungszuschlag", "zahl", -50, 10000, stellen=2, breite=85),
      Feld("teuerung_stand", "Teuerung Stand", "datum", breite=95),
      # CO₂-Bilanz (Vorschlag K3, Schema 72, leer = Richtwert der Kategorie; co2.py)
-     Feld("co2_faktor", "CO₂ [kg/kg]", "zahl", 0, 100, stellen=2, breite=80)),
+     Feld("co2_faktor", "CO₂ [kg/kg]", "zahl", 0, 100, stellen=2, breite=80),
+     # Materialplattform (Schema 103, 23.11.2026): archiviert = nicht mehr in neuen Auswahllisten, leer = aktiv
+     Feld("archiviert", "Archiviert", "auswahl", auswahl="janein", breite=75)),
     ("werkstoff_id",),
     "Die Werkstoff-ID ist der Schlüssel für Preise, Schneiddaten und Angebot. Die Kategorie (Stahl, Edelstahl, "
     "Aluminium) ordnet die Auswahl im Angebot und liefert Schneiddaten und Oberflächen, wenn der Werkstoff keine "
@@ -392,6 +396,57 @@ LIEFERLAENGEN = Tabelle(
     "Liefer-Stangenlänge in 'Preise' steht. Ohne Zeile gelten Profile über dem Hüllkreis-Ø aus den Einstellungen "
     "(Vorgabe 70 mm) zusätzlich als 12 m lieferbar, Preis wie 'Preise'; kleinere ohne Zeile nie. Profile: "
     "Lieferlängen vergleichen = nein schließt ein Profil ganz aus.")
+
+# Mehrere Lieferanten je Material (Materialplattform, Schema 103, Patrick 23.11.2026): Angebote, Preislisten und
+# Konditionen der Lieferanten. Gerechnet wird weiter mit 'Preise' bzw. 'Lieferlängen' (aktiver Preis); „Als aktiven
+# Preis übernehmen“ auf der Seite Material schreibt eine Zeile dorthin (materialplattform.lieferant_uebernehmen).
+MATERIAL_LIEFERANTEN = Tabelle(
+    "material_lieferanten", "Material-Lieferanten",
+    (Feld("profil_id", "Profil-ID", "auswahl", auswahl="profil", pflicht=True, breite=130),
+     Feld("werkstoff_id", "Werkstoff-ID", "auswahl", auswahl="werkstoff", pflicht=True, breite=120),
+     Feld("lieferant", "Lieferant", "auswahl", auswahl="zukauflieferant", pflicht=True, breite=150),
+     Feld("artikelnr", "Artikelnr. des Lieferanten", breite=120),
+     Feld("basis", "Preisbasis", "auswahl", auswahl="preisbasis", breite=80),
+     Feld("preis", "Preis [€]", "zahl", 0.01, 100000, stellen=2, breite=80),
+     Feld("laenge", "Lieferlänge [mm]", "ganz", 500, 30000, breite=90),
+     Feld("gueltig_ab", "Gültig ab", "datum", breite=90),
+     Feld("gueltig_bis", "Gültig bis", "datum", breite=90),
+     Feld("lieferzeit", "Lieferzeit [Tage]", "ganz", 0, 3650, breite=75),
+     Feld("mindest_stangen", "Mindestabnahme [Stangen]", "ganz", 0, 10000, breite=80),
+     Feld("ab_menge", "Staffel ab [m]", "zahl", 0, 1000000, stellen=0, breite=75),
+     Feld("ve_stangen", "Verpackungseinheit [Stangen]", "ganz", 0, 10000, breite=85),
+     Feld("bevorzugt", "Bevorzugter Lieferant", "auswahl", auswahl="janein", breite=80),
+     Feld("bemerkung", "Bemerkung", breite=200)),
+    ("profil_id", "werkstoff_id", "lieferant", "laenge", "ab_menge"),
+    "Weitere Lieferanten je Profil + Werkstoff mit Preis, Gültigkeit, Lieferzeit, Bestellnummer und Mindestabnahme "
+    "(Preislisten, Angebote). Die Kalkulation rechnet mit 'Preise' bzw. 'Lieferlängen'; auf der Seite Material "
+    "übernimmt „Als aktiven Preis übernehmen“ eine Zeile dorthin. Lieferanten stammen aus dem Lieferantenstamm der "
+    "Zukaufartikel. Lieferlänge leer = Stangenlänge der Preise-Zeile. Staffel ab: der Preis gilt ab dieser Menge in "
+    "Metern (leer = ab der ersten Stange); Verpackungseinheit: nur in Vielfachen bestellbar (Bund).")
+
+# Materialstamm (Patrick 23.11.2026, Master-Auftrag Materialdatenbank): die ausdrückliche Zuordnung Werkstoff ×
+# Abmessung (viele zu viele) mit Materialnummer aus dem ERP. Preise, Lieferlängen und Lieferanten hängen weiter an
+# Profil + Werkstoff; der Materialstamm sagt, welche Kombinationen es gibt, wie sie im ERP heißen und ob sie aktiv sind.
+MATERIALSTAMM = Tabelle(
+    "materialstamm", "Materialstamm",
+    (Feld("profil_id", "Profil-ID", "auswahl", auswahl="profil", pflicht=True, breite=130),
+     Feld("werkstoff_id", "Werkstoff-ID", "auswahl", auswahl="werkstoff", pflicht=True, breite=120),
+     Feld("oberflaeche", "Oberfläche", "auswahl", auswahl="oberflaeche", breite=90),
+     Feld("materialnr", "Materialnummer (ERP)", breite=110),
+     Feld("bezeichnung", "Materialbezeichnung", breite=220),
+     Feld("handelsname", "Handelsbezeichnung", breite=140),
+     Feld("lieferant", "Hersteller / Lieferant", "auswahl", auswahl="zukauflieferant", breite=140),
+     Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
+     Feld("angelegt", "Angelegt am", "datum", breite=90),
+     Feld("geaendert", "Geändert am", "datum", breite=90),
+     Feld("quelle", "Herkunft", breite=120),
+     Feld("bemerkung", "Bemerkung", breite=200)),
+    ("profil_id", "werkstoff_id", "oberflaeche"),
+    "Welche Werkstoffe es in welcher Abmessung gibt (eine Abmessung in mehreren Werkstoffen, ein Werkstoff in "
+    "mehreren Abmessungen), mit Materialnummer und Bezeichnung aus dem ERP, Handelsbezeichnung, Hersteller bzw. "
+    "Lieferant und Aktiv. Inaktive Materialien stehen in neuen Positionen nicht zur Auswahl; bestehende Angebote "
+    "rechnen unverändert. Werkstoffdaten (Werkstoff-Nr., Gruppe, Dichte, Güte) stehen in 'Werkstoffe', Maße in "
+    "'Profile', Preise in 'Preise' und 'Material-Lieferanten'. Der ERP-Stammdaten-Import füllt die Tabelle.")
 
 MATERIAL_INDEX = Tabelle(
     "material_index", "Materialindex",
@@ -1211,7 +1266,8 @@ POSITIONSVORLAGEN = Tabelle(
     ("name",),
     "Positionsvorlagen = Bauteilbibliothek: im Angebot „Als Vorlage speichern“ und „Neue Position aus Vorlage …“.")
 
-TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MATERIAL_INDEX, MASCHINEN, SCHNEIDDATEN, GEWINDE,
+TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MATERIAL_LIEFERANTEN, MATERIALSTAMM,
+            MATERIAL_INDEX, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
             DREHFRAES_WERKSTOFFE,
             PRUEFREGELN, SCHWEISSVERFAHREN,
@@ -1222,9 +1278,11 @@ TABELLE = {t.name: t for t in TABELLEN}
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
 VERWEISE = {
     ("kunden", "kundennr"): (("angebote", "kundennr"), ("importprofile", "kundennr"), ("kundenvorgaben", "kundennr")),
-    ("profile", "profil_id"): (("preise", "profil_id"), ("lieferlaengen", "profil_id")),
+    ("profile", "profil_id"): (("preise", "profil_id"), ("lieferlaengen", "profil_id"),
+                               ("material_lieferanten", "profil_id"), ("materialstamm", "profil_id")),
     ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("lieferlaengen", "werkstoff_id"),
-                                     ("schneiddaten", "werkstoff_id")),
+                                     ("schneiddaten", "werkstoff_id"), ("material_lieferanten", "werkstoff_id"),
+                                     ("materialstamm", "werkstoff_id")),
     # Angebote: dazu die Snapshots im Angebot und die Standard-Maschine (Datenbank._maschine_umbenannt)
     ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"), ("angebote", "maschine"),
                                     ("kundenvorgaben", "maschine")),
@@ -2201,6 +2259,14 @@ EINSTELLUNGEN += (
     Einstellung("erp_monate", "ERP-Preise: Zeitraum der Käufe [Monate]", "ERP-Preisimport", "ganz", 12, 1, 120),
     Einstellung("erp_ausreisser", "ERP-Preise: Ausreißer ab Abweichung vom Median", "ERP-Preisimport", "anteil",
                 0.25, 0.01, 5),
+    # Patrick 23.11.2026: ERP-Kauf nur direkt einsetzen, wenn er jung ist und die Stangenzahl passt; sonst Vorschlag
+    Einstellung("erp_direkt_tage", "ERP-Preise: direkt einsetzen, wenn der Kauf höchstens so alt ist [Tage]",
+                "ERP-Preisimport", "ganz", 28, 0, 365),
+    Einstellung("erp_direkt_stangen", "ERP-Preise: direkt einsetzen bei Stangenzahl ± [Stangen]", "ERP-Preisimport",
+                "ganz", 2, 0, 100),
+    # Patrick 23.11.2026: Werkstoff je Profil nach dem EK vorwählen (erp_anlegen.werkstoff_je_profil)
+    Einstellung("erp_werkstoff_vorwahl", "ERP-Preise: Werkstoff je Profil nach dem Einkauf vorwählen (STEP-Import)",
+                "ERP-Preisimport", "auswahl", "ja", auswahl="janein"),
 )
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
 
@@ -2297,6 +2363,10 @@ def _leer(v):
     return v is None or v == ""
 
 
+def _archiviert(z):
+    return str((z or {}).get("archiviert") or "").strip().lower() == "ja"
+
+
 @dataclass
 class Kontext:
     """Nachschlagewerte für Prüfung, berechnete Spalten und Auswahllisten."""
@@ -2327,6 +2397,8 @@ class Kontext:
             kat = lambda z: z.get("kategorie") or ("ohne Kategorie" if quelle == "werkstoff" else "alle Werkstoffe")
             gruppen = {}
             for name, z in zeilen.items():
+                if _archiviert(z):          # archivierte Werkstoffe nicht in neuen Auswahllisten (Schema 103)
+                    continue
                 gruppen.setdefault(kat(z), []).append(name)
             # Oberflächen: 'roh' und die für alle Werkstoffe zuerst
             erst = (lambda g: 0 if g == "alle Werkstoffe" else 1) if quelle == "oberflaeche" else (lambda g: 0)
@@ -2338,7 +2410,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "nesting": list(NESTING_AUSWAHL), "kundentyp": ["Firma", "Privatkunde", "Händler", "Lieferant"], "kundenstatus": ["Aktiv", "Inaktiv", "Gesperrt"], "waehrung": ["EUR", "CHF", "USD", "GBP", "PLN", "CZK"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(n for n, z in self.profile.items() if not _archiviert(z)), "janein": ["ja", "nein"], "nesting": list(NESTING_AUSWAHL), "kundentyp": ["Firma", "Privatkunde", "Händler", "Lieferant"], "kundenstatus": ["Aktiv", "Inaktiv", "Gesperrt"], "waehrung": ["EUR", "CHF", "USD", "GBP", "PLN", "CZK"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"], "sd_quelle": list(SD_QUELLEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
@@ -2703,8 +2775,9 @@ def beispiel_blechlaser():
 def beispiel_werkstoffe():
     """Werkstoffe mit Kategorie (Beispiel-Tonnenpreise, bitte durch eigene ersetzen) und Lasereigenschaften
     (Rohrart, Schneidgas, Vorschub-Faktor, Laser, Laser-Hinweis; Richtwerte, Patrick 24.10.2026). Je Zeile alle
-    Felder der Tabelle Werkstoffe in deren Reihenfolge (Anfrage-Spalten, Teuerungszuschlag und CO₂-Faktor leer)."""
-    return [w[:9] + (None, None, None) + w[9:] + (None, None, None, None) for w in _BEISPIEL_WERKSTOFFE]
+    Felder der Tabelle Werkstoffe in deren Reihenfolge (Anfrage-Spalten, Teuerungszuschlag, CO₂-Faktor und
+    Archiviert leer)."""
+    return [w[:9] + (None, None, None) + w[9:] + (None, None, None, None, None) for w in _BEISPIEL_WERKSTOFFE]
 
 
 _ST, _ES, _AL, _BM = "Stahl", "Edelstahl", "Aluminium", "Buntmetall"
