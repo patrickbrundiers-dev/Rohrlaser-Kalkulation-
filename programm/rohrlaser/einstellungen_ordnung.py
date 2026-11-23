@@ -62,7 +62,7 @@ SEITEN = (
            _a("Durchsicht", "ansicht3d_deckkraft"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
           (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
-           _a("Anfragen", "anfragen_ohne_step"),
+           _a("Anfragen", "anfragen_ohne_step anfragen_nachfassen_tage"),
            _a("PPEASE-Ablage (Dokumente je PPEASE-Angebotsnummer)", "ppease_ordner ppease_jahresordner ppease_ordnername "
                                                                     "ppease_praefix ppease_nummer_muster ppease_kategorien"),
            _a("CSV-Export", "csv_format csv_satz_zeile"),

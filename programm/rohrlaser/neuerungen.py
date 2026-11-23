@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.456", "<b>Kundenverwaltung mit eigenem Menü</b> ([[kunden]]): Reiter und Menü <i>Kunden</i> mit "
+    ["0.9.457", "<b>Kundenverwaltung mit eigenem Menü</b> ([[kunden]]): Reiter und Menü <i>Kunden</i> mit "
                 "Kundenübersicht (Tabelle oder Karten, Live-Suche, Filter Status und Gruppe, Export Excel/CSV), "
                 "<b>Kundenprofil</b> mit acht Reitern (Kennzahlen Umsatz, Angebote, Aufträge, Quote, offene Angebote; "
                 "Stammdaten mit Rechnungs-, Liefer- und Standortadressen; beliebig viele <b>Ansprechpartner</b> mit "
@@ -38,6 +38,18 @@ NEUERUNGEN = [
                 "Ansprechpartner mit Position). Datenbank Schema 102.",
      "Kundenverwaltung: Menü Kunden, Kundenprofil, Ansprechpartner, Lieferadressen, Dublettenprüfung, im Angebot "
      "wählbar; Kunde aus der Anfrage mit Gegenüberstellung."],
+    ["0.9.456", "<b>Anfragen: Rückfrage nachfassen, Wichtig zuerst, breiter lernen, Erkennung je Woche</b> "
+                "([[anfrage_stufe2]]). Wartet eine Rückfrage an den Kunden länger als 3 Arbeitstage (einstellbar), "
+                "zeigt die Anfrage das in Rot, der Schnellfilter „Nachfassen“ findet sie, und „Erinnerung …“ öffnet "
+                "in Outlook eine Antwort mit den Fragen der Rückfrage (gesendet wird nur von dir). Nach der Antwort "
+                "steht da, welche fehlenden Angaben jetzt da sind. „Wichtig zuerst“ sortiert nach Frist, Priorität, "
+                "Mail-Art, Kunde und Menge und zeigt die Gründe. Das Lernen aus Korrekturen gibt es jetzt auch für "
+                "das Sachgebiet und den Bearbeiter, jeweils erst nach Freigabe durch einen Admin. Die Auswertung "
+                "zeigt die Erkennung je Woche. <b>Fehler behoben</b>: „Kunde ändern …“, „Neuen Kunden anlegen …“, "
+                "„Intern (ohne Kunde)“ und „Angebot verknüpfen …“ in einer Anfrage taten nichts. Eingeschaltete "
+                "Schnellfilter sind jetzt deutlich blau, und „Filter zurücksetzen“ stellt alle Filter auf Vorgabe.",
+     "Anfragen: Rückfragen nachfassen, Wichtig zuerst, Lernen für Sachgebiet und Bearbeiter, Erkennung je Woche; "
+     "Kunde ändern/anlegen geht wieder, Filter zurücksetzen."],
     ["0.9.455", "<b>Zusatzarbeiten flexibel</b> ([[zusatz_global]]): Neuer Unterreiter <b>Kalkulation → Zusatzarbeiten</b> im Angebot "
                 "für Leistungen des <b>ganzen Angebots</b> (Bezeichnung, Menge, Einheit Stück/m/m²/h/min/kg/pauschal/%, "
                 "Preis je Einheit, Gesamt, Beschreibung; intern Kosten und Zeit). Standardpreis aus der Verwaltung "

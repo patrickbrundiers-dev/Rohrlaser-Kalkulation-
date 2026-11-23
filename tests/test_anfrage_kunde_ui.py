@@ -130,6 +130,11 @@ p = next(x for x in kd.ansprechpartner(db, WEISS) if x["nachname"] == "Weiß")
 assert p.get("mobil") == "0171 555 66 77" and p.get("position") == "Leiter Einkauf", p
 assert len(kd.ansprechpartner(db, WEISS)) == 1, "Ansprechpartner doppelt angelegt"
 a = abl.neu_lesen(a)
+seite.waehlen(a.nr)
+assert f"kunde-profil:{WEISS}" in seite.inhalt.toHtml()
+from PySide6.QtCore import QUrl  # noqa: E402
+seite._link(QUrl(f"kunde-profil:{WEISS}"))
+assert fenster.reiter.currentWidget() is fenster.kunden and fenster.kunden.profil.kundennr == WEISS
 assert a.kunde == WEISS and "Weiß" in (a.zuordnung.get("ansprechpartner") or ""), a.zuordnung
 assert any(h.get("feld") == "Straße und Hausnummer" and h.get("neu") == "Industriestraße 12"
            for h in kd.historie(db, WEISS, False)), \

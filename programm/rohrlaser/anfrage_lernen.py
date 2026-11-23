@@ -109,11 +109,46 @@ def woerter(text):
     return _WORT.findall(str(text or "").lower())
 
 
-def _beispiele(wurzel):
-    """[(Wörter, Klasse)] aus den Rückmeldungen zur Mail-Art (letzte Korrektur je Anfrage zählt)."""
+# 23.11.2026 (Stufe 2 Punkt 3): dasselbe Verfahren auch für das Sachgebiet und den Bearbeiter. Jedes Ziel hat
+# eigene Dateien (Schatten, freigegeben, vorher) und eine eigene Freigabe; die Mail-Art behält ihre Dateinamen.
+ZIELE = {"art": "Mail-Art", "sachgebiet": "Sachgebiet", "bearbeiter": "Bearbeiter"}
+KEINS = "keins"                 # Sachgebiet: keines erkannt
+
+
+def _dateien(ziel):
+    if ziel == "art":
+        return MODELL, AKTIV, VORHER
+    return f"modell_{ziel}.json", f"modell_{ziel}_aktiv.json", f"modell_{ziel}_vorher.json"
+
+
+def sg_klasse(sachgebiete):
+    return "+".join(sorted(str(x) for x in sachgebiete or ())) or KEINS
+
+
+def merkmale(betreff="", kunde="", sachgebiete=()):
+    """Merkmale für den Bearbeiter: Wörter des Betreffs, Kunde und Sachgebiete als eigene Merkmale."""
+    return woerter(betreff) + ([f"kunde_{kunde}"] if kunde else []) + [f"sg_{x}" for x in sachgebiete or ()]
+
+
+def _beispiele(wurzel, ziel="art"):
+    """[(Merkmale, Klasse, automatisch)] aus den Rückmeldungen (letzte je Anfrage zählt). Mail-Art und Sachgebiet
+    aus den Korrekturen der Mail-Art (mit Mail-Text), der Bearbeiter aus angenommenen bzw. geänderten Vorschlägen."""
     je = {}
+    if ziel == "bearbeiter":
+        for e in rueckmeldungen(wurzel, "bearbeiter"):
+            if e.get("neu"):
+                je[e.get("nr") or e.get("zeit")] = (merkmale(e.get("betreff"), e.get("kunde"), e.get("sachgebiete")),
+                                                    str(e["neu"]).upper(), str(e.get("auto") or "").upper())
+        return list(je.values())
     for e in rueckmeldungen(wurzel, "art"):
-        if e.get("text") and e.get("neu"):
+        if not e.get("text") or not e.get("neu"):
+            continue
+        if ziel == "sachgebiet":
+            if "sachgebiete" not in e:
+                continue
+            je[e.get("nr") or e.get("zeit")] = (woerter(e["text"]), sg_klasse(e["sachgebiete"]),
+                                                sg_klasse(e.get("sachgebiete_auto")))
+        else:
             je[e.get("nr") or e.get("zeit")] = (woerter(e["text"]), e["neu"], e.get("auto") or "")
     return list(je.values())
 
@@ -158,21 +193,21 @@ def _vorhersage(klassen, worte, w, ohne=None):
     return k, 1 / summe
 
 
-def trainieren(wurzel, jetzt=None):
+def trainieren(wurzel, jetzt=None, ziel="art"):
     """Wortmodell aus allen Korrekturen rechnen und im Schatten prüfen (jede Korrektur einmal herausgenommen: Modell
     gegen Regeln). Schreibt nur das Schatten-Modell; das freigegebene bleibt unverändert. Ergebnis: das Modell."""
-    b = _beispiele(wurzel)
+    b = _beispiele(wurzel, ziel)
     klassen, worte = _zaehlen(b)
     regeln = modell = 0
     for w, k, auto in b:
         regeln += auto == k
         modell += _vorhersage(klassen, worte, w, ohne=(w, k))[0] == k
-    alt = modell_lesen(wurzel)
-    m = dict(version=int(alt.get("version") or 0) + 1, trainiert_am=(jetzt or datetime.datetime.now()).isoformat(
+    alt = modell_lesen(wurzel, ziel)
+    m = dict(ziel=ziel, version=int(alt.get("version") or 0) + 1, trainiert_am=(jetzt or datetime.datetime.now()).isoformat(
         timespec="seconds"), n=len(b), klassen=klassen, worte=worte,
         pruefung=dict(n=len(b), regeln=round(100 * regeln / len(b)) if b else None,
                       modell=round(100 * modell / len(b)) if b else None))
-    _schreiben(Path(wurzel) / STAMM / MODELL, m)
+    _schreiben(Path(wurzel) / STAMM / _dateien(ziel)[0], m)
     return m
 
 
@@ -188,40 +223,42 @@ def freigabe_moeglich(m):
     return True, f"im Test {p['modell']} % richtig, Regeln {p['regeln']} %"
 
 
-def freigeben(wurzel, kuerzel, jetzt=None):
+def freigeben(wurzel, kuerzel, jetzt=None, ziel="art"):
     """Schatten-Modell freigeben (nur wenn freigabe_moeglich); das bisher freigegebene bleibt als „vorher“.
     Ergebnis: (ja/nein, Text)."""
-    m = modell_lesen(wurzel)
+    m = modell_lesen(wurzel, ziel)
     ok, grund = freigabe_moeglich(m)
     if not ok:
         return False, grund
     st = Path(wurzel) / STAMM
-    alt = _lesen(st / AKTIV)
+    _m, aktiv, vorher = _dateien(ziel)
+    alt = _lesen(st / aktiv)
     if alt:
-        _schreiben(st / VORHER, alt)
+        _schreiben(st / vorher, alt)
     m.update(freigegeben_von=kuerzel, freigegeben_am=(jetzt or datetime.datetime.now()).isoformat(timespec="seconds"))
-    _schreiben(st / AKTIV, m)
+    _schreiben(st / aktiv, m)
     return True, f"Modell {m['version']} freigegeben ({grund})"
 
 
-def zuruecknehmen(wurzel):
+def zuruecknehmen(wurzel, ziel="art"):
     """Freigabe zurücknehmen: das vorherige Modell gilt wieder (oder keines). Ergebnis: Text."""
     st = Path(wurzel) / STAMM
-    vorher = _lesen(st / VORHER)
+    _m, aktiv, vorher_ = _dateien(ziel)
+    vorher = _lesen(st / vorher_)
     if vorher:
-        _schreiben(st / AKTIV, vorher)
-        (st / VORHER).unlink(missing_ok=True)
+        _schreiben(st / aktiv, vorher)
+        (st / vorher_).unlink(missing_ok=True)
         return f"Modell {vorher.get('version')} gilt wieder"
-    (st / AKTIV).unlink(missing_ok=True)
+    (st / aktiv).unlink(missing_ok=True)
     return "Kein gelerntes Modell mehr aktiv, es gelten nur die Regeln"
 
 
-def modell_lesen(wurzel):
-    return _lesen(Path(wurzel) / STAMM / MODELL) if wurzel else {}
+def modell_lesen(wurzel, ziel="art"):
+    return _lesen(Path(wurzel) / STAMM / _dateien(ziel)[0]) if wurzel else {}
 
 
-def aktiv_lesen(wurzel):
-    return _lesen(Path(wurzel) / STAMM / AKTIV) if wurzel else {}
+def aktiv_lesen(wurzel, ziel="art"):
+    return _lesen(Path(wurzel) / STAMM / _dateien(ziel)[1]) if wurzel else {}
 
 
 def anwenden(m, ein, text, betreff=""):
@@ -236,6 +273,30 @@ def anwenden(m, ein, text, betreff=""):
     neu["gruende"] = [(f"gelernt aus {m.get('n')} Korrekturen (Modell {m.get('version')}, {round(100 * p)} %)", "")] \
         + list(ein.get("gruende") or [])
     return neu
+
+
+def sachgebiete_anwenden(m, ein, text, betreff=""):
+    """Freigegebenes Sachgebiet-Modell: nur wenn die Einordnung nicht sicher ist, das Modell sicher genug ist und
+    andere Sachgebiete sagt. Ergebnis: neue Einordnung oder die alte."""
+    if not m or not ein or ein.get("sicherheit") in ("sicher", "bestätigt"):
+        return ein
+    k, p = _vorhersage(m.get("klassen") or {}, m.get("worte") or {}, woerter(f"{betreff}\n{text}"))
+    alt = sg_klasse(ein.get("sachgebiete"))
+    if not k or k == alt or p < MIN_P:
+        return ein
+    neu = dict(ein, sachgebiete=[] if k == KEINS else k.split("+"), gelernt_sg=True, regel_sachgebiete=list(
+        ein.get("sachgebiete") or []))
+    neu["gruende"] = list(ein.get("gruende") or []) + [
+        (f"Sachgebiet gelernt aus {m.get('n')} Korrekturen (Modell {m.get('version')}, {round(100 * p)} %)", "")]
+    return neu
+
+
+def bearbeiter_tipp(m, betreff="", kunde="", sachgebiete=()):
+    """Freigegebenes Bearbeiter-Modell: (Kürzel, Wahrscheinlichkeit, Beispiele) bei p ≥ MIN_P, sonst None."""
+    if not m:
+        return None
+    k, p = _vorhersage(m.get("klassen") or {}, m.get("worte") or {}, merkmale(betreff, kunde, sachgebiete))
+    return (k, p, m.get("n") or 0) if k and p >= MIN_P else None
 
 
 def _lesen(p):
