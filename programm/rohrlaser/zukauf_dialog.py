@@ -9,26 +9,33 @@ der Position gespeichert (zukauf.stand), spätere Änderungen am Stamm ändern d
 aktualisieren'. Wird ein Stammartikel in der Position geändert, gilt das nur für diese Position (F4).
 'Im Artikelstamm merken' legt einen freien Artikel bei Bedarf im Stamm an (optional).
 
+Zentrale Zukaufartikelverwaltung aus (Vorgabe, Patrick 23.11.2026): keine Stammauswahl, kein „Im Artikelstamm
+merken“ und kein Abgleich mit dem Stamm (keine Datenbankabfrage auf den Artikelstamm); alle Artikel gehören nur zur
+Position. Dazu für beide Fälle: EK gesamt, Summen mit MwSt., Reihenfolge ▲▼, „Mehrere hinzufügen …“ (Liste, auch aus
+Excel eingefügt) und „Aus anderem Angebot …“ (unabhängige Kopien, das andere Angebot bleibt unverändert).
+
 Die Vorschau rechnet nur diese Position und sofort bei jeder Eingabe; im Angebot werden gleiche Artikel aller
 Positionen zu einer Bestellung zusammengefasst. Ein eingetippter VK rechnet den Aufschlag % zurück (F2), damit
 gibt es genau einen Aufschlag."""
 import copy
 import json
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QItemSelectionModel, Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget,
                                QTableWidgetItem, QToolButton, QVBoxLayout, QWidget)
 
-from . import stil, zukauf
+from . import funktionen, stil, zukauf
 from .stammdaten import zahl_als_text, zahl_aus_text
 from .zukauf_schnell import SchnellDialog
 
-SPALTEN = ("Bezeichnung", "Menge", "je", "Einheit", "Artikelnr.", "EK [€/Einh.]", "Aufschlag [%]", "VK [€/Einh.]",
-           "Gesamt je Teil", "Herkunft")
-EDIT = {0: "bezeichnung", 1: "menge", 4: "artikelnr", 5: "ek", 6: "aufschlag", 7: "vk"}   # bearbeitbare Spalten
+SPALTEN = ("Bezeichnung", "Menge", "je", "Einheit", "Artikelnr.", "EK [€/Einh.]", "EK gesamt [€]", "Aufschlag [%]",
+           "VK [€/Einh.]", "Gesamt je Teil", "Herkunft")
+EDIT = {0: "bezeichnung", 1: "menge", 4: "artikelnr", 5: "ek", 7: "aufschlag", 8: "vk"}   # bearbeitbare Spalten
 JE = 2
+EK_GESAMT, AUFSCHLAG, VK, GESAMT, HERKUNFT = 6, 7, 8, 9, 10
+NUR_ANGEBOT = "nur im Angebot"
 NEU_TEXT = "＋ Bezeichnung eintippen …"
 OHNE_STAMM = "ohne Artikelstamm"
 # Felder des Detailbereichs (markierte Zeile): (Name im Preisstand, Titel)
@@ -70,20 +77,30 @@ class ZukaufDialog(QDialog):
         self.db, self.p = db, p
         self._fuellen = False
         self.eintraege = copy.deepcopy(zukauf.eintraege(p))
-        self.artikel = {a["id"]: a for a in db.zukauf_artikel_liste()}
+        self.stamm = funktionen.zukauf_stamm(db)            # zentrale Verwaltung (Vorgabe aus, 23.11.2026)
+        self.artikel = {a["id"]: a for a in db.zukauf_artikel_liste()} if self.stamm else {}
         self.kopf = getattr(parent, "kopf", None) or {}     # Aufschlag Bleche bzw. Zukaufteile des Angebots
-        self.blech_ids = {i for i, a in self.artikel.items() if a.get("artikeltyp") == zukauf.BLECH}
+        self.angebot_id = getattr(parent, "id", None) or p.get("angebot_id")
+        if self.stamm:
+            self.blech_ids = {i for i, a in self.artikel.items() if a.get("artikeltyp") == zukauf.BLECH}
+        else:           # Blech-IDs aus den (zwischengespeicherten) Rechen-Tabellen: kein Lesen des Stamms
+            self.blech_ids = set((getattr(parent, "tabellen", None) or {}).get("blech_artikel") or ())
+        einst = getattr(parent, "einst", None) or {}
+        self.mwst = zukauf.dez(einst.get("mwst") if "mwst" in einst else db.einstellung("mwst")) or zukauf.NULL
         self.setWindowTitle("Zukaufteile" + (f" für {anzahl} Positionen" if anzahl > 1 else
                                             f" Pos. {p.get('pos') or ''} {p.get('artikel') or ''}"))
-        self.resize(1100, 460)
+        self.resize(1240, 480)
         lay = QVBoxLayout(self)
         neu = QHBoxLayout()
         self.auswahl = QComboBox()
         self.auswahl.setEditable(True)
         self.auswahl.setInsertPolicy(QComboBox.NoInsert)
-        self.auswahl.lineEdit().setPlaceholderText("Bezeichnung eintippen oder Artikel aus dem Stamm wählen")
+        self.auswahl.lineEdit().setPlaceholderText("Bezeichnung eintippen oder Artikel aus dem Stamm wählen"
+                                                   if self.stamm else "Bezeichnung des Zukaufartikels eintippen")
         self.auswahl.setToolTip("Neuen Artikel einfach eintippen (er gehört zur Position, kein Artikelstamm nötig) "
-                                "oder einen vorhandenen Artikel aus dem Artikelstamm wählen")
+                                "oder einen vorhandenen Artikel aus dem Artikelstamm wählen" if self.stamm else
+                                "Neuen Artikel eintippen: er gehört nur zu dieser Position und wird mit dem Angebot "
+                                "gespeichert (zentrale Zukaufartikelverwaltung ist ausgeschaltet)")
         for a in sorted(self.artikel.values(), key=lambda a: (a.get("kategorie") or "", artikel_name(a).lower())):
             if (a.get("status") or "aktiv") == "aktiv":
                 self.auswahl.addItem(artikel_name(a), a["id"])
@@ -101,8 +118,8 @@ class ZukaufDialog(QDialog):
         dazu.clicked.connect(self._hinzufuegen_klick)
         self.auswahl.lineEdit().returnPressed.connect(self._hinzufuegen_klick)
         schnell = QPushButton("Neuer Artikel …")
-        schnell.setToolTip("Formular für einen neuen Zukaufartikel (auch Vollmaterial); auf Wunsch auch im "
-                           "Artikelstamm speichern")
+        schnell.setToolTip("Formular für einen neuen Zukaufartikel (auch Vollmaterial)" + (
+            "; auf Wunsch auch im Artikelstamm speichern" if self.stamm else ""))
         schnell.clicked.connect(lambda: self.schnell())
         neu.addWidget(QLabel("Artikel"))
         neu.addWidget(self.auswahl, 1)
@@ -120,19 +137,33 @@ class ZukaufDialog(QDialog):
                                      | QAbstractItemView.AnyKeyPressed | QAbstractItemView.SelectedClicked)
         self.tabelle.verticalHeader().setDefaultSectionSize(26)
         self.tabelle.horizontalHeader().setMinimumSectionSize(50)
-        for i, b in enumerate((230, 60, 80, 55, 100, 90, 95, 90, 100)):
+        for i, b in enumerate((210, 62, 85, 58, 90, 100, 105, 105, 100, 110)):
             self.tabelle.setColumnWidth(i, b)
-        self.tabelle.horizontalHeader().setSectionResizeMode(9, QHeaderView.Stretch)
+        self.tabelle.horizontalHeader().setSectionResizeMode(HERKUNFT, QHeaderView.Stretch)
         self.tabelle.itemChanged.connect(self._geaendert)
         self.tabelle.itemSelectionChanged.connect(self._details_fuellen)
         lay.addWidget(self.tabelle, 1)
         leiste = QHBoxLayout()
-        for text, ziel in (("Duplizieren", lambda: self.duplizieren(self._markiert())),
-                           ("Entfernen", lambda: self.entfernen(self._markiert())),
-                           ("Aus Stammdaten aktualisieren …", lambda: self.aktualisieren(self._markiert()))):
+        self.knoepfe_leiste = {}
+        for text, ziel, tipp in (
+                ("▲", lambda: self.verschieben(self._markiert(), -1), "Markierte Zeilen nach oben"),
+                ("▼", lambda: self.verschieben(self._markiert(), 1), "Markierte Zeilen nach unten"),
+                ("Duplizieren", lambda: self.duplizieren(self._markiert()), "Markierte Zeilen als Kopie anhängen"),
+                ("Entfernen", lambda: self.entfernen(self._markiert()), "Markierte Zeilen entfernen"),
+                ("Mehrere hinzufügen …", lambda: self.mehrere(), "Mehrere Artikel auf einmal: je Zeile Bezeichnung; "
+                 "Menge; EK; Artikelnr.; Lieferant (auch aus Excel kopiert)"),
+                ("Aus anderem Angebot …", lambda: self.aus_angebot_waehlen(), "Zukaufartikel eines anderen Angebots "
+                 "kopieren: unabhängige Kopien, Preise und Texte hier frei änderbar"),
+                ("Aus Stammdaten aktualisieren …", lambda: self.aktualisieren(self._markiert()),
+                 "Preisstand der Stammartikel durch den aktuellen Stand im Artikelstamm ersetzen")):
             b = QPushButton(text)
+            b.setToolTip(tipp)
+            if text in ("▲", "▼"):
+                b.setMaximumWidth(34)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
+            self.knoepfe_leiste[text] = b
+        self.knoepfe_leiste["Aus Stammdaten aktualisieren …"].setVisible(self.stamm)
         leiste.addStretch(1)
         self.details_knopf = QToolButton()
         self.details_knopf.setText("Details ▸")
@@ -143,6 +174,9 @@ class ZukaufDialog(QDialog):
         leiste.addWidget(self.details_knopf)
         lay.addLayout(leiste)
         lay.addWidget(self._details_bauen())
+        self.summe = QLabel()           # EK, VK netto, MwSt. und brutto der Position (23.11.2026)
+        self.summe.setObjectName("zukauf_summe")
+        lay.addWidget(self.summe)
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.info.setStyleSheet("color: #5F6B7A;")
@@ -189,6 +223,7 @@ class ZukaufDialog(QDialog):
         g.addWidget(self.detail_einheit, z, 1)
         g.addWidget(self.detail_text, z, 2, 1, 2)
         g.addWidget(self.merken_knopf, z, 4, 1, 2)
+        self.merken_knopf.setVisible(self.stamm)
         return self.details
 
     def _details_zeigen(self, an):
@@ -212,7 +247,7 @@ class ZukaufDialog(QDialog):
             self.detail_text.setChecked(st.get("angebotstext") == "ja")
             for w in (self.detail_einheit, self.detail_text):
                 w.setEnabled(e is not None)
-            self.merken_knopf.setEnabled(e is not None and zukauf.ist_frei(e))
+            self.merken_knopf.setEnabled(e is not None and zukauf.ist_frei(e) and self.stamm)
         finally:
             self._fuellen = vorher
 
@@ -239,7 +274,7 @@ class ZukaufDialog(QDialog):
     def _stamm_wahl(self):
         """ID des Stammartikels, wenn der Text oben genau einem Eintrag der Liste entspricht, sonst None."""
         t = self.auswahl.currentText().strip()
-        if not t:
+        if not t or not self.stamm:
             return None
         i = self.auswahl.findText(t, Qt.MatchFixedString)
         return self.auswahl.itemData(i) if i >= 0 else None
@@ -301,7 +336,8 @@ class ZukaufDialog(QDialog):
         d = SchnellDialog(self, self.db, self.je.currentData() == zukauf.JE_SATZ)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
             return 0
-        self.artikel = {a["id"]: a for a in self.db.zukauf_artikel_liste()}
+        if any(x.get("artikel_id") is not None for x in d.ergebnis):
+            self.artikel = {a["id"]: a for a in self.db.zukauf_artikel_liste()}
         for x in d.ergebnis:
             if x.get("artikel_id") is not None:
                 a = self.artikel[x["artikel_id"]]
@@ -324,6 +360,87 @@ class ZukaufDialog(QDialog):
         for r in [r for r in zeilen if r < len(self.eintraege)]:
             self.eintraege.append(copy.deepcopy(self.eintraege[r]))
         self._zeigen()
+
+    def verschieben(self, zeilen, richtung):
+        """Markierte Zeilen um eine Stelle nach oben (-1) bzw. unten (+1); Reihenfolge = Reihenfolge im Angebot und
+        in den PDFs. Ergebnis: neue Zeilen (bleiben markiert)."""
+        zeilen = sorted(r for r in zeilen if r < len(self.eintraege))
+        if not zeilen or (richtung < 0 and zeilen[0] == 0) or (richtung > 0 and zeilen[-1] == len(self.eintraege) - 1):
+            return zeilen
+        for r in (zeilen if richtung < 0 else reversed(zeilen)):
+            self.eintraege[r], self.eintraege[r + richtung] = self.eintraege[r + richtung], self.eintraege[r]
+        neu = [r + richtung for r in zeilen]
+        self._zeigen()
+        self.tabelle.clearSelection()
+        modell = self.tabelle.selectionModel()
+        for r in neu:
+            modell.select(self.tabelle.model().index(r, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+        return neu
+
+    def mehrere_hinzufuegen(self, text, je=None):
+        """Mehrere freie Artikel aus einer Liste (zukauf.zeilen_lesen). Ergebnis: (Anzahl, Fehlertexte)."""
+        liste, fehler = zukauf.zeilen_lesen(text)
+        for x in liste:
+            self.eintraege.append(zukauf.frei_eintrag(x["bezeichnung"], x["menge"], je=je, ek=x["ek"],
+                                                      artikelnr=x["artikelnr"], lieferant=x["lieferant"],
+                                                      regeln=self.regeln()))
+        self._zeigen()
+        if liste or fehler:
+            self.info.setText(f"{len(liste)} Artikel hinzugefügt." + (" Nicht übernommen: " + "; ".join(fehler)
+                                                                     if fehler else ""))
+        return len(liste), fehler
+
+    def mehrere(self, dialog=None):
+        """Fenster „Mehrere hinzufügen …“: Liste eintippen oder aus Excel einfügen. dialog(d) statt exec (Tests)."""
+        from PySide6.QtWidgets import QPlainTextEdit
+        d = QDialog(self)
+        d.setWindowTitle("Mehrere Zukaufartikel hinzufügen")
+        lay = QVBoxLayout(d)
+        hinweis = QLabel("Je Zeile ein Artikel: Bezeichnung; Menge; EK je Einheit; Artikelnr.; Lieferant – getrennt "
+                         "durch Semikolon oder Tabulator (Zellen aus Excel einfach einfügen). Nur die Bezeichnung ist "
+                         "Pflicht, Menge leer = 1, EK leer = später eintragen.")
+        hinweis.setWordWrap(True)
+        lay.addWidget(hinweis)
+        d.text = QPlainTextEdit()
+        d.text.setPlaceholderText("Schraube DIN 933 M8x20; 4; 0,12\nMutter DIN 934 M8; 4; 0,05\nGriff; 1; 7,90; G-100; "
+                                  "Muster GmbH")
+        lay.addWidget(d.text, 1)
+        k = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        k.button(QDialogButtonBox.Ok).setText("Hinzufügen")
+        k.accepted.connect(d.accept)
+        k.rejected.connect(d.reject)
+        lay.addWidget(k)
+        d.resize(620, 320)
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+            return 0
+        return self.mehrere_hinzufuegen(d.text.toPlainText(), je=self.je.currentData())[0]
+
+    def aus_angebot(self, angebot_id, auswahl=None):
+        """Zukaufartikel eines anderen Angebots als unabhängige Kopien anhängen (zukauf.unabhaengig): auswahl =
+        Indizes in zukauf_kopie.eintraege() (None = alle). Ohne zentrale Verwaltung ohne Stammverweis. Das andere
+        Angebot wird nur gelesen. Ergebnis: Anzahl."""
+        from . import zukauf_kopie
+        quelle = zukauf_kopie.eintraege(self.db, angebot_id)
+        nummer = (self.db.angebot(angebot_id) or {}).get("nummer") or str(angebot_id)
+        n = 0
+        for i, x in enumerate(quelle):
+            if auswahl is not None and i not in auswahl:
+                continue
+            self.eintraege.append(zukauf_kopie.kopie(x["eintrag"], f"Angebot {nummer}", self.stamm))
+            n += 1
+        self._zeigen()
+        if n:
+            self.info.setText(f"{n} Zukaufartikel aus Angebot {nummer} kopiert (unabhängig: Änderungen dort ändern "
+                              "dieses Angebot nicht).")
+        return n
+
+    def aus_angebot_waehlen(self, dialog=None):
+        """Fenster „Aus anderem Angebot …“. dialog(d) statt exec (Tests). Ergebnis: Anzahl kopierter Artikel."""
+        from .zukauf_kopie import KopieDialog
+        d = KopieDialog(self, self.db, self.angebot_id)
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or d.quelle is None:
+            return 0
+        return self.aus_angebot(d.quelle, d.auswahl)
 
     def feld_setzen(self, zeile, feld, wert):
         """Ein Feld einer Zeile ändern (Preisstand: zukauf.stand_setzen; menge, aufschlag, vk direkt am Eintrag).
@@ -378,8 +495,11 @@ class ZukaufDialog(QDialog):
 
     def vergleich(self, zeilen=None):
         """[(Zeile, Artikel, VK je Teil alt, VK je Teil neu, neuer Stand)] der Stammartikel mit geändertem
-        Preisstand (zeilen None = alle). Freie Artikel haben keinen Stamm und fehlen hier."""
+        Preisstand (zeilen None = alle). Freie Artikel haben keinen Stamm und fehlen hier; ohne zentrale Verwaltung
+        gibt es keinen Abgleich (keine Abfrage)."""
         out = []
+        if not self.stamm:
+            return out
         for r in range(len(self.eintraege)) if zeilen is None or not zeilen else zeilen:
             if r >= len(self.eintraege):
                 continue
@@ -477,7 +597,10 @@ class ZukaufDialog(QDialog):
 
     def _herkunft(self, e, veraltet):
         if zukauf.ist_frei(e):
-            return OHNE_STAMM
+            kop = (e.get("stand") or {}).get("kopiert_aus")
+            return (OHNE_STAMM if self.stamm else NUR_ANGEBOT) + (f" · kopiert aus {kop}" if kop else "")
+        if not self.stamm:      # alter Stammartikel: Preisstand gilt, der Stamm wird nicht gelesen
+            return NUR_ANGEBOT + " · Preisstand vom " + datum_text((e.get("stand") or {}).get("datum"))
         st = e.get("stand") or {}
         return ("Stamm, Stand " + datum_text(st.get("datum")) + (" · in Position geändert" if e.get(zukauf.GEAENDERT)
                                                                  else "")
@@ -497,10 +620,12 @@ class ZukaufDialog(QDialog):
                 a = self.artikel.get(e.get("artikel_id"))
                 ek = zukauf.ek_einheit(st)
                 auf = zahl_als_text(e["aufschlag"], 1) if e.get("aufschlag") is not None else ""
+                ek_ges = w["einstand"] * zukauf.dez(self._stueck()) if not w["fehler"] else None
                 zellen = (st.get("bezeichnung") or (a or {}).get("bezeichnung") or st.get("artikelnr") or "?",
                           zahl_als_text(e.get("menge"), 3) if e.get("menge") is not None else "", "",
                           zukauf.EINHEIT_KURZ.get(st.get("einheit"), st.get("einheit") or ""),
                           st.get("artikelnr") or "", preis_text(ek) if ek is not None else "",
+                          preis_text(ek_ges) if ek_ges is not None else "",
                           auf or self._regel_kurz(e, w["regel"]),
                           preis_text(w["vk_einheit"]) if not w["fehler"] and w["vk_einheit"] is not None else "",
                           preis_text(w["vk"]) + " €" if not w["fehler"] else w["fehler"],
@@ -509,14 +634,17 @@ class ZukaufDialog(QDialog):
                     it = QTableWidgetItem(t)
                     if c not in EDIT:
                         it.setFlags(it.flags() & ~Qt.ItemIsEditable)
-                    if c in (1, 5, 6, 7, 8):
+                    if c in (1, 5, EK_GESAMT, AUFSCHLAG, VK, GESAMT):
                         it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                    if c == 6 and not auf:
+                    if c == EK_GESAMT:
+                        it.setForeground(grau)
+                        it.setToolTip("Einstand (EK + Bezugskosten) aller Teile der Position, nur intern")
+                    if c == AUFSCHLAG and not auf:
                         it.setForeground(grau)
                         it.setToolTip(f"Wirksam: {w['regel']}.\nLeer = Aufschlag des Angebots (Zukaufteile) bzw. "
                                       "Regel des Artikels; eine Zahl ersetzt ihn für diese Position (% auf den "
                                       "Einstandspreis)")
-                    if c == 7:
+                    if c == VK:
                         it.setToolTip("VK je Einheit eintippen: der Aufschlag % wird daraus gerechnet")
                     if c == 5 and ek is None:
                         it.setToolTip("EK fehlt: Einkaufspreis je Einheit eintragen")
@@ -525,7 +653,7 @@ class ZukaufDialog(QDialog):
                                 "Beschreibung"), ("bemerkung", "Bemerkung")) if st.get(k)]
                         lief = (st.get("bezug") or {}).get("lieferant")
                         it.setToolTip("\n".join(tipp + ([f"Lieferant: {lief}"] if lief else [])))
-                    if c == 9 and zukauf.ist_frei(e):
+                    if c == HERKUNFT and (zukauf.ist_frei(e) or not self.stamm):
                         it.setForeground(grau)
                     self.tabelle.setItem(r, c, it)
                 feld = self.tabelle.cellWidget(r, JE)
@@ -553,6 +681,17 @@ class ZukaufDialog(QDialog):
                 self.tabelle.setItem(r, c, it)
             gesamt = sum((w["vk"] for w in werte if not w["fehler"]), zukauf.NULL)
             fehler = sum(1 for w in werte if w["fehler"])
+            c = zukauf.dez(self._stueck())
+            ek_sum = sum((w["einstand"] for w in werte if not w["fehler"]), zukauf.NULL) * c
+            vk_sum = gesamt * c
+            mw = vk_sum * self.mwst
+            self.summe.setText(
+                f"<b>Summe Position</b> ({zahl_als_text(self._stueck(), 0)} Teile): EK {preis_text(ek_sum)} € · "
+                f"VK netto {preis_text(vk_sum)} € · MwSt. {zahl_als_text(float(self.mwst) * 100, 0)} % "
+                f"{preis_text(mw)} € · VK brutto {preis_text(vk_sum + mw)} €"
+                + (f" · Aufschlag {preis_text(vk_sum - ek_sum)} €" if ek_sum else "")
+                + " <span style='color:#5F6B7A'>(EK und Aufschlag nur intern, nie im Kundenangebot)</span>"
+                if self.eintraege else "")
             self.info.setText(
                 f"Summe Zukaufartikel: {preis_text(gesamt)} € je Teil, "
                 f"{preis_text(gesamt * zukauf.dez(self._stueck()))} € für {zahl_als_text(self._stueck(), 0)} Teile "

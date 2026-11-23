@@ -32,6 +32,7 @@ def ok(text):
 
 
 db = Datenbank(TMP / "n.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 
 
 def normteil(name, preis=None):

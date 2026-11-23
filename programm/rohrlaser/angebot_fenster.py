@@ -3096,6 +3096,31 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if i >= 0 and self.reiter.isTabVisible(i) != da:
             self.reiter.setTabVisible(i, da)
 
+    def zukauf_stamm(self):
+        """Zentrale Zukaufartikelverwaltung an (funktionen.ZUKAUF_STAMM, Vorgabe aus, Patrick 23.11.2026)? Aus: kein
+        Lesen oder Schreiben im Artikelstamm, Zukaufartikel gehören nur zum Angebot."""
+        return funktionen.zukauf_stamm(self.db)
+
+    def _zukauf_ek(self, e, preis, lieferant=None, ab=None, bemerkung=None):
+        """EK eines Zukauf-Eintrags e eintragen: Stammartikel mit zentraler Verwaltung im Artikelstamm (Staffelzeile
+        'ab', neuer Preisstand), sonst nur im Preisstand der Position (zukauf.ek_eintragen, gleiche Staffelregel).
+        ValueError bei ungültigem Preis."""
+        aid = e.get("artikel_id")
+        if aid is not None and self.zukauf_stamm():
+            self.db.zukauf_ek_eintragen(aid, preis, lieferant, ab=ab, bemerkung=bemerkung)
+            e["stand"] = self.db.zukauf_stand(aid, lieferant)
+        else:
+            zukauf.ek_eintragen(e, preis, lieferant, ab)
+
+    def _zukauf_neu(self, werte, bezuege, bemerkung):
+        """Neuer Zukaufartikel für eine Position: mit zentraler Verwaltung im Artikelstamm gespeichert (Eintrag mit
+        artikel_id und Preisstand), sonst nur im Angebot (freier Eintrag mit gleichem Preisstand). ValueError aus
+        der Prüfung des Stamms."""
+        if self.zukauf_stamm():
+            aid = self.db.zukauf_speichern(None, werte, bezuege, bemerkung)
+            return dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))
+        return self.db.zukauf_frei(werte, bezuege)
+
     # -------------------------------------------------------------- Laden und Rechnen
     def titel(self):
         nr = self.kopf.get("nummer") or ""
@@ -4654,7 +4679,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                                                                 self.tabellen, self.einst))
             out += mp.gewicht_punkte(self.positionen, self.k, self.einst)
             grenze = preisverlauf.schwelle(self.einst)
-            ids = {e.get("artikel_id") for p in self.positionen for e in zukauf.eintraege(p)} - {None}
+            ids = {e.get("artikel_id") for p in self.positionen for e in zukauf.eintraege(p)} - {None} \
+                if funktionen.zukauf_stamm(self.db) else set()       # Preisprotokoll gehört zum Artikelstamm (23.11.2026)
             if grenze and ids:
                 verlauf = {schl: [r[-1]] for schl, r in preisverlauf.ek_verlauf(self.db.zukauf_historie()).items()
                            if schl[0] in ids and r}           # nur die letzte Änderung je Artikel und Lieferant
@@ -4704,7 +4730,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             t = englisch.check_punkt(self.kopf, self.einst)
             if t:
                 out.append(angebot_check.Punkt(H, t, None))
-            tage, name = am.zukauf_lieferzeit(self.positionen, self.db.zukauf_artikel)
+            tage, name = am.zukauf_lieferzeit(self.positionen, self.db.zukauf_artikel if funktionen.zukauf_stamm(self.db) else None)
             if tage and (self.kopf.get("lieferzeit_wert") or self.kopf.get("liefertermin")):
                 txt = am.lieferzeit_punkt(tage, name, auftrag.termin_vorschlag(self.kopf, datetime.date.today()))
                 if txt:
@@ -4860,7 +4886,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         from . import zukauf
         kandidaten = {i: e["artikel_id"] for i, p in enumerate(self.positionen) if p.get("art") == ZUKAUFTEIL
                       for e in zukauf.eintraege(p)[:1] if e.get("artikel_id") is not None}
-        if not kandidaten:
+        if not kandidaten or not funktionen.zukauf_stamm(self.db):      # Liste „Normteile ohne Preis“ gehört zum Stamm
             return []
         try:
             from .normteil_preise import ids_ohne_preis
@@ -6001,7 +6027,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         werte.update(artikeltyp="Blech", laenge=round(zs["laenge"], 1), breite=round(zs["breite"], 1),
                      dicke=e["dicke"], werkstoff=e["werkstoff"], herkunft=blech.QUELLE)
         try:
-            aid = self.db.zukauf_speichern(None, werte, bezuege, "Richtpreis aus dem Blech-Editor")
+            eintrag = self._zukauf_neu(werte, bezuege, "Richtpreis aus dem Blech-Editor")
         except ValueError as x:
             self.f.meldung(f"Blech-Editor: {x}", fehler=True)
             return False
@@ -6011,7 +6037,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             pos=nr, art=ZUKAUFTEIL, artikel=kopf["artikelnr"] or kopf["bezeichnung"], bezeichnung=kopf["bezeichnung"],
             stueck=kopf["stueck"], technik=blech.speichern(dict(e, richtpreise=[dict(ab=1, preis=erg["richtpreis"])])),
             gewicht_teil=round(erg["gewicht"], 3), muster=kopf.get("muster"),
-            zukauf=json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))], ensure_ascii=False),
+            zukauf=json.dumps([eintrag], ensure_ascii=False),
             **self._blech_gewinde_felder({}, (erg.get("bohrungen") or {}).get("gewinde")), **(extra or {})))
         self._blech_pid = pid_neu
         if leise:
@@ -6196,7 +6222,6 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if st is None or e is None:
             return False
         liste = zukauf.json_liste(p.get("zukauf"))
-        aid = st["artikel_id"]
         pos = p.get("pos") or zeile + 1
         alt = e.get("angebotspreis") or {}
         vorher = alt.get("vorher") or st["lieferant"] or zukauf.lieferant_vorgabe("Blechteile")
@@ -6205,12 +6230,11 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             menge = int(menge) if menge.is_integer() else menge
             lief = (lieferant or "").strip() or st["lieferant"] or zukauf.lieferant_vorgabe("Blechteile")
             try:
-                self.db.zukauf_ek_eintragen(aid, preis, lief, ab=menge, bemerkung=(
+                self._zukauf_ek(liste[0], preis, lief, ab=menge, bemerkung=(
                     f"Angebot {lief} für Angebot {self.kopf.get('nummer') or ''} (ab {menge} St)").replace("  ", " "))
             except ValueError as x:
                 self.f.meldung(str(x), fehler=True)
                 return False
-            liste[0]["stand"] = self.db.zukauf_stand(aid, lief)
             e = dict(e, angebotspreis=dict(preis=round(float(preis), 4), lieferant=lief, ab=menge, vorher=vorher,
                                            datum=datetime.date.today().strftime("%d.%m.%Y")))
             self.db.position_aendern(p["id"], "technik", blech.speichern(e))
@@ -6459,13 +6483,11 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return False
         e, erg = d.eingaben(), d.ergebnis
         stueck = e.get("stueck") or p.get("stueck") or 1
-        aid = liste[0].get("artikel_id")
-        if aid is None:         # ohne Artikelstamm (12.11.2026): EK nur in der Position
+        if liste[0].get("artikel_id") is None:         # ohne Artikelstamm (12.11.2026): EK nur in der Position
             zukauf.stand_setzen(liste[0], "ek", erg["richtpreis"])
-        else:
-            self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], lief, ab=stueck,
-                                        bemerkung=f"{drehfraes_preis.HINWEIS} (ab {stueck:g} St)")
-            liste[0]["stand"] = self.db.zukauf_stand(aid, lief)
+        else:               # Stammartikel: mit zentraler Verwaltung im Stamm, sonst nur in der Position (23.11.2026)
+            self._zukauf_ek(liste[0], erg["richtpreis"], lief, ab=stueck,
+                            bemerkung=f"{drehfraes_preis.HINWEIS} (ab {stueck:g} St)")
         ab = max(1, float(stueck))
         merk = [r for r in e.get("richtpreise") or () if isinstance(r, dict) and r.get("ab") != ab] + \
             [dict(ab=ab, preis=erg["richtpreis"])]
@@ -6523,12 +6545,11 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if richtpreis_eintragen is None:
             richtpreis_eintragen = not (st and st["angebot"])
         if richtpreis_eintragen:
-            if aid is None:     # ohne Artikelstamm (12.11.2026): EK nur in der Position
-                zukauf.stand_setzen(liste[0], "ek", erg["richtpreis"])
-            else:
-                self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], lieferant, ab=stueck,
-                                            bemerkung=f"Richtpreis Blech-Editor (ab {stueck} St)")
-                liste[0]["stand"] = self.db.zukauf_stand(aid, lieferant)
+            if aid is None and not (liste[0].get("stand") or {}).get(zukauf.MERKMALE):
+                zukauf.stand_setzen(liste[0], "ek", erg["richtpreis"])     # ohne Artikelstamm (12.11.2026)
+            else:       # Stammartikel bzw. nur im Angebot angelegtes Blech (23.11.2026): Staffelzeile ab Stückzahl
+                self._zukauf_ek(liste[0], erg["richtpreis"], lieferant, ab=stueck,
+                                bemerkung=f"Richtpreis Blech-Editor (ab {stueck} St)")
             e = {n: v for n, v in e.items() if n != "angebotspreis"}
         elif (blech.lesen(p.get("technik")) or {}).get("angebotspreis"):
             e = dict(e, angebotspreis=blech.lesen(p.get("technik"))["angebotspreis"])
@@ -9117,12 +9138,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 zukauf.stand_setzen(liste_p[z["nr"]], "ek", preis)
                 continue
             lief = z["lieferant"] or zukauf.BLECH_LIEFERANT["Blechteile"]
-            self.db.zukauf_ek_eintragen(z["artikel_id"], preis, lief, ab=menge,
-                                        bemerkung=f"EK aus Angebot {nummer} (ab {menge} St)".replace("  ", " "))
-            liste_p[z["nr"]]["stand"] = self.db.zukauf_stand(z["artikel_id"], lief)
+            self._zukauf_ek(liste_p[z["nr"]], preis, lief, ab=menge,       # ohne zentrale Verwaltung: nur Position
+                            bemerkung=f"EK aus Angebot {nummer} (ab {menge} St)".replace("  ", " "))
         for r, liste_p in geaendert.items():
             self.db.position_aendern(self.positionen[r]["id"], "zukauf", json.dumps(liste_p, ensure_ascii=False))
-        self.f.meldung(f"EK für {len(paare)} Zukaufteil(e) eingetragen (Stammartikel im Artikel gespeichert).")
+        self.f.meldung(f"EK für {len(paare)} Zukaufteil(e) eingetragen" + (
+            " (Stammartikel im Artikel gespeichert)." if funktionen.zukauf_stamm(self.db) else " (nur in diesem Angebot)."))
         self.neu_laden()
         return len(paare)
 
@@ -10458,7 +10479,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         profil_regeln = self.db.einstellung(step.PROFIL_GELERNT) or {}
         step.profile_gelernt_anwenden(messwerte, profil_regeln.get(str(self.kopf.get("kundennr") or "")) or {},
                                       self.k.profile)
-        zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
+        # Bleche werden Zukaufteile (Dubletten aus dieser Liste); ohne zentrale Verwaltung nur im Angebot (23.11.2026)
+        zk_stamm = self.zukauf_stamm()
+        zukauf_liste = self.db.zukauf_artikel_liste() if zk_stamm else []
         # Bleche: Blech-Werkstoffe und Richtpreis wie im Blech-Editor (nie die Rohrlaser-Daten)
         blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
                                        if z.get("blech_werkstoff_id")},
@@ -10562,8 +10585,14 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                                    drehfraes_einst=self.db.drehfraes_einstellungen()
                                    if funktionen.an("funktion_zukauf", self.db) else None)
             self.db.profile_anlegen(erg["profile"])
-            neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
-                        for schl, (werte, bezuege) in erg["zukauf_neu"].items()}
+            if zk_stamm:
+                neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
+                            for schl, (werte, bezuege) in erg["zukauf_neu"].items()}
+                neue_frei = {}
+            else:       # nur im Angebot: je Schlüssel ein Preisstand, gleiche Teile = eine Bestellung
+                neue_ids = {}
+                neue_frei = {schl: self.db.zukauf_frei(werte, bezuege)
+                             for schl, (werte, bezuege) in erg["zukauf_neu"].items()}
         from . import drehfraes
         df_neu = [w for w, _ in erg["zukauf_neu"].values() if w.get("artikeltyp") in drehfraes.ARTEN]
         bleche_neu = [b for w, b in erg["zukauf_neu"].values() if not vollmaterial.ist_voll(w)
@@ -10587,6 +10616,10 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 f", {ohne_ek} ohne EK (Blech-Werkstoff offen): bitte unter Zukaufartikel mit 'EK eintragen …' "
                 "nachtragen." if ohne_ek else ", EK = Blech-Richtpreis (bitte durch das Angebot des Lieferanten "
                                               "ersetzen)."))
+        if not zk_stamm:        # ohne zentrale Verwaltung: die Artikel stehen nur im Angebot
+            erg["bericht"] = [t.replace("Zukaufartikel (", "Zukaufartikel im Angebot (").replace(
+                "unter Zukaufartikel mit 'EK eintragen …'", "mit Zukaufteile … → „EK eintragen …“")
+                if re.match(r"\d+ Zukaufartikel \(", t) else t for t in erg["bericht"]]
         katalog_erk = self.db.zeilen("zusatzarbeiten") \
             if werkstoff_text or any(p.get("_zeichnung_text") for p in erg["positionen"]) else ()
         from . import ki_auslesen, zeichnung_hinweise
@@ -10612,7 +10645,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 p["arbeitsgaenge"] = zusatz_erkennung.text_merken(p.get("arbeitsgaenge"), werkstoff_text, katalog_erk,
                                                                   "E-Mail")
             verweis = p.pop("_zukauf", None)
-            if verweis:
+            if verweis and not verweis.get("artikel_id") and verweis.get("neu") in neue_frei:
+                p["zukauf"] = json.dumps([copy.deepcopy(neue_frei[verweis["neu"]])], ensure_ascii=False)
+            elif verweis:
                 aid = verweis.get("artikel_id") or neue_ids.get(verweis.get("neu"))
                 p["zukauf"] = json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))],
                                          ensure_ascii=False)

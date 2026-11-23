@@ -34,6 +34,7 @@ def ok(text):
 
 # ------------------------------------------------------------------ K1 Erledigen
 db = Datenbank(TMP / "rohrlaser.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 f = Hauptfenster(db, TMP, stumm=True)
 a = beispiel_angebot.anlegen(db)
 s = f.angebot_oeffnen(a)
@@ -141,6 +142,7 @@ ok(f"K2: Rechtsklick am Teil: „Passt (1 gleiche)“, Art-Menü (aktuelle Art a
 
 # ------------------------------------------------------------------ K4 Lieferant und vorhandene Preise
 db2 = Datenbank(TMP / "n.db")
+db2.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 
 
 def normteil(name, preis=None):

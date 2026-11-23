@@ -20,8 +20,10 @@ def stand(p, daten=None):
     artikel_id). daten = Blech-Daten (werkstoffe, laser, einst) für den Richtpreis, sonst der gemerkte."""
     e = blech.lesen(p.get("technik"))
     liste = zukauf.json_liste(p.get("zukauf"))
-    if e is None or not liste or not rechnen.ist_zukaufteil(p) or liste[0].get("artikel_id") is None:
+    if e is None or not liste or not rechnen.ist_zukaufteil(p):
         return None
+    if liste[0].get("artikel_id") is None and not (liste[0].get("stand") or {}).get(zukauf.MERKMALE):
+        return None     # freier Eintrag von Hand; nur im Angebot angelegte Bleche (23.11.2026) haben Merkmale
     st = liste[0].get("stand") or {}
     bezug = st.get("bezug") or {}
     menge = float(zukauf.dez(liste[0].get("menge")) or 1) * float(zukauf.bezugsmenge(liste[0], p) or 0)
@@ -41,7 +43,7 @@ def stand(p, daten=None):
         passend = sorted((x for x in merk if x[0] <= ab), key=lambda x: x[0]) or sorted(merk)
         rp = passend[-1][1]
     return dict(ek=ek, richtpreis=rp, angebot=angebot, lieferant=bezug.get("lieferant"), menge=menge,
-                artikel_id=liste[0]["artikel_id"], angebotspreis=e.get("angebotspreis"))
+                artikel_id=liste[0].get("artikel_id"), angebotspreis=e.get("angebotspreis"))
 
 
 def text(s):

@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QListWidgetItem, QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
-from . import hilfe, stil, tastatur, vollmaterial, zukauf
+from . import funktionen, hilfe, stil, tastatur, vollmaterial, zukauf
 from .stammdaten import ZUKAUF_TYPEN
 from .klartext import fehler_text
 from .stammdaten import Feld, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
@@ -1019,7 +1019,8 @@ class ArtikelSeite(QWidget):
     def neu_laden(self):
         self.kategorien = self.db.zukauf_kategorien()
         self.standard = self.db.einstellung("zukauf_aufschlag")
-        self.daten = self.db.zukauf_artikel_liste()
+        # zentrale Zukaufartikelverwaltung aus (Vorgabe, 23.11.2026): Unterreiter ausgeblendet, Stamm nicht lesen
+        self.daten = self.db.zukauf_artikel_liste() if funktionen.zukauf_stamm(self.db) else []
         for a in self.daten:
             b = zukauf.bezug_waehlen(a["bezuege"])
             a["_bezug"] = b or {}
@@ -1500,13 +1501,41 @@ class ZukaufBereich(QWidget):
         self.unter.currentChanged.connect(self._gewechselt)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
+        # zentrale Zukaufartikelverwaltung aus (Vorgabe, Patrick 23.11.2026): Hinweis statt Artikelstamm
+        self.aus_hinweis = QLabel("Die zentrale Zukaufartikelverwaltung ist ausgeschaltet: Zukaufartikel werden nur "
+                                  "im jeweiligen Angebot gespeichert (Angebot → Zukaufteile …). Kategorien, Lieferanten "
+                                  "und Materialgruppen gelten weiter. Einschalten: Einstellungen → Funktionen → "
+                                  "„Zentrale Zukaufartikelverwaltung“.")
+        self.aus_hinweis.setWordWrap(True)
+        self.aus_hinweis.setObjectName("hinweis")
+        self.aus_hinweis.setContentsMargins(8, 6, 8, 6)
+        lay.addWidget(self.aus_hinweis)
         lay.addWidget(self.unter)
+        self._stamm = None
+        self.funktionen_anwenden()
+
+    def funktionen_anwenden(self):
+        """Unterreiter Artikel, Preisänderungen und Normteile ohne Preis nur mit zentraler Verwaltung; beim Einschalten
+        werden sie (einmal) geladen."""
+        an = funktionen.zukauf_stamm(self.db)
+        for w in (self.artikel, self.preise, self.normteile):
+            self.unter.setTabVisible(self.unter.indexOf(w), an)
+        self.aus_hinweis.setVisible(not an)
+        if an and not self.unter.isTabVisible(self.unter.currentIndex()):
+            self.unter.setCurrentWidget(self.artikel)
+        elif not an and self.unter.currentWidget() in (self.artikel, self.preise, self.normteile):
+            self.unter.setCurrentWidget(self.kategorien)
+        if self._stamm is not None and an != self._stamm:
+            self.neu_laden()
+        self._stamm = an
 
     def _gewechselt(self, _):
         self.neu_laden()
 
     def neu_laden(self):
-        for s in (self.kategorien, self.lieferanten, self.materialgruppen, self.preise, self.normteile):
+        stamm = funktionen.zukauf_stamm(self.db)
+        for s in (self.kategorien, self.lieferanten, self.materialgruppen) + ((self.preise, self.normteile)
+                                                                            if stamm else ()):
             s.neu_laden()
         self.artikel.neu_laden()
         self._normteile_titel()

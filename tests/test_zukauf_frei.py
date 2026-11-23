@@ -25,7 +25,7 @@ from rohrlaser import ausgabe, pdf, rechnen, unterzeilen, zukauf  # noqa: E402
 from rohrlaser.angebot import ZUKAUFTEIL  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import STIL, Hauptfenster  # noqa: E402
-from rohrlaser.zukauf_dialog import EDIT, NEU_TEXT, OHNE_STAMM, ZukaufDialog  # noqa: E402
+from rohrlaser.zukauf_dialog import EDIT, HERKUNFT, NEU_TEXT, OHNE_STAMM, ZukaufDialog  # noqa: E402
 
 app = QApplication.instance() or QApplication([])
 app.setStyleSheet(STIL)
@@ -42,6 +42,7 @@ def nah(a, b, text, eps=1e-6):
 
 
 db = Datenbank(tmp / "f.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 db.einstellung_setzen("aufschlag_blech", None)      # erst ohne Aufschlag im Angebot: Standard der Einstellungen
 db.einstellung_setzen("aufschlag_zukauf", None)
 db.einstellung_setzen("zukauf_aufschlag", 10)       # Standardaufschlag Zukaufteile 10 %
@@ -109,7 +110,7 @@ d.menge.setText("4")
 d.ek.setText("0,15")
 d._hinzufuegen_klick()
 assert len(d.eintraege) == 1 and zukauf.ist_frei(d.eintraege[0]), "frei eingetippt, kein Stamm nötig"
-assert d.tabelle.item(0, 9).text() == OHNE_STAMM and d.tabelle.item(1, 0).text() == NEU_TEXT, "leere Zeile unten"
+assert d.tabelle.item(0, HERKUNFT).text() == OHNE_STAMM and d.tabelle.item(1, 0).text() == NEU_TEXT, "leere Zeile unten"
 nah(d._vorschau(d.eintraege)[0]["vk"], 4 * 0.15 * 1.10, "Vorschau je Teil sofort (Standard 10 %)")
 d.accept()
 assert seite.zukaufteile([0], werte=d.ergebnis)
@@ -285,12 +286,12 @@ nah(s3["zukauf_einstand"], 2 * 1.2 * 5, "Stammartikel Einstand wie bisher")
 seite3 = f.angebot_oeffnen(a2)
 app.processEvents()
 d = ZukaufDialog(seite3, db, db.positionen(a2)[0])
-assert d.tabelle.item(0, 9).text().startswith("Stamm, Stand"), d.tabelle.item(0, 9).text()
+assert d.tabelle.item(0, HERKUNFT).text().startswith("Stamm, Stand"), d.tabelle.item(0, HERKUNFT).text()
 d.accept()
 assert json.loads(d.ergebnis) == alt, "öffnen + OK ändert einen Stammartikel nicht"
 d = ZukaufDialog(seite3, db, db.positionen(a2)[0])
 d.tabelle.item(0, SPALTE["ek"]).setText("1,50")
-assert d.eintraege[0][zukauf.GEAENDERT] and "in Position geändert" in d.tabelle.item(0, 9).text()
+assert d.eintraege[0][zukauf.GEAENDERT] and "in Position geändert" in d.tabelle.item(0, HERKUNFT).text()
 assert zukauf.json_liste(db.zukauf_artikel(sid)["bezuege"][0]["preise"])[0]["preis"] == 1.2, "Stamm bleibt"
 assert d.aktualisieren([0], bestaetigt=True) == 1 and zukauf.GEAENDERT not in d.eintraege[0], "zurück auf Stamm"
 d.reject()

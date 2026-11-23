@@ -17,6 +17,7 @@ Rechenweg je Artikel und Angebot (bzw. Mengenstufe):
 Einstand, Aufschlag und Verkaufspreis werden nach dem Verbrauch auf die Positionen verteilt. Ein Aufschlag ist
 nicht dasselbe wie eine Marge: 20 % Aufschlag auf 10,00 € ergibt 12,00 €, 20 % Zielmarge ergibt 12,50 €.
 """
+import copy
 import datetime
 import hashlib
 import json
@@ -452,8 +453,11 @@ BLECH_KATEGORIE = "Blechteile"
 
 
 def ist_blech(e, blech_ids=()):
-    """Eintrag eines Blechs: Artikel vom Typ Blech (blech_ids) oder, ohne Artikel, Kategorie Blechteile."""
-    return e.get("artikel_id") in blech_ids or (e.get("stand") or {}).get("kategorie") == BLECH_KATEGORIE
+    """Eintrag eines Blechs: Artikel vom Typ Blech (blech_ids) oder, ohne Artikel, Kategorie Blechteile bzw. Typ Blech
+    in den Merkmalen des Preisstands (Zukaufartikel nur im Angebot, 23.11.2026)."""
+    st = e.get("stand") or {}
+    return e.get("artikel_id") in blech_ids or st.get("kategorie") == BLECH_KATEGORIE or \
+        (st.get(MERKMALE) or {}).get("artikeltyp") == "Blech"
 
 
 def mit_angebotsaufschlag(e, kopf, blech_ids=()):
@@ -524,6 +528,137 @@ def frei_eintrag(bezeichnung, menge=1, je=None, aufschlag=None, **stand_werte):
     if je == JE_SATZ:
         e["je"] = JE_SATZ
     return e
+
+
+# ------------------------------------------------------------------ Zukaufartikel nur im Angebot (23.11.2026)
+# Master-Auftrag Patrick 23.11.2026: die zentrale Zukaufartikelverwaltung ist optional (funktionen.ZUKAUF_STAMM, Vorgabe
+# aus). Ohne sie entsteht jeder Zukaufartikel (STEP-Import, Blech-Editor, Schnellanlage, Dialog) als freier Eintrag mit
+# eigenem Preisstand; technische Merkmale eines Stammartikels (Typ, Maße, Werkstoff, Gewicht, STEP-Datei, Norm) stehen
+# dann im Preisstand unter MERKMALE, damit Materialanfrage, Blech-Aufschlag und Anzeigen ohne Stamm auskommen.
+MERKMALE = "artikel"
+MERKMAL_FELDER = ("artikeltyp", "laenge", "breite", "dicke", "werkstoff", "abmessung", "gewicht", "preis_kg", "norm",
+                  "groesse", "festigkeit", "norm_oberflaeche", "herkunft", "step_datei", "fingerabdruck")
+
+
+def merkmale(e, artikel=None):
+    """Technische Merkmale eines Eintrags: Stammartikel (artikel, falls gegeben) sonst die Merkmale im Preisstand."""
+    return artikel or (e.get("stand") or {}).get(MERKMALE) or {}
+
+
+def frei_aus_artikel(werte, bezuege, kategorien=None, standard=None, menge=1, aufschlag=None):
+    """Freier Eintrag aus Artikelwerten und Einkaufsbedingungen, wie sie sonst db.zukauf_speichern bekäme (STEP-Import,
+    Blech-Editor ohne zentrale Verwaltung): derselbe Preisstand wie zukauf.stand() eines so gespeicherten Artikels
+    (bevorzugter Lieferant), dazu Merkmale, Beschreibung und Bemerkung. Kein Zugriff auf den Artikelstamm."""
+    bz = [dict(b) for b in bezuege or ()]
+    for b in bz:
+        b["preise"] = json_liste(b.get("preise"))
+    b = next((x for x in bz if x.get("bevorzugt") == "ja"), bz[0] if bz else None)
+    st = stand(werte, b, kategorien, standard)
+    merk = {n: werte[n] for n in MERKMAL_FELDER if werte.get(n) not in (None, "")}
+    if merk:
+        st[MERKMALE] = merk
+    for n in ("beschreibung", "bemerkung"):
+        if (werte.get(n) or "").strip():
+            st[n] = werte[n].strip()
+    return {FREI: True, "menge": menge, "aufschlag": aufschlag, "stand": st}
+
+
+def ek_eintragen(e, preis, lieferant=None, ab=None):
+    """EK im Preisstand eines Eintrags eintragen, wie db.zukauf_ek_eintragen es im Stamm tut (ohne zentrale
+    Verwaltung, Patrick 23.11.2026): ohne ab ein Preis ab 1, mit ab eine Staffelzeile 'ab Stückzahl' (übrige Zeilen
+    über 0 € bleiben). Ein anderer Lieferant ersetzt den Einkauf des Preisstands. Stammeinträge gelten danach als in
+    der Position geändert (GEAENDERT). ValueError bei EK <= 0. Ergebnis: True = geändert."""
+    p = dez(preis)
+    if p is None or p <= 0:
+        raise ValueError("Bitte einen Einkaufspreis über 0 € eingeben.")
+    st = dict(e.get("stand") or {})
+    alt = json.dumps(st, sort_keys=True, default=str)
+    b = dict(st.get("bezug") or {})
+    lieferant = (lieferant or "").strip() or None
+    if lieferant and b.get("lieferant") and b.get("lieferant") != lieferant:
+        b = dict(lieferant=lieferant, preiseinheit=1)
+    elif lieferant:
+        b["lieferant"] = lieferant
+    if ab is None:
+        b["preise"] = [dict(ab=1, preis=float(p))]
+    else:
+        ab = max(1, float(ab))
+        ab = int(ab) if ab.is_integer() else ab
+        bleiben = [z for z in staffel_sortiert(b.get("preise")) if z["preis"] > 0 and float(z["ab"]) != ab]
+        b["preise"] = sorted([dict(ab=float(z["ab"]), preis=float(z["preis"])) for z in bleiben]
+                             + [dict(ab=ab, preis=float(p))], key=lambda z: z["ab"])
+    b["preiseinheit"] = b.get("preiseinheit") or 1
+    st["bezug"] = b
+    if json.dumps(st, sort_keys=True, default=str) == alt:
+        return False
+    e["stand"] = st
+    if not ist_frei(e):
+        e[GEAENDERT] = True
+    return True
+
+
+def unabhaengig(e, herkunft=None):
+    """Kopie eines Eintrags, die mit dem Ursprung nichts mehr teilt (aus anderem Angebot kopieren, 23.11.2026): tiefe
+    Kopie, ohne Verweis auf den Artikelstamm (frei), herkunft (z. B. 'Angebot 2026-0012') als Bemerkung im Preisstand,
+    falls dort noch keine steht. Rechnet wie das Original (gleicher Preisstand)."""
+    k = copy.deepcopy(e)
+    k.pop("artikel_id", None)
+    k.pop(GEAENDERT, None)
+    k[FREI] = True
+    st = k.setdefault("stand", {})
+    if herkunft:
+        st["kopiert_aus"] = herkunft
+    return k
+
+
+def zeilen_lesen(text):
+    """Mehrere Zukaufartikel auf einmal (Dialog „Mehrere hinzufügen …“, 23.11.2026): je Zeile Bezeichnung; Menge; EK;
+    Artikelnr.; Lieferant, getrennt durch Tab (aus Excel kopiert) oder Semikolon; nur die Bezeichnung ist Pflicht
+    (Menge leer = 1, EK leer = fehlt). Kopfzeile mit 'Bezeichnung' wird übersprungen.
+    Ergebnis: ([dict(bezeichnung, menge, ek, artikelnr, lieferant)], [Fehlertexte mit Zeilennummer])."""
+    out, fehler = [], []
+    for n, roh in enumerate((text or "").splitlines(), 1):
+        if not roh.strip():
+            continue
+        teile = [t.strip() for t in (roh.split("\t") if "\t" in roh else roh.split(";"))]
+        teile += [""] * (5 - len(teile))
+        bez, menge, ek, nr, lief = teile[:5]
+        if n == 1 and bez.lower().startswith(("bezeichnung", "artikelbezeichnung")):
+            continue
+        try:
+            if not bez:
+                raise ValueError("Bezeichnung fehlt")
+            m = _text_zahl(menge) if menge else 1
+            if m is None or m <= 0:
+                raise ValueError(f"Menge '{menge}' ungültig")
+            k = _text_zahl(ek) if ek else None
+            if ek and (k is None or k <= 0):
+                raise ValueError(f"EK '{ek}' ungültig")
+        except ValueError as x:
+            fehler.append(f"Zeile {n}: {x}")
+            continue
+        m = int(m) if float(m).is_integer() else m
+        out.append(dict(bezeichnung=bez, menge=m, ek=k, artikelnr=nr or None, lieferant=lief or None))
+    return out, fehler
+
+
+def _text_zahl(t):
+    """'1.234,5' / '1234.5' / '12,50 €' -> float oder None."""
+    t = (t or "").replace("€", "").replace("\u00a0", "").strip()
+    if "," in t:
+        t = t.replace(".", "").replace(",", ".")
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def ek_gesamt(e, stueck):
+    """EK gesamt der Position für die Anzeige: Menge × Bezugsmenge × EK je Einheit (ohne Bezugskosten) oder None."""
+    ek = ek_einheit(e.get("stand"))
+    if ek is None:
+        return None
+    return ek * _d(e.get("menge")) * _d(stueck)
 
 
 def ek_einheit(st):

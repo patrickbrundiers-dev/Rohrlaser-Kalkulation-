@@ -69,16 +69,23 @@ def rabatt_punkt(kopf, staffel, umsatz):
 # ---------------------------------------------------------------- PART-007 Lieferzeit der Zukaufteile
 def zukauf_lieferzeit(positionen, artikel_von):
     """Größte Lieferzeit [Tage] der Zukaufteile im Angebot und der Artikel: (Tage, Text). artikel_von(id) liefert den
-    Zukaufartikel mit 'bezuege' (bevorzugter zuerst) oder None. Freie Einträge: Lieferzeit im Preisstand."""
+    Zukaufartikel mit 'bezuege' (bevorzugter zuerst) oder None. Freie Einträge: Lieferzeit im Preisstand.
+    artikel_von None (zentrale Zukaufartikelverwaltung aus, 23.11.2026): ohne Artikelstamm, Lieferzeit aus dem
+    Preisstand (auch die des Einkaufs im Preisstand). Mit Stamm wird jeder Artikel nur einmal gelesen."""
     from . import zukauf
     beste = (0, "")
+    if artikel_von is not None:
+        gelesen, von = {}, artikel_von
+        artikel_von = lambda i: gelesen[i] if i in gelesen else gelesen.setdefault(i, von(i))     # noqa: E731
     for p in positionen or ():
         if _n(p.get("stueck")) <= 0:
             continue
         for e in zukauf.eintraege(p):
             st = e.get("stand") if isinstance(e.get("stand"), dict) else {}
             tage, name = _n(st.get("lieferzeit")), st.get("bezeichnung") or st.get("artikelnr") or ""
-            if e.get("artikel_id") is not None:
+            if artikel_von is None:
+                tage = tage or _n((st.get("bezug") or {}).get("lieferzeit"))
+            elif e.get("artikel_id") is not None:
                 a = artikel_von(e["artikel_id"]) or {}
                 name = a.get("bezeichnung") or a.get("artikelnr") or name
                 for b in a.get("bezuege") or ():

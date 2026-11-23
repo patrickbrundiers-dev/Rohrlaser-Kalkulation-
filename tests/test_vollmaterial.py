@@ -68,6 +68,7 @@ ok("V1 Gewicht, Bezeichnung, EK aus €/kg, Dubletten (Länge ± 0,5, Abmessung 
 
 # ------------------------------------------------------------------ V2 Datenbank
 db = Datenbank(tmp / "v.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 assert SCHEMA_VERSION >= 61
 spalten = set(db_verbindung.spalten(db.con, "zukauf_artikel"))
 assert set(vm.FELDER) <= spalten, set(vm.FELDER) - spalten
@@ -75,12 +76,14 @@ assert vm.ZUSATZ_SAEGEN in {z["name"] for z in db.zeilen("zusatzarbeiten")}
 assert vm.KATEGORIE in db.zukauf_kategorien()
 assert "Rundstahl" in zukauf.ZUKAUF_TYPEN and "Vierkantstahl" in zukauf.ZUKAUF_TYPEN
 alt = Datenbank(tmp / "alt.db")              # ältere Datei: Sägen und Kategorie fehlen noch
+alt.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 alt.con.execute("DELETE FROM zusatzarbeiten WHERE name=?", (vm.ZUSATZ_SAEGEN,))
 alt.con.execute("DELETE FROM zukauf_kategorien WHERE name=?", (vm.KATEGORIE,))
 alt.con.execute("DELETE FROM einstellungen WHERE name='voll_stand'")
 alt.con.commit()
 alt.con.close()
 alt = Datenbank(tmp / "alt.db")
+alt.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 assert vm.ZUSATZ_SAEGEN in {z["name"] for z in alt.zeilen("zusatzarbeiten")} and vm.KATEGORIE in alt.zukauf_kategorien()
 alt.con.close()
 werte, bez = vm.artikel(vm.RUNDSTAHL, 20, 150, "S235-10219", herkunft="Test", lieferant="Stahlhandel")

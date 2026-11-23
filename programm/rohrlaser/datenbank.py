@@ -1984,6 +1984,18 @@ class Datenbank:
                             self.einstellung("zukauf_aufschlag"))
 
     @liest
+    def zukauf_frei(self, werte, bezuege, menge=1, aufschlag=None):
+        """Freier Eintrag (nur im Angebot) aus Artikelwerten und Einkauf, wie zukauf_speichern sie bekäme, ohne den
+        Artikelstamm zu lesen oder zu schreiben (zentrale Verwaltung aus, 23.11.2026). Vollmaterial: EK = Gewicht ×
+        €/kg wie beim Speichern; Kategorien und Standardaufschlag für die Aufschlagsregel."""
+        werte, bezuege = dict(werte), [dict(b) for b in bezuege or ()]
+        if vollmaterial.ist_voll(werte):
+            werte, bezuege = vollmaterial.vorbereiten(werte, bezuege,
+                                                      {z["werkstoff_id"]: z for z in self.zeilen("werkstoffe")})
+        return zukauf.frei_aus_artikel(werte, bezuege, self.zukauf_kategorien(), self.einstellung("zukauf_aufschlag"),
+                                       menge=menge, aufschlag=aufschlag)
+
+    @liest
     def zukauf_positionen(self, artikel_id=None):
         """[(Positions-ID, Angebots-ID, Angebotsnummer, Liste)] aller Positionen mit Zukaufteilen (nur mit diesem
         Artikel, falls angegeben)."""
@@ -2174,7 +2186,9 @@ class Datenbank:
                                            "qualitaetsstufen")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         # Artikel vom Typ Blech: Aufschlag Bleche des Angebots (zukauf.mit_angebotsaufschlag)
-        tab["blech_artikel"] = [a["id"] for a in self.zeilen("zukauf_artikel") if a.get("artikeltyp") == zukauf.BLECH]
+        # (nur die IDs lesen statt aller Artikelzeilen: gleiche Liste, Zukauf optional 23.11.2026)
+        tab["blech_artikel"] = [r[0] for r in self.con.execute(
+            "SELECT id FROM zukauf_artikel WHERE artikeltyp=? ORDER BY id", (zukauf.BLECH,))]
         return tab
 
     @liest

@@ -2280,6 +2280,10 @@ class EinstellungenSeite(QScrollArea):
             haupt = self.window()
             if hasattr(haupt, "funktionen_anwenden"):
                 haupt.funktionen_anwenden()
+        if e.name == funktionen.ZUKAUF_STAMM and not warnung:     # Bestandsprüfung (nur lesen, 23.11.2026)
+            from . import zukauf_bestand
+            self.meldung(zukauf_bestand.text(zukauf_bestand.pruefen(self.db), wert == "ja"))
+            return
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
@@ -4667,6 +4671,8 @@ class Hauptfenster(QMainWindow):
             if hasattr(s, "funktionen_anwenden"):
                 s.funktionen_anwenden()
         self.start.neu_laden()
+        if hasattr(getattr(self, "zukauf", None), "funktionen_anwenden"):     # zentrale Zukaufartikelverwaltung
+            self.zukauf.funktionen_anwenden()
         for seite in list(getattr(self, "offen", {}).values()):
             if hasattr(seite, "funktionen_anwenden"):
                 seite.funktionen_anwenden()

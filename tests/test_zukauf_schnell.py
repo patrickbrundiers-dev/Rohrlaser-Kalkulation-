@@ -35,6 +35,7 @@ def nah(a, b, text, eps=1e-6):
 
 
 db = Datenbank(tmp / "z.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 db.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
 db.einstellung_setzen("aufschlag_zukauf", None)
 a = db.angebot_neu(dict(kunde="Test"))

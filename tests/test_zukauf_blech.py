@@ -49,6 +49,7 @@ def warten():
 B = dict(laenge=500.0, breite=300.0, dicke=5.0, kontur="rechteckig", bohrungen={"10.0": 4}, innen=4,
          fingerabdruck="5.0|500|300|149686|1726|4|10x4")
 db = Datenbank(tmp / "z.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 
 
 @fall("Schema 20: neue Spalten, Umstellung einer Datei aus Schema 19 behält Artikel")
@@ -58,6 +59,7 @@ def _():
     assert set(zukauf.BLECH_FELDER) <= spalten, set(zukauf.BLECH_FELDER) - spalten
     alt = tmp / "alt.db"
     d = Datenbank(alt)
+    d.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
     d.zukauf_speichern(None, dict(bezeichnung="Schraube M6"), [dict(lieferant="A", preise=[dict(ab=1, preis=0.1)])])
     d.con.close()
     con = db_roh.verbinden(alt)
@@ -67,6 +69,7 @@ def _():
     con.commit()
     con.close()
     d = Datenbank(alt)
+    d.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
     assert set(db_verbindung.spalten(d.con, "zukauf_artikel")) >= set(zukauf.BLECH_FELDER)
     a = d.zukauf_artikel_liste()
     assert [x["bezeichnung"] for x in a] == ["Schraube M6"] and a[0]["artikeltyp"] is None, a

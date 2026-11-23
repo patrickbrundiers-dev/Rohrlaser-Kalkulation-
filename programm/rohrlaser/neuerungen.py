@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.458", "<b>Zukaufartikel ohne zentrale Datenbank</b> ([[zukauf_optional]]): Neuer Schalter Einstellungen → "
+                "Funktionen → <b>Zentrale Zukaufartikelverwaltung</b>, Vorgabe aus. Dann gehören Zukaufartikel nur "
+                "zum Angebot: keine Auswahl aus dem Stamm, STEP-Import, Blech-Editor, Schnellanlage und EK eintragen "
+                "legen alles nur im Angebot an, und beim Öffnen, Rechnen und Prüfen wird der Artikelstamm nicht "
+                "gelesen. Kategorien, Lieferanten und Materialgruppen bleiben. Neu im Dialog <b>Zukaufteile …</b>: "
+                "▲▼ für die Reihenfolge, <b>Mehrere hinzufügen …</b> (Liste, auch aus Excel), <b>Aus anderem "
+                "Angebot …</b> (unabhängige Kopie), Spalte EK gesamt und die Summe mit EK, VK netto, MwSt. und "
+                "brutto. Umschalten ändert keine Angebote und keine Stammartikel; Kalkulation und PDFs bleiben gleich.",
+     "Zukaufartikel nur im Angebot (zentrale Verwaltung optional), Dialog mit Reihenfolge, Mehrere hinzufügen, "
+     "Kopie aus anderem Angebot und Summe mit MwSt."],
     ["0.9.457", "<b>Zusatzarbeiten: Zeit aus dem Stundensatz</b> ([[zusatz_global]]): Freie allgemeine "
                 "Zusatzarbeiten ohne eigene Zeit bekommen ihre Zeit automatisch: interne Kosten (ohne Kosten: Preis) "
                 "je Einheit ÷ Stundensatz. Der Stundensatz steht in Einstellungen → Zuschläge und Preise (Vorgabe 60 €/h). "

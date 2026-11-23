@@ -34,6 +34,7 @@ def nah(a, b, text, eps=1e-6):
 
 
 db = Datenbank(tmp / "z.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 ind = dict(aufschlag_quelle=zukauf.INDIVIDUELL, aufschlag_methode=zukauf.PROZENT)
 schraube = db.zukauf_speichern(None, dict(artikelnr="Z-1", bezeichnung="Schraube M6x20", kategorie="Normteile",
                                           einheit="Stück", aufschlag_wert=25, **ind),
