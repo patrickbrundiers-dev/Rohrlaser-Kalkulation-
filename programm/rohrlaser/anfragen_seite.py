@@ -379,15 +379,19 @@ class AnfragenSeite(QWidget):
             karte = getattr(getattr(self.f, "start", None), "anfragen", None)
             if karte is not None:
                 karte.neu_laden(erzwingen=True)
+        from . import tempo           # Abschnitte für den Zeitwächter (29-s-Hänger beim ersten Öffnen, 23.11.2026)
         if not getattr(self, "_wiederhergestellt", False) and not getattr(self.db, "nur_lesen", False):
             self._wiederhergestellt = True
             try:                        # abgebrochene Zusammenführungen (Absturz, Netz) zu Ende führen
-                for t in sa.wiederherstellen(self.ablage()):
+                with tempo.abschnitt("Anfragen: Zusammenführungen prüfen"):
+                    meldungen = sa.wiederherstellen(self.ablage())
+                for t in meldungen:
                     self.f.meldung(t)
             except Exception as fehler:           # noqa: BLE001
                 protokoll.warnung(f"Anfragen: Meldung nicht angezeigt ({type(fehler).__name__}: {fehler})")
         try:
-            akten = self.ablage().alle()
+            with tempo.abschnitt("Anfragen: Akten lesen"):
+                akten = self.ablage().alle()
             stand = (tuple(map(id, akten)), datetime.datetime.now().strftime("%Y%m%d%H"))  # Ampel/Fristen stündlich
             if takt and stand == self._takt_stand and akten:
                 return
@@ -404,16 +408,15 @@ class AnfragenSeite(QWidget):
         self._ang_phase = {}
         self._modell_cache = None
         if not takt:
-            self.ol_status_zeigen()
-        self._zustaendige()
-        self._ampeln_setzen()
-        self._zaehler_setzen()
-        self._auswahl_fuellen()
-        self.liste_fuellen()
-        self._neue_melden()
-        self.viren_starten()
-        self.vormessen()
-        self._kacheln_melden()
+            with tempo.abschnitt("Anfragen: Outlook-Status"):
+                self.ol_status_zeigen()
+        for name, schritt in (("Zuständige", self._zustaendige), ("Ampeln", self._ampeln_setzen),
+                              ("Zähler", self._zaehler_setzen), ("Auswahl", self._auswahl_fuellen),
+                              ("Liste füllen", self.liste_fuellen), ("Neue melden", self._neue_melden),
+                              ("Virenprüfung starten", self.viren_starten), ("Vormessen", self.vormessen),
+                              ("Kacheln", self._kacheln_melden)):
+            with tempo.abschnitt(f"Anfragen: {name}"):
+                schritt()
 
     # ------------------------------------------------------------------ Paket 5: Zuständig, Ampel, Vormessung
     def _zustaendige(self):

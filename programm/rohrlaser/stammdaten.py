@@ -1901,6 +1901,9 @@ EINSTELLUNGEN = (
                 ""),
     # CSV-Export nach der PROfirst-Vorlage (Patrick 20.11.2026), „bisher“ = Format vom 23.10.2026
     Einstellung("csv_format", "CSV-Export: Format", "Ablage", "auswahl", "PROfirst", auswahl="csvformat"),
+    # Supportpaket 23.11.2026: Satz als eine Zeile wie PROfirst (Vorlage 2613000575.CSV)
+    Einstellung("csv_satz_zeile", "CSV-Export: jeden Satz als eine Zeile", "Ablage", "auswahl", "ja",
+                auswahl="janein"),
     Einstellung("sicherung_ordner2", "Zweiter Sicherungsordner (leer = keiner, z. B. Netzlaufwerk oder USB-Stick)",
                 "Ablage", "text", ""),
     # Datenbank-Auftrag 19.11.2026, Schritt 4: Angebotsdokumente (Ablage) mit jeder Sicherung spiegeln

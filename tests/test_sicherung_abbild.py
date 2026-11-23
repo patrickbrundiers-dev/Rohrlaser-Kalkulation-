@@ -161,4 +161,15 @@ z4 = next(z for z in zeilen if z["pfad"] == s4)
 assert z1["abbild"] and z1["dokumente"] and z4["abbild"] and not z4["dokumente"]
 ok("Wiederherstellen-Dialog kennt Abbild und Dokumente je Sicherung")
 db.schliessen()
+
+# ------------------------------------------------------------------ lange Pfade (Supportpaket 23.11.2026)
+import ntpath  # noqa: E402
+from unittest import mock  # noqa: E402
+
+assert dokumente_sicherung.lang("/a/b") == Path("/a/b")                 # außer Windows unverändert
+with mock.patch.object(dokumente_sicherung.os, "name", "nt"), mock.patch.object(dokumente_sicherung.os, "path", ntpath):
+    assert str(dokumente_sicherung.lang("C:\\Daten\\Sicherung")) == "\\\\?\\C:\\Daten\\Sicherung"
+    assert str(dokumente_sicherung.lang("\\\\server\\frei\\x")) == "\\\\?\\UNC\\server\\frei\\x"
+    assert str(dokumente_sicherung.lang("\\\\?\\C:\\x")) == "\\\\?\\C:\\x"
+ok("Lange Pfade: Spiegel der Ablage unter Windows mit \\\\?\\ (Mail-Namen über 260 Zeichen)")
 print("OK: Sicherung mit PostgreSQL-Abbild und Angebotsdokumenten")

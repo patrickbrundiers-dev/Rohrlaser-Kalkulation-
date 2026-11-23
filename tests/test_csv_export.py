@@ -270,4 +270,51 @@ for p in P9:
     zahlen_ok(p, export.POSITION_ZAHLEN)
 ok("C9 PROfirst-Vorlage: <Nr>.CSV und <Nr>_HEADER.CSV, Windows-1252 ohne BOM, ';' am Zeilenende, Datum mit Uhrzeit")
 
+# ------------------------------------------------------------------ C10 Satz als eine Zeile, Texte für PPEASE (23.11.)
+# Supportpaket 23.11.2026: PROfirst gibt einen Satz als eine Zeile aus (2613000575.CSV: ArtikelNr. = Satz, Menge =
+# Sätze, Stückpr. = Satzpreis) und schreibt nur ASCII; PPEASE machte aus „Oberfläche“ „Oberfl che“ und aus Ø ein „?“.
+rund = next(z["profil_id"] for z in db.zeilen("profile") if z["form"] == "Rundrohr")
+b = db.angebot_neu(dict(nummer="2026-00148", kunde="Lico", kundennr="10693", maschine="T11", datum="2026-11-23",
+                        lieferzeit_art="Wochen", lieferzeit_wert="2"))
+for nr, (art, laenge, je) in enumerate((("10000149170", 100, 1), ("10000149171", 305, 2), ("10000149173", 82, 1)), 1):
+    db.position_neu(b, dict(pos=nr, artikel=art, profil_id=rund, werkstoff_id="S235-10219", laenge=laenge,
+                            stueck=9 * je, schneidweg=350, einstiche=2, satz="211745882_10000149168_01", je_satz=je,
+                            oberflaeche="gestrahlt"))
+db.position_neu(b, dict(pos=4, artikel="Einzel", profil_id="RE 120x60x3", werkstoff_id="S235-10219", laenge=500,
+                        stueck=3, schneidweg=400, einstiche=2))
+s = fenster.angebot_oeffnen(b)
+assert s.optimieren()
+(tmp / "pf10").mkdir()
+pf = s.csv_export(ordner=str(tmp / "pf10"))
+kz = list(csv.reader(io.StringIO(pf[0].read_bytes().decode("cp1252"), newline=""), delimiter=";"))
+pz = list(csv.reader(io.StringIO(pf[1].read_bytes().decode("cp1252"), newline=""), delimiter=";"))
+P10 = [dict(zip(pz[0], z)) for z in pz[1:]]
+K10 = dict(zip(kz[0], kz[1]))
+assert [p["ArtikelNr."] for p in P10] == ["211745882_10000149168_01", "Einzel"], P10
+assert [p["Art"] for p in P10] == ["1", "2"]
+S = P10[0]
+ang = s.angebot_daten()
+sz = next(z for z in ang["zeilen"] if z["art"] == "satz")
+assert S["Menge"] == "9" and euro(S["Stückpr."]) == sz["preis"] and euro(S["Preis"]) == sz["gesamt"], (S, sz)
+assert S["L."] == S["Artikeltext"] == "" and S["Anz. Baugruppe"] == "1"
+zeilen, _ = s._rechnung()
+hk = sum(z["herstell_position"] for z, q in zip(zeilen, s.positionen) if z and q.get("satz"))
+assert abs(euro(S["Gesamt HK(€)"]) - hk) < 0.01 and abs(euro(S["HK()"]) * 9 - hk) < 0.05
+assert abs(euro(S["Gesamt Einkauf(Kg)"]) - euro(S["Einsatzgewicht"]) * 9) < 0.02
+assert euro(S["Einsatzgewicht"]) >= euro(S["Gew."]) > 0
+assert abs(float(K10["Preis"]) - sum(float(p["Preis"]) for p in P10)) < 0.005
+for p in P10:
+    zahlen_ok(p, export.POSITION_ZAHLEN)
+    roh = ";".join(p.values())
+    assert all(ord(c) < 128 for c in p["Liste der Arbeitsgänge"] + p["Artikeltext"]), roh
+assert S["Liste der Arbeitsgänge"].startswith("Profile [Rundrohr ") and "Oberflaeche [gestrahlt]" in S[
+    "Liste der Arbeitsgänge"] and "Ø" not in S["Liste der Arbeitsgänge"], S["Liste der Arbeitsgänge"]
+assert S["Liste der Arbeitsgänge"].count("Profile [") == 1          # gleiche Arbeitsgänge nur einmal
+assert export.ppease_text("Rundrohr Ø 54 x 2, Winkel 45°, Stück") == "Rundrohr 54 x 2, Winkel 45 Grad, Stueck"
+db.einstellung_setzen(export.CSV_SATZ_ZEILE, "nein")         # wie bisher: Satzteile einzeln
+pf = s.csv_export(ordner=str(tmp / "pf10"))
+pz = list(csv.reader(io.StringIO(pf[1].read_bytes().decode("cp1252"), newline=""), delimiter=";"))
+assert len(pz) == 5, pz
+ok("C10 Satz als eine Zeile wie PROfirst (Menge = Sätze, Satzpreis wie im PDF), Texte für PPEASE ohne Ø/Umlaute")
+
 print("OK: CSV-Export Angebotskopf/Angebotspositionen")
