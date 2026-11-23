@@ -167,6 +167,12 @@ class AbmessungFenster(QDialog):
         hinweis.setStyleSheet(f"color: {stil.TEXT_GRAU};")
         hinweis.setWordWrap(True)
         bl.addWidget(hinweis)
+        self.einkauf = QLabel(self.einkauf_text(sw, kgm))
+        self.einkauf.setTextFormat(Qt.RichText)
+        self.einkauf.setWordWrap(True)
+        self.einkauf.setToolTip("Theoretischer Verbrauch = Teilelängen × Meterpreis; Einkauf = bezahlte Stangen. "
+                                "Reststücke werden nur gemeldet, nicht eingelagert und nicht verrechnet.")
+        bl.addWidget(self.einkauf)
         ml.addWidget(self.bilanz_box, 2)
         teiler.addWidget(mitte)
 
@@ -218,6 +224,38 @@ class AbmessungFenster(QDialog):
         knoepfe.addWidget(zu)
         lay.addLayout(knoepfe)
         self.fokus(fokus)
+
+    def einkauf_text(self, sw, kgm):
+        """Materialbilanz der Materialplattform: theoretischer Verbrauch gegen Einkauf, Mindestabnahme, Reste."""
+        from . import materialplattform as mp
+        s, g = self.seite, self.g
+        self.einkauf_bilanz = None
+        if not sw or g["kunde"]:
+            return ""
+        paare = abmessung.lieferstangen(s.ergebnis, g["gruppe"], sw)
+        if not paare:
+            return ""
+        db = getattr(s, "db", None)
+        rest_min = mp._n(db.einstellung("rest_min_laenge")) if db else None
+        mindest = next((z.get("mindest_stangen") for z in s.tabellen.get("preise") or []
+                        if z.get("profil_id") == g["profil"] and z.get("werkstoff_id") == g["werkstoff"]), None)
+        b = mp.bilanz(g, paare, kgm, g["wirksam"], sum(w.get("kosten") or 0 for _, w in paare if w), rest_min,
+                      mindest)
+        self.einkauf_bilanz = b
+        zeilen = [f"<b>Theoretisch</b> {_z(b['theorie_m'], 2)} m"
+                  + (f" = {_z(b['theorie_eur'])} €" if b["theorie_eur"] is not None else ""),
+                  f"<b>Einkauf</b> {b['einkauf_stangen']} Stangen, {_z(b['einkauf_m'], 2)} m"
+                  + (f" = {_z(b['einkauf_eur'])} €" if b["einkauf_eur"] is not None else "")]
+        if b["mehr_eur"] is not None:
+            zeilen.append(f"Mehrkosten durch Verschnitt {_z(b['mehr_eur'])} € ({_z(b['verschnitt_pct'], 1)} %)")
+        if b["mindest_mehr"]:
+            zeilen.append(f"<span style='color:{stil.ORANGE}'>Mindestabnahme {int(mindest)} Stangen: "
+                          f"{b['mindest_mehr']} Stange(n) mehr bestellen</span>")
+        if b["reste"]:
+            zeilen.append(f"Reststücke ab {_z(rest_min, 0)} mm (nur Meldung): {len(b['reste'])} St., "
+                          + ", ".join(_z(r, 0) for r in b["reste"][:8]) + (" …" if len(b["reste"]) > 8 else "")
+                          + " mm")
+        return "<br>".join(zeilen)
 
     def kennzahlen(self):
         g, b = self.g, self.bilanz

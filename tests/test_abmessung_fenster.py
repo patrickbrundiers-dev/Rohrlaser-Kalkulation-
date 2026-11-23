@@ -116,6 +116,9 @@ assert arten == ["ProfilFenster", "ProfilFenster", "AbmessungFenster", "Abmessun
                  "AbmessungFenster", "PreisFenster", "PreisFenster"], arten
 fokus = [x for x in offen if isinstance(x, AbmessungFenster)]
 assert "border" in fokus[2].bilanz_box.styleSheet() and not fokus[1].bilanz_box.styleSheet()
+eb = fokus[1].einkauf_bilanz      # Materialplattform 23.11.2026: theoretischer Verbrauch gegen Einkauf
+assert eb and eb["einkauf_stangen"] > 0 and eb["einkauf_m"] >= eb["theorie_m"] > 0 and eb["mehr_eur"] >= 0
+assert "Theoretisch" in fokus[1].einkauf.text() and "Einkauf" in fokus[1].einkauf.text()
 assert "Einkauf gesamt" in offen[-1].ansicht.toPlainText() and "Verteilung" in offen[-1].ansicht.toPlainText()
 assert isinstance(offen[0], ProfilFenster) and offen[0].tab.rowCount() == len(s.k.maschinen)
 ok("Doppelklick: Querschnitt/Abmessung = Profil-Info, Pos./Stangen/Meter/Gewicht = Abmessung, Material €/€/m = "
