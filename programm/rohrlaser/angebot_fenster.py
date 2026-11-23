@@ -2663,6 +2663,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 ("Schweißnaht …", lambda: self.schweissnaht(), ""),
                 ("Zusatzarbeiten …", lambda: self.zusatzarbeiten(), ""),
                 ("Material …", lambda: self.material_einstellen(), ""),
+                ("Material suchen und zuweisen …", lambda: self.material_plattform(), ""),
                 ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen(), ""),
                 ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen(), ""),
                 ("STEP-Merkmale prüfen …", lambda: self.step_merkmale_pruefen(), ""),
@@ -7039,7 +7040,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
     MENUE_ARTEN = {"Schneidweg berechnen …": {"rohr"}, "Blech-Editor …": {"blech"},
                    "Richtpreis Dreh-/Frästeil …": {"drehfraes"},
                    "Art ändern (Blech / Rohr / Dreh-/Frästeil) …": {"rohr", "blech", "drehfraes", "zukauf"},
-                   "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"},
+                   "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"}, "Material suchen und zuweisen …": {"rohr"},
                    "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"},
                    "STEP-Merkmale prüfen …": {"rohr"}, "Wandstärke ändern …": {"rohr"},
                    "Ähnliche Teile und Revisionen …": {"rohr"}}
@@ -7120,6 +7121,15 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             d.blaettern_knoepfe[schritt] = b
         d.setWindowTitle(f"{d.windowTitle()} – Pos. {p.get('pos') or ''} ({i + 1} von {len(reihe)})")
         return reihe
+
+    def material_plattform(self):
+        """Seite Material zeigen, gefiltert auf die Profilart der markierten Position und mit deren Material markiert;
+        dort „Den markierten Positionen des offenen Angebots zuweisen“ (Materialplattform 23.11.2026)."""
+        zeilen = self._markierte_zeilen()
+        p = self.positionen[zeilen[0]] if zeilen else None
+        if hasattr(self.f, "material_zeigen"):
+            return self.f.material_zeigen(p, self)
+        return None
 
     def _pos_menue_anpassen(self):
         """Rechtsklick-Menü passend zu den markierten Positionen (B5)."""

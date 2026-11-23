@@ -4649,6 +4649,23 @@ class Hauptfenster(QMainWindow):
         self.materialanfragen.zeigen_fuer(nummer)
         return self.materialanfragen
 
+    def material_zeigen(self, position=None, seite=None):
+        """Seite Material zeigen; mit Position: gefiltert auf deren Profilart, deren Material markiert. Die Seite merkt
+        sich das Angebot als Ziel für „Zuweisen“."""
+        m = self.material
+        m.ziel_seite = seite
+        self.reiter.setCurrentWidget(m)
+        m.neu_laden()
+        if position:
+            pr = self.db.kontext().profile.get(position.get("profil_id")) or {}
+            m.suche.setText("")
+            if pr.get("form"):
+                m.filter_setzen("form", {pr["form"]})
+            if not m.auswaehlen(position.get("profil_id"), position.get("werkstoff_id")):
+                m.alle_box.setChecked(True)
+                m.auswaehlen(position.get("profil_id"), position.get("werkstoff_id"))
+        return m
+
     def einstellung_zeigen(self, name):
         """Seite der Einstellungen mit dieser Einstellung zeigen (Befehlspalette, Hinweise)."""
         seite = self.einstellungen.seite_von(name)

@@ -106,6 +106,15 @@ assert m.zuweisen(s, zeilen=[0]) == 1
 assert s.positionen[0]["profil_id"] == "QR 40x40x3" and db.positionen(an)[0]["profil_id"] == "QR 40x40x3"
 ok("Material an die markierte Position des offenen Angebots zugewiesen")
 
+# Sprung aus dem Angebot: Positionsmenü „Material suchen und zuweisen …“
+assert "Material suchen und zuweisen …" in s.pos_aktionen
+s.pos_ansicht.selectRow(1)
+assert s.material_plattform() is m and f.reiter.currentWidget() is m
+assert m.auswahl.get("form") == {"Rundrohr"} and mp.schluessel(m.aktuelle()) == ("RR 42,4x2,0", "S235-10219")
+assert m.offenes_angebot() is s
+m.filter_setzen("form", set())
+ok("Aus dem Angebot: Seite Material gefiltert auf die Profilart, Material der Position markiert")
+
 # Mehrfach ändern (Preis +10 %)
 m.tabelle.clearSelection()
 assert m.auswaehlen("RR 42,4x2,0", "S235-10219")

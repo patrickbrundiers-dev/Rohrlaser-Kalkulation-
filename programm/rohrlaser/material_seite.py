@@ -730,12 +730,10 @@ class MaterialBereich(QWidget):
         return n
 
     def offenes_angebot(self):
-        """Zuletzt gezeigtes offenes Angebot (Seite) oder None."""
-        r = getattr(self.f, "reiter", None)
+        """Ziel für „Zuweisen“: das Angebot, aus dem gesprungen wurde, sonst das zuletzt geöffnete; None ohne."""
         offen = list(getattr(self.f, "offen", {}).values())
-        letzte = getattr(r, "_letzte", None) if r is not None else None
-        if letzte in offen:
-            return letzte
+        if getattr(self, "ziel_seite", None) in offen:
+            return self.ziel_seite
         return offen[-1] if offen else None
 
     def zuweisen(self, seite=None, zeilen=None):
