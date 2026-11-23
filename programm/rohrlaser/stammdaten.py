@@ -1710,6 +1710,10 @@ EINSTELLUNGEN = (
     # Zusatzarbeiten flexibel (Patrick 23.11.2026, zusatz_global.py): Vorgabe für Angebote ohne eigene Wahl
     Einstellung("zusatz_darstellung", "Zusatzarbeiten im Kundenangebot", "Angebot", "auswahl", "zusammengefasst",
                 auswahl="zusatzdarstellung"),
+    # Patrick 23.11.2026: freie allgemeine Zusatzarbeiten ohne eigene Zeit bekommen Zeit = Kosten (ohne Kosten: Preis)
+    # je Einheit ÷ Stundensatz; nur Anzeige/Summe Zeit, ändert keinen Preis. 0 = keine Zeit aus dem Preis
+    Einstellung("zusatz_stundensatz", "Zusatzarbeiten: Stundensatz für die Zeit [€/h]", "Angebot", "zahl", 60.0, 0,
+                1000),
     # zusammengefasst: „inkl. …“ im Positionstext (wie bisher); detailliert: Aufstellung je Position mit Menge,
     # Einheitspreis und Gesamt; nur Gesamtpreis: keine Zusatzarbeiten im Text. Je Angebot im Reiter änderbar
     # Patrick 28.10.2026: einmal optimierte Angebote nicht mehr löschbar (Positionen schon; der Admin darf löschen).

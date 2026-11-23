@@ -107,6 +107,19 @@ assert [z["gesamt"] for z in gz][:2] == [195.0, 45.0] and gz[1]["einheit"] == "p
 assert "2 %" in gz[2]["text"] and nah(gz[2]["gesamt"], kaufm_runden(netto0 * 0.02, 2))
 ok(f"8 Pauschale 45 € und 9 Zuschlag 2 % auf die Positionen ({prozent:.2f} €)")
 
+# Zeit aus dem Stundensatz (Patrick 23.11.2026): freie Einträge ohne eigene Zeit, Vorgabe 60 €/h
+assert zg.stundensatz(s.einst) == 60.0
+assert nah(sum2["zusatz_global_zeit_min"], 180 + 45), sum2["zusatz_global_zeit_min"]   # 45 € ÷ 60 €/h = 45 min
+z_verp = s.zusatz_seite.tabelle.item(1, 7)
+assert z_verp.text() == "45" and "Stundensatz" in z_verp.toolTip(), (z_verp.text(), z_verp.toolTip())
+assert s.zusatz_seite.tabelle.item(0, 7).text() == "60" and not s.zusatz_seite.tabelle.item(0, 7).toolTip()
+assert zg.zeit_je_einheit(dict(einheit="Stück", preis=10.0, kosten=6.0), 60.0) == 6.0     # Kosten vor Preis
+assert zg.zeit_je_einheit(dict(einheit="Stück", preis=10.0, zeit_min=0), 60.0) == 0.0     # eigene Zeit 0 gilt
+assert zg.zeit_je_einheit(dict(einheit="Stück", preis=10.0), 0.0) == 0.0                  # Satz 0 = aus
+assert zg.zeit_je_einheit(dict(einheit=zg.PROZENT, menge=2.0), 60.0) == 0.0
+ok("Zeit aus dem Stundensatz: Verpackung 45 € bei 60 €/h = 45 min (grau, überschreibbar), Kosten vor Preis, "
+   "eigene Zeit gilt, Preis unverändert")
+
 # Grundlage „Positionen und Zusatzarbeiten“
 liste = zg.liste(s.kopf)
 liste[2]["basis"] = zg.BASIS[1]
