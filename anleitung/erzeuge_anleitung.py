@@ -14553,6 +14553,8 @@ def kapitel_material(i):
            "Lieferzeit, Mindestabnahme und Bemerkung. Je Profil, Werkstoff, Lieferant und Lieferlänge eine Zeile.")
     i.bild("stamm_material_lieferanten", "Einstellungen, Material-Lieferanten: Lieferantenpreise je Material",
            hoehe=70 * mm, kurz=False)
+    i.bild("stamm_materialstamm", "Einstellungen, Materialstamm: Abmessung × Werkstoff mit Materialnummer aus dem ERP",
+           hoehe=70 * mm, kurz=False)
     i.abschnitt("Materialbilanz je Abmessung", marke="material_bilanz")
     i.text("Im Abmessungs-Fenster (Doppelklick im Fenster <i>Material …</i> des Angebots) steht unter der Meter- und "
            "Gewichtsbilanz der <b>theoretische Verbrauch</b> (Teilelängen × Meterpreis) gegen den <b>Einkauf</b> "
