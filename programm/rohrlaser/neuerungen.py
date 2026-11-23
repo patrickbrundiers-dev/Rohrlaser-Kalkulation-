@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.457", "<b>Neue Seite Material</b> ([[material_seite]]) in der Seitenleiste: jedes Material (Abmessung × "
+    ["0.9.458", "<b>Neue Seite Material</b> ([[material_seite]]) in der Seitenleiste: jedes Material (Abmessung × "
                 "Werkstoff) als eine Zeile mit Gewicht, €/kg, €/m, Handelslängen, Lieferant, Preisstand und "
                 "Verwendung. <b>Suche</b> beim Tippen (<i>40x40x2</i>, <i>Rundrohr 42,4x2 S235</i>, <i>1.4301</i>, "
                 "<i>V2A</i>), Filter mit Anzahl, Favoriten, Zuletzt, Häufig und eine <b>Preismatrix</b> je Profilart. "
@@ -41,6 +41,11 @@ NEUERUNGEN = [
                 "Profil nach dem Einkauf als <b>Vorauswahl</b>. Bestehende Stammdatenpreise ändern sich nicht von "
                 "selbst.",
      "Neue Seite Material: Suche, Filter, Matrix, Lieferanten, Vergleich, EK-Historie, Preisvorschläge, EK-Anlegen."],
+    ["0.9.457", "<b>Zusatzarbeiten: Zeit aus dem Stundensatz</b> ([[zusatz_global]]): Freie allgemeine "
+                "Zusatzarbeiten ohne eigene Zeit bekommen ihre Zeit automatisch: interne Kosten (ohne Kosten: Preis) "
+                "je Einheit ÷ Stundensatz. Der Stundensatz steht in Einstellungen → Zuschläge und Preise (Vorgabe 60 €/h). "
+                "Die Zeit steht grau in der Spalte Zeit, eine eigene Zeit überschreibt sie. Preise ändern sich nicht.",
+     "Zusatzarbeiten: Zeit automatisch aus dem Stundensatz."],
     ["0.9.456", "<b>Anfragen: Rückfrage nachfassen, Wichtig zuerst, breiter lernen, Erkennung je Woche</b> "
                 "([[anfrage_stufe2]]). Wartet eine Rückfrage an den Kunden länger als 3 Arbeitstage (einstellbar), "
                 "zeigt die Anfrage das in Rot, der Schnellfilter „Nachfassen“ findet sie, und „Erinnerung …“ öffnet "

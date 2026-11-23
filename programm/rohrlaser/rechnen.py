@@ -4471,7 +4471,7 @@ def _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellung
     if not stufen:
         zeilen, summen = _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen)
         preisschicht.anwenden(kopf, positionen, zeilen, summen, k, tabellen, einstellungen)
-        zusatz_global.anwenden(kopf, summen)        # allgemeine Zusatzarbeiten (23.11.2026), ohne Einträge bitgleich
+        zusatz_global.anwenden(kopf, summen, einstellungen)    # allgemeine Zusatzarbeiten (23.11.2026), ohne Einträge bitgleich
         return zeilen, summen
     # Basis ohne eigenen Gewinn auf Material (sonst stünde Material × Gewinn Material in der Basis)
     _, s1 = _kalkulation(kopf, positionen, ergebnis, k, tabellen, dict(einstellungen, gewinn=1.0, gewinn_material=None))
@@ -4480,7 +4480,7 @@ def _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellung
     zeilen, summen = _kalkulation(kopf, positionen, ergebnis, k, tabellen, dict(einstellungen, gewinn=satz))
     summen.update(gewinn_satz=satz, gewinn_gestaffelt=True, gewinn_stufen_basis=basis)
     preisschicht.anwenden(kopf, positionen, zeilen, summen, k, tabellen, dict(einstellungen, gewinn=satz))
-    zusatz_global.anwenden(kopf, summen)
+    zusatz_global.anwenden(kopf, summen, einstellungen)
     return zeilen, summen
 
 

@@ -126,16 +126,39 @@ def vorschlag(z, einst=None, saetze=None, datum=None):
                katalog=z.get("name"), stand=dict(preis=vk, kosten=kosten, art=art, datum=tag))
 
 
-def zeit_je_einheit(e):
-    """Interne Zeit je Einheit [min]: Feld zeit_min, sonst 60 bei h und 1 bei min, sonst 0."""
+SCHLUESSEL_SATZ = "zusatz_stundensatz"     # Einstellung: Stundensatz für die Zeit aus dem Preis (Patrick 23.11.2026)
+
+
+def stundensatz(einst):
+    """Stundensatz [€/h], mit dem freie Einträge ohne eigene Zeit ihre Zeit bekommen (0 = keine Zeit aus dem Preis)."""
+    return max(0.0, _n((einst or {}).get(SCHLUESSEL_SATZ)))
+
+
+def zeit_auto(e, satz=0.0):
+    """True, wenn die Zeit je Einheit aus dem Stundensatz kommt: keine eigene Zeit, Einheit nicht h/min/%, Satz > 0
+    und Kosten bzw. Preis > 0."""
+    if e.get("zeit_min") not in (None, "") or e.get("einheit") in ("h", "min", PROZENT) or _n(satz) <= 0:
+        return False
+    return (_n(e.get("kosten")) or _n(e.get("preis"))) > 0
+
+
+def zeit_je_einheit(e, satz=0.0):
+    """Interne Zeit je Einheit [min]: Feld zeit_min, sonst 60 bei h und 1 bei min, sonst (Patrick 23.11.2026) aus dem
+    Stundensatz: interne Kosten je Einheit ÷ Stundensatz × 60, ohne Kosten Preis je Einheit ÷ Stundensatz × 60;
+    ohne Satz 0."""
     if e.get("zeit_min") not in (None, ""):
         return _n(e.get("zeit_min"))
-    return {"h": 60.0, "min": 1.0}.get(e.get("einheit"), 0.0)
+    if e.get("einheit") in ("h", "min"):
+        return {"h": 60.0, "min": 1.0}[e["einheit"]]
+    if zeit_auto(e, satz):
+        return (_n(e.get("kosten")) or _n(e.get("preis"))) / _n(satz) * 60
+    return 0.0
 
 
-def zeilen(eintraege, basis_positionen):
-    """Gerechnete Zeilen: [dict(eintrag, gesamt, kosten_gesamt, zeit_min_gesamt, preis_einheit)]. % zuletzt auf die
-    gewählte Grundlage; jeder Betrag auf den Cent gerundet."""
+def zeilen(eintraege, basis_positionen, satz=0.0):
+    """Gerechnete Zeilen: [dict(eintrag, gesamt, kosten_gesamt, zeit_min_gesamt, zeit_einheit, zeit_auto,
+    preis_einheit)]. % zuletzt auf die gewählte Grundlage; jeder Betrag auf den Cent gerundet. satz = Stundensatz für
+    die Zeit freier Einträge (zeit_je_einheit); die Zeit ändert keinen Preis."""
     out, fest = [], 0.0
     for e in eintraege:
         if e.get("einheit") == PROZENT:
@@ -144,27 +167,29 @@ def zeilen(eintraege, basis_positionen):
         fest += gesamt
         out.append(dict(e, gesamt=gesamt, preis_einheit=_n(e.get("preis")),
                         kosten_gesamt=_n(e.get("menge")) * _n(e.get("kosten")),
-                        zeit_min_gesamt=_n(e.get("menge")) * zeit_je_einheit(e)))
+                        zeit_einheit=zeit_je_einheit(e, satz), zeit_auto=zeit_auto(e, satz),
+                        zeit_min_gesamt=_n(e.get("menge")) * zeit_je_einheit(e, satz)))
     for e in eintraege:
         if e.get("einheit") != PROZENT:
             continue
         basis = _n(basis_positionen) + (fest if e.get("basis") == BASIS[1] else 0.0)
         gesamt = _runden(basis * _n(e.get("menge")) / 100)
         out.append(dict(e, gesamt=gesamt, preis_einheit=basis / 100, basis_betrag=basis,
-                        kosten_gesamt=_n(e.get("kosten")), zeit_min_gesamt=_n(e.get("zeit_min"))))
+                        kosten_gesamt=_n(e.get("kosten")), zeit_min_gesamt=_n(e.get("zeit_min")),
+                        zeit_einheit=_n(e.get("zeit_min")), zeit_auto=False))
     reihenfolge = {id_: i for i, id_ in enumerate(e.get("id") for e in eintraege)}
     out.sort(key=lambda r: reihenfolge.get(r.get("id"), 0))
     return out
 
 
-def anwenden(kopf, summen):
+def anwenden(kopf, summen, einst=None):
     """Allgemeine Zusatzarbeiten in die Summen (nach der Preisschicht): zusatz_global (Verkaufspreis), _kosten, _zeit_min,
     _n, _zeilen; Verkaufspreis um die Summe erhöht. Ohne Einträge unverändert."""
     eintraege = liste(kopf)
     if not eintraege:
         return summen
     basis = _n(summen.get("verkauf"))
-    z = zeilen(eintraege, basis)
+    z = zeilen(eintraege, basis, stundensatz(einst))
     summe = sum(r["gesamt"] for r in z)
     summen.update(zusatz_global=summe, zusatz_global_kosten=sum(r["kosten_gesamt"] for r in z),
                   zusatz_global_zeit_min=sum(r["zeit_min_gesamt"] for r in z), zusatz_global_n=len(z),
