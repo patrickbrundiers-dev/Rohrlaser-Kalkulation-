@@ -134,6 +134,7 @@ SEITEN = (
           (_a("Lieferlängen vergleichen", "laenge_vergleich laenge_mindest_eur laenge_mindest_anteil "
                                           "laenge_auto_huellkreis laenge_auto"),
            _a("Schnittplan vereinfachen", "muster_mehrverschnitt stangenplan_stabil"),
+           _a("Verschachtelung (Nesting-Arbeitsplatz)", "nesting_strategie nesting_eur_belegung"),
            _a("Zuschnitt beim Lieferanten", "zuschnitt_verlust zuschnitt_puffer zuschnitt_kosten"),
            _a("Mehrlänge des Händlers", "haendler_mehr_kurz haendler_mehr_lang haendler_mehr_grenze"),
            _a("Mindestabnahme des Lieferanten", "mindestabnahme_kosten"))),
@@ -183,7 +184,7 @@ SEITEN = (
     Seite("e_dxf", "DXF-Import", ALLE_PLAETZE,
           (_a("Layer und Splitter", "dxf_weg_layer dxf_splitter dxf_farbe_gewinde dxf_farbe_senkung dxf_farbe_bohren"),)),
     Seite("e_lager", "Lager", ALLE_PLAETZE,
-          (_a("Lager und Reststücke", "lager_aktiv reste_aktiv rest_min_laenge restwert_anteil"),
+          (_a("Lager und Reststücke", "lager_aktiv reste_aktiv rest_min_laenge rest_min_nutz restwert_anteil"),
            _a("Füllteile (nur Vorschlag)", "fuellteile"))),
     Seite("e_fertigung", "Fertigung", ALLE_PLAETZE,
           (_a("Aufträge", "auftraege_aktiv auftrag_nach_beauftragt produktionsschritte"),
