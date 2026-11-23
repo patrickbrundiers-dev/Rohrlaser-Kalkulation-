@@ -33,6 +33,7 @@ tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
 f = Hauptfenster(db, tmp, stumm=True)
 m = f.material
+f.bereich.sitzung.freischalten()            # Preise/Werkstoffe sind ab Werk Admin-geschützt (unten eigene Prüfung ohne)
 assert m.titel == "Material" and f.reiter.indexOf(m) >= 0
 assert GRUPPE["Material"] == "Pflege" and SYMBOL["Material"] in PFADE and TIPP["Material"]
 ok("Seite Material in der Seitenleiste (Pflege, eigenes Symbol, Tooltip)")
@@ -180,6 +181,24 @@ z = next(z for z in m.alle_zeilen if mp.schluessel(z) == ("RR 42,4x2,0", "S235-1
 assert z["lieferant"] == "Stahlhandel Süd" and abs(z["preis_kg"] - 1.05) < 1e-9
 assert z["werkstoff_id"] == "S235-10219"
 ok("Prüfvorschlag günstigerer Lieferant: erst nach Übernehmen geändert, Werkstoff bleibt")
+
+# Admin-Schutz wie auf den Tabellenseiten: Preise und Werkstoffe nur mit Freischaltung
+from rohrlaser import admin_schutz  # noqa: E402
+alt_sitzung = admin_schutz.SITZUNG
+alt_passwort = db.einstellung("passwort")
+db.einstellung_setzen("passwort", alt_passwort or "geheim")
+admin_schutz.SITZUNG = admin_schutz.Sitzung()
+vor = [dict(z) for z in db.zeilen("preise")]
+lz_nord = next(z for z in db.zeilen(mp.LIEFERANTEN_TABELLE) if z["lieferant"] == "Stahlhandel Nord")
+assert m.lieferant_uebernehmen(lz_nord) is None and db.zeilen("preise") == vor
+assert m.auswaehlen("RR 42,4x2,0", "S235-10219")
+assert not m.archivieren("werkstoffe", "S235-10219", True, frage=False)
+assert m.mehrfach(dialog=zehn_prozent) is None and db.zeilen("preise") == vor
+admin_schutz.SITZUNG.freischalten()
+assert m.lieferant_uebernehmen(lz_nord)
+admin_schutz.SITZUNG = alt_sitzung
+db.einstellung_setzen("passwort", alt_passwort)
+ok("Admin-Schutz: Preise/Werkstoffe ohne Freischaltung abgelehnt, mit Freischaltung übernommen")
 
 # Spalten ein/aus bleibt gemerkt
 from rohrlaser.material_seite import SPALTEN  # noqa: E402

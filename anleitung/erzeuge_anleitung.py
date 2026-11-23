@@ -630,8 +630,8 @@ def kapitel_ueberblick(i):
         (1, "Stand des Angebots in der Schrittanzeige: ✓ <i>Optimiert</i> grün. Ist das Angebot noch nicht "
             "optimiert (gelb) oder <i>Veraltet</i> (rot, [[veraltet]]), steht das zusätzlich oben in der Übersicht.")])
     i.text("Links die <b>Seitenleiste</b> nach Arbeitsbereichen: <i>Arbeiten</i> (Start, Angebote, Kunden), "
-           "<i>Auftrag</i> (Versand, Fertigung, Lager), <i>Pflege</i> (Frachtkosten [[frachtkosten]], Zukaufartikel "
-           "[[zukauf]]) und ganz unten <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen oben in der "
+           "<i>Auftrag</i> (Versand, Fertigung, Lager), <i>Pflege</i> (Material [[material_seite]], Frachtkosten [[frachtkosten]], "
+           "Zukaufartikel [[zukauf]]) und ganz unten <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen oben in der "
            "Menüzeile neben <i>Datei … Hilfe</i>: ganz links die <i>Angebotsliste</i> (blau hinterlegt, damit "
            "sie sich von den Angeboten abhebt), daneben je Angebot ein Reiter, der sich mit dem × schließt; rechts daneben die Suche (Strg+K). Die Angebote erscheinen, solange "
            "<i>Angebote</i> gewählt ist; ein Klick auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. "
@@ -14206,6 +14206,78 @@ def kapitel_stammdaten(i):
             "wird jede Regel weiter an ihrer Stelle.")
 
 
+def kapitel_material(i):
+    i.kapitel("Material suchen, vergleichen und pflegen", marke="material_seite")
+    i.text("Die Seite <b>Material</b> in der Seitenleiste (Bereich <i>Pflege</i>) zeigt jedes Material als eine Zeile: "
+           "<b>Abmessung × Werkstoff</b> mit Gewicht, €/kg, €/m, Handelslängen, Lieferant, Preisstand und wie oft es "
+           "in Angeboten steht. Sie liest und schreibt dieselben Tabellen wie <i>Einstellungen → Material</i> "
+           "(Profile, Werkstoffe, Preise, Lieferlängen); eine zweite Materialverwaltung gibt es nicht.",
+           "Ohne weitere Wahl zeigt die Liste nur Materialien mit Preis, Lieferant oder Verwendung; <i>Mehr → Alle "
+           "Kombinationen</i> zeigt jede Abmessung mit jedem Werkstoff. Auch zehntausende Zeilen bleiben flüssig: "
+           "die Liste lädt beim Blättern nach.",
+           "Der Admin-Schutz gilt hier genauso: Was die Tabellen <i>Preise</i> oder <i>Werkstoffe</i> ändert "
+           "(Preis übernehmen, Mehrfach ändern, Werkstoff archivieren), geht nur nach <i>Als Admin freischalten "
+           "…</i>; Suchen, Vergleichen, Favoriten und Lieferantenpreise erfassen gehen immer.")
+    i.text("Seitenleiste → <b>Material</b>: suchen (z. B. <i>40x40x2</i>, <i>Rundrohr 42,4x2 S235</i>, "
+           "<i>1.4301</i>), filtern, vergleichen, Lieferantenpreise pflegen, an Positionen zuweisen.", kurz=True)
+    i.abschnitt("Suchen und filtern", marke="material_suche")
+    i.liste("<b>Suche</b> oben, sofort beim Tippen: Maße (<i>40x40x2</i>, <i>60x40x3</i>, <i>42,4x2</i>; "
+            "<i>42x2</i> findet auch 42,4 × 2), Profilart (<i>Rundrohr</i>, <i>Quadratrohr</i>), Werkstoff, "
+            "Werkstoff-Nr. (<i>1.4301</i>), Gleichnamen (<i>V2A</i>, <i>AISI 304</i>), Materialgruppe und "
+            "Lieferant. Mehrere Wörter grenzen ein; <i>stahl</i> findet nicht <i>Edelstahl</i>.",
+            "<b>Filter</b> links mit Anzahl je Wert: Materialgruppe, Profilart, Werkstoff, Wandstärke, Handelslänge, "
+            "Lieferant, Preisquelle und Zustand (Preis fehlt, älter als 30 Tage, ohne Lieferant, archiviert).",
+            "<b>★ Favoriten</b> (je Arbeitsplatz), <b>Zuletzt</b> und <b>Häufig</b> (aus den Angeboten).",
+            "<b>Liste / Matrix</b>: die Matrix zeigt je Profilart Abmessungen × Werkstoffe mit €/m; grün = Preis "
+            "aktuell, gelb = älter als 30 Tage, grau = aus dem Tonnenpreis, rot = kein Preis. Doppelklick springt "
+            "in die Liste.",
+            "Spalten ein- und ausblenden mit der rechten Maustaste auf den Spaltenköpfen; die Auswahl bleibt "
+            "gemerkt.")
+    i.abschnitt("Detail, Lieferanten und Verlauf", marke="material_lieferanten")
+    i.text("Rechts das markierte Material in fünf Reitern: <b>Übersicht</b> (Querschnitt, Gewicht, Dichte, Preis, "
+           "Preis wie im Angebot mit Teuerung, Mindestabnahme, Lagerbestand wenn das Lager eingeschaltet ist), "
+           "<b>Lieferanten</b>, <b>Alternativen</b>, <b>Verwendung</b> (Angebote, Doppelklick öffnet) und "
+           "<b>Verlauf</b> (Preis- und Stammdatenänderungen).",
+           "Unter <b>Lieferanten</b> stehen beliebig viele Lieferanten je Material mit Preis (€/kg, €/m oder "
+           "€/Stange), Lieferlänge, Gültigkeit, Lieferzeit, Mindestabnahme und Bestellnummer. Gerechnet wird weiter "
+           "mit dem <b>aktiven Preis</b> aus <i>Preise</i> bzw. <i>Lieferlängen</i>; <b>Als aktiven Preis "
+           "übernehmen</b> schreibt den markierten Lieferantenpreis dorthin. Offene Angebote meldet danach der "
+           "Preiswächter, festgeschriebene Angebote bleiben unverändert ([[preise_festschreiben]]).",
+           "<i>Mehr → Preisliste importieren</i> liest CSV oder Excel eines Lieferanten (Spalten Profil, Werkstoff, "
+           "Preis, Basis, Länge, Gültig ab/bis, Lieferzeit, Mindestabnahme, Artikelnr.). Vorher wird gesichert; "
+           "unbekannte Abmessungen werden gemeldet und nicht angelegt.")
+    i.abschnitt("Vergleichen und Prüfvorschläge", marke="material_vergleich")
+    i.text("<b>Vergleichen</b> stellt bis zu acht markierte Materialien nebeneinander: Preis je m und kg, Gewicht, "
+           "Güte, Handelslängen, Lieferanten, Preisstand und, wenn ein Angebot offen ist, den <b>Verschnitt</b> bei "
+           "dessen Teilelängen je Stangenlänge. Der beste Wert ist grün. Alternativen haben immer <b>denselben "
+           "Werkstoff</b>; gleichwertige Werkstoffe stehen nur als Hinweis da.",
+           "<b>Prüfvorschläge</b> prüft auf diesem PC, ohne Internet: fehlende Preise oder Dichten, ungewöhnliche "
+           "Dichten, Ausreißer im €/kg gegenüber gleichen Profilen, große Preissprünge, alte Preise, Materialien "
+           "ohne Lieferant, doppelt angelegte Abmessungen und günstigere gültige Lieferantenpreise. Jeder Vorschlag "
+           "nennt seine Begründung. Geändert wird nur nach <b>Übernehmen</b> (aktiven Preis übernehmen, Dublette "
+           "archivieren), mit Eintrag im KI-Protokoll; <b>Ablehnen</b> blendet den Vorschlag dauerhaft aus. "
+           "Werkstoff, Güte und technische Werte ändert keine Aktion.")
+    i.abschnitt("Schnellfunktionen", marke="material_schnell")
+    i.liste("<b>Neues Material</b>: neue Abmessung (Formular wie beim STEP-Import), neuer Werkstoff, neuer "
+            "Lieferantenpreis.",
+            "Rechte Maustaste: Favorit, Vergleichen, <b>Den markierten Positionen des offenen Angebots zuweisen</b>, "
+            "Abmessung oder Werkstoff duplizieren, <b>Mehrere ändern</b> (Preis um %, Lieferant, Gültig ab, "
+            "Mindestabnahme, Lieferlänge, Endbeschnitt, Greiferrest, Bemerkung; Güte, Dichte und Maße bewusst "
+            "nicht), Archivieren, CSV-Export.",
+            "<b>Archivieren</b> nimmt eine Abmessung oder einen Werkstoff aus den Auswahllisten neuer Positionen. "
+            "Nichts wird gelöscht; bestehende Angebote rechnen unverändert weiter. <i>Mehr → Archivierte zeigen</i> "
+            "holt sie zurück.",
+            "Im Angebot: rechte Maustaste auf eine Rohrposition → <b>Material suchen und zuweisen …</b> springt auf "
+            "die Seite Material, gefiltert auf die Profilart, das Material der Position markiert. Nach dem Zuweisen "
+            "bitte neu optimieren.")
+    i.abschnitt("Materialbilanz je Abmessung", marke="material_bilanz")
+    i.text("Im Abmessungs-Fenster (Doppelklick im Fenster <i>Material …</i> des Angebots) steht unter der Meter- und "
+           "Gewichtsbilanz der <b>theoretische Verbrauch</b> (Teilelängen × Meterpreis) gegen den <b>Einkauf</b> "
+           "(bezahlte Stangen), die Mehrkosten durch Verschnitt in € und %, ein Hinweis, wenn die Mindestabnahme "
+           "mehr Stangen verlangt, und die <b>Reststücke</b> ab der Einstellung <i>rest_min_laenge</i>. Reststücke "
+           "werden nur gemeldet: kein Restelager, keine Verrechnung.")
+
+
 def kapitel_zukauf(i):
     i.kapitel("Zukaufartikel verwalten", marke="zukauf")
     i.text("Zukaufartikel sind Teile, die eingekauft und mit dem Bauteil geliefert oder verbaut werden: Blechteile und "
@@ -15945,7 +16017,7 @@ TEILE = [
       kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
-     [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten,
+     [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_material, kapitel_zukauf, kapitel_frachtkosten,
       kapitel_pflege, kapitel_admin_datenbank, kapitel_lizenz]),
     ("Anhang", "Nachschlagen", "STEP-Messung im Detail, Tastenkürzel, häufige Fragen und die Neuerungen je "
      "Version.",

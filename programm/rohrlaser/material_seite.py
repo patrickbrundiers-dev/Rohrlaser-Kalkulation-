@@ -256,7 +256,7 @@ class MaterialBereich(QWidget):
 
         # ---- Detail rechts
         self.detail = QTabWidget()
-        self.detail.setMinimumWidth(300)
+        self.detail.setMinimumWidth(390)
         self.ueber = QLabel()
         self.ueber.setTextFormat(Qt.RichText)
         self.ueber.setWordWrap(True)
@@ -280,7 +280,7 @@ class MaterialBereich(QWidget):
         lk = QHBoxLayout()
         b1 = QPushButton("Neu …")
         b1.clicked.connect(lambda: self.lieferant_neu())
-        b2 = QPushButton("Als aktiven Preis übernehmen")
+        b2 = QPushButton("Als Preis übernehmen")
         b2.setToolTip("Schreibt Preis, Basis, Lieferant und Gültig ab nach 'Preise' (mit Lieferlänge nach "
                       "'Lieferlängen'); der Preiswächter meldet betroffene offene Angebote, festgeschriebene bleiben")
         b2.clicked.connect(lambda: self.lieferant_uebernehmen())
@@ -313,7 +313,7 @@ class MaterialBereich(QWidget):
         self.stapel.addWidget(mitte)
         self.stapel.addWidget(self.detail)
         self.stapel.setStretchFactor(1, 1)
-        self.stapel.setSizes([200, 800, 340])
+        self.stapel.setSizes([200, 760, 420])
 
         lay = QVBoxLayout(self)
         lay.addLayout(kopf)
@@ -628,6 +628,23 @@ class MaterialBereich(QWidget):
         self.umschalter.setCurrentText(LISTE)
         self.auswaehlen(p, w)
 
+    # ------------------------------------------------------------------ Schreibrechte
+    def darf(self, *tabellen):
+        """Schreiben in diese Stammdaten erlaubt? Geschützte Tabellen (Admin-Schutz, z. B. Preise, Werkstoffe) nur mit
+        Admin-Freischaltung, wie auf den Tabellenseiten der Einstellungen; im Lesemodus nie. Sonst Meldung."""
+        if getattr(self.db, "nur_lesen", False):
+            self.f.meldung("Lesemodus: Änderungen sind gerade nicht möglich.", fehler=True)
+            return False
+        from . import admin_schutz
+        gesperrt = sorted(set(tabellen) & admin_schutz.tabellen_geschuetzt(self.db))
+        if gesperrt and not admin_schutz.ist_admin(self.db):
+            from .stammdaten import TABELLE
+            namen = ", ".join(TABELLE[t].titel if t in TABELLE else t for t in gesperrt)
+            self.f.meldung(f"Nur Admin: {namen} ändert nur der Admin. Unter Einstellungen „Als Admin "
+                           "freischalten …“, dann hier erneut.", fehler=True)
+            return False
+        return True
+
     # ------------------------------------------------------------------ Kontextmenü und Aktionen
     def kontextmenue(self, punkt=None, zeigen=True):
         m = QMenu(self.tabelle)
@@ -666,6 +683,8 @@ class MaterialBereich(QWidget):
         self.detail_zeigen()
 
     def archivieren(self, tabelle, wert, an, frage=True):
+        if not self.darf(tabelle):
+            return False
         if an and frage and not getattr(self.f, "stumm", False):
             if QMessageBox.question(self, "Archivieren", f"„{wert}“ archivieren?\n\nEs erscheint nicht mehr in neuen "
                                     "Auswahllisten. Bestehende Angebote rechnen unverändert weiter; nichts wird "
@@ -679,6 +698,8 @@ class MaterialBereich(QWidget):
     def duplizieren(self, neue_id=None, wand=None):
         z = self.aktuelle()
         if not z:
+            return None
+        if not self.darf("profile"):
             return None
         if neue_id is None:
             neue_id, ok = QInputDialog.getText(self, "Abmessung duplizieren", "Neue Profil-ID:", text=z["profil_id"])
@@ -697,6 +718,8 @@ class MaterialBereich(QWidget):
     def werkstoff_duplizieren(self, neue_id=None):
         z = self.aktuelle()
         if not z:
+            return None
+        if not self.darf("werkstoffe"):
             return None
         if neue_id is None:
             neue_id, ok = QInputDialog.getText(self, "Werkstoff duplizieren", "Neue Werkstoff-ID:",
@@ -720,6 +743,8 @@ class MaterialBereich(QWidget):
         if not (dialog(d) if dialog else d.exec() == QDialog.Accepted):
             return None
         tabelle, feld, wert, faktor = d.ergebnis()
+        if not self.darf(tabelle):
+            return None
         try:
             n = mp.mehrfach_aendern(self.db, zs, tabelle, feld, wert, preis_faktor=faktor)
         except ValueError as e:
@@ -742,6 +767,10 @@ class MaterialBereich(QWidget):
         seite = seite or self.offenes_angebot()
         if not z or seite is None:
             return 0
+        if getattr(self.db, "nur_lesen", False) or (hasattr(seite, "fremd") and seite.fremd()):
+            self.f.meldung("Dieses Angebot lässt sich hier nicht ändern (Lesemodus oder Angebot eines Kollegen).",
+                           fehler=True)
+            return 0
         from . import rechnen
         zeilen = zeilen if zeilen is not None else seite._markierte_zeilen()
         ids = [seite.positionen[r]["id"] for r in zeilen if r < len(seite.positionen)
@@ -760,7 +789,7 @@ class MaterialBereich(QWidget):
     # ------------------------------------------------------------------ Lieferanten
     def lieferant_neu(self, werte=None, dialog=None):
         z = self.aktuelle()
-        if not z:
+        if not z or not self.darf(mp.LIEFERANTEN_TABELLE, "zukauf_lieferanten"):
             return None
         d = LieferantDialog(self, z, self.db.kontext().zukauf_lieferanten)
         if werte is not None:
@@ -793,6 +822,8 @@ class MaterialBereich(QWidget):
         if not lz:
             self.f.meldung("Erst einen Lieferanten in der Liste markieren.", fehler=True)
             return None
+        if not self.darf("preise", "lieferlaengen"):
+            return None
         z = self.aktuelle()
         try:
             ziel = mp.lieferant_uebernehmen(self.db, lz)
@@ -808,7 +839,7 @@ class MaterialBereich(QWidget):
 
     def lieferant_loeschen(self):
         lz = self._lief_markiert()
-        if not lz:
+        if not lz or not self.darf(mp.LIEFERANTEN_TABELLE):
             return
         self.db.loeschen(mp.LIEFERANTEN_TABELLE, [lz["id"]])
         self.neu_laden(erzwingen=True)
@@ -834,14 +865,19 @@ class MaterialBereich(QWidget):
         if seite is None:
             return None, None
         pids = {z["profil_id"] for z in zs}
-        teile = []
+        alle = []
+        je = {}
         for p in seite.positionen:
             if p.get("profil_id") in pids and isinstance(p.get("laenge"), (int, float)):
-                teile += [p["laenge"]] * int(p.get("stueck") or 1 if isinstance(p.get("stueck"), (int, float)) else 1)
+                n = int(p["stueck"]) if isinstance(p.get("stueck"), (int, float)) and p["stueck"] > 0 else 1
+                je.setdefault(p["profil_id"], []).extend([p["laenge"]] * n)
+                alle += [p["laenge"]] * n
+        # eine Abmessung: ihre Teile für alle Spalten; mehrere Abmessungen: jede mit ihren eigenen Teilen
+        teile = {k: v[:3000] for k, v in je.items()} if len(je) > 1 else alle[:3000]
         m = (seite.k.maschinen.get(seite.kopf.get("maschine")) or {}) if hasattr(seite, "k") else {}
         masch = dict(endbeschnitt=m.get("endbeschnitt") or 10.0, greiferrest=m.get("greiferrest") or 140.0,
                      kerf=m.get("schnittbreite") or m.get("kerf") or 0.2)
-        return teile[:3000] or None, masch
+        return teile or None, masch
 
     def pruefen(self, dialog=None):
         befunde = material_ki.alle(self.db, self.alle_zeilen)
@@ -857,6 +893,8 @@ class MaterialBereich(QWidget):
 
     # ------------------------------------------------------------------ Neu, Import, Export
     def profil_neu(self, eingabe=None, dialog=None):
+        if not self.darf("profile"):
+            return None
         from .profil_neu import ProfilNeuDialog
         d = ProfilNeuDialog(self, self.db.kontext().profile, eingabe=eingabe or self.suche.text() or None,
                             bemerkung="auf der Seite Material angelegt")
@@ -885,6 +923,8 @@ class MaterialBereich(QWidget):
         return pfad
 
     def preisliste_importieren(self, pfad=None, lieferant=None, frage=True):
+        if not self.darf(mp.LIEFERANTEN_TABELLE, "zukauf_lieferanten"):
+            return None
         if pfad is None:
             pfad, _ = QFileDialog.getOpenFileName(self, "Preisliste importieren", "",
                                                   "Preislisten (*.csv *.txt *.xlsx);;Alle Dateien (*)")
@@ -1081,6 +1121,7 @@ class VergleichDialog(QDialog):
         if not mit_teilen:
             lay.addWidget(QLabel("Verschnitt: ein Angebot öffnen, dann rechnet der Vergleich mit dessen Teilelängen."))
         b = QDialogButtonBox(QDialogButtonBox.Close)
+        b.button(QDialogButtonBox.Close).setText("Schließen")
         b.rejected.connect(self.reject)
         b.accepted.connect(self.accept)
         lay.addWidget(b)
@@ -1093,7 +1134,7 @@ class PruefDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(f"Prüfvorschläge Material ({len(befunde)})")
         self.resize(820, 520)
-        self.db, self.f = parent.db, parent.f
+        self.db, self.f, self.seite = parent.db, parent.f, parent
         self.befunde, self.geaendert = list(befunde), False
         lay = QVBoxLayout(self)
         info = QLabel("Lokale Prüfung auf diesem PC, ohne Internet. Das Programm ändert nichts von selbst; Werkstoff, "
@@ -1145,6 +1186,8 @@ class PruefDialog(QDialog):
         r = self.liste.currentRow() if r is None else r
         b = self.befunde[r] if 0 <= r < len(self.befunde) else None
         if not b or not b.get("aktion"):
+            return None
+        if not self.seite.darf(*(("preise", "lieferlaengen") if b["aktion"] == "preis_uebernehmen" else ("profile",))):
             return None
         try:
             text = material_ki.anwenden(self.db, b)

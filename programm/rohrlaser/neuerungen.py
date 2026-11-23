@@ -21,6 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.457", "<b>Neue Seite Material</b> ([[material_seite]]) in der Seitenleiste: jedes Material (Abmessung × "
+                "Werkstoff) als eine Zeile mit Gewicht, €/kg, €/m, Handelslängen, Lieferant, Preisstand und "
+                "Verwendung. <b>Suche</b> beim Tippen (<i>40x40x2</i>, <i>Rundrohr 42,4x2 S235</i>, <i>1.4301</i>, "
+                "<i>V2A</i>), Filter mit Anzahl, Favoriten, Zuletzt, Häufig und eine <b>Preismatrix</b> je Profilart. "
+                "Rechts Übersicht, <b>mehrere Lieferanten je Material</b> mit Gültigkeit, Lieferzeit, Mindestabnahme "
+                "und Bestellnummer, Alternativen, Verwendung und Verlauf. <b>Vergleich</b> mit Verschnitt bei den "
+                "Teilen des offenen Angebots, Preisliste importieren (CSV/Excel), Mehrfach ändern, Duplizieren, "
+                "Archivieren, Zuweisen an Positionen (im Angebot: <i>Material suchen und zuweisen …</i>). "
+                "<b>Prüfvorschläge</b> laufen lokal ohne Internet und ändern nur nach Übernehmen, nie Güte oder "
+                "technische Werte. Im Abmessungs-Fenster: theoretischer Verbrauch gegen Einkauf, Mindestabnahme und "
+                "Reststücke (nur Meldung). Festgeschriebene Angebote halten jetzt auch die Dichte fest. Bestehende "
+                "Preise und Angebote bleiben gleich.",
+     "Neue Seite Material: Suche, Filter, Matrix, mehrere Lieferanten, Vergleich, Prüfvorschläge, Materialbilanz."],
     ["0.9.455", "<b>Zusatzarbeiten flexibel</b> ([[zusatz_global]]): Neuer Unterreiter <b>Kalkulation → Zusatzarbeiten</b> im Angebot "
                 "für Leistungen des <b>ganzen Angebots</b> (Bezeichnung, Menge, Einheit Stück/m/m²/h/min/kg/pauschal/%, "
                 "Preis je Einheit, Gesamt, Beschreibung; intern Kosten und Zeit). Standardpreis aus der Verwaltung "

@@ -420,7 +420,8 @@ VERGLEICH = (("preis_m", "Preis [€/m]", 2), ("preis_kg", "Preis [€/kg]", 2),
 
 def vergleich(zeilen, teile_mm=None, maschine=None):
     """Vergleichstabelle: dict(spalten=[Material-Name], zeilen=[(Titel, [Werte], bestes Index oder None)]).
-    teile_mm = Teilelängen [mm] (z. B. die Positionen eines Angebots) für das Verschnittpotenzial je Handelslänge
+    teile_mm = Teilelängen [mm] (z. B. die Positionen eines Angebots) für das Verschnittpotenzial je Handelslänge,
+    als Liste für alle Spalten oder {Profil-ID: Liste} (jede Abmessung mit ihren eigenen Teilen)
     (verschnitt_schaetzen); maschine = dict(endbeschnitt, greiferrest, kerf)."""
     namen = [f"{z['profil_id']} · {z['werkstoff_id']}" for z in zeilen]
     out = []
@@ -428,7 +429,8 @@ def vergleich(zeilen, teile_mm=None, maschine=None):
         werte = []
         for z in zeilen:
             if feld == "verschnitt":
-                werte.append(verschnitt_text(z, teile_mm, maschine) if teile_mm else None)
+                t = teile_mm.get(z["profil_id"]) if isinstance(teile_mm, dict) else teile_mm
+                werte.append(verschnitt_text(z, t, maschine) if t else None)
             else:
                 werte.append(z.get(feld))
         bestes = None
