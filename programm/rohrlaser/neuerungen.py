@@ -21,6 +21,9 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.454", "<b>Fehler behoben</b>: Das Info-Panel rechts meldete einen unerwarteten Fehler, wenn es sich zeigte, "
+                "während ein Angebot gerade geöffnet wurde. Es wartet jetzt, bis das Angebot fertig aufgebaut ist.",
+     "Info-Panel: kein Fehler mehr beim Öffnen eines Angebots."],
     ["0.9.453", "<b>CSV für PPEASE wie PROfirst</b> ([[csv_export]]): Ein <b>Satz steht als eine Zeile</b> in der "
                 "Positionsdatei (ArtikelNr. = Satzname, Menge = Anzahl Sätze, Stückpreis = Satzpreis wie im PDF); "
                 "abschaltbar mit der Einstellung <i>CSV-Export: jeden Satz als eine Zeile</i>. Werkstofftyp, "
