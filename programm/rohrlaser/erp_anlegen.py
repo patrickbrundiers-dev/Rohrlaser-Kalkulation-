@@ -190,7 +190,10 @@ def ausfuehren(db, p, mit_werkstoffen=True):
     Zuordnungen merken, KI-Protokoll. Ergebnis dict(profile, werkstoffe, zuordnungen, sicherung)."""
     from . import ki_protokoll
     if not (p["profile"] or p["werkstoffe"] or p["zuordnungen"]):
-        return dict(profile=0, werkstoffe=0, zuordnungen=0, sicherung=None)
+        from . import material_stamm
+        stamm = material_stamm.ergaenzen(db, quelle="ERP-EK")
+        return dict(profile=0, werkstoffe=0, zuordnungen=0, sicherung=None, stamm_neu=stamm["neu"],
+                    nummern=stamm["nummern"])
     try:
         sich = db.sicherung(zusatz="vor ERP-Anlegen")
     except Exception:           # noqa: BLE001  (ohne Sicherungsordner: trotzdem anlegen, wie Preisliste)
@@ -209,7 +212,10 @@ def ausfuehren(db, p, mit_werkstoffen=True):
         erp_preise.zuordnung_merken(db, z["schluessel"], z["artikelnr"], z["bezeichnung"], z["profil_id"],
                                     z["werkstoff_id"], z["oberflaeche"])
         n += 1
-    erg = dict(profile=len(p["profile"]), werkstoffe=len(neu_w), zuordnungen=n, sicherung=sich)
+    from . import material_stamm        # Artikelnummer je Abmessung × Werkstoff in den Materialstamm
+    stamm = material_stamm.ergaenzen(db, quelle="ERP-EK angelegt")
+    erg = dict(profile=len(p["profile"]), werkstoffe=len(neu_w), zuordnungen=n, sicherung=sich,
+               stamm_neu=stamm["neu"], nummern=stamm["nummern"])
     ki_protokoll.schreiben(db, "Materialprüfung", "Aus ERP-Einkauf angelegt",
                            ergebnis=f"{erg['profile']} Profile, {erg['werkstoffe']} Werkstoffe, {n} Zuordnungen",
                            quellen=[x["profil_id"] for x in p["profile"]] + sorted(neu_w))

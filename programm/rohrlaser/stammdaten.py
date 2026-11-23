@@ -392,12 +392,40 @@ MATERIAL_LIEFERANTEN = Tabelle(
      Feld("gueltig_bis", "Gültig bis", "datum", breite=90),
      Feld("lieferzeit", "Lieferzeit [Tage]", "ganz", 0, 3650, breite=75),
      Feld("mindest_stangen", "Mindestabnahme [Stangen]", "ganz", 0, 10000, breite=80),
+     Feld("ab_menge", "Staffel ab [m]", "zahl", 0, 1000000, stellen=0, breite=75),
+     Feld("ve_stangen", "Verpackungseinheit [Stangen]", "ganz", 0, 10000, breite=85),
+     Feld("bevorzugt", "Bevorzugter Lieferant", "auswahl", auswahl="janein", breite=80),
      Feld("bemerkung", "Bemerkung", breite=200)),
-    ("profil_id", "werkstoff_id", "lieferant", "laenge"),
+    ("profil_id", "werkstoff_id", "lieferant", "laenge", "ab_menge"),
     "Weitere Lieferanten je Profil + Werkstoff mit Preis, Gültigkeit, Lieferzeit, Bestellnummer und Mindestabnahme "
     "(Preislisten, Angebote). Die Kalkulation rechnet mit 'Preise' bzw. 'Lieferlängen'; auf der Seite Material "
     "übernimmt „Als aktiven Preis übernehmen“ eine Zeile dorthin. Lieferanten stammen aus dem Lieferantenstamm der "
-    "Zukaufartikel. Lieferlänge leer = Stangenlänge der Preise-Zeile.")
+    "Zukaufartikel. Lieferlänge leer = Stangenlänge der Preise-Zeile. Staffel ab: der Preis gilt ab dieser Menge in "
+    "Metern (leer = ab der ersten Stange); Verpackungseinheit: nur in Vielfachen bestellbar (Bund).")
+
+# Materialstamm (Patrick 23.11.2026, Master-Auftrag Materialdatenbank): die ausdrückliche Zuordnung Werkstoff ×
+# Abmessung (viele zu viele) mit Materialnummer aus dem ERP. Preise, Lieferlängen und Lieferanten hängen weiter an
+# Profil + Werkstoff; der Materialstamm sagt, welche Kombinationen es gibt, wie sie im ERP heißen und ob sie aktiv sind.
+MATERIALSTAMM = Tabelle(
+    "materialstamm", "Materialstamm",
+    (Feld("profil_id", "Profil-ID", "auswahl", auswahl="profil", pflicht=True, breite=130),
+     Feld("werkstoff_id", "Werkstoff-ID", "auswahl", auswahl="werkstoff", pflicht=True, breite=120),
+     Feld("oberflaeche", "Oberfläche", "auswahl", auswahl="oberflaeche", breite=90),
+     Feld("materialnr", "Materialnummer (ERP)", breite=110),
+     Feld("bezeichnung", "Materialbezeichnung", breite=220),
+     Feld("handelsname", "Handelsbezeichnung", breite=140),
+     Feld("lieferant", "Hersteller / Lieferant", "auswahl", auswahl="zukauflieferant", breite=140),
+     Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
+     Feld("angelegt", "Angelegt am", "datum", breite=90),
+     Feld("geaendert", "Geändert am", "datum", breite=90),
+     Feld("quelle", "Herkunft", breite=120),
+     Feld("bemerkung", "Bemerkung", breite=200)),
+    ("profil_id", "werkstoff_id", "oberflaeche"),
+    "Welche Werkstoffe es in welcher Abmessung gibt (eine Abmessung in mehreren Werkstoffen, ein Werkstoff in "
+    "mehreren Abmessungen), mit Materialnummer und Bezeichnung aus dem ERP, Handelsbezeichnung, Hersteller bzw. "
+    "Lieferant und Aktiv. Inaktive Materialien stehen in neuen Positionen nicht zur Auswahl; bestehende Angebote "
+    "rechnen unverändert. Werkstoffdaten (Werkstoff-Nr., Gruppe, Dichte, Güte) stehen in 'Werkstoffe', Maße in "
+    "'Profile', Preise in 'Preise' und 'Material-Lieferanten'. Der ERP-Stammdaten-Import füllt die Tabelle.")
 
 MATERIAL_INDEX = Tabelle(
     "material_index", "Materialindex",
@@ -1217,7 +1245,8 @@ POSITIONSVORLAGEN = Tabelle(
     ("name",),
     "Positionsvorlagen = Bauteilbibliothek: im Angebot „Als Vorlage speichern“ und „Neue Position aus Vorlage …“.")
 
-TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MATERIAL_LIEFERANTEN, MATERIAL_INDEX, MASCHINEN, SCHNEIDDATEN, GEWINDE,
+TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MATERIAL_LIEFERANTEN, MATERIALSTAMM,
+            MATERIAL_INDEX, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
             DREHFRAES_WERKSTOFFE,
             PRUEFREGELN, SCHWEISSVERFAHREN,
@@ -1229,9 +1258,10 @@ TABELLE = {t.name: t for t in TABELLEN}
 VERWEISE = {
     ("kunden", "kundennr"): (("angebote", "kundennr"), ("importprofile", "kundennr"), ("kundenvorgaben", "kundennr")),
     ("profile", "profil_id"): (("preise", "profil_id"), ("lieferlaengen", "profil_id"),
-                               ("material_lieferanten", "profil_id")),
+                               ("material_lieferanten", "profil_id"), ("materialstamm", "profil_id")),
     ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("lieferlaengen", "werkstoff_id"),
-                                     ("schneiddaten", "werkstoff_id"), ("material_lieferanten", "werkstoff_id")),
+                                     ("schneiddaten", "werkstoff_id"), ("material_lieferanten", "werkstoff_id"),
+                                     ("materialstamm", "werkstoff_id")),
     # Angebote: dazu die Snapshots im Angebot und die Standard-Maschine (Datenbank._maschine_umbenannt)
     ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"), ("angebote", "maschine"),
                                     ("kundenvorgaben", "maschine")),

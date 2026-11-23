@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, rahmenauftrag, reklamation, step_pruefung
-from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, ki_protokoll, lst_lernen, lst_vergleich, onlinepreise, pg_lokal, produktion_lst, teilen, vollmaterial, zukauf
+from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, ki_protokoll, material_import, lst_lernen, lst_vergleich, onlinepreise, pg_lokal, produktion_lst, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -444,6 +444,7 @@ class Datenbank:
             self._normprofile_anpassen()
             self._passwort_umstellen()
             self._preise_merken()
+            self._materialstamm_ergaenzen()
         finally:
             if sperre:
                 self.con.commit()
@@ -748,12 +749,26 @@ class Datenbank:
             onlinepreise.einrichten(self.con)
             produktion_lst.einrichten(self.con)        # Lernsystem L1: Produktionsdaten aus TRUMPF-LST
             ki_protokoll.einrichten(self.con)
+            material_import.einrichten(self.con)       # ERP-Materialimport: Läufe und Posten (Rückgängig)
             db_verbindung.schema_version_setzen(self.con, SCHEMA_VERSION)
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")
         if db_verbindung.ist_sqlite(self.con):     # PostgreSQL prüft Fremdschlüssel immer
             self.con.execute("PRAGMA foreign_keys=ON")
         self._stand_einrichten()
+
+    def _materialstamm_ergaenzen(self):
+        """Einmalig (Materialdatenbank 23.11.2026): vorhandene Kombinationen Profil × Werkstoff in den Materialstamm,
+        damit nach dem Update nichts fehlt. Im Lesemodus nicht; ein Fehler bricht das Öffnen nie ab."""
+        from . import material_stamm
+        if getattr(self, "nur_lesen", False) or self.einstellung("materialstamm_stand") == material_stamm.STAND:
+            return
+        try:
+            material_stamm.ergaenzen(self)
+            self.einstellung_setzen("materialstamm_stand", material_stamm.STAND)
+        except Exception:       # noqa: BLE001
+            from . import protokoll
+            protokoll.warnung("Materialstamm: Übernahme aus dem Bestand nicht möglich")
 
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)

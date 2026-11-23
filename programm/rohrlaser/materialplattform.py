@@ -34,6 +34,7 @@ JA = "ja"
 ARCHIV = "archiviert"
 FAVORITEN = "material_favoriten"        # Einstellung nur für diesen Arbeitsplatz (teilen.LOKAL)
 LIEFERANTEN_TABELLE = "material_lieferanten"
+STAMM_TABELLE = "materialstamm"
 QUELLE_PREISE, QUELLE_LIEFERLAENGE, QUELLE_TONNE, QUELLE_FEHLT = "Preise", "Lieferlänge", "Tonnenpreis", "fehlt"
 STAND_ALT_TAGE = 30                      # wie preisalter.VORGABE_TAGE
 
@@ -122,7 +123,7 @@ def _datum(w):
 
 # ------------------------------------------------------------------ Varianten
 def varianten(k, tabellen, lieferanten=(), nutzung=None, bestand=None, favoriten=(), alle=False,
-              mit_archiv=False, heute=None, stange=None, erp=None):
+              mit_archiv=False, heute=None, stange=None, erp=None, stamm=None):
     """Eine Zeile je Material (Profil + Werkstoff).
 
     alle=False: nur Kombinationen, die es schon gibt (Zeile in Preise, Lieferlängen oder Lieferanten, oder in einer
@@ -130,7 +131,8 @@ def varianten(k, tabellen, lieferanten=(), nutzung=None, bestand=None, favoriten
     nutzung = {(profil, werkstoff): (Anzahl Angebote, zuletzt ISO)}, bestand = {(profil, werkstoff): dict(stangen,
     reste)} (nur mit eingeschaltetem Lager), favoriten = [[profil, werkstoff]], stange = Stangenlänge des Angebots
     für €/Stange (Vorgabe 6.000 mm), erp = {(profil, werkstoff): ERP-Gruppe aus erp_gruppen()} (Einkauf aus der
-    ERP-CSV, nur Anzeige). Archivierte Profile und Werkstoffe nur mit mit_archiv."""
+    ERP-CSV, nur Anzeige), stamm = Zeilen des Materialstamms (Materialnummer, Bezeichnung, Aktiv; jede Zeile ist eine
+    Kombination). Archivierte Profile und Werkstoffe nur mit mit_archiv."""
     heute = heute or datetime.date.today()
     nutzung, bestand, erp = nutzung or {}, bestand or {}, erp or {}
     fav = {tuple(f) for f in favoriten or () if isinstance(f, (list, tuple)) and len(f) == 2}
@@ -142,10 +144,14 @@ def varianten(k, tabellen, lieferanten=(), nutzung=None, bestand=None, favoriten
         laengen.setdefault(schluessel(z), []).append(z)
     for z in lieferanten or ():
         lief.setdefault(schluessel(z), []).append(z)
+    st = {}
+    for z in sorted(stamm or (), key=lambda z: bool(z.get("oberflaeche"))):    # ohne Oberfläche zuerst
+        st.setdefault(schluessel(z), z)
     if alle:
         kombis = [(p, w) for p in k.profile for w in k.werkstoffe]
     else:
-        kombis = list(dict.fromkeys(list(preise) + list(laengen) + list(lief) + list(nutzung) + list(fav) + list(erp)))
+        kombis = list(dict.fromkeys(list(st) + list(preise) + list(laengen) + list(lief) + list(nutzung) + list(fav)
+                                    + list(erp)))
     std = _n(stange) or 6000.0
     out = []
     for pid, wid in kombis:
@@ -157,11 +163,18 @@ def varianten(k, tabellen, lieferanten=(), nutzung=None, bestand=None, favoriten
             continue
         out.append(_zeile(pid, wid, pr, ws, preise.get((pid, wid)), laengen.get((pid, wid), []),
                           lief.get((pid, wid), []), nutzung.get((pid, wid)), bestand.get((pid, wid)),
-                          (pid, wid) in fav, arch, heute, std, erp.get((pid, wid))))
+                          (pid, wid) in fav, arch, heute, std, erp.get((pid, wid)), st.get((pid, wid))))
     return out
 
 
-def _zeile(pid, wid, pr, ws, preis, laengen, lief, nutz, best, fav, arch, heute, std, erp=None):
+def _stamm_felder(sz):
+    sz = sz or {}
+    return dict(materialnr=sz.get("materialnr") or "", material_bez=sz.get("bezeichnung") or "",
+                handelsname=sz.get("handelsname") or "", im_stamm=bool(sz), inaktiv=sz.get("aktiv") == "nein",
+                stamm_quelle=sz.get("quelle") or "")
+
+
+def _zeile(pid, wid, pr, ws, preis, laengen, lief, nutz, best, fav, arch, heute, std, erp=None, sz=None):
     kgm = kg_je_m(pr, ws)
     quelle, preis_m, stand, lieferant, mindest = QUELLE_FEHLT, None, None, "", None
     if preis is not None:
@@ -201,8 +214,9 @@ def _zeile(pid, wid, pr, ws, preis, laengen, lief, nutz, best, fav, arch, heute,
         nutzung=(nutz or (0, ""))[0], zuletzt=str((nutz or (0, ""))[1] or "")[:10],
         bestand_stangen=(best or {}).get("stangen"), bestand_reste=(best or {}).get("reste"),
         favorit=fav, archiviert=arch, bemerkung=pr.get("bemerkung") or "",
-        **_erp_felder(erp, preis_m if quelle != QUELLE_TONNE else None),
-        _such=_suchtext(pid, wid, pr, ws, namen))
+        **_erp_felder(erp, preis_m if quelle != QUELLE_TONNE else None), **_stamm_felder(sz),
+        _such=_suchtext(pid, wid, pr, ws, namen + [x for x in ((sz or {}).get("materialnr"), (sz or {}).get(
+            "bezeichnung"), (sz or {}).get("handelsname")) if x]))
 
 
 def _erp_felder(g, preis_m):
@@ -366,6 +380,7 @@ FILTER = (("kategorie", "Materialgruppe"), ("form", "Profilart"), ("wand", "Wand
 ZUSTAND_ALT, ZUSTAND_OHNE, ZUSTAND_TONNE, ZUSTAND_ARCHIV, ZUSTAND_FAV, ZUSTAND_BENUTZT = (
     "Preis älter als 30 Tage", "ohne Preis", "nur Tonnenpreis", "archiviert", "Favorit", "in Angeboten")
 ZUSTAND_ERP, ZUSTAND_ERP_ABW, ZUSTAND_VORSCHLAG = "mit ERP-Einkauf", "ERP weicht über 10 % ab", "mit Preisvorschlag"
+ZUSTAND_STAMM, ZUSTAND_INAKTIV, ZUSTAND_OHNE_STAMM = "im Materialstamm", "inaktiv", "nicht im Materialstamm"
 ERP_ABW_PCT = 10.0
 
 
@@ -389,6 +404,9 @@ def zustaende(z, alt_tage=STAND_ALT_TAGE):
             out.append(ZUSTAND_ERP_ABW)
     if z.get("vorschlag_m") is not None:
         out.append(ZUSTAND_VORSCHLAG)
+    out.append(ZUSTAND_STAMM if z.get("im_stamm") else ZUSTAND_OHNE_STAMM)
+    if z.get("inaktiv"):
+        out.append(ZUSTAND_INAKTIV)
     return out
 
 
@@ -638,7 +656,7 @@ def favorit_setzen(db, profil_id, werkstoff_id, an=True):
 def alle_varianten(db, alle=False, mit_archiv=False):
     """varianten() mit den Daten der Datenbank (Kontext, Tabellen, Lieferanten, Nutzung, Lager, Favoriten, ERP)."""
     return varianten(db.kontext(), db.tabellen(), db.zeilen(LIEFERANTEN_TABELLE), nutzung(db), lager_bestand(db),
-                     favoriten(db), alle=alle, mit_archiv=mit_archiv, erp=erp_gruppen(db))
+                     favoriten(db), alle=alle, mit_archiv=mit_archiv, erp=erp_gruppen(db), stamm=db.zeilen(STAMM_TABELLE))
 
 
 def erp_gruppen(db, heute=None):

@@ -35,7 +35,9 @@ SPALTEN = (("favorit", "★", None, True), ("profil_id", "Abmessung", None, True
            ("bestand_stangen", "Bestand", 0, False), ("werkstoff_nr", "Werkstoff-Nr.", None, False),
            ("norm", "Norm", None, False), ("erp_schnitt", "ERP Ø €/m", 2, True),
            ("erp_letzter", "ERP letzter €/m", 2, False), ("erp_datum", "ERP letzter Kauf", None, False),
-           ("erp_abw", "ERP Abw. %", 1, True), ("vorschlag_m", "Vorschlag €/m", 2, True))
+           ("erp_abw", "ERP Abw. %", 1, True), ("vorschlag_m", "Vorschlag €/m", 2, True),
+           ("materialnr", "Materialnr.", None, False), ("material_bez", "Materialbezeichnung", None, False),
+           ("handelsname", "Handelsbezeichnung", None, False))
 LISTE, MATRIX = "Liste", "Matrix"
 
 
@@ -113,7 +115,7 @@ class MaterialModell(QAbstractTableModel):
                 return QBrush(stil.farbe(stil.ORANGE))
             if feld in ("preis_m", "preis_kg") and z.get("quelle") == mp.QUELLE_TONNE:
                 return QBrush(stil.farbe(stil.TEXT_GRAU))
-            if z.get("archiviert"):
+            if z.get("archiviert") or z.get("inaktiv"):
                 return QBrush(stil.farbe(stil.TEXT_GRAU))
         if role == Qt.ToolTipRole:
             if feld in ("preis_m", "preis_kg"):
@@ -387,7 +389,7 @@ class MaterialBereich(QWidget):
         self.alle_zeilen = mp.varianten(self.db.kontext(), self.db.tabellen(), self.db.zeilen(mp.LIEFERANTEN_TABELLE),
                                         mp.nutzung(self.db), mp.lager_bestand(self.db), mp.favoriten(self.db),
                                         alle=self.alle_box.isChecked(), mit_archiv=self.archiv_box.isChecked(),
-                                        erp=self._erp)
+                                        erp=self._erp, stamm=self.db.zeilen(mp.STAMM_TABELLE))
         from . import material_historie as mh
         for schl, v in mh.alle_vorschlaege(self.db, self.alle_zeilen, self._erp).items():
             for z in self.alle_zeilen:
@@ -1093,6 +1095,12 @@ class MaterialBereich(QWidget):
         Ø, letzten Kauf und Abweichung je Material. Die Stammdaten-Preise bleiben unverändert."""
         d = self.f.erp_preise(pfad, **kw) if hasattr(self.f, "erp_preise") else None
         self.erp_anlegen(still_wenn_leer=True)     # Patrick 23.11.2026: Profile/Werkstoffe aus dem EK anlegen
+        if self.darf("materialstamm"):      # Artikelnummer je Abmessung × Werkstoff in den Materialstamm
+            from . import material_stamm
+            st = material_stamm.ergaenzen(self.db, quelle="ERP-EK")
+            if st["neu"] or st["nummern"]:
+                self.f.meldung(f"Materialstamm: {st['neu']} Materialien neu, {st['nummern']} Artikelnummern "
+                               "übernommen")
         self.neu_laden(erzwingen=True)
         return d
 
