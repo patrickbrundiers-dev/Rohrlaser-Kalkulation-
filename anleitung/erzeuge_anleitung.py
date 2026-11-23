@@ -3067,10 +3067,16 @@ def kapitel_angebot(i):
             "internen Kosten. Ändert sich die Stückzahl, rechnet alles neu.",
             "Steht dieselbe Leistung allgemein und an einer Position, zeigt der Reiter eine gelbe Warnung und der "
             "Angebots-Check „möglicherweise doppelt berechnet“.",
+            "<b>Zeit</b>: Einträge aus der Verwaltung bringen ihren Zeitaufwand mit, bei h und min ist die Zeit die "
+            "Menge. Freie Einträge ohne eigene Zeit bekommen sie aus dem Stundensatz (Einstellung "
+            "<i>Zusatzarbeiten: Stundensatz für die Zeit [€/h]</i>, Vorgabe 60 €/h): interne Kosten je Einheit ÷ "
+            "Stundensatz, ohne Kosten Preis je Einheit ÷ Stundensatz (z. B. 45 € pauschal bei 60 €/h = 45 min). "
+            "Die Zahl steht grau in der Spalte Zeit; eine eigene Zeit überschreibt sie, leer machen rechnet wieder. "
+            "Die Zeit ändert keinen Preis.",
             "Die Summen unten: Positionen, allgemeine Zusatzarbeiten, Angebot netto, MwSt, brutto und intern Kosten, "
             "Zeit und Deckungsbeitrag. Die allgemeinen Zusatzarbeiten zählen zum Verkaufspreis (Angebotsliste, "
             "Marge), aber nicht zum Mindestauftragswert, zu Rabatt und Skonto und nicht zu den Staffelpreisen.",
-            "<b>Darstellung im Kundenangebot</b> (je Angebot; Vorgabe in Einstellungen → Angebot, Einstellung "
+            "<b>Darstellung im Kundenangebot</b> (je Angebot; Vorgabe in Einstellungen → Neue Angebote, Einstellung "
             "<i>Zusatzarbeiten im Kundenangebot</i>): "
             "<i>zusammengefasst</i> = „inkl. …“ im Positionstext wie bisher; <i>detailliert</i> = unter jeder "
             "Position Leistung, Menge, Einheitspreis und Gesamt und „Positionspreis einschließlich Zusatzarbeiten“; "
@@ -13213,7 +13219,7 @@ def kapitel_stammdaten(i):
     i.bild("stamm_kunden", "Kunden, Tabellenansicht", hoehe=100 * mm)
     i.text("Die bisherige Kundentabelle mit allen Spalten bleibt unter <i>Tabellenansicht (alle Felder)</i>: Tippen "
            "oder F2 ändert einen Wert, Doppelklick zeigt die Angebote des Kunden. Hier stehen auch Teilekatalog, "
-           "Kundenwert, Datenauskunft und Anonymisieren. Bestehende Kunden hat das Update 0.9.457 ergänzt: PLZ und "
+           "Kundenwert, Datenauskunft und Anonymisieren. Bestehende Kunden hat das Update 0.9.458 ergänzt: PLZ und "
            "Ort getrennt, Status Aktiv, der bisherige Ansprechpartner als Hauptansprechpartner und eine abweichende "
            "Liefer-PLZ als Lieferadresse; gelöscht oder überschrieben wurde nichts.")
     i.genauer("Felder")
