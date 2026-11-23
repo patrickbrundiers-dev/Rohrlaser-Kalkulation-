@@ -367,9 +367,16 @@ class MaterialBereich(QWidget):
         self.stapel.setStretchFactor(1, 1)
         self.stapel.setSizes([200, 760, 420])
 
+        self.uebersicht = QWidget()
+        ul = QVBoxLayout(self.uebersicht)
+        ul.setContentsMargins(0, 0, 0, 0)
+        ul.addLayout(kopf)
+        ul.addWidget(self.stapel, 1)
+        from . import material_bereiche
+        material_bereiche.einrichten(self, self.uebersicht)
         lay = QVBoxLayout(self)
-        lay.addLayout(kopf)
-        lay.addWidget(self.stapel, 1)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self.bereiche, 1)
         self._spalten_lesen()
 
     # ------------------------------------------------------------------ Daten
@@ -1093,7 +1100,15 @@ class MaterialBereich(QWidget):
     def erp_einlesen(self, pfad=None, **kw):
         """ERP-Einkaufs-CSV einlesen (vorhandener Import mit Spaltenzuordnung und Prüfliste); danach zeigt die Liste
         Ø, letzten Kauf und Abweichung je Material. Die Stammdaten-Preise bleiben unverändert."""
-        d = self.f.erp_preise(pfad, **kw) if hasattr(self.f, "erp_preise") else None
+        from .erp_preise import ErpFehler
+        from .erp_preise_dialog import importieren
+        try:
+            d = importieren(self, self.db, pfad, **kw)
+        except (OSError, ErpFehler) as e:
+            self.f.meldung(f"ERP-Preise: {e}", fehler=True)
+            return None
+        if d is None:
+            return None
         self.erp_anlegen(still_wenn_leer=True)     # Patrick 23.11.2026: Profile/Werkstoffe aus dem EK anlegen
         if self.darf("materialstamm"):      # Artikelnummer je Abmessung × Werkstoff in den Materialstamm
             from . import material_stamm

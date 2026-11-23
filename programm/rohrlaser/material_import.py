@@ -331,8 +331,11 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
         if e["alt_m"] and e["preis_m"]:
             e["pct"] = (e["preis_m"] / e["alt_m"] - 1) * 100
             if abs(e["pct"]) >= SPRUNG_PCT:
-                e["hinweis"].append(f"Preissprung {e['pct']:+.1f} % – bitte prüfen")
-        sz = stamm.get((e["profil_id"], wid, e["oberflaeche"]))
+                e["hinweis"].append(f"Preissprung {'+' if e['pct'] >= 0 else '−'}{abs(e['pct']):.1f} % – bitte prüfen"
+                                   .replace(".", ","))
+        sz = stamm.get((e["profil_id"], wid, e["oberflaeche"] or ""))
+        if sz and e["materialnr"] and sz.get("materialnr") and str(sz["materialnr"]) != str(e["materialnr"]):
+            e["hinweis"].append(f"Materialnummer {sz['materialnr']} → {e['materialnr']}")
         if vorschlag or wneu or sz is None:
             e["gruppe"] = NEU
             if vorschlag:
@@ -555,7 +558,7 @@ def preis_aenderungen(db, import_id=None):
     if import_id is not None:
         sql += " AND p.import_id=?"
         arg = (import_id,)
-    out = []
+    out, k = [], None
     for r in db.con.execute(sql + " ORDER BY p.id DESC", arg):
         alt, neu = json.loads(r["alt"]) if r["alt"] else {}, json.loads(r["neu"]) if r["neu"] else {}
         if "preis" not in neu:
@@ -563,6 +566,13 @@ def preis_aenderungen(db, import_id=None):
         a, b = mp._n(alt.get("preis")), mp._n(neu.get("preis"))
         ktx = dict(neu.get("_kontext") or {}, **{f: neu[f] for f in ("profil_id", "werkstoff_id", "lieferant", "basis")
                                                  if neu.get(f)})
+        ba, bn = alt.get("basis") or ktx.get("basis"), ktx.get("basis")
+        if a and b and ba != bn:        # andere Preisbasis (z. B. €/kg → €/m): in €/m vergleichen
+            if k is None:
+                k = db.kontext()
+            kgm = mp.kg_je_m(k.profile.get(ktx.get("profil_id")) or {}, k.werkstoffe.get(ktx.get("werkstoff_id")) or {})
+            a, b = mp.je_meter(ba, a, kgm, 6000), mp.je_meter(bn, b, kgm, 6000)
+            ktx["basis"] = "€/m (umgerechnet)"
         out.append(dict(zeit=r["zeit"], datei=r["datei"], tabelle=r["tabelle"], profil_id=ktx.get("profil_id"),
                         werkstoff_id=ktx.get("werkstoff_id"), lieferant=ktx.get("lieferant"), zeilen_id=r["zeilen_id"],
                         alt=a, neu=b, basis=ktx.get("basis"),

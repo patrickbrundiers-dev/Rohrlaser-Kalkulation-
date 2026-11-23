@@ -21,6 +21,11 @@ def _heute():
     return datetime.date.today().isoformat()
 
 
+def _t(x, st=2):
+    from .stammdaten import zahl_als_text
+    return zahl_als_text(x, st)
+
+
 def _n(v):
     return mp._n(v)
 
@@ -187,15 +192,16 @@ def lieferant_vorschlag(lieferanten_zeilen, profil_id, werkstoff_id, kgm, bedarf
     best = alle[0]
     bev = next((a for a in alle if a["bevorzugt"]), None)
     if bev is not None and bev is not best and bev["kosten"] <= best["kosten"] * (1 + gleich_pct / 100):
-        best = dict(bev, begruendung=f"bevorzugter Lieferant, nur {bev['kosten'] - alle[0]['kosten']:.2f} € "
+        best = dict(bev, begruendung=f"bevorzugter Lieferant, nur {_t(bev['kosten'] - alle[0]['kosten'])} € "
                                      f"teurer als {alle[0]['lieferant']}")
         return best
-    teile = [f"{best['stangen']} Stangen à {best['laenge'] / 1000:g} m für {bedarf_m:.1f} m Bedarf",
-             f"{best['kosten']:.2f} €"]
+    teile = [f"{best['stangen']} Stangen à {_t(best['laenge'] / 1000, 1)} m für {_t(bedarf_m, 1)} m Bedarf",
+             f"{_t(best['kosten'])} €"]
     if best["grund"]:
         teile.append(best["grund"])
     if len(alle) > 1:
-        teile.append(f"{alle[1]['lieferant']} {alle[1]['kosten'] - best['kosten']:+.2f} €")
+        d = alle[1]["kosten"] - best["kosten"]
+        teile.append(f"{alle[1]['lieferant']} {'+' if d >= 0 else '−'}{_t(abs(d))} €")
     return dict(best, begruendung="; ".join(teile))
 
 
