@@ -3000,7 +3000,7 @@ def kapitel_angebot(i):
         ["Beschreibung", "Zusatztext im Kundenangebot (bei Darstellung detailliert)"],
         ["intern: Kosten, Zeit", "je Einheit, nur für Marge, Deckungsbeitrag und interne Akte, nie beim Kunden"],
         ["Grundlage (bei %)", "Positionen oder Positionen und Zusatzarbeiten"]], [45 * mm, 115 * mm])
-    i.liste("<b>Aus Verwaltung hinzufügen</b> schlägt den Standardpreis aus Einstellungen → Zusatzarbeiten vor "
+    i.liste("<b>＋ Aus Verwaltung</b> schlägt den Standardpreis aus Einstellungen → Zusatzarbeiten vor "
             "([[zusatzarbeiten_verwalten]]): Kosten je Einheit = Preis der Verwaltung, Verkauf = Kosten × Zuschlag "
             "Fertigung bzw. Fremdleistung × Gewinn. Der Preis ist danach frei änderbar; er wird im Angebot gespeichert "
             "(Snapshot), spätere Änderungen der Verwaltung ändern das Angebot nicht. <b>Standardpreis übernehmen</b> "
@@ -3009,7 +3009,8 @@ def kapitel_angebot(i):
             "Tabelle ändern, jede Änderung wird sofort gespeichert und gerechnet. <b>Entfernen</b> löscht die "
             "markierten Zeilen.",
             "<b>Auf Positionen übertragen …</b> ordnet die markierte Zeile einer oder mehreren Positionen zu (Menge je "
-            "Teil, Haken „Preis = Verkauf“) und entfernt sie auf Wunsch aus den allgemeinen.",
+            "Teil, Haken „Preis = Verkauf“). Mit dem Haken <i>Danach aus den allgemeinen Zusatzarbeiten entfernen "
+            "(nicht doppelt berechnen)</i> verschwindet sie aus den allgemeinen.",
             "<b>Je Position</b> (Fenster Zusatzarbeiten …, [[zusatzarbeiten_angebot]]): ohne Haken wie bisher "
             "Preis + Zuschlag + Gewinn; mit Haken <b>Preis = Verkauf</b> ist der Preis je Einheit der Kundenpreis "
             "(z. B. Entgraten 2,50 € je Stück, Bohren 0,80 € je Bohrung × Anzahl); die Stammdaten liefern dann die "
@@ -3019,7 +3020,8 @@ def kapitel_angebot(i):
             "Die Summen unten: Positionen, allgemeine Zusatzarbeiten, Angebot netto, MwSt, brutto und intern Kosten, "
             "Zeit und Deckungsbeitrag. Die allgemeinen Zusatzarbeiten zählen zum Verkaufspreis (Angebotsliste, "
             "Marge), aber nicht zum Mindestauftragswert, zu Rabatt und Skonto und nicht zu den Staffelpreisen.",
-            "<b>Darstellung im Kundenangebot</b> (je Angebot, Vorgabe in Einstellungen → Angebot): "
+            "<b>Darstellung im Kundenangebot</b> (je Angebot; Vorgabe in Einstellungen → Angebot, Einstellung "
+            "<i>Zusatzarbeiten im Kundenangebot</i>): "
             "<i>zusammengefasst</i> = „inkl. …“ im Positionstext wie bisher; <i>detailliert</i> = unter jeder "
             "Position Leistung, Menge, Einheitspreis und Gesamt und „Positionspreis einschließlich Zusatzarbeiten“; "
             "<i>nur Gesamtpreis</i> = keine Zusatzarbeiten im Text, allgemeine als eine Summenzeile. Die interne "
