@@ -50,7 +50,7 @@ from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VO
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 101    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 103    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -207,6 +207,8 @@ SCHEMA_VERSION = 101    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     (rahmenauftrag.py); neue Tabellen leer, Angebote unverändert
                         # 101: Lokale KI-Plattform (20.11.2026): Tabellen ki_aktionen (Protokoll aller KI-Aktionen) und
                         #      ki_empfehlungen (offene KI-Empfehlungen), ki_protokoll.py; nur dieser PC, leer = nichts
+                        # 103: Materialplattform (23.11.2026): Tabelle material_lieferanten (mehrere Lieferanten je
+                        #      Material), Spalte archiviert in profile und werkstoffe; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
