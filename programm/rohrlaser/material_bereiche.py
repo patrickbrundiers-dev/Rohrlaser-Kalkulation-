@@ -320,10 +320,12 @@ class ImportSeite(QWidget):
         self.seite = seite
         self.setAcceptDrops(True)
         lay = QVBoxLayout(self)
-        lay.addWidget(QLabel(
+        kopf = QLabel(
             "<b>ERP-Import</b><br>Datei hierher ziehen oder wählen. CSV (UTF-8, ANSI, ; , Tab |, Dezimalkomma oder "
             "-punkt) oder Excel (.xlsx). Vor jeder Übernahme gibt es eine Vorschau; erst „Übernehmen“ ändert "
-            "etwas, und jeder Lauf lässt sich unter Importhistorie zurücknehmen."))
+            "etwas, und jeder Lauf lässt sich unter Importhistorie zurücknehmen.")
+        kopf.setWordWrap(True)          # sonst erzwingt der lange Text eine Mindestbreite des Hauptfensters
+        lay.addWidget(kopf)
         k = QHBoxLayout()
         b1 = QPushButton("Materialstamm und EK-Preise einlesen …")
         b1.setObjectName("primaer")
@@ -527,7 +529,7 @@ class VorschauDialog(QDialog):
         lay.addWidget(self.reiter, 1)
         u = QHBoxLayout()
         exp = QPushButton("Fehlerhafte Zeilen exportieren …")
-        exp.clicked.connect(self.fehler_exportieren)
+        exp.clicked.connect(lambda: self.fehler_exportieren())
         exp.setEnabled(z[mi.FEHLER] + z[mi.OFFEN] + z[mi.DOPPELT] > 0)
         u.addWidget(exp)
         self.text = QLabel()

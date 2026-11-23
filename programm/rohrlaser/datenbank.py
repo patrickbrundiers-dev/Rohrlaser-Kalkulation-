@@ -776,12 +776,20 @@ class Datenbank:
         from . import material_stamm
         if getattr(self, "nur_lesen", False) or self.einstellung("materialstamm_stand") == material_stamm.STAND:
             return
+        # die Übernahme ist keine Änderung von Hand: Herkunft/Stand der Stammdaten bleiben (Beispieldaten bleiben
+        # Beispieldaten, sonst ersetzt das nächste Update z. B. die Beispiel-Schneiddaten nicht mehr)
+        merker = {n: self.einstellung(n) for n in ("stammdaten_herkunft", "stammdaten_stand")}
         try:
             material_stamm.ergaenzen(self)
             self.einstellung_setzen("materialstamm_stand", material_stamm.STAND)
         except Exception:       # noqa: BLE001
             from . import protokoll
             protokoll.warnung("Materialstamm: Übernahme aus dem Bestand nicht möglich")
+        finally:
+            if any(self.einstellung(n) != w for n, w in merker.items()):
+                with self.con:
+                    for n, w in merker.items():
+                        self._einstellung_schreiben(n, w)
 
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)

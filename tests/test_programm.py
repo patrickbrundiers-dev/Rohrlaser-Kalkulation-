@@ -100,11 +100,14 @@ for t in TABELLE.values():
 
 # 5) Umbenennen eines Schlüssels ändert die Verweise mit; doppelte Schlüssel werden abgewiesen
 pid = next(z["id"] for z in db.zeilen("profile") if z["profil_id"] == "RR 42,4x2,0")
-assert db.verweise("profile", pid) == 2
+n_stamm = sum(1 for z in db.zeilen("materialstamm") if z["profil_id"] == "RR 42,4x2,0")
+assert db.verweise("profile", pid) == 2 + n_stamm      # 2 Preise + Materialstamm (Materialdatenbank 23.11.2026)
 db.aendern("profile", pid, "profil_id", "RR 42,4x2")
 assert db.einstellung("stammdaten_herkunft") == "eigene Werte"   # Startseite: keine Beispielwerte mehr
 assert sum(1 for z in db.zeilen("preise") if z["profil_id"] == "RR 42,4x2") == 2
 assert not any(z["profil_id"] == "RR 42,4x2,0" for z in db.zeilen("preise"))
+assert sum(1 for z in db.zeilen("materialstamm") if z["profil_id"] == "RR 42,4x2") == n_stamm
+assert not any(z["profil_id"] == "RR 42,4x2,0" for z in db.zeilen("materialstamm"))
 try:
     db.aendern("profile", pid, "profil_id", "QR 40x40x3")
     raise AssertionError("doppelte Profil-ID angenommen")
