@@ -76,3 +76,15 @@ Lieferanten, Seite), `tests/test_erp_anlegen.py`, `tests/test_erp_preise.py`, `t
 - Rückgängig stellt Felder nicht zurück, die nach dem Import von Hand geändert wurden (Meldung).
 - Kein Restelager und keine Bestellung aus dem Programm; Lieferantenvorschlag ist eine Empfehlung.
 - Preisverlauf-Grafik je Material steht im Reiter Preishistorie der Materialübersicht, nicht im Bereich Preisverlauf.
+
+## Ausbau (Folge-PR, 0.9.460)
+
+- **Lieferzeit aus dem EK**: Feld `liefertermin` im EK-Import (`erp_preise.FELDER`, Spalte `erp_kaeufe.liefertermin`, lokal), `erp_preise.lieferzeit()` = Liefertermin minus Kaufdatum über `erp_monate`; Käufe ohne Termin, mit Termin vor dem Kauf oder über 365 Tagen zählen nicht. Anzeige: Materialübersicht (Spalte, Detail, Export, Vergleich), Lieferantenvergleich, Fenster Material je Abmessung. Der Export enthält keinen Wareneingang, es ist die zugesagte Lieferzeit.
+- **ERP-Vorschlag im Fenster Material je Abmessung**: Spalte mit dem Kauf zum Bedarf; ein Klick trägt ihn als Meterpreis des Angebots ein (Stammdaten unverändert).
+- **Zuordnen in der Vorschau** (1.3): `material_import.analysieren(..., hand={Zeile: Zuordnung})`, `hand_merken()` schreibt die Artikelnummer in `erp_zuordnung`.
+- **Auswirkung auf offene Angebote** (2.5): `material_import.auswirkung()`, nur Anzeige; festgeschriebene Angebote (`preisbasis`) und Positionen mit eigenem `preis_m` zählen nicht.
+- **Lieferantenvorschlag im Angebot** (3.1): Spalte „Lieferant (Vorschlag)“ aus `material_stamm.lieferant_vorschlag()`.
+- **Werkstoffwahl im Prüfdialog** (4.1): Gruppe „im Materialstamm“ oben in der Werkstoff-Liste (`step_dialog._stamm_werkstoffe`); keine Vorauswahl.
+- Kein Schema-Sprung (nur die lokale Tabelle `erp_kaeufe` bekommt eine Spalte).
+
+Bekannte Grenzen: Die Lieferzeit gilt je Material über alle Lieferanten (der EK-Export nennt keinen Lieferanten). Die Gruppe „im Materialstamm“ richtet sich nach dem Profil beim Öffnen des Prüfdialogs, nicht nach einem dort geänderten Profil.

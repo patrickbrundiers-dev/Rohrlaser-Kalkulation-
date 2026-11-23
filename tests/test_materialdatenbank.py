@@ -305,7 +305,7 @@ ok("Angebot: „Material …“ öffnet direkt das Fenster; dort Kacheln, Materi
 import datetime  # noqa: E402
 
 from rohrlaser import funktionen  # noqa: E402
-from rohrlaser.meterpreis_dialog import ERP_VORSCHLAG, LIEFERZEIT, SPALTEN  # noqa: E402
+from rohrlaser.meterpreis_dialog import ERP_VORSCHLAG, LIEFERANT, LIEFERZEIT, SPALTEN  # noqa: E402
 
 heute = datetime.date.today()
 
@@ -358,6 +358,10 @@ def fenster2(d):
     gesehen["kopf"] = [d.tabelle.horizontalHeaderItem(c).text() for c in (ERP_VORSCHLAG, LIEFERZEIT)]
     gesehen["lz"] = d.tabelle.item(r, LIEFERZEIT).text()
     gesehen["lz_tipp"] = d.tabelle.item(r, LIEFERZEIT).toolTip()
+    gesehen["lieferant"] = d.tabelle.item(r, LIEFERANT).text()
+    gesehen["lieferant_tipp"] = d.tabelle.item(r, LIEFERANT).toolTip()
+    gesehen["lieferant_leer"] = d.tabelle.item(next(i for i, g in enumerate(d.gruppen) if g["profil"] == "RE 60x40x3"),
+                                               LIEFERANT).text()
     gesehen["knopf"] = d.erp_knoepfe[r].text() if d.erp_knoepfe[r] else None
     gesehen["tipp"] = d.erp_knoepfe[r].toolTip() if d.erp_knoepfe[r] else ""
     gesehen["vorher"] = d.felder[r].text()
@@ -369,12 +373,64 @@ def fenster2(d):
 
 
 n = an.material_einstellen(fenster2)
-assert gesehen["kopf"] == ["ERP-Vorschlag [€/m]", "Lieferzeit Ø"] == list(SPALTEN[-2:]), gesehen
+assert gesehen["kopf"] == ["ERP-Vorschlag [€/m]", "Lieferzeit Ø"] == list(SPALTEN[-3:-1]), gesehen
+assert SPALTEN[LIEFERANT] == "Lieferant (Vorschlag)" and gesehen["lieferant"].startswith("Stahlhandel"), gesehen
+assert gesehen["lieferant_tipp"] and gesehen["lieferant_leer"] == "–", gesehen
 assert gesehen["lz"] == "12 Tage" and "10 bis 14" in gesehen["lz_tipp"], gesehen
 assert gesehen["knopf"] and gesehen["knopf"].startswith("3,10") and "nur Vorschlag" in gesehen["tipp"], gesehen
 assert gesehen["vorher"] == "" and gesehen["nachher"] == "3,10" and n == 1, (gesehen, n)
 assert all(p["preis_m"] == 3.1 for p in an.positionen if p["profil_id"] == "QR 40x40x3")
 ok("Fenster Material je Abmessung: Spalten ERP-Vorschlag (Datum, Grund; ein Klick trägt ihn als Meterpreis dieses "
-   "Angebots ein) und Lieferzeit Ø")
+   "Angebots ein), Lieferzeit Ø und Lieferant (Vorschlag) zum Bedarf")
+
+# Ausbau 1.3 Zuordnen in der Vorschau, 2.5 Auswirkung auf offene Angebote
+pfz = tmp / "zuordnen.csv"
+pfz.write_text("Artikelnummer;Bezeichnung;EK-Preis\nX-900;Sonderrohr ohne Angaben;4,00\n"
+               "X-901;Quadratrohr 40x40x3 EN 10219 S235;9,90\n", encoding="utf-8")
+off = M.analysieren(db, M.lesen(pfz.read_bytes(), str(pfz)), {"materialnr": 0, "bezeichnung": 1, "preis": 2})
+assert off[0]["gruppe"] == M.OFFEN and off[1]["gruppe"] == M.PREIS, [(e["gruppe"], e["hinweis"]) for e in off]
+gesehen = {}
+
+
+def vorschau(v):
+    gesehen["knopf_vorher"] = v.zuordnen_knopf.isEnabled()
+    v.reiter.setCurrentIndex(M.GRUPPEN.index(M.OFFEN))
+    v.tabellen[M.OFFEN].selectRow(0)
+    gesehen["knopf"] = v.zuordnen_knopf.isEnabled()
+    gesehen["offen_vorher"] = v.tabellen[M.OFFEN].rowCount()
+    assert v.zuordnen(profil_id="RE 60x40x3", werkstoff_id="S355-10219")
+    gesehen["offen"] = v.tabellen[M.OFFEN].rowCount()
+    gesehen["gruppe"] = next(e["gruppe"] for e in v.posten if e["materialnr"] == "X-900")
+    gesehen["hinweis"] = " ".join(next(e["hinweis"] for e in v.posten if e["materialnr"] == "X-900"))
+    gesehen["auswirkung"] = v.auswirkung()
+    gesehen["text"] = v.auswirkung_text.text()
+    gesehen["haken"] = v.gruppen()
+    return True
+
+
+# Position QR 40x40x3 hat seit dem ERP-Vorschlag einen eigenen Meterpreis: zählt nicht; RE 60x40x3 rechnet neu
+vorher_re = next(z for z in db.zeilen("preise") if (z["profil_id"], z["werkstoff_id"]) == ("RE 60x40x3", "S355-10219"))
+erg = MB.stamm_import(m, str(pfz), spalten={"materialnr": 0, "bezeichnung": 1, "preis": 2}, vorschau=vorschau)
+assert gesehen["knopf"] and gesehen["offen_vorher"] == 1 and gesehen["offen"] == 0, gesehen
+assert gesehen["gruppe"] in (M.PREIS, M.NEU) and "von Hand zugeordnet" in gesehen["hinweis"], gesehen
+nummern_aw = [a["nummer"] for a in gesehen["auswirkung"]]
+assert nummern_aw == [an.kopf["nummer"]] and "1 offenes Angebot" in gesehen["text"], gesehen
+mats = {(x[0], x[1]) for x in gesehen["auswirkung"][0]["materialien"]}
+assert mats == {("RE 60x40x3", "S355-10219")}, mats           # QR 40x40x3: eigener Meterpreis an der Position
+assert erg["erg"] and erg["erg"]["gemerkt"] == 1
+zu = [z for z in E.zuordnungen(db).values() if z["artikelnr"] == "X-900"]
+assert zu and (zu[0]["profil_id"], zu[0]["werkstoff_id"]) == ("RE 60x40x3", "S355-10219")
+nochmal = M.analysieren(db, M.lesen(pfz.read_bytes(), str(pfz)), {"materialnr": 0, "bezeichnung": 1, "preis": 2})
+assert nochmal[0]["gruppe"] != M.OFFEN and "gemerkt" in " ".join(nochmal[0]["hinweis"]), nochmal[0]
+an.kopf["preisbasis"] = {"x": 1}
+db.con.execute("UPDATE angebote SET preisbasis = ? WHERE id = ?", ('{"x": 1}', an.id))
+db.con.commit()
+pfz.write_text("Artikelnummer;Bezeichnung;EK-Preis\nX-900;Sonderrohr ohne Angaben;4,50\n", encoding="utf-8")
+fest = M.analysieren(db, M.lesen(pfz.read_bytes(), str(pfz)), {"materialnr": 0, "bezeichnung": 1, "preis": 2})
+assert fest[0]["gruppe"] == M.PREIS and M.auswirkung(db, fest) == [], "festgeschriebene Angebote ändern sich nie"
+db.con.execute("UPDATE angebote SET preisbasis = NULL WHERE id = ?", (an.id,))
+db.con.commit()
+ok("Vorschau: nicht zuordenbare Zeile von Hand zuordnen (Artikelnummer wird gemerkt), Auswirkung auf offene "
+   "Angebote (festgeschriebene und Positionen mit eigenem Meterpreis nicht)")
 
 print("Alle Tests Materialdatenbank bestanden")

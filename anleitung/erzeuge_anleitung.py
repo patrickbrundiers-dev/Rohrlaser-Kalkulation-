@@ -14476,6 +14476,23 @@ def kapitel_material(i):
            "Artikel und den Grund, warum er nicht direkt eingesetzt wurde (zu alt oder andere Stangenzahl). Ein "
            "Klick trägt ihn als Meterpreis für dieses Angebot ein; er gilt nach <i>Übernehmen</i>, die Stammdaten "
            "bleiben unverändert. Direkt eingesetzte Käufe stehen dort als <i>eingesetzt</i>.")
+    i.text("<b>Zuordnen in der Vorschau</b> (seit 0.9.460): Im Fenster <i>ERP-Import: Vorschau</i> lässt sich eine "
+           "Zeile aus <i>nicht zuordenbar</i> markieren und mit <b>Zuordnen …</b> von Hand einem Profil, einem "
+           "Werkstoff und einer Oberfläche zuordnen (Fenster <i>ERP-Import: Zeile zuordnen</i>, Knopf "
+           "<b>Zuordnen</b>). Werkstoffe, die der Materialstamm für das Profil kennt, stehen in der Liste oben; "
+           "vorbelegt wird der Werkstoff nie. Die Vorschau rechnet danach neu, die Zeile wandert in ihre Gruppe, "
+           "und beim Übernehmen merkt sich das Programm die Artikelnummer: der nächste Import und der EK-Import "
+           "erkennen den Artikel von selbst.",
+           "<b>Auswirkung auf offene Angebote</b>: Unter den Gruppen steht, wie viele offene Angebote nach der "
+           "Übernahme mit neuen Materialpreisen rechnen; <b>Betroffene Angebote …</b> zeigt sie mit Kunde, Anzahl "
+           "Positionen, Material, bisherigem und neuem €/m. Festgeschriebene Angebote und Positionen mit eigenem "
+           "Meterpreis ändern sich nicht und stehen nicht in der Liste.",
+           "Im Fenster <i>Material je Abmessung</i> des Angebots nennt die Spalte <b>Lieferant (Vorschlag)</b> den "
+           "Lieferanten, der für den Bedarf der Abmessung laut Schnittplan am günstigsten ist (bevorzugter Lieferant "
+           "bis 2 % Mehrkosten), mit €/m; der Tooltip begründet ihn, ein Doppelklick öffnet den "
+           "Lieferantenvergleich. Im Prüfdialog des STEP-Imports stehen in der Werkstoff-Liste eines Rohrs oben "
+           "unter <i>im Materialstamm</i> die Werkstoffe, die es für die Abmessung laut Materialstamm gibt; "
+           "gewählt bleibt die Vorgabe, geraten wird nie.")
     i.text("<b>ERP-Import</b> (Bereich ERP-Import, Datei hierher ziehen oder wählen): <b>Materialstamm und EK-Preise "
            "einlesen …</b> für Artikel-/Preislisten, <b>Einkäufe einlesen</b> (EK-CSV) für die Einkaufshistorie "
            "(wie oben) und <b>Preisliste eines Lieferanten …</b>. Gelesen werden CSV in UTF-8 oder ANSI mit Semikolon, "

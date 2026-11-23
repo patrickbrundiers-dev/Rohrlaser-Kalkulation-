@@ -24,7 +24,8 @@ from .stammdaten import (EIGENMATERIAL, KUNDENMATERIAL, MATERIAL_HERKUNFT, ROH, 
 GRAU = "#5F6B7A"
 SPALTEN = ("", "Abmessung", "Werkstoff", "Oberfläche", "Lieferlänge [mm]", "Material", "Pos.", "Stangen", "Meter",
            "Gewicht [kg]", "Material [€]", "berechnet [€/m]", "Meterpreis [€/m]", "Stangen vorgegeben", "Rohrart",
-           "ERP-Vorschlag [€/m]", "Lieferzeit Ø")
+           "ERP-Vorschlag [€/m]", "Lieferzeit Ø", "Lieferant (Vorschlag)")
+LIEFERANT = 17      # Lieferantenvorschlag zum Bedarf (material_stamm.lieferant_vorschlag), Doppelklick = Vergleich
 ERP_VORSCHLAG, LIEFERZEIT = 15, 16      # ERP-Kauf zum Bedarf (ein Klick übernimmt ihn), Lieferzeit aus dem ERP-Einkauf
 VORGABE = 13        # Spalte mit dem Knopf für die von Hand vorgegebenen Stangen (stangen_vorgabe_dialog.py)
 ROHRART = 14        # Rohrart je Abmessung (Patrick 31.10.2026, Plan 6a), nur Rund-, Quadrat- und Rechteckrohr
@@ -41,7 +42,8 @@ DOPPELKLICK = {0: ("profil", "Profil-Info: Querschnitt, Kennwerte, passende Masc
                    "Verschnitt)"),
                9: ("abmessung:bilanz", "Abmessung öffnen: Gewichtsbilanz"),
                10: ("preis", "Preis-Aufbau: Einkauf je Lieferlänge, Zuschlag, Verteilung auf die Positionen"),
-               11: ("preis", "Preis-Aufbau mit Herkunft des Meterpreises (Lieferant, Gültig ab)")}
+               11: ("preis", "Preis-Aufbau mit Herkunft des Meterpreises (Lieferant, Gültig ab)"),
+               17: ("lieferanten", "Lieferantenvergleich für den Bedarf dieser Abmessung")}
 
 
 def _z(w, stellen=2):
@@ -290,8 +292,14 @@ class MeterpreisDialog(QDialog):
                            + erp_preise.lieferzeit_text(lz)) if lz else
                           "Keine Lieferzeit aus dem ERP-Einkauf (EK-CSV mit der Spalte L-Termin einlesen)")
             self.tabelle.setItem(r, LIEFERZEIT, it)
+            v = None if g["kunde"] else self._lieferant(g)
+            it = QTableWidgetItem(f"{v['lieferant']} · {_z(v['preis_m'])} €/m" if v else "–")
+            it.setToolTip((v["begruendung"] + "\nDoppelklick: " + DOPPELKLICK[LIEFERANT][1]) if v else
+                          ("Kundenmaterial: kein Einkauf" if g["kunde"] else
+                           "Kein gültiger Lieferantenpreis für dieses Material (Materialdatenbank, Lieferanten)"))
+            self.tabelle.setItem(r, LIEFERANT, it)
         kopf_z = self.tabelle.horizontalHeader()
-        for i, b in enumerate((BILD + 10, 130, 150, 95, 125, 140, 70, 60, 65, 85, 85, 110, 115, 175, 175, 150, 95)):
+        for i, b in enumerate((BILD + 10, 130, 150, 95, 125, 140, 70, 60, 65, 85, 85, 110, 115, 175, 175, 150, 95, 210)):
             if b:
                 self.tabelle.setColumnWidth(i, b)
         kopf_z.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -507,6 +515,8 @@ class MeterpreisDialog(QDialog):
         ziel = DOPPELKLICK[c][0]
         if ziel.startswith("abmessung"):
             return self.abmessung(r, ziel.split(":")[1])
+        if ziel == "lieferanten":
+            return self.lieferantenvergleich(r)
         return self.preis(r) if ziel == "preis" else self.profil(r)
 
     def abmessung(self, r, fokus="stangen"):
@@ -571,6 +581,23 @@ class MeterpreisDialog(QDialog):
             return {s: g["lieferzeit"] for s, g in mp.erp_gruppen(db).items() if g.get("lieferzeit")}
         except Exception:           # noqa: BLE001  (Anzeige: nie das Fenster verhindern)
             return {}
+
+    def _lieferant(self, g):
+        """Lieferantenvorschlag für die Abmessung zum Bedarf laut Schnittplan (ohne Plan: Meter der Teile): dict mit
+        lieferant, preis_m, begruendung oder None. Nur Anzeige, ändert nichts am Angebot."""
+        db = getattr(self.seite, "db", None)
+        if db is None:
+            return None
+        try:
+            from . import material_stamm as ms
+            from . import materialplattform as mp
+            if not hasattr(self, "_lieferanten_zeilen"):
+                self._lieferanten_zeilen = db.zeilen(mp.LIEFERANTEN_TABELLE)
+            kgm = mp.kg_je_m(self.k.profile.get(g["profil"]) or {}, self.k.werkstoffe.get(g["werkstoff"]) or {})
+            return ms.lieferant_vorschlag(self._lieferanten_zeilen, g["profil"], g["werkstoff"], kgm,
+                                          g.get("meter") or g.get("teile_m") or 30.0)
+        except Exception:           # noqa: BLE001  (Anzeige: nie das Fenster verhindern)
+            return None
 
     def _erp_feld(self, r, g):
         """Spalte ERP-Vorschlag: Kauf aus dem ERP-Einkauf zum Bedarf dieser Abmessung (erp_preise.angebot_vorschlag).

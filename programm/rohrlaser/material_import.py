@@ -214,9 +214,11 @@ def _profil(text, form, a, b, wand, k):
     return None, None
 
 
-def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=None, heute=None):
+def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=None, heute=None, hand=None):
     """Vorschau: [dict(zeile, gruppe, materialnr, bezeichnung, profil_id, profil_neu, werkstoff_id, werkstoff_neu,
-    oberflaeche, basis, preis, preis_m, alt_m, pct, laenge, lieferant, gueltig_ab, hinweis, roh)]. Ändert nichts."""
+    oberflaeche, basis, preis, preis_m, alt_m, pct, laenge, lieferant, gueltig_ab, hinweis, roh)]. Ändert nichts.
+    hand = {Dateizeile: dict(profil_id, werkstoff_id, oberflaeche)}: in der Vorschau von Hand zugeordnete Zeilen
+    (Ausbau 1.3); sie gehen vor jeder Erkennung und tragen hand=True."""
     from . import erp_anlegen
     heute = heute or datetime.date.today()
     k = db.kontext()
@@ -280,7 +282,11 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
             w = None
         merk = gemerkt.get(e["materialnr"]) if e["materialnr"] else None
         quelle = "Zuordnung der Artikelnummer gemerkt"
-        if not (merk and merk.get("profil_id") in k.profile and merk.get("werkstoff_id") in k.werkstoffe):
+        von_hand = (hand or {}).get(n)
+        if von_hand and von_hand.get("profil_id") in k.profile and von_hand.get("werkstoff_id") in k.werkstoffe:
+            merk, quelle = von_hand, "in der Vorschau von Hand zugeordnet"
+            e["hand"] = True
+        elif not (merk and merk.get("profil_id") in k.profile and merk.get("werkstoff_id") in k.werkstoffe):
             merk = None
             for nr in (e["materialnr"], e["bestellnr"]):
                 if nr and nummern.get(str(nr).strip()):
@@ -365,6 +371,52 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
         else:
             e["gruppe"] = GLEICH
     return out
+
+
+def hand_merken(db, posten, gruppen=None):
+    """Von Hand zugeordnete Zeilen mit Artikelnummer als ERP-Zuordnung merken (erp_zuordnung): der nächste Import
+    und der EK-Import erkennen den Artikel dann von selbst. gruppen: nur Zeilen dieser Gruppen (None = alle).
+    Ergebnis: Anzahl gemerkter Artikel."""
+    n = 0
+    for e in posten:
+        if not e.get("hand") or not e.get("materialnr") or (gruppen is not None and e["gruppe"] not in gruppen):
+            continue
+        erp_preise.zuordnung_merken(db, erp_preise.schluessel(e["materialnr"], e["bezeichnung"]), e["materialnr"],
+                                    e["bezeichnung"], e["profil_id"], e["werkstoff_id"], e.get("oberflaeche") or "")
+        n += 1
+    return n
+
+
+def auswirkung(db, posten, gruppen=AUSFUEHRBAR):
+    """Auswirkung des Imports auf offene Angebote (Ausbau 2.5): Angebote ohne festgeschriebene Preise, die ein
+    Material mit geändertem Preis verwenden und keinen eigenen Meterpreis an der Position haben; sie rechnen nach
+    der Übernahme mit dem neuen Preis. Festgeschriebene Angebote ändern sich nie. Ergebnis: [dict(angebot_id,
+    nummer, kunde, positionen, materialien [(Profil, Werkstoff, alt €/m, neu €/m, %)])], nach Nummer. Ändert nichts."""
+    neu = {}
+    for e in posten:
+        if e["gruppe"] in gruppen and e.get("alt_m") and e.get("preis_m") and abs(e["preis_m"] - e["alt_m"]) >= 0.005:
+            neu[(e["profil_id"], e["werkstoff_id"])] = (e["alt_m"], e["preis_m"], e.get("pct"))
+    if not neu:
+        return []
+    out = {}
+    try:
+        zeilen = db.con.execute(
+            "SELECT a.id, a.nummer, a.kunde, p.profil_id, p.werkstoff_id, COUNT(*) FROM positionen p "
+            "JOIN angebote a ON a.id = p.angebot_id WHERE a.preisbasis IS NULL AND p.profil_id IS NOT NULL "
+            "AND p.werkstoff_id IS NOT NULL AND p.preis_m IS NULL "
+            "GROUP BY a.id, a.nummer, a.kunde, p.profil_id, p.werkstoff_id").fetchall()
+    except Exception:           # noqa: BLE001  (nur Anzeige: nie die Vorschau verhindern)
+        from . import protokoll
+        protokoll.warnung("Materialimport: Auswirkung auf offene Angebote nicht lesbar")
+        return []
+    for aid, nummer, kunde, pid, wid, anzahl in zeilen:
+        if (pid, wid) not in neu:
+            continue
+        z = out.setdefault(aid, dict(angebot_id=aid, nummer=nummer or "", kunde=kunde or "", positionen=0,
+                                     materialien=[]))
+        z["positionen"] += int(anzahl or 0)
+        z["materialien"].append((pid, wid) + neu[(pid, wid)])
+    return sorted(out.values(), key=lambda z: str(z["nummer"]))
 
 
 def zaehlen(posten):

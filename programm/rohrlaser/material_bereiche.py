@@ -386,9 +386,11 @@ class ImportSeite(QWidget):
         return stamm_import(self.seite, pfad, **kw)
 
 
-def stamm_import(seite, pfad=None, uebernehmen=None, spalten=None, einheit=None, lieferant=None, profil_name=None):
+def stamm_import(seite, pfad=None, uebernehmen=None, spalten=None, einheit=None, lieferant=None, profil_name=None,
+                 hand=None, vorschau=None):
     """Materialstamm/EK-Preise aus dem ERP: Datei lesen, Spalten zuordnen (Importprofil), Vorschau, übernehmen.
-    uebernehmen/spalten/... für Tests ohne Dialog. Ergebnis: dict(posten, erg) oder None."""
+    uebernehmen/spalten/... für Tests ohne Dialog; hand = von Hand zugeordnete Zeilen (mi.analysieren), vorschau(v)
+    bedient das Vorschau-Fenster statt exec (True = Übernehmen). Ergebnis: dict(posten, erg) oder None."""
     if pfad is None:
         if getattr(seite.f, "stumm", False):
             return None
@@ -405,7 +407,7 @@ def stamm_import(seite, pfad=None, uebernehmen=None, spalten=None, einheit=None,
     sp = spalten or (prof or {}).get("spalten") or mi.spalten_vorschlag(daten["kopf"])
     einheit = einheit or (prof or {}).get("einheit") or "€/m"
     lieferant = lieferant if lieferant is not None else (prof or {}).get("lieferant") or None
-    stumm = getattr(seite.f, "stumm", False) or uebernehmen is not None
+    stumm = getattr(seite.f, "stumm", False) or uebernehmen is not None or vorschau is not None
     if not stumm:
         d = SpaltenDialog(seite, daten, sp, einheit, lieferant, name)
         if d.exec() != QDialog.Accepted:
@@ -416,12 +418,14 @@ def stamm_import(seite, pfad=None, uebernehmen=None, spalten=None, einheit=None,
         return None
     if profil_name:
         mi.profil_speichern(seite.db, profil_name, daten["kopf"], sp, einheit, lieferant)
-    posten = mi.analysieren(seite.db, daten, sp, einheit, lieferant)
-    if stumm:
+    def rechnen_neu(h=None):
+        return mi.analysieren(seite.db, daten, sp, einheit, lieferant, hand=h or hand)
+    posten = rechnen_neu()
+    if stumm and vorschau is None:
         gruppen = uebernehmen if uebernehmen is not None else mi.AUSFUEHRBAR
     else:
-        v = VorschauDialog(seite, posten)
-        if v.exec() != QDialog.Accepted:
+        v = VorschauDialog(seite, posten, rechnen_neu)
+        if not (vorschau(v) if vorschau else v.exec() == QDialog.Accepted):
             return dict(posten=posten, erg=None)
         gruppen = v.gruppen()
     if not any(e["gruppe"] in gruppen for e in posten):
@@ -435,6 +439,8 @@ def stamm_import(seite, pfad=None, uebernehmen=None, spalten=None, einheit=None,
     except mi.ImportFehler as e:
         seite.f.meldung(str(e), fehler=True)
         return dict(posten=posten, erg=None)
+    gemerkt = mi.hand_merken(seite.db, posten, gruppen)     # von Hand zugeordnete Artikel beim nächsten Mal erkennen
+    erg["gemerkt"] = gemerkt
     f = seite.window()
     f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else None
     seite.neu_laden(erzwingen=True)
@@ -507,42 +513,52 @@ class SpaltenDialog(QDialog):
 
 
 class VorschauDialog(QDialog):
-    """Vorschau vor dem Import: je Gruppe Anzahl und Zeilen; Haken, welche Gruppen übernommen werden."""
+    """Vorschau vor dem Import: je Gruppe Anzahl und Zeilen; Haken, welche Gruppen übernommen werden. Zeilen, die
+    das Programm nicht zuordnen konnte, lassen sich hier von Hand einem Profil und Werkstoff zuordnen (neu(hand)
+    rechnet die Vorschau neu); unten steht, welche offenen Angebote nach der Übernahme anders rechnen."""
+    KOPF = ["Zeile", "Materialnr.", "Bezeichnung", "Profil", "Werkstoff", "Oberfläche", "Basis", "Preis", "€/m neu",
+            "€/m bisher", "Änderung %", "Lieferant", "Gültig ab", "Hinweis"]
 
-    def __init__(self, seite, posten):
+    def __init__(self, seite, posten, neu=None):
         super().__init__(seite)
         self.setWindowTitle("ERP-Import: Vorschau")
-        self.posten = posten
+        self.seite, self.posten, self.neu, self.hand = seite, posten, neu, {}
         lay = QVBoxLayout(self)
-        z = mi.zaehlen(posten)
         k = QHBoxLayout()
         self.haken = {}
         for g in mi.GRUPPEN:
-            cb = QCheckBox(f"{g} ({z[g]})")
-            cb.setChecked(g in mi.AUSFUEHRBAR and z[g] > 0)
-            cb.setEnabled(g in mi.AUSFUEHRBAR and z[g] > 0)
-            cb.setToolTip("übernehmen" if g in mi.AUSFUEHRBAR else "wird nicht übernommen (nur angezeigt)")
+            cb = QCheckBox(g)
             cb.toggled.connect(lambda *_: self._zaehlen())
             self.haken[g] = cb
             k.addWidget(cb)
         k.addStretch(1)
         lay.addLayout(k)
         self.reiter = QTabWidget()
+        self.tabellen = {}
         for g in mi.GRUPPEN:
-            t = _tabelle(["Zeile", "Materialnr.", "Bezeichnung", "Profil", "Werkstoff", "Oberfläche", "Basis",
-                          "Preis", "€/m neu", "€/m bisher", "Änderung %", "Lieferant", "Gültig ab", "Hinweis"])
-            _fuellen(t, [(e["zeile"], e["materialnr"], e["bezeichnung"], e.get("profil_id") or "",
-                          e.get("werkstoff_id") or "", e.get("oberflaeche") or "", e.get("basis") or "",
-                          _z(e.get("preis"), 4), _z(e.get("preis_m")), _z(e.get("alt_m")),
-                          _pct(e.get("pct")), e.get("lieferant") or "",
-                          e.get("gueltig_ab") or "", "; ".join(e["hinweis"])) for e in posten if e["gruppe"] == g])
-            self.reiter.addTab(t, f"{g} ({z[g]})")
+            t = _tabelle(self.KOPF)
+            t.itemSelectionChanged.connect(lambda: self._knoepfe())
+            self.tabellen[g] = t
+            self.reiter.addTab(t, g)
+        self.reiter.currentChanged.connect(lambda *_: self._knoepfe())
         lay.addWidget(self.reiter, 1)
+        self.auswirkung_text = QLabel()
+        self.auswirkung_text.setWordWrap(True)
+        lay.addWidget(self.auswirkung_text)
         u = QHBoxLayout()
-        exp = QPushButton("Fehlerhafte Zeilen exportieren …")
-        exp.clicked.connect(lambda: self.fehler_exportieren())
-        exp.setEnabled(z[mi.FEHLER] + z[mi.OFFEN] + z[mi.DOPPELT] > 0)
-        u.addWidget(exp)
+        self.zuordnen_knopf = QPushButton("Zuordnen …")
+        self.zuordnen_knopf.setToolTip("Markierte Zeile aus „nicht zuordenbar“ oder „fehlerhaft“ von Hand einem Profil "
+                                       "und Werkstoff zuordnen; die Vorschau rechnet neu, und die Artikelnummer wird "
+                                       "beim Übernehmen gemerkt")
+        self.zuordnen_knopf.clicked.connect(lambda: self.zuordnen())
+        u.addWidget(self.zuordnen_knopf)
+        self.exp = QPushButton("Fehlerhafte Zeilen exportieren …")
+        self.exp.clicked.connect(lambda: self.fehler_exportieren())
+        u.addWidget(self.exp)
+        self.auswirkung_knopf = QPushButton("Betroffene Angebote …")
+        self.auswirkung_knopf.setToolTip("Offene Angebote, die nach der Übernahme mit dem neuen Preis rechnen")
+        self.auswirkung_knopf.clicked.connect(lambda: self.auswirkung_zeigen())
+        u.addWidget(self.auswirkung_knopf)
         self.text = QLabel()
         u.addWidget(self.text, 1)
         lay.addLayout(u)
@@ -553,8 +569,125 @@ class VorschauDialog(QDialog):
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
         lay.addWidget(bb)
-        self.resize(1250, 640)
+        self.resize(1250, 680)
+        self._fuellen(erst=True)
+
+    def _fuellen(self, erst=False):
+        """Gruppen, Tabellen und Zähler aus self.posten; beim ersten Mal sind alle übernehmbaren Gruppen angehakt,
+        danach bleiben die Haken (eine neu gefüllte Gruppe wird angehakt)."""
+        z = mi.zaehlen(self.posten)
+        for i, g in enumerate(mi.GRUPPEN):
+            cb = self.haken[g]
+            geht = g in mi.AUSFUEHRBAR and z[g] > 0
+            war = cb.isEnabled()
+            cb.blockSignals(True)
+            cb.setText(f"{g} ({z[g]})")
+            cb.setChecked(geht and (erst or cb.isChecked() or not war))
+            cb.setEnabled(geht)
+            cb.setToolTip("übernehmen" if g in mi.AUSFUEHRBAR else "wird nicht übernommen (nur angezeigt)")
+            cb.blockSignals(False)
+            zeilen = [e for e in self.posten if e["gruppe"] == g]
+            _fuellen(self.tabellen[g], [(e["zeile"], e["materialnr"], e["bezeichnung"], e.get("profil_id") or "",
+                                         e.get("werkstoff_id") or "", e.get("oberflaeche") or "", e.get("basis") or "",
+                                         _z(e.get("preis"), 4), _z(e.get("preis_m")), _z(e.get("alt_m")),
+                                         _pct(e.get("pct")), e.get("lieferant") or "",
+                                         e.get("gueltig_ab") or "", "; ".join(e["hinweis"])) for e in zeilen])
+            self.reiter.setTabText(i, f"{g} ({z[g]})")
+        self.exp.setEnabled(z[mi.FEHLER] + z[mi.OFFEN] + z[mi.DOPPELT] > 0)
         self._zaehlen()
+        self._knoepfe()
+
+    def _markiert(self):
+        """Markierter Posten des offenen Reiters oder None."""
+        g = mi.GRUPPEN[self.reiter.currentIndex()]
+        r = self.tabellen[g].currentRow()
+        zeilen = [e for e in self.posten if e["gruppe"] == g]
+        return zeilen[r] if 0 <= r < len(zeilen) else None
+
+    def _knoepfe(self):
+        e = self._markiert()
+        self.zuordnen_knopf.setEnabled(self.neu is not None and e is not None and e.get("preis") is not None
+                                       and (e["gruppe"] == mi.OFFEN or e.get("hand")))
+
+    def zuordnen(self, zeile=None, profil_id=None, werkstoff_id=None, oberflaeche=""):
+        """Zeile von Hand zuordnen: ohne Angaben fragt ein Fenster nach Profil und Werkstoff (Werkstoffe, die der
+        Materialstamm für das Profil kennt, stehen oben). Danach rechnet die Vorschau neu. Ergebnis: True/False."""
+        e = self._markiert() if zeile is None else next((x for x in self.posten if x["zeile"] == zeile), None)
+        if e is None or self.neu is None:
+            return False
+        if profil_id is None:
+            wahl = self._zuordnung_fragen(e)
+            if wahl is None:
+                return False
+            profil_id, werkstoff_id, oberflaeche = wahl
+        self.hand[e["zeile"]] = dict(profil_id=profil_id, werkstoff_id=werkstoff_id, oberflaeche=oberflaeche or "")
+        self.posten[:] = self.neu(self.hand)
+        self._fuellen()
+        return True
+
+    def _zuordnung_fragen(self, e):
+        k = self.seite.db.kontext()
+        d = QDialog(self)
+        d.setWindowTitle("ERP-Import: Zeile zuordnen")
+        lay = QVBoxLayout(d)
+        info = QLabel(f"<b>Zeile {e['zeile']}</b>: {e.get('materialnr') or ''} {e.get('bezeichnung') or ''}<br>"
+                      + "; ".join(e["hinweis"]))
+        info.setWordWrap(True)
+        lay.addWidget(info)
+        form = QFormLayout()
+        pr = QComboBox()
+        pr.setEditable(True)
+        pr.addItems(sorted(k.profile))
+        pr.setCurrentText(e.get("profil_id") if e.get("profil_id") in k.profile else "")
+        ws = QComboBox()
+        ob = QComboBox()
+        ob.addItems([""] + sorted(k.oberflaechen))
+        ob.setCurrentText(e.get("oberflaeche") or "")
+
+        def werkstoffe(*_):
+            jetzt = ws.currentText() or e.get("werkstoff_id") or ""
+            oben = [w["werkstoff_id"] for w in ms.werkstoffe_fuer(pr.currentText(), self.seite.db.zeilen(ms.STAMM), k)]
+            ws.clear()
+            ws.addItems(oben + [w for w in sorted(k.werkstoffe) if w not in oben])
+            ws.setCurrentIndex(ws.findText(jetzt) if jetzt in k.werkstoffe else -1)     # Werkstoff nie raten
+        pr.currentTextChanged.connect(werkstoffe)
+        werkstoffe()
+        form.addRow("Profil", pr)
+        form.addRow("Werkstoff", ws)
+        form.addRow("Oberfläche", ob)
+        lay.addLayout(form)
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.button(QDialogButtonBox.Ok).setText("Zuordnen")
+        bb.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+        bb.accepted.connect(d.accept)
+        bb.rejected.connect(d.reject)
+        lay.addWidget(bb)
+        d.resize(520, 220)
+        while d.exec() == QDialog.Accepted:
+            if pr.currentText() in k.profile and ws.currentText() in k.werkstoffe:
+                return pr.currentText(), ws.currentText(), ob.currentText()
+            self.seite.f.meldung("Bitte ein vorhandenes Profil und einen Werkstoff wählen.", fehler=True)
+        return None
+
+    def auswirkung(self):
+        return mi.auswirkung(self.seite.db, self.posten, self.gruppen())
+
+    def auswirkung_zeigen(self):
+        """Liste der offenen Angebote, die nach der Übernahme anders rechnen (nur Anzeige)."""
+        d = QDialog(self)
+        d.setWindowTitle("ERP-Import: betroffene offene Angebote")
+        lay = QVBoxLayout(d)
+        t = _tabelle(["Angebot", "Kunde", "Positionen", "Material", "€/m bisher", "€/m neu", "Änderung %"])
+        _fuellen(t, [(a["nummer"], a["kunde"], a["positionen"], f"{pid} · {wid}", _z(alt), _z(neu_), _pct(pct))
+                     for a in self.auswirkung() for pid, wid, alt, neu_, pct in a["materialien"]])
+        lay.addWidget(t)
+        lay.addWidget(QLabel("Festgeschriebene Angebote und Positionen mit eigenem Meterpreis ändern sich nicht."))
+        bb = QDialogButtonBox(QDialogButtonBox.Close)
+        bb.button(QDialogButtonBox.Close).setText("Schließen")
+        bb.rejected.connect(d.reject)
+        lay.addWidget(bb)
+        d.resize(900, 420)
+        d.exec()
 
     def gruppen(self):
         return tuple(g for g, cb in self.haken.items() if cb.isChecked())
@@ -563,6 +696,15 @@ class VorschauDialog(QDialog):
         n = sum(1 for e in self.posten if e["gruppe"] in self.gruppen())
         self.text.setText(f"{n} Zeilen werden übernommen. Vorher wird gesichert; der Lauf lässt sich zurücknehmen.")
         self.ok.setEnabled(n > 0)
+        aw = self.auswirkung()
+        self.auswirkung_knopf.setEnabled(bool(aw))
+        self.auswirkung_text.setVisible(bool(aw))
+        if aw:
+            nummern = ", ".join(str(a["nummer"]) for a in aw[:6]) + (" …" if len(aw) > 6 else "")
+            self.auswirkung_text.setText(
+                f"<b>Auswirkung:</b> {len(aw)} offene" + ("s Angebot rechnet" if len(aw) == 1 else " Angebote rechnen")
+                + f" nach der Übernahme mit neuen Materialpreisen ({nummern}). Festgeschriebene Angebote bleiben "
+                "unverändert.")
 
     def fehler_exportieren(self, pfad=None):
         if pfad is None:
