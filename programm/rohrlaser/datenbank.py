@@ -34,7 +34,7 @@ from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, rahmenauftrag, reklamation, step_pruefung
 from . import kunden_daten
-from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, ki_protokoll, lst_lernen, lst_vergleich, onlinepreise, pg_lokal, produktion_lst, teilen, vollmaterial, zukauf
+from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, ki_protokoll, material_import, lst_lernen, lst_vergleich, onlinepreise, pg_lokal, produktion_lst, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -51,7 +51,7 @@ from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VO
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 102    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 103    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -212,6 +212,10 @@ SCHEMA_VERSION = 102    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #      Status, Gruppe, Ort, USt-ID, Kreditlimit, Notizen, Archiv …), Tabellen
                         #      kunden_ansprechpartner, kunden_adressen, kunden_historie (geteilt), angebote.kunde_ansprech,
                         #      kunde_ansprech_uid, liefer_uid, lieferadresse; Altdaten einmalig übernommen (migrieren)
+                        # 103: Materialplattform (23.11.2026): Tabelle material_lieferanten (mehrere Lieferanten je
+                        #      Material, Staffel/VE/bevorzugt), Spalte archiviert in profile und werkstoffe, Tabelle
+                        #      materialstamm (Abmessung × Werkstoff mit Materialnummer, einmalig aus dem Bestand),
+                        #      material_importe/material_import_posten (ERP-Import mit Rückgängig, nur dieser PC)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -450,6 +454,7 @@ class Datenbank:
             self._normprofile_anpassen()
             self._passwort_umstellen()
             self._preise_merken()
+            self._materialstamm_ergaenzen()
         finally:
             if sperre:
                 self.con.commit()
@@ -754,6 +759,7 @@ class Datenbank:
             onlinepreise.einrichten(self.con)
             produktion_lst.einrichten(self.con)        # Lernsystem L1: Produktionsdaten aus TRUMPF-LST
             ki_protokoll.einrichten(self.con)
+            material_import.einrichten(self.con)       # ERP-Materialimport: Läufe und Posten (Rückgängig)
             for t in kunden_daten.TABELLEN:          # Kundenverwaltung: Suche je Kunde
                 self.con.execute(f'CREATE INDEX IF NOT EXISTS "{t.name}_kunde" ON "{t.name}" (kundennr)')
             kunden_daten.migrieren(self)            # einmalig: PLZ/Ort, Status, Ansprechpartner aus den Altdaten
@@ -763,6 +769,27 @@ class Datenbank:
         if db_verbindung.ist_sqlite(self.con):     # PostgreSQL prüft Fremdschlüssel immer
             self.con.execute("PRAGMA foreign_keys=ON")
         self._stand_einrichten()
+
+    def _materialstamm_ergaenzen(self):
+        """Einmalig (Materialdatenbank 23.11.2026): vorhandene Kombinationen Profil × Werkstoff in den Materialstamm,
+        damit nach dem Update nichts fehlt. Im Lesemodus nicht; ein Fehler bricht das Öffnen nie ab."""
+        from . import material_stamm
+        if getattr(self, "nur_lesen", False) or self.einstellung("materialstamm_stand") == material_stamm.STAND:
+            return
+        # die Übernahme ist keine Änderung von Hand: Herkunft/Stand der Stammdaten bleiben (Beispieldaten bleiben
+        # Beispieldaten, sonst ersetzt das nächste Update z. B. die Beispiel-Schneiddaten nicht mehr)
+        merker = {n: self.einstellung(n) for n in ("stammdaten_herkunft", "stammdaten_stand")}
+        try:
+            material_stamm.ergaenzen(self)
+            self.einstellung_setzen("materialstamm_stand", material_stamm.STAND)
+        except Exception:       # noqa: BLE001
+            from . import protokoll
+            protokoll.warnung("Materialstamm: Übernahme aus dem Bestand nicht möglich")
+        finally:
+            if any(self.einstellung(n) != w for n, w in merker.items()):
+                with self.con:
+                    for n, w in merker.items():
+                        self._einstellung_schreiben(n, w)
 
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)

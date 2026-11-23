@@ -2494,6 +2494,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.material_knopf = QPushButton("Material …")
         self.material_knopf.setToolTip("Materialeinsatz je Abmessung; Werkstoff, Oberfläche, Lieferlänge, Material und "
                                        "Meterpreis ändern")
+        # Patrick 23.11.2026: der Knopf öffnet weiter direkt das Fenster; Materialdatenbank, Zuweisen und
+        # Lieferantenvergleich stehen im Fenster selbst (meterpreis_dialog.py)
         self.material_knopf.clicked.connect(lambda: self.material_einstellen())
         leiste.addWidget(self.material_knopf)
         ansicht = QPushButton("3D-Ansicht …")
@@ -2663,6 +2665,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 ("Schweißnaht …", lambda: self.schweissnaht(), ""),
                 ("Zusatzarbeiten …", lambda: self.zusatzarbeiten(), ""),
                 ("Material …", lambda: self.material_einstellen(), ""),
+                ("Material suchen und zuweisen …", lambda: self.material_plattform(), ""),
                 ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen(), ""),
                 ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen(), ""),
                 ("STEP-Merkmale prüfen …", lambda: self.step_merkmale_pruefen(), ""),
@@ -7113,7 +7116,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
     MENUE_ARTEN = {"Schneidweg berechnen …": {"rohr"}, "Blech-Editor …": {"blech"},
                    "Richtpreis Dreh-/Frästeil …": {"drehfraes"},
                    "Art ändern (Blech / Rohr / Dreh-/Frästeil) …": {"rohr", "blech", "drehfraes", "zukauf"},
-                   "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"},
+                   "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"}, "Material suchen und zuweisen …": {"rohr"},
                    "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"},
                    "STEP-Merkmale prüfen …": {"rohr"}, "Wandstärke ändern …": {"rohr"},
                    "Ähnliche Teile und Revisionen …": {"rohr"}}
@@ -7194,6 +7197,35 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             d.blaettern_knoepfe[schritt] = b
         d.setWindowTitle(f"{d.windowTitle()} – Pos. {p.get('pos') or ''} ({i + 1} von {len(reihe)})")
         return reihe
+
+    def material_plattform(self):
+        """Seite Material zeigen, gefiltert auf die Profilart der markierten Position und mit deren Material markiert;
+        dort „Den markierten Positionen des offenen Angebots zuweisen“ (Materialplattform 23.11.2026)."""
+        zeilen = self._markierte_zeilen()
+        p = self.positionen[zeilen[0]] if zeilen else None
+        if hasattr(self.f, "material_zeigen"):
+            return self.f.material_zeigen(p, self)
+        return None
+
+    def material_bereich(self, name):
+        """Seite Material mit diesem Bereich der Materialdatenbank zeigen (Menü „Material …“)."""
+        if not hasattr(self.f, "material_zeigen"):
+            return None
+        m = self.f.material_zeigen(None, self)
+        from . import material_bereiche
+        material_bereiche.bereich_zeigen(m, name)
+        return m
+
+    def material_lieferanten(self, bedarf=None, frage=True):
+        """Lieferantenvergleich für das Material der markierten Position (Bedarf in m wird gefragt)."""
+        zeilen = self._markierte_zeilen()
+        p = self.positionen[zeilen[0]] if zeilen else None
+        if not p or not p.get("profil_id") or not p.get("werkstoff_id") or not hasattr(self.f, "material"):
+            self.f.meldung("Bitte zuerst eine Rohr-Position mit Profil und Werkstoff markieren.")
+            return None
+        from . import material_bereiche
+        return material_bereiche.lieferantenvergleich(self.f.material, p["profil_id"], p["werkstoff_id"], bedarf,
+                                                      frage=frage)
 
     def _pos_menue_anpassen(self):
         """Rechtsklick-Menü passend zu den markierten Positionen (B5)."""
@@ -10476,6 +10508,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in importprofil.EINSTELLUNGEN})
         from . import step_material         # Werkstoff aus den Material-Einträgen der STEP als Vorschlag (Paket 2)
         step_material.anwenden(messwerte, self.k.werkstoffe, werkstoff)
+        if werkstoff == self.db.einstellung("step_werkstoff") and not vorgaben.get("werkstoff") \
+                and self.db.einstellung("erp_werkstoff_vorwahl") != "nein":
+            # Patrick 23.11.2026: Werkstoff je Profil nach dem EK vorwählen (Mail und Importprofil des Kunden gehen vor)
+            from . import erp_anlegen
+            erp_anlegen.vorauswahl(messwerte, self.k.profile, erp_anlegen.werkstoff_je_profil(self.db), werkstoff,
+                                   stamm=self.db.zeilen("materialstamm"), k=self.k)
         if "anbau_weglassen" in vorgaben:
             for m in messwerte:
                 m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])

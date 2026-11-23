@@ -40,7 +40,8 @@ assert sum(len(a.namen) for a in ordnung.SEITEN[0].abschnitte) <= 34      # Funk
 doppelt = [n for n in auf_seiten if len(ordnung.seiten_von(n)) > 1]
 assert sorted(doppelt) == sorted(funktionen.VORHANDEN), doppelt         # Schalter: Funktionen und beim Thema
 arbeitsplatz = {n for k in ("e_arbeitsplatz", "e_navigation", "e_kanten3d") for a in ordnung.SEITE[k].abschnitte for n in a.namen}
-assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "auftrag_letzte_nummer", "csv_ordner", "auftrag_schritte"}, arbeitsplatz ^ LOKAL
+assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "auftrag_letzte_nummer", "csv_ordner", "auftrag_schritte",
+                                "material_favoriten"}, arbeitsplatz ^ LOKAL
 ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 28 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ und „3D-Navigation“ = nur lokale")
 
 assert ordnung.kurztitel(EINSTELLUNG["laenge_mindest_eur"]) == "Mindestersparnis je Gruppe in €"

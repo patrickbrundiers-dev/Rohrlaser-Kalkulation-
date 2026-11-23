@@ -26,6 +26,7 @@ PFADE = {
     "zusatz": "<path d='M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z'/>",
     "zukauf": "<circle cx='9' cy='20' r='1.5'/><circle cx='18' cy='20' r='1.5'/><path d='M2 3h3l2.7 12h11l2-8H6.3'/>",
     "material": "<path d='M12 3l9 5-9 5-9-5z'/><path d='M3 13l9 5 9-5'/>",
+    "materialstamm": "<rect x='3' y='6' width='18' height='12' rx='1.5'/><rect x='6.5' y='9.5' width='11' height='5' rx='.8'/>",
     "ansicht3d": "<path d='M12 3l8 4.5v9L12 21l-8-4.5v-9z'/><path d='M12 12l8-4.5M12 12v9'/><path d='M8 5.2l8 4.6'/>",
     "pdf": "<path d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'/><path d='M14 3v6h6M8 13h8M8 17h5'/>",
     "ausgaben": "<path d='M6 9V3h12v6'/><rect x='3' y='9' width='18' height='8' rx='2'/><path d='M7 14h10v7H7z'/>",

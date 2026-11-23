@@ -269,6 +269,18 @@ s = f.angebot_oeffnen(an)
 assert s.optimieren()
 erp = db.angebot(an)["erp_preise"]
 schl = rechnen.erp_schluessel("RR 42,4x2,0", "S235-10219", "")
+# Patrick 23.11.2026: direkt nur bei Kauf ≤ 4 Wochen mit passender Stangenzahl; der junge 6-m-Kauf ist ein Ausreißer
+assert schl in erp and not erp[schl]["direkt"] and "nur Vorschlag, nicht eingesetzt" in erp[schl]["bemerkung"], erp
+g0 = next(g for g in rechnen.material_abmessungen(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen)
+          if (g["profil"], g["werkstoff"]) == ("RR 42,4x2,0", "S235-10219"))
+assert g0["erp"] is None, "Vorschlag wird nicht eingerechnet"
+ok("Kauf älter als 4 Wochen: nur Vorschlag, das Angebot rechnet mit dem Stammdatenpreis")
+db.einstellung_setzen("erp_direkt_tage", 365)       # für die folgenden Prüfungen wie vorher: jeder Kauf im Jahr
+db.einstellung_setzen("erp_direkt_stangen", 100)
+s.optimieren()
+erp = db.angebot(an)["erp_preise"]
+assert erp[schl]["direkt"] and "direkt eingesetzt" in erp[schl]["bemerkung"], erp[schl]
+schl = rechnen.erp_schluessel("RR 42,4x2,0", "S235-10219", "")
 assert schl in erp and rechnen.erp_schluessel("RR 48,3x2,6", "S235-10219", "") not in erp, erp
 assert erp[schl]["bemerkung"].startswith("ERP-Preis vom ") and "Stangen à 6 m" in erp[schl]["bemerkung"], erp[schl]
 assert s.stand_optimierung() == "aktuell", "ERP-Preis ändert den Schnittplan nicht"

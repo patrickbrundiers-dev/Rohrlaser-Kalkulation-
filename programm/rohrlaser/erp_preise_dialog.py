@@ -235,7 +235,7 @@ class ErpPreiseDialog(QDialog):
         self.k, self.tabellen = self.db.kontext(), self.db.tabellen()
         e = self.db.einstellungen()
         self.kaeufe = E.gespeicherte(self.db)
-        self.artikel = E.artikel(self.kaeufe, E.zuordnungen(self.db), self.k)
+        self.artikel = E.artikel(self.kaeufe, E.zuordnungen(self.db), self.k, E.nummern_von(self.db))
         self.gruppen = E.auswerten(self.kaeufe, self.artikel, self.k, self.tabellen, self.heute,
                                    monate=e.get("erp_monate") or 12, grenze=e.get("erp_ausreisser") or 0.25)
         self._artikel_zeigen()
