@@ -13140,10 +13140,10 @@ def kapitel_stammdaten(i):
          "Welcher Arbeitsschritt mit welchem Stundensatz und welcher Zeitvorgabe gerechnet wird ([[stundensaetze]])."]],
         [30, 95, 140])
     i.abschnitt("Kunden", marke="kunden")
-    i.bild("kunden_uebersicht", "Reiter Kunden: Unterbereiche links, Kundenübersicht rechts", hoehe=100 * mm, legende=[
-        "Unterbereiche (auch im Menü <i>Kunden</i>)", "Live-Suche über Nummer, Firma, Ort, Ansprechpartner, Telefon, "
+    i.bild("kunden_uebersicht", "Reiter Kunden: Unterbereiche links, Kundenübersicht rechts", hoehe=100 * mm)
+    i.liste("Unterbereiche (auch im Menü <i>Kunden</i>)", "Live-Suche über Nummer, Firma, Ort, Ansprechpartner, Telefon, "
         "E-Mail und Gruppe", "Filter Status (und Gruppe daneben)", "Neuen Kunden anlegen", "Tabelle oder Karten",
-        "Übersicht: Doppelklick öffnet das Kundenprofil"])
+        "Übersicht: Doppelklick öffnet das Kundenprofil")
     i.text("Der Reiter <i>Kunden</i> und das Menü <b>Kunden</b> sind die Kundenverwaltung: <b>Kundenübersicht</b>, "
            "<b>Neuen Kunden anlegen</b>, <b>Kunden bearbeiten</b>, <b>Ansprechpartner</b>, <b>Kundenhistorie</b>, "
            "<b>Angebote</b> und <b>Aufträge des Kunden</b>, <b>Dokumente und Anhänge</b>, <b>Archivierte Kunden</b> "
@@ -13164,9 +13164,9 @@ def kapitel_stammdaten(i):
             "<b>Karten</b> zeigt dieselben Kunden als Kacheln mit Status-Farbe (grün aktiv, grau inaktiv, rot "
             "gesperrt); die Wahl merkt sich das Programm.")
     i.genauer("Kundenprofil")
-    i.bild("kunden_profil", "Kundenprofil mit Kennzahlen und acht Reitern", hoehe=95 * mm, legende=[
-        "Kennzahlen aus den echten Angeboten und Aufträgen (Klick springt zur Liste)", "Bearbeiten",
-        "Neues Angebot für diesen Kunden", "Reiter des Profils"])
+    i.bild("kunden_profil", "Kundenprofil mit Kennzahlen und acht Reitern", hoehe=95 * mm)
+    i.liste("Kennzahlen aus den echten Angeboten und Aufträgen (Klick springt zur Liste)", "Bearbeiten",
+        "Neues Angebot für diesen Kunden", "Reiter des Profils")
     i.liste("<b>Übersicht</b>: Gesamtumsatz (Verkaufspreis netto der beauftragten Angebote), Anzahl Angebote "
             "(ohne ersetzte Fassungen, auch die der Kollegen), Aufträge, Angebotsquote (beauftragt ÷ "
             "entschieden), letzter Auftrag, offene Angebote mit Wert, laufende Aufträge; darunter Anschrift, "
@@ -13188,9 +13188,9 @@ def kapitel_stammdaten(i):
             "<b>Notizen speichern</b> (erscheinen nicht im Angebot; die Preisvereinbarung steht als Hinweis im "
             "Profil).")
     i.genauer("Neuen Kunden anlegen und Dubletten")
-    i.bild("kunden_formular", "Eingabemaske in vier Schritten mit Dublettenwarnung", hoehe=80 * mm, legende=[
-        "Schritte: Allgemein und Anschrift, Ansprechpartner, Kaufmännisch und Konditionen, Notizen und Hinweise",
-        "Mögliche Dublette (Klick öffnet den vorhandenen Kunden)", "Kunde anlegen"])
+    i.bild("kunden_formular", "Eingabemaske in vier Schritten mit Dublettenwarnung", hoehe=80 * mm)
+    i.liste("Schritte: Allgemein und Anschrift, Ansprechpartner, Kaufmännisch und Konditionen, Notizen und Hinweise",
+        "Mögliche Dublette (Klick öffnet den vorhandenen Kunden)", "Kunde anlegen")
     i.liste("Die <b>Kundennummer</b> gibst du bei jedem neuen Kunden <b>von Hand</b> ein, sie ist Pflichtfeld. "
             "Das Feld zeigt als Hilfe die zuletzt vergebene Nummer (z. B. <i>zuletzt vergeben K-1002</i>). Eine "
             "schon vergebene Nummer lehnt die Maske ab. Auch beim Duplizieren fragt das Programm nach der Nummer "
