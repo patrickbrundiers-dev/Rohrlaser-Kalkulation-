@@ -1540,7 +1540,7 @@ def kapitel_angebote(i):
             "<b>Sammelpostfach des Kunden</b> (info@kunde.de): Der Kunde wird erkannt, ein Ansprechpartner aber "
             "nicht gesetzt.",
             "<b>Korrigieren</b>: <i>Kunde ändern …</i> (Suche, mit <i>Als Regel merken</i>), <i>Neuen Kunden anlegen "
-            "…</i> (zeigt vorher passende vorhandene Kunden, legt mit Bemerkung „Kunde prüfen“ an), "
+            "…</i> (zeigt vorher passende vorhandene Kunden, öffnet die Eingabemaske vorbelegt, Kundennummer von Hand), "
             "<i>Ansprechpartner …</i>, <i>Absender korrigieren …</i>, <i>Angebot verknüpfen …</i>, "
             "<i>Intern (ohne Kunde)</i> und <i>Zurücksetzen</i> (wieder wie beim Eingang erkannt). Den Mitarbeiter "
             "wählst du wie bisher mit Zuweisen bzw. Übernehmen. Jede Änderung steht mit Kürzel und Zeit im Verlauf. "
@@ -13154,11 +13154,11 @@ def kapitel_stammdaten(i):
     i.bild("kunden_formular", "Eingabemaske in vier Schritten mit Dublettenwarnung", hoehe=80 * mm, legende=[
         "Schritte: Allgemein und Anschrift, Ansprechpartner, Kaufmännisch und Konditionen, Notizen und Hinweise",
         "Mögliche Dublette (Klick öffnet den vorhandenen Kunden)", "Kunde anlegen"])
-    i.liste("Die <b>Kundennummer</b> vergibt das Programm, wenn sie leer bleibt: im Schema der vorhandenen Nummern "
-            "(nach K-1002 kommt K-1003; ohne Kunden 10001), änderbar mit den Einstellungen "
-            "<i>kunden_nummer_praefix</i> und <i>kunden_nummer_start</i>. Mit gemeinsamem Ordner "
-            "wird die Nummer dort reserviert, damit zwei Plätze nie dieselbe Nummer vergeben. Ist der Ordner nicht "
-            "erreichbar, fragt das Programm nach einer Nummer.",
+    i.liste("Die <b>Kundennummer</b> gibst du bei jedem neuen Kunden <b>von Hand</b> ein, sie ist Pflichtfeld. "
+            "Das Feld zeigt als Hilfe die zuletzt vergebene Nummer (z. B. <i>zuletzt vergeben K-1002</i>). Eine "
+            "schon vergebene Nummer lehnt die Maske ab. Auch beim Duplizieren fragt das Programm nach der Nummer "
+            "der Kopie. Kommt eine Anfrage von einem unbekannten Absender, legt das Programm keinen Kunden "
+            "automatisch an: Die Eingabemaske öffnet sich vorbelegt mit den Daten der Mail, die Nummer trägst du ein.",
             "Schon beim Tippen prüft die Maske auf <b>Dubletten</b>: gleicher Firmenname ohne Rechtsform (<i>Muster "
             "GmbH</i> = <i>Muster Gesellschaft mbH</i> = <i>Muster GmbH &amp; Co. KG</i>), gleiche USt-ID, E-Mail "
             "bzw. Firmen-Domain (nicht bei web.de, gmail … ), Telefon oder Straße mit PLZ. Vor dem Anlegen fragt das "

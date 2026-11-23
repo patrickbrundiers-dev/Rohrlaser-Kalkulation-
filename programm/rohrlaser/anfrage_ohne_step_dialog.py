@@ -90,7 +90,7 @@ def neues_angebot(fenster, kundennr=None, kopf=None, vorschlag=None, neuer_kunde
                            + " – beim Anlegen der Positionen wählen")
     neu_angelegt = None
     if kundennr is None and not vorschlag and neuer_kunde:
-        vorschlag, neu_angelegt = kunde_anlegen(db, neuer_kunde)
+        vorschlag, neu_angelegt = kunde_anlegen(fenster, neuer_kunde)
     kopf = dict(kopf or {})
     if kundennr is None:
         kundennr = vorschlag or ""

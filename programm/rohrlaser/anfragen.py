@@ -716,12 +716,12 @@ def _werte(db, gelesen, mails, ordner_kunde=None, kunde_fest=False):
         kunde_mail = kunde_mail if kunde_mail == ordner_kunde else None     # Signatur nur beim selben Kunden
         kunde = ordner_kunde
     weitere, kopf = dict(formulare=gelesen), {}
-    if not kunde and not kunde_fest:           # unbekannter Kunde: neu anlegen mit „Kunde prüfen“ (Patrick 28.10.2026)
+    if not kunde and not kunde_fest:   # unbekannter Kunde: Eingabemaske vorbelegt, Kundennummer von Hand (23.11.2026)
         absender = next((m for m in vom_kunden if mail.adressen(m, domains)), None)
         daten = mail.kunde_daten(absender, formular_text, domains)
         if daten and not _eigene_firma(daten, eigen_name, domains):
             weitere["neuer_kunde"] = daten
-            hinweis.append(f"Neuer Kunde „{daten['name']}“ angelegt (Bemerkung „Kunde prüfen“)")
+            hinweis.append(f"Neuer Kunde „{daten['name']}“: nicht im Kundenstamm – anlegen mit eigener Kundennummer")
     elif kunde_mail:        # Signatur des bekannten Kunden (Automationen 03.11.2026, 12a): leere Felder ergänzen
         absender = next((m for m in vom_kunden if mail.adressen(m, domains)), None)
         k = kontakt_ergaenzen(next((z for z in kunden if str(z.get("kundennr")) == str(kunde_mail)), None),

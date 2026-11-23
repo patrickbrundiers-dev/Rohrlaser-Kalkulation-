@@ -47,8 +47,9 @@ assert f.reiter.currentWidget() is k and k.stapel.currentWidget() is k.uebersich
 ok("Menü KUNDEN mit neun Unterbereichen, Kundenübersicht öffnet den Reiter")
 
 # ------------------------------------------------------------------ Neuer Kunde über die Eingabemaske
+assert k.neuer_kunde(stumm=True, werte=dict(name="Ohne Nummer GmbH")) is None and "Kundennummer" in f.letzte_meldung
 nr = k.neuer_kunde(stumm=True, werte=dict(
-    name="Rheinblick Stahlbau GmbH", strasse="Hafenstraße 4", plz="47119", ort="Duisburg", telefon="0203 55 66 0",
+    kundennr="K-3001", name="Rheinblick Stahlbau GmbH", strasse="Hafenstraße 4", plz="47119", ort="Duisburg", telefon="0203 55 66 0",
     email="info@rheinblick-stahl.de", kundengruppe="Stahlbau", ust_id="DE811223344", zahlungsziel="30",
     rabatt="3", ansprechpartner=[dict(vorname="Jana", nachname="Sommer", email="j.sommer@rheinblick-stahl.de",
                                       telefon="0203 55 66 12", haupt="ja")]))
@@ -59,16 +60,18 @@ assert kd.vorgaben(db, nr)["rabatt"] == 3
 assert [p["nachname"] for p in kd.ansprechpartner(db, nr)] == ["Sommer"] and kunde["ansprechpartner"] == "Jana Sommer"
 assert k.stapel.currentWidget() is k.profil and k.profil.kundennr == nr
 assert [k.profil.reiter.tabText(i) for i in range(k.profil.reiter.count())] == list(PROFIL_REITER)
-ok("Eingabemaske: Kunde mit automatischer Nummer, Ansprechpartner und Rabatt angelegt, Profil mit 8 Reitern offen")
+ok("Eingabemaske: ohne Kundennummer kein Kunde; Kunde mit eigener Nummer, Ansprechpartner und Rabatt angelegt, Profil mit 8 Reitern offen")
 
 # Dublette: Warnung in der Maske, ohne Freigabe kein zweiter Kunde
 d = KundenFormular(k, db, neu=True, vorschlag=dict(name="Rheinblick Stahlbau Gesellschaft mbH", plz="47119"))
 assert d.dubletten and d.dubletten[0][0]["kundennr"] == nr and d.dub.isVisibleTo(d)
 assert "Rheinblick" in d.dub.text()
 vorher = len(db.zeilen("kunden"))
-assert k.neuer_kunde(stumm=True, werte=dict(name="Rheinblick Stahlbau GmbH & Co. KG", plz="47119")) is None
+assert k.neuer_kunde(stumm=True, werte=dict(kundennr="K-3002", name="Rheinblick Stahlbau GmbH & Co. KG",
+                                            plz="47119")) is None
 assert len(db.zeilen("kunden")) == vorher and "Dublette" in f.letzte_meldung
-nr2 = k.neuer_kunde(stumm=True, werte=dict(name="Rheinblick Stahlbau GmbH & Co. KG", plz="47119"), dubletten_ok=True)
+nr2 = k.neuer_kunde(stumm=True, werte=dict(kundennr="K-3002", name="Rheinblick Stahlbau GmbH & Co. KG", plz="47119"),
+                    dubletten_ok=True)
 assert nr2 and nr2 != nr
 ok("Dublettenprüfung: Warnung beim Tippen, ohne Bestätigung kein Anlegen, mit „Trotzdem“ neue Nummer")
 
@@ -204,7 +207,8 @@ ok("kunde_zeigen: Kundennummer öffnet das Kundenprofil")
 f.kunden_aktionen["uebersicht"].trigger()
 assert U.suche.text() == nr
 U.suche.setText("")
-nr3 = k.kunde_duplizieren(nr)
+assert k.kunde_duplizieren(nr) is None             # stumm ohne Nummer: keine Kopie
+nr3 = k.kunde_duplizieren(nr, "K-3003")
 assert nr3 and kd.kunde(db, nr3)["name"].endswith("(Kopie)") and not kd.kunde(db, nr3).get("ust_id")
 assert k.kunde_archivieren(nr3, bestaetigt=True)
 k.zeigen("uebersicht")

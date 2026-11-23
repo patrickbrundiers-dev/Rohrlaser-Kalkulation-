@@ -1160,8 +1160,8 @@ class KundenFormular(QDialog):
             if isinstance(wert, float):
                 wert = f"{wert:g}".replace(".", ",")
             e = QLineEdit("" if wert is None else str(wert))
-        if n == "kundennr" and self.neu:
-            e.setPlaceholderText("leer = automatisch")
+        if n == "kundennr" and self.neu:         # Patrick 23.11.2026: Kundennummer immer von Hand
+            e.setPlaceholderText(kd.nummer_hinweis(self.db))
         if n == "name":
             e.setPlaceholderText("Pflichtfeld")
         if n == "land" and not (wert or ""):
@@ -1232,8 +1232,7 @@ class KundenFormular(QDialog):
         return d
 
     def accept(self):
-        fehler = kd.pruefen(self.db, dict(self.werte(), kundennr=self.werte().get("kundennr") or "auto"),
-                            None if self.neu else self.alt.get("kundennr"))
+        fehler = kd.pruefen(self.db, self.werte(), None if self.neu else self.alt.get("kundennr"))
         for n in kd.VORGABE_FELDER:
             try:
                 kd._wert(n, self.e[n].text())
@@ -1499,16 +1498,6 @@ class KundenBereich(QWidget):
                 return None
             dubletten_ok = True
         try:
-            if not w.get("kundennr"):
-                try:
-                    w["kundennr"] = kd.naechste_kundennr(self.db)
-                except OSError as e:
-                    if stumm:
-                        raise
-                    nr, ok = QInputDialog.getText(self, "Kundennummer", f"{e}\n\nKundennummer:")
-                    if not ok or not nr.strip():
-                        return None
-                    w["kundennr"] = nr.strip()
             nr = kd.anlegen(self.db, w, personen, (), vg, dubletten_ok=bool(dubletten_ok) or not dub)
         except Exception as e:
             fehler_zeigen(self, "Kunde anlegen", e, stumm)
@@ -1551,9 +1540,17 @@ class KundenBereich(QWidget):
         self.geaendert(kundennr)
         return g
 
-    def kunde_duplizieren(self, kundennr):
+    def kunde_duplizieren(self, kundennr, neue_nr=None):
+        """Kopie mit neuer Kundennummer (immer von Hand, Patrick 23.11.2026); stumm: neue_nr."""
+        if neue_nr is None:
+            if self.stumm:
+                return None
+            neue_nr, gut = QInputDialog.getText(self, "Kunde duplizieren", f"Kundennummer für die Kopie von "
+                                                f"{kundennr}:\n({kd.nummer_hinweis(self.db)})")
+            if not gut or not neue_nr.strip():
+                return None
         try:
-            nr = kd.duplizieren(self.db, kundennr, kd.naechste_kundennr(self.db))
+            nr = kd.duplizieren(self.db, kundennr, neue_nr.strip())
         except Exception as e:
             fehler_zeigen(self, "Kunde duplizieren", e, self.stumm)
             return None

@@ -26,7 +26,7 @@ NEUERUNGEN = [
                 "<b>Kundenprofil</b> mit acht Reitern (Kennzahlen Umsatz, Angebote, Aufträge, Quote, offene Angebote; "
                 "Stammdaten mit Rechnungs-, Liefer- und Standortadressen; beliebig viele <b>Ansprechpartner</b> mit "
                 "Rollen Haupt/Einkauf/Technik/Buchhaltung; Angebote; Aufträge; Dokumente; Historie aller Änderungen; "
-                "interne Notizen), mehrstufige Eingabemaske mit automatischer Kundennummer und "
+                "interne Notizen), mehrstufige Eingabemaske (Kundennummer immer von Hand, Hinweis auf die zuletzt vergebene) und "
                 "<b>Dublettenprüfung</b> (Name ohne Rechtsform, USt-ID, E-Mail/Domain, Telefon, Anschrift; nie "
                 "automatisch zusammengeführt), Archivieren und Duplizieren. Im Angebotskopf Kundensuche <b>…</b>, "
                 "Auswahl von Ansprechpartner und Lieferadresse; beides steht im PDF, in der Angebotsakte und geht in "

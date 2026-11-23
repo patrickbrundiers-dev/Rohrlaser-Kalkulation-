@@ -1787,7 +1787,7 @@ class AnfragenSeite(QWidget):
                 self.f.meldung(f"Möglicherweise schon im Kundenstamm: {text}", fehler=True)
                 return None
             try:
-                nr = anfrage_kunde.neu_anlegen(self.db, daten, dubletten_ok=True)
+                nr = anfrage_kunde.neu_anlegen(self.db, daten, dubletten_ok=True, kundennr=daten.get("kundennr"))
             except Exception as fehler:     # noqa: BLE001 – Lesemodus, Eingabe: Meldung statt stiller Fehler
                 self.f.meldung(f"Kunde nicht angelegt: {fehler}", fehler=True)
                 return None

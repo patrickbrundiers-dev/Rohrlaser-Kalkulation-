@@ -644,6 +644,16 @@ def nummern_schema(db):
     return p, hoechste[p]
 
 
+def nummer_hinweis(db):
+    """Platzhalter für das Feld Kundennummer: „Pflichtfeld – zuletzt vergeben K-1002“ (nur Hinweis, die Nummer gibt
+    man immer von Hand ein)."""
+    try:
+        praefix, hoechste = nummern_schema(db)
+    except Exception:       # noqa: BLE001 – nur ein Hinweis
+        hoechste = 0
+    return f"Pflichtfeld – zuletzt vergeben {praefix}{hoechste}" if hoechste else "Pflichtfeld, z. B. 10001"
+
+
 def naechste_kundennr(db, reservieren=True):
     """Nächste freie Kundennummer: Präfix (Einstellung kunden_nummer_praefix; nicht gesetzt = wie die vorhandenen
     Nummern, z. B. K-) + höchste vergebene Zahl + 1, mindestens Einstellung kunden_nummer_start (ohne Kunden 10001). Mit gemeinsamem Ordner im Unterordner
@@ -748,12 +758,13 @@ def _kunden_werte(werte):
 
 def anlegen(db, werte, ansprechpartner_=(), adressen_=(), vorgaben_=None, dubletten_ok=False):
     """Neuen Kunden anlegen (eine Transaktion): Kundenzeile, Kundenvorgaben (Rabatt …), Ansprechpartner, Adressen,
-    Historie „Angelegt“. Ohne Kundennummer wird eine vergeben. dubletten_ok=False: bei möglichen Dubletten
+    Historie „Angelegt“. Die Kundennummer gibt man immer von Hand ein (Patrick 23.11.2026), ohne Nummer
+    KundenFehler. dubletten_ok=False: bei möglichen Dubletten
     KundenFehler (die Oberfläche fragt vorher). Ergebnis: Kundennummer."""
     _schreibbar(db)
     werte = dict(werte or {})
     if _leer(werte.get("kundennr")):
-        werte["kundennr"] = naechste_kundennr(db)
+        raise KundenFehler("Bitte die Kundennummer eingeben (sie wird nicht automatisch vergeben).")
     werte.setdefault("status", AKTIV)
     werte.setdefault("kundentyp", "Firma")
     fehler = pruefen(db, werte)
@@ -888,6 +899,8 @@ def duplizieren(db, kundennr, neue_nr=None):
     k = kunde(db, kundennr)
     if k is None:
         raise KundenFehler(f"Kunde {kundennr} gibt es nicht.")
+    if _leer(neue_nr):
+        raise KundenFehler("Bitte die Kundennummer für die Kopie eingeben.")
     werte = {n: w for n, w in k.items() if n not in ("id", "kundennr", "angelegt", "geaendert", "angelegt_von",
                                                       "archiviert", "ust_id", "steuernr")}
     werte["name"] = f"{k.get('name') or ''} (Kopie)".strip()

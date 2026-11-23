@@ -244,7 +244,8 @@ class KundeAusMailDialog(QDialog):
                                      oeffnen=False)
         else:
             try:
-                nr = ak.neu_anlegen(self.db, dict(self.daten, **(werte or {})), dubletten_ok=bool(dubletten_ok))
+                nr = ak.neu_anlegen(self.db, dict(self.daten, **(werte or {})), dubletten_ok=bool(dubletten_ok),
+                                    kundennr=(werte or {}).get("kundennr"))
             except kd.KundenFehler as e:
                 if not self.stumm:
                     QMessageBox.warning(self, "Neuer Kunde", str(e))

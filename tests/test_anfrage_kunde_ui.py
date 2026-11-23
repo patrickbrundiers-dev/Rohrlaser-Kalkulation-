@@ -5,7 +5,7 @@
      vorgehakt, Abweichungen nicht
   16 „Zuordnen und übernehmen“: nur die angehakten Werte, E-Mail ergänzt, Ansprechpartner der Anfrage gesetzt
   17 „Nur zuordnen“: Kundenstamm bleibt unverändert; „Anderen Kunden suchen …“
-  18 „Neuen Kunden anlegen …“ aus der Mail (Eingabemaske der Kundenverwaltung, Ansprechpartner, Nummer K-…),
+  18 „Neuen Kunden anlegen …“ aus der Mail (Eingabemaske der Kundenverwaltung, Ansprechpartner, Kundennummer von Hand),
      zweites Mal gleiche Firma: Dublette, nichts angelegt
   19 Lesemodus: Fehler sichtbar, nichts zugeordnet; kaputte .msg in der Anfrage: Meldung statt Absturz
 
@@ -46,10 +46,10 @@ db.einstellung_setzen("briefkopf_1", "Laser Brundiers GmbH")
 db.einstellung_setzen("eigene_domains", "laser.example")
 db.einstellung_setzen("kunden_nummer_praefix", "K-")
 
-WEISS = kd.anlegen(db, dict(name="Weiss und Soehne Stahlbau GmbH", strasse="", plz="58099", ort="Hagen",
+WEISS = kd.anlegen(db, dict(kundennr="K-10001", name="Weiss und Soehne Stahlbau GmbH", strasse="", plz="58099", ort="Hagen",
                             email="info@weiss-stahlbau.de", telefon="+49 2331 99999"),
                    [dict(vorname="Jürgen", nachname="Weiß", email="j.weiss@weiss-stahlbau.de", haupt="ja")])
-KRUEGER = kd.anlegen(db, dict(name="Metallbau Krüger GmbH", email="h.krueger@krueger-metall.de", ort="Lünen"))
+KRUEGER = kd.anlegen(db, dict(kundennr="K-10002", name="Metallbau Krüger GmbH", email="h.krueger@krueger-metall.de", ort="Lünen"))
 EIGEN = {"laser.example"}
 fenster = Hauptfenster(db, tmp / "prog", stumm=True)
 seite = fenster.anfragen_seite
@@ -167,12 +167,13 @@ neu_nr = {}
 
 def anlegen(d):
     assert not d.kandidaten or d.kandidaten[0]["stufe"] != ak.EINDEUTIG, d.kandidaten
-    neu_nr["nr"] = d.neu_anlegen(dubletten_ok=False)
+    assert d.neu_anlegen(dubletten_ok=False) is None and d.ergebnis is None      # ohne Kundennummer nichts
+    neu_nr["nr"] = d.neu_anlegen(werte=dict(kundennr="K-10003"), dubletten_ok=False)
 
 
 assert seite.kunde_zuordnen(im_fenster=anlegen) is not None
 nr = neu_nr["nr"]
-assert nr and nr.startswith("K-"), nr
+assert nr == "K-10003", nr
 kb = kd.kunde(db, nr)
 assert kb["name"] == "Berg Gerätebau GmbH" and kb["strasse"] == "Am Hafen 3" and kb["ort"] == "Dortmund", kb
 pp = kd.ansprechpartner(db, nr)
@@ -185,12 +186,12 @@ zweit = {}
 
 def doppelt(d):
     assert d.kandidaten and d.kandidaten[0]["kundennr"] == nr, d.kandidaten
-    zweit["nr"] = d.neu_anlegen(dubletten_ok=False)
+    zweit["nr"] = d.neu_anlegen(werte=dict(kundennr="K-10004"), dubletten_ok=False)
 
 
 seite.kunde_zuordnen(im_fenster=doppelt)
 assert zweit["nr"] is None and len(db.zeilen("kunden")) == anzahl, "Dublette angelegt"
-ok("18 Neuen Kunden aus der Mail anlegen (Nummer K-…, Anschrift, Ansprechpartner, zugeordnet); gleiche Firma "
+ok("18 Neuen Kunden aus der Mail anlegen (Kundennummer von Hand, Anschrift, Ansprechpartner, zugeordnet); gleiche Firma "
    "nochmal: als Kandidat erkannt, keine Dublette angelegt")
 
 # ------------------------------------------------------------------ 19 Lesemodus, kaputte Datei

@@ -88,11 +88,11 @@ ok("3 beschädigte .msg: kein Absturz, kein Kunde")
 
 # ------------------------------------------------------------------ Erkennen
 db = Datenbank(TMP / "rohrlaser.db")
-nr = kd.anlegen(db, dict(name="Weiss und Söhne Stahlbau GmbH", strasse="Industriestr. 12", plz="58099", ort="Hagen",
+nr = kd.anlegen(db, dict(kundennr="K-4000", name="Weiss und Söhne Stahlbau GmbH", strasse="Industriestr. 12", plz="58099", ort="Hagen",
                          telefon="02331 12345 0"),
                 [dict(vorname="Anna", nachname="Kraft", email="a.kraft@weiss-stahlbau.de", haupt="ja")],
                 dubletten_ok=True)
-anderer = kd.anlegen(db, dict(name="Hagener Rohrhandel GmbH", plz="58095", ort="Hagen"), dubletten_ok=True)
+anderer = kd.anlegen(db, dict(kundennr="K-4010", name="Hagener Rohrhandel GmbH", plz="58095", ort="Hagen"), dubletten_ok=True)
 k = ak.erkennen(db, d)
 assert k and k[0]["kundennr"] == nr, k
 assert k[0]["stufe"] != ak.EINDEUTIG, "ohne gleiche Adresse/USt-ID nie eindeutig"
@@ -105,7 +105,7 @@ assert k[0]["kundennr"] == nr and k[0]["stufe"] == ak.EINDEUTIG and k[0]["person
 assert "E-Mail j.weiss@weiss-stahlbau.de steht beim Kunden" in k[0]["gruende"]
 ok("5 Erkennen: E-Mail eines Ansprechpartners (nicht nur des Kunden) → eindeutig, passender Ansprechpartner")
 # zwei Kunden mit derselben Adresse: mehrdeutig, nie eindeutig
-zwei = kd.anlegen(db, dict(name="Weiß Montage GmbH", email="j.weiss@weiss-stahlbau.de"), dubletten_ok=True)
+zwei = kd.anlegen(db, dict(kundennr="K-4011", name="Weiß Montage GmbH", email="j.weiss@weiss-stahlbau.de"), dubletten_ok=True)
 k = ak.erkennen(db, d)
 assert {x["kundennr"] for x in k[:2]} >= {nr, zwei} and all(x["stufe"] != ak.EINDEUTIG for x in k[:1]), k[:2]
 kd.archivieren(db, zwei, True)
@@ -165,22 +165,22 @@ m3 = lesen(mt.msg("Anfrage", "Hallo,\nbitte Preis.\n\nViele Grüße\nPetra Blum\
                   "28195 Bremen\nTel. 0421 98765\n", "Petra Blum", "p.blum@blum-metall.de"), ".msg")
 d3 = ak.kontakt_aus_mail(m3)
 assert not [x for x in ak.erkennen(db, d3) if x["stufe"] == ak.EINDEUTIG]
-nr3 = ak.neu_anlegen(db, d3)
+nr3 = ak.neu_anlegen(db, d3, kundennr="K-4001")
 k3 = kd.kunde(db, nr3)
 assert k3["name"] == "Blum Metall GmbH" and k3["ort"] == "Bremen" and k3["plz"] == "28195"
 assert k3["ansprechpartner"] == "Petra Blum" and kd.ansprechpartner(db, nr3)[0]["email"] == "p.blum@blum-metall.de"
-assert nr3.startswith(kd.nummern_schema(db)[0])
+assert nr3 == "K-4001"
 try:
-    ak.neu_anlegen(db, d3)
+    ak.neu_anlegen(db, d3, kundennr="K-4002")
     raise AssertionError("Dublette nicht erkannt")
 except kd.KundenFehler as f:
     assert "Dublette" in str(f)
 assert ak.erkennen(db, d3)[0]["kundennr"] == nr3 and ak.erkennen(db, d3)[0]["stufe"] == ak.EINDEUTIG
-ok("12 Neuer Kunde aus der Mail: Nummer automatisch, Ansprechpartner, zweites Anlegen = Dublette, danach eindeutig")
+ok("12 Neuer Kunde aus der Mail: Kundennummer von Hand, Ansprechpartner, zweites Anlegen = Dublette, danach eindeutig")
 
 db.nur_lesen = "Test"
 try:
-    ak.neu_anlegen(db, dict(d3, name="Andere GmbH", email="x@andere.de"))
+    ak.neu_anlegen(db, dict(d3, name="Andere GmbH", email="x@andere.de"), kundennr="K-4003")
     raise AssertionError("Lesemodus nicht beachtet")
 except Exception as f:              # noqa: BLE001
     assert "Lesemodus" in str(f) or "Test" in str(f), f

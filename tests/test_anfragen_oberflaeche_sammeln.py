@@ -107,7 +107,7 @@ assert a.kunde == "" and a.kunde_pruefen() and a.absender_adresse == "o.neu@krue
 n0 = len(db.zeilen("kunden"))
 assert seite.kunde_neu_anlegen() is None                     # Krüger-Domain schon im Stamm: Dublette, nichts angelegt
 assert len(db.zeilen("kunden")) == n0
-nr = seite.kunde_neu_anlegen(dict(name="Neu GmbH", email="otto@neu-gmbh.example"))
+nr = seite.kunde_neu_anlegen(dict(kundennr="10003", name="Neu GmbH", email="otto@neu-gmbh.example"))
 assert nr and seite.akte().kunde == nr and len(db.zeilen("kunden")) == n0 + 1
 ok("O2 Korrekturen von Hand mit Lernregel (sichtbar, löschbar), Ansprechpartner, Absender, Intern, Zurücksetzen, "
    "neuer Kunde nach Dubletten-Prüfung")

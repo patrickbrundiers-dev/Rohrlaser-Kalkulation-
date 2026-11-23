@@ -44,17 +44,16 @@ assert kd.plz_ort_teilen("12345 Musterstadt") == ("12345", "Musterstadt")
 assert kd.name_teilen("Herr Max Mustermann") == ("Herr", "Max", "Mustermann")
 ok("Namenskern ohne Rechtsform (GmbH, Gesellschaft mbH, GmbH & Co. KG gleich), PLZ/Ort und Namen teilen")
 
-vorher = {k["kundennr"] for k in db.zeilen("kunden")}
-nr1 = kd.naechste_kundennr(db)
-assert nr1 not in vorher and nr1.startswith("K-"), nr1        # wie die vorhandenen (Beispieldaten K-1001, K-1002)
-assert kd.nummern_schema(db)[0] == "K-"
-db.einstellung_setzen("kunden_nummer_praefix", "")
-assert kd.naechste_kundennr(db, reservieren=False).isdigit()
-db.einstellung_setzen("kunden_nummer_praefix", None)
-ok(f"Kundennummer automatisch: {nr1}")
+assert kd.nummern_schema(db)[0] == "K-" and "zuletzt vergeben K-1002" in kd.nummer_hinweis(db)
+try:                                # Patrick 23.11.2026: Kundennummer bei Neukunden immer von Hand
+    kd.anlegen(db, dict(name="Ohne Nummer GmbH"))
+    raise AssertionError("Kunde ohne Kundennummer angelegt")
+except kd.KundenFehler as e:
+    assert "Kundennummer" in str(e), e
+ok("Kundennummer immer von Hand: ohne Nummer kein Kunde, Hinweis „zuletzt vergeben K-1002“")
 
 # ------------------------------------------------------------------ 1 Kunden anlegen
-nr = kd.anlegen(db, dict(name="Nordhaus Rohrtechnik GmbH", firmenzusatz="Werk Nord", rechtsform="GmbH",
+nr = kd.anlegen(db, dict(kundennr="K-2001", name="Nordhaus Rohrtechnik GmbH", firmenzusatz="Werk Nord", rechtsform="GmbH",
                          kundentyp="Firma", branche="Metallbau", website="www.nordhaus-rohr.de",
                          kundengruppe="A-Kunden", strasse="Hauptstraße 5", plz="45127", ort="Essen", land="de",
                          telefon="0201 123456", email="info@nordhaus-rohr.de", ust_id="de 123 456 789",
@@ -81,10 +80,10 @@ assert ps[0]["email"] == "max.mustermann@nordhaus-rohr.de" and ps[0]["uid"]
 assert [a["art"] for a in kd.adressen(db, nr)] == [kd.RECHNUNG, kd.LIEFERUNG]
 assert kd.historie(db, nr)[0]["art"] == kd.H_ANGELEGT
 fehler(lambda: kd.anlegen(db, dict(kundennr=nr, name="Andere AG")), "schon vergeben")
-fehler(lambda: kd.anlegen(db, dict(name="")), "Firmenname fehlt")
-fehler(lambda: kd.anlegen(db, dict(name="X GmbH", ust_id="123")), "Umsatzsteuer-ID")
-fehler(lambda: kd.anlegen(db, dict(name="X GmbH", zahlungsziel="dreißig")), "keine Zahl")
-fehler(lambda: kd.anlegen(db, dict(name="X GmbH", land="DE", plz="123")), "5 Ziffern")
+fehler(lambda: kd.anlegen(db, dict(kundennr="K-2999", name="")), "Firmenname fehlt")
+fehler(lambda: kd.anlegen(db, dict(kundennr="K-2999", name="X GmbH", ust_id="123")), "Umsatzsteuer-ID")
+fehler(lambda: kd.anlegen(db, dict(kundennr="K-2999", name="X GmbH", zahlungsziel="dreißig")), "keine Zahl")
+fehler(lambda: kd.anlegen(db, dict(kundennr="K-2999", name="X GmbH", land="DE", plz="123")), "5 Ziffern")
 ok("1 Kunde anlegen: alle Bereiche (Allgemein, Anschrift, Kaufmännisch, Konditionen) in einer Transaktion, "
    "Ansprechpartner und Adressen, Historie; Prüfungen")
 
@@ -99,8 +98,9 @@ d = kd.dubletten(db, dict(name="Neu GmbH", strasse="Hauptstrasse 5", plz="45127"
 assert d and "gleiche Anschrift" in d[0][1]
 assert kd.dubletten(db, dict(name="Neu GmbH", email="a@gmail.com")) == []
 assert kd.dubletten(db, dict(name="Nordhaus Rohrtechnik GmbH"), ohne=nr) == []
-fehler(lambda: kd.anlegen(db, dict(name="Nordhaus Rohrtechnik GmbH & Co. KG")), "Mögliche Dublette")
-nr_d = kd.anlegen(db, dict(name="Nordhaus Rohrtechnik GmbH & Co. KG"), dubletten_ok=True)
+fehler(lambda: kd.anlegen(db, dict(kundennr="K-2002", name="Nordhaus Rohrtechnik GmbH & Co. KG")),
+       "Mögliche Dublette")
+nr_d = kd.anlegen(db, dict(kundennr="K-2002", name="Nordhaus Rohrtechnik GmbH & Co. KG"), dubletten_ok=True)
 assert db.kunde(nr_d) and nr_d != nr
 ok("5 Dubletten: Name ohne Rechtsform, USt-ID, E-Mail (auch Ansprechpartner), Anschrift; Freemail zählt nicht; "
    "Anlegen nur nach Bestätigung, nie automatisch zusammengeführt")
@@ -153,7 +153,7 @@ assert nr_d not in {z["kundennr"] for z in kd.uebersicht(db)} and nr_d in {z["ku
                                                                          for z in kd.uebersicht(db, archiv=True)}
 kd.archivieren(db, nr_d, an=False)
 assert nr_d in {z["kundennr"] for z in kd.uebersicht(db)}
-nr_k = kd.duplizieren(db, nr)
+nr_k = kd.duplizieren(db, nr, "K-2003")
 kk = db.kunde(nr_k)
 assert kk["name"].endswith("(Kopie)") and not kk.get("ust_id") and len(kd.ansprechpartner(db, nr_k)) == 2
 ok("3 Archivieren und zurückholen (Übersicht/Archiv), Kunden duplizieren mit Ansprechpartnern, ohne USt-ID")
