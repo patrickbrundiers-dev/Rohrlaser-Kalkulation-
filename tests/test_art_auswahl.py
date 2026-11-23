@@ -173,6 +173,34 @@ def _():
         d.close()
         app.processEvents()
         db.con.close()
+    # Werkstoffwahl aus dem Materialstamm (Materialdatenbank, Ausbau 4.1): Werkstoffe der Abmessung stehen oben
+    from PySide6.QtWidgets import QWidget
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Datenbank(Path(tmp) / "r.db")
+        m = dict(JE["A07_Rundrohr"])
+        pid = step.profil_vorschlag(m, db.kontext().profile)
+        if pid not in db.kontext().profile:
+            pid = "RR 42,4x2,0"
+            m["_profil"] = pid
+        for z in db.zeilen("materialstamm"):
+            if z["profil_id"] == pid:
+                db.loeschen("materialstamm", [z["id"]])
+        eltern = QWidget()
+        eltern.db = db
+        d = StepPruefDialog(eltern, [dict(m)], db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
+        assert d.zeilen[0].ws.findText(d.STAMM_TITEL) < 0, "ohne Materialstamm: Liste wie bisher"
+        d.close()
+        db.neu("materialstamm", dict(profil_id=pid, werkstoff_id="S355-10219", aktiv="ja"))
+        db.neu("materialstamm", dict(profil_id=pid, werkstoff_id="1.4301", aktiv="nein"))
+        d = StepPruefDialog(eltern, [dict(m)], db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
+        ws = d.zeilen[0].ws
+        texte = [ws.itemText(i) for i in range(ws.count())]
+        assert texte[:3] == ["", d.STAMM_TITEL, "S355-10219"] and texte[3] != "1.4301", texte[:6]
+        assert ws.currentText() == "S235-10219", "Werkstoff wird nie geraten: die Vorgabe bleibt"
+        assert "S355-10219" in ws.toolTip() and pid in ws.toolTip(), ws.toolTip()
+        d.close()
+        app.processEvents()
+        db.con.close()
     # Rundrohr: Blech ausgegraut mit Grund
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "r.db")
