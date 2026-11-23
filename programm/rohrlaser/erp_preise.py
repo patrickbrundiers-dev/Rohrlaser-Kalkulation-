@@ -71,7 +71,7 @@ def lesen(roh):
     zeilen = text.splitlines()
     if not any(z.strip() for z in zeilen):
         raise ErpFehler("Die Datei ist leer.")
-    trenner, sep_zeile = kunden_csv._trenner(zeilen)
+    trenner, sep_zeile = _trenner(zeilen)
     if sep_zeile:
         zeilen = zeilen[1:]
     alle = [[kunden_csv._excel_wert(c).strip() for c in z] for z in csv.reader(io.StringIO("\n".join(zeilen)),
@@ -83,6 +83,23 @@ def lesen(roh):
             return dict(kopf=z, zeilen=daten, erste=i + 2 + (1 if sep_zeile else 0))
     raise ErpFehler("Keine Kopfzeile gefunden: die Datei braucht eine Zeile mit den Spaltennamen (z. B. Kaufdatum; "
                     "Menge; Meterpreis; Artikelnummer; EK-Artikel).")
+
+
+def _trenner(zeilen):
+    """Trennzeichen wie kunden_csv._trenner, aber nach Gleichmäßigkeit statt nach der größten Anzahl in einer Zeile:
+    das Zeichen, das in den meisten der ersten Zeilen so oft steht wie in der Kopfzeile. Sonst gewinnt in einer
+    kurzen Liste mit Semikolon eine Zeile mit drei Dezimalkommas („Rohr 42,4x2,0 …;2,60“) und nichts wird gelesen."""
+    t, sep_zeile = kunden_csv._trenner(zeilen)
+    if sep_zeile:
+        return t, True
+    probe = [z for z in zeilen[:15] if z.strip()]
+    if not probe:
+        return t, False
+
+    def guete(c):
+        n = probe[0].count(c)
+        return (sum(1 for z in probe if z.count(c) == n) if n else 0, n, c == ";", c == t)
+    return max(kunden_csv.TRENNER, key=guete), False
 
 
 def spalten_vorschlag(kopf):

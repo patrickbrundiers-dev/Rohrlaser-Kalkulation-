@@ -383,6 +383,13 @@ assert all(p["preis_m"] == 3.1 for p in an.positionen if p["profil_id"] == "QR 4
 ok("Fenster Material je Abmessung: Spalten ERP-Vorschlag (Datum, Grund; ein Klick trägt ihn als Meterpreis dieses "
    "Angebots ein), Lieferzeit Ø und Lieferant (Vorschlag) zum Bedarf")
 
+# kurze Liste mit Semikolon und vielen Dezimalkommas: das Semikolon bleibt das Trennzeichen
+dk = M.lesen("Artikelnummer;Bezeichnung;EK-Preis\nX-1;Rohr 42,4x2,0 EN 10219 S235;2,60\n"
+             "X-2;Rohr 48,3x2,6 EN 10219 S235;3,10\n".encode("utf-8"))
+assert dk["kopf"] == ["Artikelnummer", "Bezeichnung", "EK-Preis"] and len(dk["zeilen"]) == 2, dk
+assert M.lesen("a,b,c\n1,Rohr 60x40x3,2.5\n".encode("utf-8"))["kopf"] == ["a", "b", "c"]
+ok("Trennzeichen: Semikolon-Liste mit Dezimalkommas in der Bezeichnung wird richtig gelesen, Komma-Liste weiterhin")
+
 # Ausbau 1.3 Zuordnen in der Vorschau, 2.5 Auswirkung auf offene Angebote
 pfz = tmp / "zuordnen.csv"
 pfz.write_text("Artikelnummer;Bezeichnung;EK-Preis\nX-900;Sonderrohr ohne Angaben;4,00\n"
