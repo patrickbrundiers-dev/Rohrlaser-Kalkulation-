@@ -9,12 +9,11 @@ Zusatzarbeiten, netto, MwSt, brutto, interne Kosten, Deckungsbeitrag).
 Jede Änderung wird sofort im Angebot gespeichert (eine Schreibtransaktion je Änderung, Abgleich über „geändert am“)
 und die Kalkulation neu gerechnet."""
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
                                QHBoxLayout, QHeaderView, QLabel, QListWidget, QListWidgetItem, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import rechnen, zusatz_global as zg
+from . import rechnen, stil, zusatz_global as zg
 from .stammdaten import zahl_als_text, zahl_aus_text
 from .stil import GELB_FLAECHE, GELB_TEXT
 
@@ -224,7 +223,7 @@ class ZusatzGlobalSeite(QWidget):
                                                    zahl_als_text(e["kosten"], 2, tausender=False), rechts=True))
         if g.get("zeit_auto"):          # Zeit aus dem Stundensatz (Patrick 23.11.2026): grau, überschreibbar
             it = self._item(zahl_als_text(round(g["zeit_einheit"], 1), tausender=False), rechts=True)
-            it.setForeground(QColor("#8A94A3"))
+            it.setForeground(stil.farbe(stil.TEXT_GRAU))
             satz = zg.stundensatz(self.s.einst)
             it.setToolTip(f"Zeit aus dem Stundensatz {_z(satz)} €/h ({'Kosten' if rechnen._n(e.get('kosten')) else 'Preis'}"
                           " je Einheit ÷ Stundensatz). Eigene Zeit eintragen überschreibt; leer machen rechnet wieder "
