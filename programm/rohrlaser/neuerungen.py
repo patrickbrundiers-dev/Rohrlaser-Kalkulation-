@@ -28,8 +28,11 @@ NEUERUNGEN = [
                 "steht da, welche fehlenden Angaben jetzt da sind. „Wichtig zuerst“ sortiert nach Frist, Priorität, "
                 "Mail-Art, Kunde und Menge und zeigt die Gründe. Das Lernen aus Korrekturen gibt es jetzt auch für "
                 "das Sachgebiet und den Bearbeiter, jeweils erst nach Freigabe durch einen Admin. Die Auswertung "
-                "zeigt die Erkennung je Woche.",
-     "Anfragen: Rückfragen nachfassen, Wichtig zuerst, Lernen für Sachgebiet und Bearbeiter, Erkennung je Woche."],
+                "zeigt die Erkennung je Woche. <b>Fehler behoben</b>: „Kunde ändern …“, „Neuen Kunden anlegen …“, "
+                "„Intern (ohne Kunde)“ und „Angebot verknüpfen …“ in einer Anfrage taten nichts. Eingeschaltete "
+                "Schnellfilter sind jetzt deutlich blau, und „Filter zurücksetzen“ stellt alle Filter auf Vorgabe.",
+     "Anfragen: Rückfragen nachfassen, Wichtig zuerst, Lernen für Sachgebiet und Bearbeiter, Erkennung je Woche; "
+     "Kunde ändern/anlegen geht wieder, Filter zurücksetzen."],
     ["0.9.454", "<b>Fehler behoben</b>: Das Info-Panel rechts meldete einen unerwarteten Fehler, wenn es sich zeigte, "
                 "während ein Angebot gerade geöffnet wurde. Es wartet jetzt, bis das Angebot fertig aufgebaut ist.",
      "Info-Panel: kein Fehler mehr beim Öffnen eines Angebots."],

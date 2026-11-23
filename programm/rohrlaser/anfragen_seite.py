@@ -169,15 +169,23 @@ class AnfragenSeite(QWidget):
             b.setText(text)
             b.setToolTip(tipp)
             b.setCheckable(True)
+            b.setStyleSheet(SCHNELL_STIL)   # 23.11.2026: eingeschaltet deutlich blau (vorher kaum zu sehen)
             b.toggled.connect(lambda _an: self.liste_fuellen())
             schnell.addWidget(b)
             self.schnell[k] = b
+        self.k_filter_zurueck = QToolButton()   # 23.11.2026: alle Filter auf Vorgabe
+        self.k_filter_zurueck.setText("✕ Filter zurücksetzen")
+        self.k_filter_zurueck.setToolTip("Schnellfilter, Suche und alle Auswahlfelder auf Vorgabe (alle Anfragen)")
+        self.k_filter_zurueck.clicked.connect(lambda: self.filter_zuruecksetzen())
+        self.k_filter_zurueck.setVisible(False)
+        schnell.addWidget(self.k_filter_zurueck)
         schnell.addStretch(1)
         self.wichtig_zuerst = QToolButton()     # 23.11.2026: Reihenfolge mit Gründen (anfrage_reihenfolge)
         self.wichtig_zuerst.setText("Wichtig zuerst")
         self.wichtig_zuerst.setToolTip("Sortiert nach Frist, Priorität, Mail-Art (Bestellung, Reklamation …), "
                                        "Kunde und Menge; die Gründe stehen rechts im Kopf der Anfrage")
         self.wichtig_zuerst.setCheckable(True)
+        self.wichtig_zuerst.setStyleSheet(SCHNELL_STIL)
         self.wichtig_zuerst.toggled.connect(lambda _an: self.liste_fuellen())
         schnell.addWidget(self.wichtig_zuerst)
         lay.addLayout(schnell)
@@ -869,9 +877,49 @@ class AnfragenSeite(QWidget):
             return bool((self.nachfassen_stand(a) or {}).get("faellig_ist"))
         return True
 
+    def filter_aktiv(self):
+        """Namen der Filter, die nicht auf Vorgabe stehen (Schnellfilter, Suche, Auswahlfelder)."""
+        out = [b.text() for b in getattr(self, "schnell", {}).values() if b.isChecked()]
+        if self.suche.text().strip():
+            out.append("Suche")
+        for box in (self.filter_bearbeiter, self.filter_prio, self.filter_daten, getattr(self, "filter_art", None),
+                    getattr(self, "filter_kunde", None)):
+            if box is not None and box.currentIndex() > 0:
+                out.append(box.currentText())
+        return out
+
+    def filter_zuruecksetzen(self):
+        """Alle Filter auf Vorgabe (23.11.2026); Ordner und Zeitraum bleiben. Ergebnis: Anzahl sichtbarer Anfragen."""
+        boxen = [self.filter_bearbeiter, self.filter_prio, self.filter_daten, getattr(self, "filter_art", None),
+                 getattr(self, "filter_kunde", None)]
+        knoepfe = list(getattr(self, "schnell", {}).values())
+        for w in boxen + knoepfe + [self.suche]:
+            if w is not None:
+                w.blockSignals(True)
+        try:
+            for b in knoepfe:
+                b.setChecked(False)
+            for box in boxen:
+                if box is not None:
+                    box.setCurrentIndex(0)
+            self.suche.clear()
+        finally:
+            for w in boxen + knoepfe + [self.suche]:
+                if w is not None:
+                    w.blockSignals(False)
+        if self.ampel_filter:
+            self.filter_setzen("")
+        else:
+            self.liste_fuellen()
+        return self.tabelle.rowCount()
+
     def liste_fuellen(self):
         alt = self._gewaehlt
         liste = self.sichtbare()
+        if hasattr(self, "k_filter_zurueck"):
+            aktiv = self.filter_aktiv()
+            self.k_filter_zurueck.setVisible(bool(aktiv))
+            self.k_filter_zurueck.setToolTip("Aktiv: " + ", ".join(aktiv) + " – alles auf Vorgabe" if aktiv else "")
         self.tabelle.setSortingEnabled(False)
         self.tabelle.setRowCount(len(liste))
         kunden = {}
@@ -1189,6 +1237,7 @@ class AnfragenSeite(QWidget):
         a = self.akte()
         t = url.toString()
         art, _, wert = t.partition(":")
+        art = art.replace("-", "_")     # 23.11.2026: Links mit „_“ sind keine gültige QUrl (Kunde ändern ging nicht)
         if art == "angebot":
             self.angebot_oeffnen(wert)
         elif art == "anfrage":
@@ -1615,7 +1664,7 @@ class AnfragenSeite(QWidget):
             farbe_n = stil.farbe("#A66A00" if neu else "#666").name()
             teile.append(f"<p style='color:{farbe_n}'><b>Geänderte Angaben aus Nachträgen</b> (nichts wurde "
                          "automatisch übernommen" + ("; Angebot bitte prüfen" if a.stand.get("angebote") else "")
-                         + ")" + (" · <a href='nachtrag_gesehen:'>Gesehen</a>" if neu else " · gesehen")
+                         + ")" + (" · <a href='nachtrag-gesehen:'>Gesehen</a>" if neu else " · gesehen")
                          + f"</p><table>{zeilen}</table>")
         ein = erk.get("einordnung")
         if ein:                         # 20.11.2026: was für eine Mail, mit Gründen und Ändern
@@ -2603,7 +2652,7 @@ class OutlookDialog(QDialog):
 
     def _regel_link(self, url):
         art, _, rid = url.toString().partition(":")
-        if art == "regel_weg" and rid:
+        if art.replace("-", "_") == "regel_weg" and rid:
             mz.regel_loeschen(self.seite.ablage().wurzel, rid)
             self.regeln_zeigen()
 
@@ -2761,6 +2810,8 @@ def _einstellung(schl):
     return ol.PFAD_EINSTELLUNG[schl]
 
 
+SCHNELL_STIL = ("QToolButton:checked { background: #2F6FB3; color: white; "
+               "border: 1px solid #1F4E79; border-radius: 3px; font-weight: bold; }")
 SCHNELL = {"ohne": ("Nicht zugeordnet", "Neue Anfragen ohne Bearbeiter"),
            "kunde": ("Kunde prüfen", "Kunde nicht sicher erkannt"),
            "dringend": ("Dringend", "Priorität hoch/eilt oder heute fällig bzw. überfällig"),

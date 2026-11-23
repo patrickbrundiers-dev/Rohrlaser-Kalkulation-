@@ -1630,7 +1630,7 @@ def kapitel_angebote(i):
            "Phase) wird gemerkt; daraus zeigt die <b>Auswertung</b>, wie gut die Erkennung ist.", kurz=True)
     i.genauer()
     i.liste("<b>Schnellfilter</b>: Knöpfe zum Ein- und Ausschalten; mehrere zugleich zeigen nur Anfragen, auf die alle "
-            "passen. Neue Anhänge = seit der letzten eigenen Bearbeitung kamen Dateien dazu. Doppelt = dieselbe Mail "
+            "passen. Eingeschaltete Filter sind blau. Ist ein Filter aktiv, erscheint <i>✕ Filter zurücksetzen</i>: es stellt Schnellfilter, Suche und alle Auswahlfelder wieder auf Vorgabe. Neue Anhänge = seit der letzten eigenen Bearbeitung kamen Dateien dazu. Doppelt = dieselbe Mail "
             "kam auf zwei Wegen.",
             "<b>Auswertung → Erkennung</b>: je Feld (Mail-Art, Kunde, Bearbeiter, Phase …) wie oft die Erkennung "
             "stimmte und was am häufigsten korrigiert wurde.",

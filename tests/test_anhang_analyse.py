@@ -119,7 +119,7 @@ seite.waehlen(a.nr)
 h = seite.inhalt.toHtml() if hasattr(seite, "inhalt") else ""
 teile = "".join(seite._erkannt_html(seite.akte()))
 assert "Geänderte Angaben aus Nachträgen" in teile and "200" in teile and "250" in teile, teile
-assert "nachtrag_gesehen:" in teile
+assert "nachtrag-gesehen:" in teile
 roll = {x["name"]: x for x in seite.anhaenge(seite.akte())}
 assert roll["Halter_RevB.pdf"]["neuer_stand_von"] == "Halter_RevA.pdf", roll
 assert roll["kaputt.pdf"]["rolle"] == an.KAPUTT and roll["komisch.abc"]["rolle"] == an.UNBEKANNT
@@ -129,7 +129,7 @@ a2 = abl.neu_lesen(a)
 assert a2.stand["nachtrag_gesehen"] >= 2 and "Stückzahl 200 → 250" in ak.verlauf_text(a2.verlauf[-1])
 seite.waehlen(a.nr)
 teile = "".join(seite._erkannt_html(seite.akte()))
-assert "nachtrag_gesehen:" not in teile and "gesehen" in teile
+assert "nachtrag-gesehen:" not in teile and "gesehen" in teile
 seite.reiter.setCurrentIndex(1)
 app.processEvents()
 baum = seite.dokumente.baum

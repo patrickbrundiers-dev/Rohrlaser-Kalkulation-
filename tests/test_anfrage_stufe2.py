@@ -6,6 +6,8 @@
   S3 Breiter lernen: Sachgebiet- und Bearbeiter-Modell mit eigenen Dateien und eigener Freigabe, Mail-Art-Modell
      unverändert; Sachgebiet nur bei unsicherer Einordnung, Bearbeiter-Tipp gibt Punkte, nie „sicher“
   S4 Kennzahlen je Woche: Eingänge, unklar, korrigiert, Kunde eindeutig, Ø bis Übernahme, Rückfragen, nachgefasst
+  S6 Fehler 23.11.: Links mit „_“ (Kunde ändern, Neuen Kunden anlegen …) waren keine gültige QUrl und taten nichts;
+     Schnellfilter deutlich sichtbar und „Filter zurücksetzen“
   S5 Seite „Anfragen“: Schnellfilter „Nachfassen“, Erinnerung … öffnet Outlook (nie senden), Kopf zeigt Gründe,
      „Wichtig zuerst“ sortiert die Liste, tägliche Erinnerung nennt nachzufassende Rückfragen
 
@@ -240,5 +242,38 @@ d.trainieren()
 assert (Path(sa.wurzel) / al.STAMM / "modell_bearbeiter.json").is_file()
 ok("S5 Seite: Schnellfilter Nachfassen, Erinnerung öffnet Outlook, Wichtig zuerst mit Gründen, Tageserinnerung, "
    "Auswertung je Woche und Modell je Ziel")
+
+# ---------------------------------------------------------------------------------------------- S6
+from PySide6.QtCore import QUrl  # noqa: E402
+
+from rohrlaser import anfragen_dokumente as adok  # noqa: E402
+html_ = "".join(seite._erkannt_html(seite.akte(x.nr) or sa.neu_lesen(x)))
+import re  # noqa: E402
+for href in re.findall(r"href='([^']*)'", html_) + ["kunde-wahl:", "kunde-neu:", "kunde-ok:1", "angebot-hand:",
+                                                       "ohne-kunde:", "nachtrag-gesehen:"]:
+    assert QUrl(href).toString(), f"ungültiger Link {href}"          # sonst kommt beim Klick nichts an
+aufrufe = []
+for name in ("kunde_zuordnen", "kunde_neu_anlegen", "angebot_hand", "nachtrag_gesehen"):
+    setattr(seite, name, (lambda n: lambda *a, **k: aufrufe.append(n))(name))
+seite.waehlen(x.nr)
+for href in ("kunde-wahl:", "kunde-neu:", "kunde-ok:1", "angebot-hand:", "nachtrag-gesehen:"):
+    seite._link(QUrl(href))
+assert aufrufe == ["kunde_zuordnen", "kunde_neu_anlegen", "kunde_zuordnen", "angebot_hand", "nachtrag_gesehen"], aufrufe
+for quelle in (adok.__file__, asm.__file__):     # kein Link-Ziel mit „_“ (QUrl verwirft es still)
+    falsch = re.findall(r"href=['\"]([a-z0-9]*_[a-z0-9_]*):", Path(quelle).read_text(encoding="utf-8"))
+    assert not falsch, (quelle, falsch)
+seite.ordner = ak.NEU
+seite.liste_fuellen()
+assert not seite.k_filter_zurueck.isVisibleTo(seite)
+alle = seite.tabelle.rowCount()
+seite.schnell["dringend"].setChecked(True)
+seite.schnell["unklar"].setChecked(True)
+seite.suche.setText("gibt es nicht")
+assert seite.tabelle.rowCount() == 0 and seite.k_filter_zurueck.isVisibleTo(seite)
+assert "Dringend" in seite.k_filter_zurueck.toolTip() and "Suche" in seite.k_filter_zurueck.toolTip()
+assert "QToolButton:checked" in seite.schnell["dringend"].styleSheet()
+assert seite.filter_zuruecksetzen() == alle and not any(b.isChecked() for b in seite.schnell.values())
+assert seite.suche.text() == "" and not seite.k_filter_zurueck.isVisibleTo(seite)
+ok("S6 Links Kunde ändern/anlegen kommen an (gültige QUrl), Schnellfilter sichtbar und zurücksetzbar")
 
 print("Alle Tests bestanden.")
