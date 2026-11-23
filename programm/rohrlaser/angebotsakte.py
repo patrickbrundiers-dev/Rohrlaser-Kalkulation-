@@ -60,7 +60,8 @@ GESAMT_GRUPPEN = (
     ("Fracht", ("fracht", "frachtfrei"), 2),
     ("Kundenkonditionen (Rabatt, Rundung, Skonto)", ("rabatt", "rundung", "skonto"), 2),
     ("Anhebung auf Mindestpreis", ("mindestpreis_anhebung",), 2),
-    ("Muster: Anteil weiterer Abrufe", ("muster_spaeter",), 2))
+    ("Muster: Anteil weiterer Abrufe", ("muster_spaeter",), 2),
+    ("Allgemeine Zusatzarbeiten (Verkaufspreis)", ("zusatz_global",), 2))
 _ZWISCHEN = ("herstell", "selbst", "verkauf")
 assert sorted(n for _, ns, _ in GESAMT_GRUPPEN for n in ns) == sorted(
     n for _, n, _ in rechnen.KOSTENARTEN if n not in _ZWISCHEN)

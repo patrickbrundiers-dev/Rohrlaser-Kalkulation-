@@ -376,8 +376,26 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         from . import step_pruefung
         return "\n" + vorbehalt if step_pruefung.gelb_ungeprueft(q) or step_pruefung.vereinfacht(q) else ""
 
+    from . import zusatz_global
+    darstellung = zusatz_global.darstellung(kopf, einst)
+
     def _zus(i):
+        # Zusatzarbeiten flexibel (23.11.2026): „inkl. …“ im Text nur bei der Darstellung zusammengefasst (Vorgabe)
+        if darstellung != zusatz_global.ZUSAMMEN:
+            return ()
         return (kalk_zeilen[i] or {}).get("zusatzarbeiten") or ()
+
+    def _aufstellung(i, menge, gesamt):
+        """Darstellung detailliert: Aufstellung der Zusatzarbeiten unter dem Positionstext und Positionspreis."""
+        if darstellung != zusatz_global.DETAIL:
+            return "", []
+        liste = zusatz_global.position_aufstellung(kalk_zeilen[i], menge)
+        if not liste:
+            return "", []
+        z = ["Zusatzarbeiten:"] + [f"  {n}: {zahl_kurz(m, dezimal)} {e} × {euro_text(ep)} € = {euro_text(g)} €"
+                                   for n, m, e, ep, g in liste]
+        z.append(f"Positionspreis einschließlich Zusatzarbeiten: {euro_text(gesamt)} €")
+        return "\n" + "\n".join(z), liste
 
     aufteilung = einst.get("preis_aufteilung") == "ja"
 
@@ -406,10 +424,14 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                 text += _aufteilung(i)
             if (kalk_zeilen[i] or {}).get("muster") == "ja":        # Musterteil: Preis 0 mit Vermerk
                 text += "\n" + (MUSTER_VERMERK_ZEILE if muster_zeile else MUSTER_VERMERK)
-            zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=text,
+            gesamt_pos = kaufm_runden(pr * menge / pe, 2)
+            auf_text, auf = _aufstellung(i, menge, gesamt_pos) if (kalk_zeilen[i] or {}).get("muster") != "ja" \
+                else ("", [])
+            zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=text + auf_text,
                                bezeichnung=p.get("bezeichnung") or "",
-                               menge=p.get("stueck"), preis=pr, gesamt=kaufm_runden(pr * menge / pe, 2),
-                               muster=(kalk_zeilen[i] or {}).get("muster") == "ja", preiseinheit=pe))
+                               menge=p.get("stueck"), preis=pr, gesamt=gesamt_pos,
+                               muster=(kalk_zeilen[i] or {}).get("muster") == "ja", preiseinheit=pe,
+                               **({"zusatz_aufstellung": auf} if auf else {})))
         elif satz not in erledigt:
             erledigt.add(satz)
             teile = [(j, q) for j, q in enumerate(positionen) if _satz(q.get("satz")) == satz]
@@ -473,6 +495,9 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                            text="Mindermengenzuschlag" + (f" (Mindestauftragswert {euro_text(mindest_wert)} € netto"
                                                           + (", Warenwert ohne Fracht)" if rechnen.neue_preisregeln(einst)
                                                              else ")") if mindest_wert > 0 else "")))
+    # Allgemeine Zusatzarbeiten (23.11.2026): eigene Zeilen unter den Positionen, % auf die Summe der Zeilen davor
+    zeilen += zusatz_global.ausgabe_zeilen(
+        kopf, kaufm_runden(sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None), 2), einst)
     hinweise = sum(1 for i, p in enumerate(positionen)
                    if position_aktiv(p) and kalk_zeilen[i] and kalk_zeilen[i]["hinweis"])
     netto = kaufm_runden(sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None), 2)    # Summe ohne Gleitkommareste

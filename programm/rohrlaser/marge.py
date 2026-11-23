@@ -47,7 +47,9 @@ def gewinn_satz(summen):
 def kosten(summen):
     """Kosten K: Selbstkosten mit den Kosten-Korrekturen der Preisschicht."""
     s = summen or {}
-    return _n(s.get("selbst")) + _n(s.get("mannlos")) / ((1 + gewinn_satz(s)) or 1) + _n(s.get("neuteil"))
+    # interne Kosten der allgemeinen Zusatzarbeiten (zusatz_global.py, 23.11.2026; ohne Einträge 0)
+    return _n(s.get("selbst")) + _n(s.get("mannlos")) / ((1 + gewinn_satz(s)) or 1) + _n(s.get("neuteil")) \
+        + _n(s.get("zusatz_global_kosten"))
 
 
 def durchgereicht(summen):

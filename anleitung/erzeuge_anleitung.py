@@ -3006,6 +3006,45 @@ def kapitel_angebot(i):
             "Sonst sind die Zeilen nur Anzeige. Ein Klick wählt die Position, ein Doppelklick öffnet ihre "
             "<b>Zusatzarbeiten …</b>; Markieren, Löschen und Kopieren gelten wie immer der ganzen Position.",
             "Das Angebots-PDF bleibt unverändert (dort stehen die Arbeiten als „inkl. …“).")
+    i.abschnitt("Zusatzarbeiten für das ganze Angebot und feste Einheitspreise", marke="zusatz_global")
+    i.text("Im Reiter <i>Kalkulation</i> → Unterreiter <b>Zusatzarbeiten</b> des Angebots stehen Leistungen für das <b>ganze Angebot</b> "
+           "(Verpackung 45 € pauschal, Sonderbearbeitung 3 h × 65 €/h, Qualitätskontrolle, Zuschlag %). Sie erscheinen "
+           "im Kundenangebot als eigene Zeilen unter den Positionen. Je Position gibt es im Fenster "
+           "<b>Zusatzarbeiten …</b> den Haken <b>Preis = Verkauf</b> für feste Einheitspreise.", kurz=True)
+    i.genauer()
+    i.tabelle(["Feld", "Bedeutung"], [
+        ["Bezeichnung", "Name im Kundenangebot, frei oder aus der Verwaltung"],
+        ["Menge, Einheit", "Stück, m, m², h, min, kg, pauschal oder % (bei % ist die Menge der Prozentsatz)"],
+        ["Preis je Einheit", "Verkaufspreis netto; Gesamt = Menge × Preis, auf den Cent gerundet"],
+        ["Beschreibung", "Zusatztext im Kundenangebot (bei Darstellung detailliert)"],
+        ["intern: Kosten, Zeit", "je Einheit, nur für Marge, Deckungsbeitrag und interne Akte, nie beim Kunden"],
+        ["Grundlage (bei %)", "Positionen oder Positionen und Zusatzarbeiten"]], [45 * mm, 115 * mm])
+    i.liste("<b>＋ Aus Verwaltung</b> schlägt den Standardpreis aus Einstellungen → Zusatzarbeiten vor "
+            "([[zusatzarbeiten_verwalten]]): Kosten je Einheit = Preis der Verwaltung, Verkauf = Kosten × Zuschlag "
+            "Fertigung bzw. Fremdleistung × Gewinn. Der Preis ist danach frei änderbar; er wird im Angebot gespeichert "
+            "(Snapshot), spätere Änderungen der Verwaltung ändern das Angebot nicht. <b>Standardpreis übernehmen</b> "
+            "holt ihn bewusst neu.",
+            "<b>＋ Freie Zusatzarbeit</b>, <b>＋ Pauschale</b>, <b>＋ Zuschlag %</b> legen eine Zeile an; Werte in der "
+            "Tabelle ändern, jede Änderung wird sofort gespeichert und gerechnet. <b>Entfernen</b> löscht die "
+            "markierten Zeilen.",
+            "<b>Auf Positionen übertragen …</b> ordnet die markierte Zeile einer oder mehreren Positionen zu (Menge je "
+            "Teil, Haken „Preis = Verkauf“). Mit dem Haken <i>Danach aus den allgemeinen Zusatzarbeiten entfernen "
+            "(nicht doppelt berechnen)</i> verschwindet sie aus den allgemeinen.",
+            "<b>Je Position</b> (Fenster Zusatzarbeiten …, [[zusatzarbeiten_angebot]]): ohne Haken wie bisher "
+            "Preis + Zuschlag + Gewinn; mit Haken <b>Preis = Verkauf</b> ist der Preis je Einheit der Kundenpreis "
+            "(z. B. Entgraten 2,50 € je Stück, Bohren 0,80 € je Bohrung × Anzahl); die Stammdaten liefern dann die "
+            "internen Kosten. Ändert sich die Stückzahl, rechnet alles neu.",
+            "Steht dieselbe Leistung allgemein und an einer Position, zeigt der Reiter eine gelbe Warnung und der "
+            "Angebots-Check „möglicherweise doppelt berechnet“.",
+            "Die Summen unten: Positionen, allgemeine Zusatzarbeiten, Angebot netto, MwSt, brutto und intern Kosten, "
+            "Zeit und Deckungsbeitrag. Die allgemeinen Zusatzarbeiten zählen zum Verkaufspreis (Angebotsliste, "
+            "Marge), aber nicht zum Mindestauftragswert, zu Rabatt und Skonto und nicht zu den Staffelpreisen.",
+            "<b>Darstellung im Kundenangebot</b> (je Angebot; Vorgabe in Einstellungen → Angebot, Einstellung "
+            "<i>Zusatzarbeiten im Kundenangebot</i>): "
+            "<i>zusammengefasst</i> = „inkl. …“ im Positionstext wie bisher; <i>detailliert</i> = unter jeder "
+            "Position Leistung, Menge, Einheitspreis und Gesamt und „Positionspreis einschließlich Zusatzarbeiten“; "
+            "<i>nur Gesamtpreis</i> = keine Zusatzarbeiten im Text, allgemeine als eine Summenzeile. Die interne "
+            "Kalkulation und die Angebotsakte bleiben immer vollständig.")
     i.abschnitt("Arbeitsgänge vorschlagen", marke="arbeitsgaenge")
     i.text("<i>Ausgaben ▾</i> → <b>Arbeitsgänge vorschlagen …</b> (oder Strg+K) öffnet das Fenster "
            "<b>Arbeitsgänge je Position</b>: was das Angebot schon rechnet und was Ihre Regeln zusätzlich "
@@ -13143,7 +13182,7 @@ def kapitel_stammdaten(i):
     i.bild("stamm_kunden", "Kunden, Tabellenansicht", hoehe=100 * mm)
     i.text("Die bisherige Kundentabelle mit allen Spalten bleibt unter <i>Tabellenansicht (alle Felder)</i>: Tippen "
            "oder F2 ändert einen Wert, Doppelklick zeigt die Angebote des Kunden. Hier stehen auch Teilekatalog, "
-           "Kundenwert, Datenauskunft und Anonymisieren. Bestehende Kunden hat das Update 0.9.455 ergänzt: PLZ und "
+           "Kundenwert, Datenauskunft und Anonymisieren. Bestehende Kunden hat das Update 0.9.456 ergänzt: PLZ und "
            "Ort getrennt, Status Aktiv, der bisherige Ansprechpartner als Hauptansprechpartner und eine abweichende "
            "Liefer-PLZ als Lieferadresse; gelöscht oder überschrieben wurde nichts.")
     i.genauer("Felder")

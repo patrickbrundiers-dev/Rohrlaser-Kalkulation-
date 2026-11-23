@@ -2910,7 +2910,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.zeiten_seite = ZeitenSeite(self)
         from .optimierung_seite import OptimierungSeite         # Plan X6: Unterreiter von Kalkulation (Reiterleiste
         self.optimierung_seite = OptimierungSeite(self)         # bleibt bei 1280 px ohne Blätterpfeile)
+        # Zusatzarbeiten flexibel (Patrick 23.11.2026): allgemeine Zusatzarbeiten des Angebots und Übersicht je Position,
+        # als Unterreiter von Kalkulation (Reiterleiste bleibt bei 1280 px ohne Blätterpfeile)
+        from .zusatz_global_seite import ZusatzGlobalSeite
+        self.zusatz_seite = ZusatzGlobalSeite(self)
         self.reiter.gruppe("Kalkulation", [(kalk_seite, "Kalkulation"), (self.zeiten_seite, "Zeiten && Arbeitskosten"),
+                                           (self.zusatz_seite, "Zusatzarbeiten"),
                                            (self.optimierung_seite, "Optimierung")])
         self.reiter.addTab(zk_seite, "Zukaufteile")
         self._zukauf_seite = zk_seite
@@ -5016,6 +5021,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return self.preise_aktualisieren()
         if art == "kalkulation":
             return self.reiter.setCurrentWidget(self.kalk_seite)
+        if art == "zusatzarbeiten":
+            return self.reiter.setCurrentWidget(self.zusatz_seite)
         if art == "bohrungen":
             return self.bohrungen_alle_pruefen()
         if art == "stepgelb":           # K3: ungeprüfte STEP-Teile der Reihe nach bestätigen
@@ -5164,6 +5171,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         with tempo.abschnitt("Angebot: Wiederholteile", FEIN):
             self.wiederholteile_anzeigen()
         self.zeiten_seite.setzen(summen)
+        self.zusatz_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
         self.zukauf_info.setText(zukauf_info(summen))
         self.zukauf_zeigen()
