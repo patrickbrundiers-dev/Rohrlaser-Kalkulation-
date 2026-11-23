@@ -307,4 +307,52 @@ t_filter = time.perf_counter() - t0
 assert t_such < 1.0 and t_filter < 1.5 and t_bau < 8.0, (t_bau, t_such, t_filter)
 ok(f"30.000 Varianten: aufbauen {t_bau:.2f} s, Suche {t_such:.2f} s, Filter + Facetten {t_filter:.2f} s")
 
+# ------------------------------------------------------------------ lokale Prüfvorschläge (Phase 6)
+from rohrlaser import material_ki as mk  # noqa: E402
+k3 = Kontext()
+k3.werkstoffe = dict(k.werkstoffe)
+k3.werkstoffe["AlMgSi"] = dict(werkstoff_id="AlMgSi", kategorie="Aluminium", dichte=7.85)       # Tippfehler
+k3.werkstoffe["OHNE"] = dict(werkstoff_id="OHNE", kategorie="Stahl")
+k3.profile = dict(k.profile)
+k3.profile["QR 40x40x2 alt"] = dict(profil_id="QR 40x40x2 alt", form="Quadratrohr", a=40, b=40, wand=2)
+for i, a in enumerate((50, 60, 70, 80)):
+    k3.profile[f"QR {a}x{a}x2"] = dict(profil_id=f"QR {a}x{a}x2", form="Quadratrohr", a=a, b=a, wand=2)
+tab3 = dict(preise=[dict(profil_id=f"QR {a}x{a}x2", werkstoff_id="S235JRH", basis="€/kg", preis=1.3, lieferant="Nord",
+                         gueltig_ab="2026-11-20") for a in (50, 60, 70)]
+            + [dict(profil_id="QR 80x80x2", werkstoff_id="S235JRH", basis="€/kg", preis=13.0, lieferant="Nord",
+                    gueltig_ab="2026-11-20"),
+               dict(profil_id="RE 60x40x3", werkstoff_id="1.4301", basis="€/kg", preis=4.85, gueltig_ab="2026-01-01")],
+            lieferlaengen=[])
+z3 = mp.varianten(k3, tab3, lief, nutzung={("RE 60x40x3", "1.4301"): (2, "2026-11-20"),
+                                          ("RR 42,4x2", "S235JRH"): (4, "2026-11-20")}, heute=HEUTE)
+bef = mk.pruefen(z3, k3, tab3, lief, verlauf={("QR 50x50x2", "S235JRH"): [3.0, 4.2]},
+                 einst=dict(preisalter_tage=30), heute=HEUTE)
+typen = {(b["typ"], b["material"]) for b in bef}
+assert ("dichte", "AlMgSi") in typen and ("dichte_fehlt", "OHNE") in typen, typen
+assert ("ausreisser", "QR 80x80x2 · S235JRH") in typen
+assert ("dublette", "QR 40x40x2 alt") in typen
+assert ("lieferant", "RE 60x40x3 · 1.4301") in typen and ("alt", "RE 60x40x3 · 1.4301") in typen
+assert ("tonnenpreis", "RR 42,4x2 · S235JRH") in typen and ("sprung", "QR 50x50x2 · S235JRH") in typen
+g = next(b for b in bef if b["typ"] == "guenstiger")
+assert g["aktion"] == "preis_uebernehmen" and "Süd" in g["text"] and g["material"] == "RE 60x40x3 · 1.4301"
+assert all(b["aktion"] in (None, "preis_uebernehmen", "archivieren") for b in bef), "keine Aktion ändert Güte/Dichte"
+assert next(b for b in bef if b["typ"] == "dichte")["aktion"] is None
+assert [b["art"] for b in bef] == sorted([b["art"] for b in bef], key=lambda a: {"WARNUNG": 0, "VORSCHLAG": 1}.get(a, 2))
+ok("Prüfvorschläge: Dichte unüblich/fehlt, Ausreißer €/kg, Dublette, ohne Lieferant, alter Preis, Tonnenpreis, Sprung, "
+   "günstigerer Lieferant; nur Preis übernehmen und Archivieren als Aktion")
+
+# mit Datenbank: Übernehmen und Ablehnen werden protokolliert
+db.neu("material_lieferanten", dict(profil_id=pid, werkstoff_id=wid, lieferant="Lieferant Süd", basis="€/m",
+                                    preis=1.00, laenge=6000, gueltig_ab="2026-01-01"))
+bef = mk.alle(db)
+g = next(b for b in bef if b["typ"] == "guenstiger" and b["material"] == f"{pid} · {wid}")
+assert "übernommen" in mk.anwenden(db, g)
+assert abs(next(z for z in db.zeilen("preise") if mp.schluessel(z) == (pid, wid))["preis"] - 1.0) < EPS
+from rohrlaser import ki_protokoll  # noqa: E402
+assert any(a["agent"] == mk.AGENT and a["aktion"] == "Vorschlag übernommen" for a in ki_protokoll.liste(db))
+h = next(b for b in mk.alle(db) if b["art"] in ("HINWEIS", "WARNUNG", "VORSCHLAG"))
+mk.ablehnen(db, h)
+assert h["schluessel"] not in {b["schluessel"] for b in mk.alle(db)}
+ok("Übernehmen nur per Aufruf mit Protokoll; abgelehnte Befunde kommen nicht wieder")
+
 print("Alle Prüfungen der Materialplattform bestanden.")
