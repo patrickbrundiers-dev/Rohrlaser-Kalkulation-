@@ -125,6 +125,12 @@ assert db.kunde(nr)["branche"] == "Stahlbau"
 kd.speichern(db, nr, dict(alt, website="www.neu.de"), alt)        # anderes Feld: kein Konflikt
 assert db.kunde(nr)["website"] == "www.neu.de" and db.kunde(nr)["branche"] == "Stahlbau"
 db2.con.close()
+# Teiländerung (nur Ort): PLZ bleibt, „PLZ Ort“ stimmt, kein Pflichtfeld-Fehler, kein Schein-Konflikt
+k_vor = kd.kunde(db, nr)
+kd.speichern(db, nr, dict(ort="Essen-Kray"), dict(ort=k_vor["ort"]))
+k_nach = kd.kunde(db, nr)
+assert k_nach["plz"] == k_vor["plz"] and k_nach["plz_ort"] == f"{k_vor['plz']} Essen-Kray" and k_nach["name"] == k_vor["name"]
+kd.speichern(db, nr, dict(ort=k_vor["ort"]), dict(ort="Essen-Kray"))
 ok("2 Kunden bearbeiten: nur geänderte Felder, Historie alt -> neu, Konditionen in den Kundenvorgaben; "
    "Mehrbenutzer: gleiches Feld beim Kollegen geändert = Konflikt ohne Schreiben, anderes Feld geht")
 

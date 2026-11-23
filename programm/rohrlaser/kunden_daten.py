@@ -809,10 +809,19 @@ def speichern(db, kundennr, neu, alt, vorgaben_neu=None, vorgaben_alt=None):
         raise KundenFehler(f"Kunde {kundennr} gibt es nicht mehr (gelöscht oder umbenannt).")
     neu = dict(neu or {})
     neu["kundennr"] = kundennr
-    fehler = pruefen(db, dict(alt or {}, **neu), kundennr)
+    basis = dict(k)                     # Teiländerung (Notizen, Übernahme aus einer Mail): Rest wie gespeichert
+    basis.update(alt or {})
+    basis.update(neu)
+    fehler = pruefen(db, basis, kundennr)
     if fehler:
         raise KundenFehler(" ".join(fehler))
-    kw_neu, kw_alt = _kunden_werte(neu), _kunden_werte(dict(alt or {}))
+    alt = dict(alt or {})
+    if "plz" in neu or "ort" in neu:    # „PLZ Ort“ immer aus beiden (nur Ort geändert: PLZ wie gespeichert)
+        for f in ("plz", "ort"):
+            if f not in neu:
+                neu[f] = k.get(f)
+                alt.setdefault(f, k.get(f))
+    kw_neu, kw_alt = _kunden_werte(neu), _kunden_werte(alt)
     geaendert = []
     with db.con:
         sperre = "" if _sqlite(db) else " FOR UPDATE"
@@ -823,7 +832,7 @@ def speichern(db, kundennr, neu, alt, vorgaben_neu=None, vorgaben_alt=None):
             gespeichert = jetzt_db.get(n)
             if _gleich(gespeichert, w):
                 continue
-            if n in kw_alt and not _gleich(gespeichert, kw_alt.get(n)):
+            if n in kw_alt and n != "plz_ort" and not _gleich(gespeichert, kw_alt.get(n)):   # plz_ort: abgeleitet
                 raise AenderungsKonflikt("kunden", jetzt_db["id"], n, gespeichert, w)
             db.con.execute(f'UPDATE kunden SET "{n}"=? WHERE id=?', (w, jetzt_db["id"]))
             if n != "plz_ort":
