@@ -37,6 +37,9 @@ from . import db_verbindung
 ARTEN = ("Stange", "Rest")
 KENNUNG = {"Stange": "S", "Rest": "R"}
 ZUSTAENDE = ("reserviert", "freigegeben", "verbraucht")
+# Zustand eines Postens (Verschachtelung 23.11.2026): frei = darf eingeplant werden; gesperrt = von Hand zurückgehalten
+# (z. B. krumm, reserviert für Kunden); Ausschuss = nicht wiederverwendbar (bleibt im Bestand, bis ausgebucht)
+STATUS = ("frei", "gesperrt", "Ausschuss")
 EPS = 1e-6
 
 TABELLEN_SQL = (
@@ -67,6 +70,9 @@ def einrichten(con):
     # Werkszeugnis je Posten (Vorschlag F5, 02.11.2026): Pfad der PDF-Datei, leer = keins
     if "zeugnis" not in set(db_verbindung.spalten(con, "lager_bestand")):
         con.execute("ALTER TABLE lager_bestand ADD COLUMN zeugnis TEXT")
+    # Zustand je Posten (Verschachtelung 23.11.2026): leer = frei
+    if "status" not in set(db_verbindung.spalten(con, "lager_bestand")):
+        con.execute("ALTER TABLE lager_bestand ADD COLUMN status TEXT")
 
 
 def _jetzt():
@@ -120,6 +126,7 @@ def bestand(db, mit_leeren=False):
     out = []
     for r in rows:
         z = dict(r)
+        z["status"] = z.get("status") or "frei"
         z["verfuegbar"] = (z["anzahl"] or 0) - z["reserviert"]
         z["zeugnis_name"] = str(z.get("zeugnis") or "").replace("\\", "/").rsplit("/", 1)[-1]
         if mit_leeren or (z["anzahl"] or 0) > 0:
@@ -224,6 +231,43 @@ def buchungen(db, angebot_id=None, bestand_id=None):
     return [dict(r) for r in db.con.execute(sql + " ORDER BY id DESC", args)]
 
 
+def status_setzen(db, bestand_id, status, grund=""):
+    """Posten freigeben, sperren oder als Ausschuss kennzeichnen (Journal: Buchung 'Status'). Gesperrte und
+    Ausschuss-Posten plant weder der Lagerplan noch die Verschachtelung ein; reservierte Posten lassen sich nicht
+    sperren."""
+    _schreiben(db)
+    if status not in STATUS:
+        raise LagerFehler(f"Zustand '{status}' gibt es nicht ({', '.join(STATUS)}).")
+    p = posten(db, bestand_id)
+    if p is None:
+        raise LagerFehler("Posten nicht gefunden.")
+    if status != "frei" and _reserviert(db, bestand_id):
+        raise LagerFehler(f"{p['kennung']} ist reserviert; zuerst die Reservierung freigeben.")
+    with db.con:
+        db.con.execute("UPDATE lager_bestand SET status=?, geaendert=? WHERE id=?",
+                       (None if status == "frei" else status, _jetzt(), bestand_id))
+        _buchen(db, "Status", p, anzahl=0, text=f"{p.get('status') or 'frei'} → {status}"
+                + (f": {grund.strip()}" if (grund or "").strip() else ""))
+
+
+def reste_fuer_nesting(db, ohne_angebot=None):
+    """Reststücke, die die Verschachtelung einplanen darf: nur mit Lager UND Reststücken eingeschaltet, Zustand frei,
+    nicht reserviert (eigene Reservierungen von ohne_angebot zählen als frei). [dict(id, kennung, profil, werkstoff,
+    oberflaeche, laenge, verfuegbar=1, status, angelegt)], älteste zuerst."""
+    if not (aktiv(db) and reste_aktiv(db)):
+        return []
+    out = []
+    for z in bestand(db):
+        if z["art"] != "Rest" or z["status"] != "frei":
+            continue
+        frei = (z["anzahl"] or 0) - _reserviert(db, z["id"], ohne_angebot=ohne_angebot)
+        if frei > 0:
+            out.append(dict(id=z["id"], kennung=z["kennung"], profil=z["profil"], werkstoff=z["werkstoff"],
+                            oberflaeche=z["oberflaeche"] or "", laenge=z["laenge"], verfuegbar=1, status="frei",
+                            angelegt=z.get("angelegt")))
+    return sorted(out, key=lambda z: (z.get("angelegt") or "", z["kennung"]))
+
+
 # ------------------------------------------------------------------ Plan
 def bedarf(ergebnis, werte):
     """Lieferstangen des Schnittplans, die aus dem Lager kommen können: [dict(nr, profil, werkstoff, oberflaeche,
@@ -235,7 +279,7 @@ def bedarf(ergebnis, werte):
         belegt = w["belegt"]
         out.append(dict(nr=s["nr"], profil=s["profil"], werkstoff=s["werkstoff"], oberflaeche=_ob(s.get("oberflaeche")),
                         stange=s["stange"], belegt=belegt, bedarf=belegt + (s.get("greif") or 0),
-                        rest=s["stange"] - belegt, kosten=w.get("kosten")))
+                        rest=s["stange"] - belegt, kosten=w.get("kosten"), rest_kennung=s.get("rest") or ""))
     return out
 
 
@@ -249,16 +293,19 @@ def planen(db, angebot_id, ergebnis, werte, mit_resten=None):
     restwert = 1.0 if restwert is None else restwert
     frei = {}
     for z in bestand(db):
-        if z["art"] == "Rest" and not mit_resten:
+        if z["art"] == "Rest" and not mit_resten or z["status"] != "frei":
             continue
         n = (z["anzahl"] or 0) - _reserviert(db, z["id"], ohne_angebot=angebot_id)
         if n > 0:
             frei[z["id"]] = dict(z, frei=n)
-    stangen = sorted(bedarf(ergebnis, werte), key=lambda b: (-b["bedarf"], b["nr"]))
+    # Stangen auf einem bestimmten Reststück (Verschachtelung C) zuerst: genau dieser Posten
+    stangen = sorted(bedarf(ergebnis, werte), key=lambda b: (not b["rest_kennung"], -b["bedarf"], b["nr"]))
     for b in stangen:
         passend = [z for z in frei.values() if z["frei"] > 0 and z["profil"] == b["profil"]
                    and z["werkstoff"] == b["werkstoff"] and _ob(z["oberflaeche"]) == b["oberflaeche"]
                    and z["laenge"] + EPS >= b["bedarf"]]
+        if b["rest_kennung"]:
+            passend = [z for z in passend if z["kennung"] == b["rest_kennung"]]
         wahl = min(passend, key=lambda z: (z["art"] != "Rest", z["laenge"], z["kennung"]), default=None)
         if wahl is None:
             b.update(quelle="Neukauf", bestand_id=None, kennung="", laenge=b["stange"], lagerwert=0.0, ersparnis=0.0)

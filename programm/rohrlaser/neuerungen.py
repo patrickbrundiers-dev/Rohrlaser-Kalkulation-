@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.461", "<b>Zukaufartikel ohne zentrale Datenbank</b> ([[zukauf_optional]]): Neuer Schalter Einstellungen → "
+    ["0.9.462", "<b>Zukaufartikel ohne zentrale Datenbank</b> ([[zukauf_optional]]): Neuer Schalter Einstellungen → "
                 "Funktionen → <b>Zentrale Zukaufartikelverwaltung</b>, Vorgabe aus. Dann gehören Zukaufartikel nur "
                 "zum Angebot: keine Auswahl aus dem Stamm, STEP-Import, Blech-Editor, Schnellanlage und EK eintragen "
                 "legen alles nur im Angebot an, und beim Öffnen, Rechnen und Prüfen wird der Artikelstamm nicht "
@@ -31,6 +31,17 @@ NEUERUNGEN = [
                 "brutto. Umschalten ändert keine Angebote und keine Stammartikel; Kalkulation und PDFs bleiben gleich.",
      "Zukaufartikel nur im Angebot (zentrale Verwaltung optional), Dialog mit Reihenfolge, Mehrere hinzufügen, "
      "Kopie aus anderem Angebot und Summe mit MwSt."],
+    ["0.9.461", "<b>Nesting-Arbeitsplatz und Verschachtelung auf CAD/CAM-Niveau</b> ([[nesting]]): im Reiter "
+                "Optimierung je Abmessung fünf Strategien gegen den bisherigen Schnittplan (A wenigstes Material, "
+                "B geringste Materialkosten, C Reststücke zuerst, D schnellste Fertigung, E ausgewogen in €). "
+                "Standard 6 m und 12 m mit Zuschnitt (die ganze 12-m-Stange "
+                "wird bezahlt), Stangenbild maßstäblich mit Teilen, Schnitten, Rest und Verschnitt, Teile von Hand "
+                "umsetzen (geprüft, nie überbelegt), Einkauf und kalkulatorische Kosten getrennt, lokale Hinweise. "
+                "Reststücke nur mit Lager und Reststücken (Vorgabe aus); Lagerposten mit Zustand frei/gesperrt/"
+                "Ausschuss und Spalte verwertbar. Ohne Wahl rechnet jedes Angebot genau wie bisher. Das "
+                "Kundenangebot zeigt nichts davon.",
+     "Nesting-Arbeitsplatz: Strategien A–E je Abmessung, 6 m und 12 m mit Zuschnitt (ganze Stange bezahlt), "
+     "Teile von Hand umsetzen ([[nesting]])."],
     ["0.9.460", "<b>Lieferzeit je Material aus dem ERP-Einkauf</b> ([[material_datenbank]]): der EK-Import liest den "
                 "Liefertermin (L-Termin); je Material steht die durchschnittliche zugesagte Lieferzeit (Liefertermin "
                 "minus Erfassungsdatum, dazu kürzeste und längste) in der Materialübersicht, im Lieferantenvergleich "

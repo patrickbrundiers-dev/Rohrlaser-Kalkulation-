@@ -9657,7 +9657,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         """rechnen.optimieren für dieses Angebot. Große Angebote rechnen in einem Hintergrund-Thread; das Fenster
         zeigt solange Fortschritt und Abbrechen (Eingaben gesperrt, damit sich die Daten nicht ändern). Ergebnis wie
         rechnen.optimieren; abgebrochen: rechnen.Abbruch."""
-        args = (self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        args = (self.kopf, self.positionen, self.k, self.nesting_tabellen(), self.einst)
         # CAM-006: bisheriger Plan als Vorlage, damit er bei kleiner Mengenänderung möglichst gleich bleibt
         frueher = self.kopf.get("ergebnis") if ((self.einst or {}).get("stangenplan_stabil") or "ja") == "ja" else None
         teile = sum(int(rechnen._n(p.get("stueck"))) for p in self.positionen if position_aktiv(p))
@@ -10082,6 +10082,87 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             werte = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
             plan = lager.planen(self.db, self.id, self.ergebnis, werte)
         return varianten.gruppen(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst, plan)
+
+    def nesting_tabellen(self):
+        """Tabellen für die Optimierung; mit Lager UND Reststücken zusätzlich die freien Reststücke für die
+        Verschachtelung (lager.reste_fuer_nesting, Patrick 23.11.2026: Reste und Lager nur optional)."""
+        from . import lager
+        if not rechnen.reste_an(self.einst):
+            return self.tabellen
+        try:
+            reste = lager.reste_fuer_nesting(self.db, self.id)
+        except Exception:       # noqa: BLE001 – ohne Lagerdaten rechnet die Verschachtelung ohne Reste
+            reste = []
+        return dict(self.tabellen, lager_reste=reste) if reste else self.tabellen
+
+    def nesting_vergleich(self, fortschritt=None, abbruch=None):
+        """Strategievergleich je Abmessung (nesting_vergleich.vergleich) mit denselben Daten wie das Optimieren."""
+        from . import nesting_vergleich
+        return nesting_vergleich.vergleich(self.kopf, self.positionen, self.k, self.nesting_tabellen(), self.einst,
+                                           abbruch, fortschritt)
+
+    def nesting_arbeitsplatz(self, dialog=None):
+        """Nesting-Arbeitsplatz (Patrick 23.11.2026): Strategien je Abmessung vergleichen, Stangen ansehen, Teile von
+        Hand umsetzen; Übernehmen speichert Strategie bzw. Belegung je Abmessung (angebote.nesting) und optimiert
+        neu. Die Rechnung läuft im Hintergrund mit Fortschritt und Abbruch. dialog(d) statt exec (Tests).
+        Ergebnis: True = übernommen und neu optimiert, False = nichts geändert, None = abgebrochen."""
+        from PySide6.QtWidgets import QDialog, QProgressDialog
+        from . import diagnose, nesting_dialog
+        stand, ende, abbrechen = dict(schritt=0, schritte=1, text="Abmessungen"), {}, threading.Event()
+
+        def fortschritt(schritt, schritte, text):
+            stand.update(schritt=schritt, schritte=max(schritte, 1), text=text)
+
+        def lauf():
+            try:
+                with diagnose.messen("Nesting-Vergleich", (self.kopf, self.positionen, self.einst)):
+                    ende["v"] = self.nesting_vergleich(fortschritt, abbrechen.is_set)
+            except BaseException as e:      # noqa: BLE001 – im Hauptthread weitergeben
+                ende["fehler"] = e
+        t = threading.Thread(target=lauf, name="Nesting", daemon=True)
+        t.start()
+        hintergrund.melden(t)
+        dlg = QProgressDialog("Strategien rechnen …", "Abbrechen", 0, 1000, self)
+        dlg.setWindowTitle("Nesting-Arbeitsplatz")
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setMinimumDuration(400)
+        while t.is_alive():
+            t.join(0.03)
+            if dlg.wasCanceled():
+                abbrechen.set()
+            dlg.setValue(int(1000 * stand["schritt"] / stand["schritte"]))
+            dlg.setLabelText(f"Strategien rechnen: {stand['text']}")
+            QApplication.processEvents()
+        dlg.close()
+        if "fehler" in ende:
+            raise ende["fehler"]
+        if abbrechen.is_set():
+            return None
+        d = nesting_dialog.NestingDialog(ende["v"], self.positionen, self, nur_lesen=bool(self.db.nur_lesen))
+        if not (dialog(d) if dialog else d.exec() == QDialog.Accepted):
+            return False
+        wahl = dict(self.kopf.get("nesting") or {})
+        hand = dict(self.kopf.get("stangen_hand") or {})
+        for schl, w in d.wahl.items():
+            global_an = ((self.einst or {}).get("nesting_strategie") or "bisher") != "bisher"
+            if w == "bisher" and not global_an:
+                wahl.pop(schl, None)        # wie bisher = keine Wahl speichern
+            else:
+                wahl[schl] = w              # „bisher“ schlägt eine Strategie aus den Einstellungen
+        for schl, h in d.hand.items():
+            if h:
+                hand[schl] = h
+            else:
+                hand.pop(schl, None)
+        if not d.wahl and not d.hand:
+            return False
+        self.db.nesting_speichern(self.id, wahl, hand)
+        self.neu_laden()
+        ok = self.optimieren()
+        if ok:
+            self.f.meldung(f"Verschachtelung übernommen ({len(d.wahl) + sum(1 for h in d.hand.values() if h)} "
+                           "Abmessung(en)), Schnittplan neu optimiert.")
+        return ok
 
     def optimierung_vorschlaege(self, maschinen=True):
         """Vorschläge des Reiters Optimierung (optimierungsvorschlaege.alle, Plan X6); maschinen = auch den

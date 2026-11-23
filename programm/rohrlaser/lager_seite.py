@@ -10,7 +10,7 @@ from .stammdaten import zahl_als_text, zahl_aus_text
 
 SPALTEN = (("Kennung", "kennung"), ("Art", "art"), ("Profil-ID", "profil"), ("Werkstoff-ID", "werkstoff"),
            ("Oberfläche", "oberflaeche"), ("Länge [mm]", "laenge"), ("Bestand", "anzahl"), ("reserviert", "reserviert"),
-           ("verfügbar", "verfuegbar"), ("Charge", "charge"), ("Lagerort", "lagerort"), ("Herkunft", "herkunft"),
+           ("verfügbar", "verfuegbar"), ("Zustand", "status"), ("verwertbar", "verwertbar"), ("Charge", "charge"), ("Lagerort", "lagerort"), ("Herkunft", "herkunft"),
            ("Werkszeugnis", "zeugnis_name"))
 BUCHUNG_SPALTEN = (("Zeit", "zeit"), ("Buchung", "art"), ("Kennung", "kennung"), ("Angebot", "nummer"),
                    ("Anzahl", "anzahl"), ("Länge [mm]", "laenge"), ("Text", "text"), ("Kürzel", "kuerzel"))
@@ -117,6 +117,9 @@ class LagerSeite(QWidget):
                                 ("Ausbuchen …", self.ausbuchen, "Markierten Posten ganz ausbuchen (Schrott, verkauft)"),
                                 ("Werkszeugnis …", self.zeugnis, "Werkszeugnis (PDF) an den markierten Posten hängen; "
                                  "beim Lieferschein mit „Werkszeugnis 3.1 verlangt“ wird es mitgesammelt"),
+                                ("Zustand …", self.zustand, "Markierten Posten freigeben, sperren (z. B. krumm, "
+                                 "zurückgehalten) oder als Ausschuss kennzeichnen; gesperrte und Ausschuss-Posten "
+                                 "plant weder der Lagerplan noch die Verschachtelung ein"),
                                 ("Meldebestand …", self.meldebestand, "Mindestzahl ganzer Stangen für Profil, Werkstoff "
                                  "und Oberfläche des markierten Postens; darunter Hinweis auf der Startseite und "
                                  "Vorschlag in der Materialanfrage (0 = keiner)")):
@@ -150,6 +153,12 @@ class LagerSeite(QWidget):
             zeilen = [z for z in zeilen if such in " ".join(str(z.get(n) or "") for n in
                                                         ("kennung", "profil", "werkstoff", "charge", "lagerort",
                                                          "herkunft")).lower()]
+        # verwertbar (Verschachtelung 23.11.2026): ein Reststück gilt erst als wiederverwendbar, wenn nach Endbeschnitt
+        # und Greiferrest der Maschine noch rest_min_nutz bleibt und es mindestens rest_min_laenge lang ist
+        grenze = self.verwertbar_ab()
+        for z in zeilen:
+            z["verwertbar"] = ("" if z["art"] != "Rest" else "nein" if z["status"] != "frei" else
+                               "ja" if grenze is None or z["laenge"] + 1e-6 >= grenze else "nein (zu kurz)")
         self.zeilen = zeilen
         _fuellen(self.tabelle, SPALTEN, zeilen)
         _fuellen(self.buchungen, BUCHUNG_SPALTEN, lager.buchungen(self.db)[:2000])
@@ -234,6 +243,44 @@ class LagerSeite(QWidget):
         self.f.meldung(f"Meldebestand {z['profil']} {z['werkstoff']}: {anzahl} Stangen." if anzahl else
                        f"Meldebestand {z['profil']} {z['werkstoff']} gelöscht.")
         return anzahl
+
+    def verwertbar_ab(self):
+        """Kleinste verwertbare Restlänge [mm] auf der Vorgabemaschine (nesting.verwertbar): max(rest_min_laenge,
+        Endbeschnitt + Greiferrest + Schnitt + rest_min_nutz); None ohne Maschine."""
+        from . import optimierung as opt
+        try:
+            m = self.db.kontext().maschinen.get(self.db.einstellung("standard_maschine") or "") or next(
+                iter(self.db.kontext().maschinen.values()), None)
+        except Exception:       # noqa: BLE001 – Anzeige ohne Maschine
+            m = None
+        if not m:
+            return None
+        n = rechnen._n
+        g = opt.Gruppe("", "", 0, n(m.get("endbeschnitt")), n(m.get("greiferrest")), n(m.get("schnittverlust")), 0)
+        e = self.db.einstellungen()
+        nutz = n(rechnen.einstellung_wert(e, "rest_min_nutz"))
+        return max(n(rechnen.einstellung_wert(e, "rest_min_laenge")), g.endbeschnitt + g.greiferrest + g.kerf + nutz)
+
+    def zustand(self, status=None, grund=""):
+        """Zustand des markierten Postens setzen (frei, gesperrt, Ausschuss)."""
+        z = self._gewaehlt()
+        if z is None:
+            return self.f.meldung("Lager: bitte einen Posten markieren.", fehler=True)
+        if status is None:
+            status, ok = QInputDialog.getItem(self, "Zustand", f"{z['kennung']}: Zustand", list(lager.STATUS),
+                                              list(lager.STATUS).index(z.get("status") or "frei"), False)
+            if not ok:
+                return None
+            grund, ok = QInputDialog.getText(self, "Zustand", "Grund (optional):")
+            if not ok:
+                return None
+        try:
+            lager.status_setzen(self.db, z["id"], status, grund)
+        except (ValueError, PermissionError) as e:
+            return self.f.meldung(str(e), fehler=True)
+        self.neu_laden()
+        self.f.meldung(f"Lager: {z['kennung']} ist jetzt {status}.")
+        return status
 
     def ausbuchen(self, grund=None):
         z = self._gewaehlt()

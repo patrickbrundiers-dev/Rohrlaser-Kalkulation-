@@ -22,6 +22,12 @@ class OptimierungSeite(QWidget):
         self.uebernehmen_knopf = QPushButton("Als neue Fassung übernehmen")
         self.uebernehmen_knopf.setObjectName("primaer")
         self.uebernehmen_knopf.clicked.connect(lambda: self.uebernehmen())
+        # Nesting-Arbeitsplatz (Patrick 23.11.2026): Strategien A … E je Abmessung, Stangenbild, Belegung von Hand
+        self.nesting_knopf = QPushButton("Nesting-Arbeitsplatz …")
+        self.nesting_knopf.setToolTip("Verschachtelung je Abmessung: Strategien (wenig Material, günstigster Einkauf, "
+                                      "Reste zuerst, schnell fertigen, ausgewogen) gegen den bisherigen Plan, "
+                                      "Stangen maßstäblich, Teile von Hand umsetzen")
+        self.nesting_knopf.clicked.connect(lambda: self.seite.nesting_arbeitsplatz())
         self.tabelle = QTableWidget(0, len(ov.SPALTEN))
         self.tabelle.setHorizontalHeaderLabels([t for _, t in ov.SPALTEN])
         self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -49,6 +55,7 @@ class OptimierungSeite(QWidget):
         kn.addWidget(self.rechnen_knopf)
         kn.addWidget(self.uebernehmen_knopf)
         kn.addWidget(self.ef_knopf)
+        kn.addWidget(self.nesting_knopf)
         kn.addStretch(1)
         lay = QVBoxLayout(self)
         lay.addWidget(self.info)
