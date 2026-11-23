@@ -14270,6 +14270,23 @@ def kapitel_material(i):
             "Im Angebot: rechte Maustaste auf eine Rohrposition → <b>Material suchen und zuweisen …</b> springt auf "
             "die Seite Material, gefiltert auf die Profilart, das Material der Position markiert. Nach dem Zuweisen "
             "bitte neu optimieren.")
+    i.genauer()
+    i.text("Die Knöpfe oben: <b>★ Favoriten</b>, <b>Zuletzt</b>, <b>Häufig</b>, <i>Liste/Matrix</i>, "
+           "<b>Vergleichen</b>, <b>Prüfvorschläge</b>, <b>Neues Material</b> (Neue Abmessung …, Neuer Werkstoff … "
+           "(Einstellungen), Neuer Lieferantenpreis …) und <b>Mehr</b> mit <i>Liste als CSV exportieren …</i>, "
+           "<i>Preisliste eines Lieferanten importieren (CSV/Excel) …</i>, <i>Alle Kombinationen Abmessung × "
+           "Werkstoff zeigen</i>, <i>Archivierte zeigen</i>, <i>Spalten …</i> und den Tabellen Profile, Werkstoffe, "
+           "Preise, Lieferlängen und Material-Lieferanten. Im Reiter Lieferanten: <i>Neu …</i>, <i>Als Preis "
+           "übernehmen</i>, <i>Löschen</i>. Das Menü der rechten Maustaste in der Liste: <i>Als Favorit markieren</i>, "
+           "<i>Vergleichen</i>, <i>Den markierten Positionen des offenen Angebots zuweisen</i>, <i>Abmessung "
+           "duplizieren …</i>, <i>Werkstoff duplizieren …</i>, <i>Mehrere ändern …</i>, <i>Abmessung archivieren</i>, "
+           "<i>Werkstoff archivieren</i>, <i>Neuer Lieferantenpreis …</i>, <i>In Tabelle Preise zeigen</i> und "
+           "<i>Als CSV exportieren (markierte) …</i>. Rechte Maustaste auf die Spaltenköpfe: Spalten ein/aus und "
+           "<i>Spalten wie ab Werk</i>.",
+           "Die Lieferantenpreise stehen in der Tabelle <b>Material-Lieferanten</b> (<i>Einstellungen → Material → "
+           "Material-Lieferanten</i>): Profil-ID, Werkstoff-ID, Lieferant (aus dem Lieferantenstamm der "
+           "Zukaufartikel), Artikelnr. des Lieferanten, Preisbasis, Preis, Lieferlänge, Gültig ab, Gültig bis, "
+           "Lieferzeit, Mindestabnahme und Bemerkung. Je Profil, Werkstoff, Lieferant und Lieferlänge eine Zeile.")
     i.abschnitt("Materialbilanz je Abmessung", marke="material_bilanz")
     i.text("Im Abmessungs-Fenster (Doppelklick im Fenster <i>Material …</i> des Angebots) steht unter der Meter- und "
            "Gewichtsbilanz der <b>theoretische Verbrauch</b> (Teilelängen × Meterpreis) gegen den <b>Einkauf</b> "
@@ -15983,6 +16000,8 @@ STECKBRIEFE = {
     "stammdaten": ("Kunden (auch per CSV), Profile, Werkstoffe, Preise, Maschinen, Schneiddaten und weitere Tabellen "
                    "pflegen.",
                    "Reiter <i>Kunden</i>; Reiter <i>Einstellungen</i> mit den Unterreitern"),
+    "material_seite": ("Materialien (Abmessung × Werkstoff) suchen, filtern, vergleichen, Lieferantenpreise pflegen und "
+                       "an Positionen zuweisen.", "Seitenleiste → <i>Material</i> (Bereich Pflege)"),
     "zukauf": ("Zukaufartikel, Lieferanten, Einkaufspreise und Aufschläge verwalten.", "Reiter <i>Zukaufartikel</i>"),
     "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",
                      "Reiter <i>Frachtkosten</i>"),
