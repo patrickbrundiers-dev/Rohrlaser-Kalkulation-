@@ -297,6 +297,11 @@ class InfoPanel(QScrollArea):
 
     def fuellen(self):
         seite = aktionen.angebot(self.f)
+        if seite is not None and getattr(seite, "pos_modell", None) is None:
+            # Angebot wird gerade erst aufgebaut (Supportpaket 23.11.2026: AttributeError pos_modell beim Zeigen):
+            # gleich noch einmal versuchen, wenn die Seite fertig ist
+            self.spaeter()
+            return
         if seite is not self._seite:
             if self._seite is not None:
                 try:
