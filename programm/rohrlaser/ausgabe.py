@@ -613,14 +613,11 @@ def zahlungstext(kopf):
     return f"Zahlung {netto}." if ziel else ""
 
 
-def anschrift(kunde):
-    """Anschriftzeilen eines Kunden aus dem Kundenstamm (ohne Name)."""
-    if not kunde:
-        return []
-    zeilen = [kunde.get("strasse"), kunde.get("plz_ort")]
-    if kunde.get("ansprechpartner"):
-        zeilen.append(f"z. Hd. {kunde['ansprechpartner']}")
-    return [z for z in zeilen if z]
+def anschrift(kunde, ansprechpartner=None):
+    """Anschriftzeilen eines Kunden aus dem Kundenstamm (ohne Name): Firmenzusatz, Straße, PLZ Ort, Land (außer DE)
+    und „z. Hd.“ des im Angebot gewählten Ansprechpartners, sonst des Hauptansprechpartners (kunden_daten)."""
+    from .kunden_daten import anschrift as kunden_anschrift
+    return kunden_anschrift(kunde, ansprechpartner)
 
 
 def gueltig_bis(kopf, einst, positionen=None, k=None):

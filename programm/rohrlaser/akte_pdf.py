@@ -461,7 +461,8 @@ def _seite_kunde(a, einst, st):
     anschrift += [_p("\n".join(zeilen), ParagraphStyle("an", parent=st["text"], fontSize=9.6, leading=13))]
     ap = k.get("ansprechpartner") or {}
     info = [("Angebot", k.get("nummer")), ("Datum", datum(k.get("datum"))), ("Kunden-Nr.", k.get("kundennr")),
-            ("Ihre Anfrage", k.get("kundenreferenz")), ("Projekt", k.get("projekt")), ("Ansprechpartner", ap.get("name")),
+            ("Ihre Anfrage", k.get("kundenreferenz")), ("Projekt", k.get("projekt")),
+            ("Lieferanschrift", k.get("lieferadresse")), ("Ansprechpartner", ap.get("name")),
             ("Telefon", ap.get("telefon")), ("E-Mail", ap.get("email")),
             ("Gültig bis", datum(k.get("gueltig_bis")) if k.get("gueltig_bis") else "")]
     block = Table([[anschrift, _kv(info, st, (26 * mm, 46 * mm))]], colWidths=[BREITE - 74 * mm, 74 * mm],

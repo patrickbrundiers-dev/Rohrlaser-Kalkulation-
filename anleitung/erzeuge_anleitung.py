@@ -13045,9 +13045,88 @@ def kapitel_stammdaten(i):
          "Welcher Arbeitsschritt mit welchem Stundensatz und welcher Zeitvorgabe gerechnet wird ([[stundensaetze]])."]],
         [30, 95, 140])
     i.abschnitt("Kunden", marke="kunden")
-    i.bild("stamm_kunden", "Reiter Kunden", hoehe=100 * mm)
-    i.text("Im Reiter <i>Kunden</i>: Kundennummer, Name und Anschrift eintragen. Im Angebotskopf die Kundennummer "
-           "wählen, dann kommen Anschrift, Fracht-PLZ und Zahlungsbedingungen mit.", kurz=True)
+    i.bild("kunden_uebersicht", "Reiter Kunden: Unterbereiche links, Kundenübersicht rechts", hoehe=100 * mm, legende=[
+        "Unterbereiche (auch im Menü <i>Kunden</i>)", "Live-Suche über Nummer, Firma, Ort, Ansprechpartner, Telefon, "
+        "E-Mail und Gruppe", "Filter Status (und Gruppe daneben)", "Neuen Kunden anlegen", "Tabelle oder Karten",
+        "Übersicht: Doppelklick öffnet das Kundenprofil"])
+    i.text("Der Reiter <i>Kunden</i> und das Menü <b>Kunden</b> sind die Kundenverwaltung: <b>Kundenübersicht</b>, "
+           "<b>Neuen Kunden anlegen</b>, <b>Kunden bearbeiten</b>, <b>Ansprechpartner</b>, <b>Kundenhistorie</b>, "
+           "<b>Angebote</b> und <b>Aufträge des Kunden</b>, <b>Dokumente und Anhänge</b>, <b>Archivierte Kunden</b> "
+           "und die <b>Tabellenansicht</b> mit allen Feldern. Im Angebotskopf den Kunden wählen (oder mit <b>…</b> "
+           "suchen bzw. neu anlegen), dann kommen Anschrift, Ansprechpartner, Lieferadresse, Fracht-PLZ, "
+           "Zahlungsbedingungen und Konditionen mit – nichts muss neu eingetippt werden.", kurz=True)
+    i.genauer("Kundenübersicht")
+    i.liste("Spalten: Kundennummer, Firma, Hauptansprechpartner, Ort, Telefon, E-Mail, Anzahl Angebote und Aufträge, "
+            "letzter Kontakt, Status und Gruppe. Klick auf eine Spaltenüberschrift sortiert; rechte Maustaste auf "
+            "die Überschrift blendet Spalten ein oder aus.",
+            "Die Suche findet alle Wörter in beliebiger Reihenfolge, ohne Groß-/Kleinschreibung und Umlaut-Schreibweise "
+            "(<i>mueller essen</i> findet <i>Müller GmbH, Essen</i>), auch über die Ansprechpartner.",
+            "Knöpfe: <b>Öffnen</b> (Kundenprofil, auch Doppelklick oder Enter), <b>Bearbeiten …</b>, "
+            "<b>Duplizieren</b> (Kopie mit neuer Nummer, ohne USt-ID und Historie), <b>Archivieren</b> (Daten, "
+            "Angebote und Aufträge bleiben; der Kunde verschwindet nur aus der Übersicht und der Auswahl im Angebot; "
+            "zurück über <i>Archivierte Kunden</i> → <b>Aus dem Archiv holen</b>), <b>Export</b> als Excel- oder CSV-Datei (genau die gefilterte "
+            "Liste) und <b>Import …</b> (CSV mit Vorschau, wie bisher).",
+            "<b>Karten</b> zeigt dieselben Kunden als Kacheln mit Status-Farbe (grün aktiv, grau inaktiv, rot "
+            "gesperrt); die Wahl merkt sich das Programm.")
+    i.genauer("Kundenprofil")
+    i.bild("kunden_profil", "Kundenprofil mit Kennzahlen und acht Reitern", hoehe=95 * mm, legende=[
+        "Kennzahlen aus den echten Angeboten und Aufträgen (Klick springt zur Liste)", "Bearbeiten",
+        "Neues Angebot für diesen Kunden", "Reiter des Profils"])
+    i.liste("<b>Übersicht</b>: Gesamtumsatz (Verkaufspreis netto der beauftragten Angebote), Anzahl Angebote "
+            "(ohne ersetzte Fassungen, auch die der Kollegen), Aufträge, Angebotsquote (beauftragt ÷ "
+            "entschieden), letzter Auftrag, offene Angebote mit Wert, laufende Aufträge; darunter Anschrift, "
+            "Hauptansprechpartner, Konditionen und Weiteres.",
+            "<b>Stammdaten</b>: alle Felder und die <b>Adressen</b>: <b>Adresse hinzufügen …</b> legt eine "
+            "Rechnungsadresse, beliebig viele Lieferadressen oder Standorte an. Mit Haken <i>Standardadresse dieser "
+            "Art</i> ist die Lieferadresse der Vorschlag im Angebot und das Frachtziel.",
+            "<b>Ansprechpartner</b>: <b>Neuer Ansprechpartner …</b>, beliebig viele, je mit Position, Abteilung, Telefon, Mobil, E-Mail, "
+            "Zuständigkeit und den Kennzeichen <i>Haupt</i>, <i>Einkauf</i>, <i>Technik</i>, <i>Buchhaltung</i>. "
+            "Genau einer ist Hauptansprechpartner (steht als „z. Hd.“ im Angebot). Inaktive erscheinen nicht mehr in "
+            "der Auswahl. <b>E-Mail …</b> öffnet eine neue Mail im Mailprogramm.",
+            "<b>Angebote</b> und <b>Aufträge</b> des Kunden (Doppelklick öffnet; <b>In Angebotsliste zeigen</b> "
+            "filtert den Reiter Angebote), <b>Dokumente</b>: Dateien im Ordner "
+            "<i>Kundendokumente\\Kundennummer</i> der Ablage (mit gemeinsamem Ordner für alle Plätze); "
+            "<b>Datei hinzufügen …</b> kopiert, das Original bleibt.",
+            "<b>Historie</b>: jede Änderung mit Zeit, Benutzer, Feld, alt und neu, dazu Angebote und Aufträge; "
+            "Haken <i>mit Angeboten und Aufträgen</i> blendet diese ein oder aus; <b>Kontakt erfassen …</b> trägt "
+            "Telefonat, Besuch oder E-Mail ein. <b>Interne Notizen</b> und individuelle Preisvereinbarungen mit "
+            "<b>Notizen speichern</b> (erscheinen nicht im Angebot; die Preisvereinbarung steht als Hinweis im "
+            "Profil).")
+    i.genauer("Neuen Kunden anlegen und Dubletten")
+    i.bild("kunden_formular", "Eingabemaske in vier Schritten mit Dublettenwarnung", hoehe=80 * mm, legende=[
+        "Schritte: Allgemein und Anschrift, Ansprechpartner, Kaufmännisch und Konditionen, Notizen und Hinweise",
+        "Mögliche Dublette (Klick öffnet den vorhandenen Kunden)", "Kunde anlegen"])
+    i.liste("Die <b>Kundennummer</b> vergibt das Programm, wenn sie leer bleibt: im Schema der vorhandenen Nummern "
+            "(nach K-1002 kommt K-1003; ohne Kunden 10001), änderbar mit den Einstellungen "
+            "<i>kunden_nummer_praefix</i> und <i>kunden_nummer_start</i>. Mit gemeinsamem Ordner "
+            "wird die Nummer dort reserviert, damit zwei Plätze nie dieselbe Nummer vergeben. Ist der Ordner nicht "
+            "erreichbar, fragt das Programm nach einer Nummer.",
+            "Schon beim Tippen prüft die Maske auf <b>Dubletten</b>: gleicher Firmenname ohne Rechtsform (<i>Muster "
+            "GmbH</i> = <i>Muster Gesellschaft mbH</i> = <i>Muster GmbH &amp; Co. KG</i>), gleiche USt-ID, E-Mail "
+            "bzw. Firmen-Domain (nicht bei web.de, gmail … ), Telefon oder Straße mit PLZ. Vor dem Anlegen fragt das "
+            "Programm: <i>Vorhandenen öffnen</i>, <i>Trotzdem neu anlegen</i> oder <i>Abbrechen</i>. Zusammengeführt "
+            "wird nie automatisch.",
+            "Rabatt, Gewinn, Rabattstaffel, Mindestauftragswert und frachtfrei ab stehen in den Kundenvorgaben "
+            "([[kundenvorgaben]]) und gelten für neue Angebote. Zahlungsziel, Skonto, Zahlungsbedingungen, "
+            "Lieferbedingung, Währung, Kreditlimit, USt-ID und Steuernummer stehen beim Kunden.",
+            "Gespeichert werden nur die geänderten Felder. Hat ein Kollege dasselbe Feld inzwischen geändert "
+            "(Abgleich über den gemeinsamen Ordner), wird nichts überschrieben: das Programm meldet den neuen Wert. "
+            "Im Lesemodus ist nichts änderbar.")
+    i.genauer("Im Angebot und im Auftrag")
+    i.liste("Neben der Kundennummer im Angebotskopf sucht <b>…</b> den Kunden (oder legt ihn neu an). "
+            "Archivierte Kunden fehlen in der Auswahl; bei gesperrten fragt das Programm nach.",
+            "<b>Ansprechpartner</b> und <b>Lieferadresse</b> stehen im Kopf zur Wahl (Vorschlag: Haupt- bzw. "
+            "Standard-Lieferadresse). Der Ansprechpartner steht als „z. Hd.“ in der Anschrift, die Lieferadresse "
+            "als <i>Lieferanschrift</i> im PDF, in der Angebotsakte und der Auftragsbestätigung; bei automatischer "
+            "Fracht wird sie das Frachtziel.",
+            "<b>Angebot → Auftrag</b> übernimmt Kunde, Ansprechpartner und Lieferadresse in den Auftragskopf.")
+    i.genauer("Tabellenansicht (alle Felder)")
+    i.bild("stamm_kunden", "Kunden, Tabellenansicht", hoehe=100 * mm)
+    i.text("Die bisherige Kundentabelle mit allen Spalten bleibt unter <i>Tabellenansicht (alle Felder)</i>: Tippen "
+           "oder F2 ändert einen Wert, Doppelklick zeigt die Angebote des Kunden. Hier stehen auch Teilekatalog, "
+           "Kundenwert, Datenauskunft und Anonymisieren. Bestehende Kunden hat das Update 0.9.455 ergänzt: PLZ und "
+           "Ort getrennt, Status Aktiv, der bisherige Ansprechpartner als Hauptansprechpartner und eine abweichende "
+           "Liefer-PLZ als Lieferadresse; gelöscht oder überschrieben wurde nichts.")
     i.genauer("Felder")
     i.text("Die Spalten der Tabellen im Einzelnen. Pflichtfelder sind fett; was leer bleiben darf, rechnet das "
            "Programm wie angegeben.")
@@ -13066,9 +13145,18 @@ def kapitel_stammdaten(i):
         ["Skonto [%], Skontofrist [Tage], Zahlungsziel netto [Tage]",
          "Zahlungsbedingungen des Kunden für neue Angebote; leer = Vorgabe aus den Einstellungen. Das Skonto wird in "
          "den Preis eingerechnet ([[kalkulation]])."],
+        ["Firmenzusatz, Rechtsform, Kundentyp, Branche, Website, Kundengruppe",
+         "Allgemeines (Kundenverwaltung); Kundentyp Firma, Privatkunde, Händler oder Lieferant; die Kundengruppe ist "
+         "Filter der Kundenübersicht"],
+        ["Kundenstatus", "Aktiv, Inaktiv oder Gesperrt (gesperrt: Rückfrage, bevor er im Angebot gewählt wird)"],
+        ["Ort, Bundesland", "Ort getrennt von der PLZ; „PLZ Ort“ füllt das Programm daraus"],
+        ["Umsatzsteuer-ID, Steuernummer, Währung, Kreditlimit, Zahlungsbedingungen",
+         "Kaufmännisches; die USt-ID zählt bei der Dublettenprüfung"],
+        ["Individuelle Preisvereinbarungen, Interne Kundennotizen", "nur intern (Kundenprofil)"],
+        ["Archiviert, Angelegt, Angelegt von, Geändert", "vom Programm gesetzt"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.abschnitt("Teilekatalog je Kunde", marke="teilekatalog")
-    i.text("Im Reiter Kunden zeigt <b>Teilekatalog …</b> alle Teile, die der gewählte Kunde je angefragt hat: eine "
+    i.text("Im Reiter Kunden (Tabellenansicht) zeigt <b>Teilekatalog …</b> alle Teile, die der gewählte Kunde je angefragt hat: eine "
            "Zeile je Artikel (ohne Artikelnummer: Bezeichnung, Profil und Länge) mit dem letzten Preis je Stück aus "
            "den Staffelpreisen, Datum, Angebot, Vorgang, Anzahl Angebote und Aufträge und ob es eine Nachkalkulation "
            "gibt. Abgelöste Fassungen zählen nicht.", kurz=True)
@@ -13080,7 +13168,7 @@ def kapitel_stammdaten(i):
             "<b>Neues Angebot aus Auswahl</b> legt ein Angebot für den Kunden an und übernimmt die markierten Teile aus "
             "ihrem neuesten Angebot (wie <i>Positionen aus anderem Angebot</i>, ohne Staffeln) ([[position_kopieren]]).")
     i.abschnitt("Datenschutz: Auskunft und Anonymisieren", marke="datenschutz")
-    i.text("Im Reiter Kunden gibt es für den gewählten Kunden <b>Datenauskunft (PDF) …</b> (welche Daten gespeichert "
+    i.text("Im Reiter Kunden (Tabellenansicht) gibt es für den gewählten Kunden <b>Datenauskunft (PDF) …</b> (welche Daten gespeichert "
            "sind) und <b>Anonymisieren …</b> (nur Admin): Ansprechpartner, Telefon und Mail sowie die Mail-Adressen im "
            "Versandverlauf seiner Angebote werden endgültig entfernt. Preise, Mengen und Positionen bleiben für "
            "Auswertungen.", kurz=True)

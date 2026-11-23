@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.455", "<b>Kundenverwaltung mit eigenem Menü</b> ([[kunden]]): Reiter und Menü <i>Kunden</i> mit "
+                "Kundenübersicht (Tabelle oder Karten, Live-Suche, Filter Status und Gruppe, Export Excel/CSV), "
+                "<b>Kundenprofil</b> mit acht Reitern (Kennzahlen Umsatz, Angebote, Aufträge, Quote, offene Angebote; "
+                "Stammdaten mit Rechnungs-, Liefer- und Standortadressen; beliebig viele <b>Ansprechpartner</b> mit "
+                "Rollen Haupt/Einkauf/Technik/Buchhaltung; Angebote; Aufträge; Dokumente; Historie aller Änderungen; "
+                "interne Notizen), mehrstufige Eingabemaske mit automatischer Kundennummer und "
+                "<b>Dublettenprüfung</b> (Name ohne Rechtsform, USt-ID, E-Mail/Domain, Telefon, Anschrift; nie "
+                "automatisch zusammengeführt), Archivieren und Duplizieren. Im Angebotskopf Kundensuche <b>…</b>, "
+                "Auswahl von Ansprechpartner und Lieferadresse; beides steht im PDF, in der Angebotsakte und geht in "
+                "den Auftrag. Bestehende Kunden werden beim Update ergänzt (nichts geht verloren). Datenbank Schema 102.",
+     "Kundenverwaltung: Menü Kunden, Kundenprofil, Ansprechpartner, Lieferadressen, Dublettenprüfung, im Angebot "
+     "wählbar."],
     ["0.9.454", "<b>Fehler behoben</b>: Das Info-Panel rechts meldete einen unerwarteten Fehler, wenn es sich zeigte, "
                 "während ein Angebot gerade geöffnet wurde. Es wartet jetzt, bis das Angebot fertig aufgebaut ist.",
      "Info-Panel: kein Fehler mehr beim Öffnen eines Angebots."],

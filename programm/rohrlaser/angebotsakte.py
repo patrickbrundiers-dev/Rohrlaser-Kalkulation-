@@ -160,6 +160,7 @@ def _kunde(kopf, ang, einst, positionen, k, summen=None):
     return dict(nummer=kopf.get("nummer") or "", datum=kopf.get("datum"), gueltig_bis=bis.isoformat() if bis else None,
                 gueltig_tage=(ang or {}).get("gueltig_tage"), kundennr=kopf.get("kundennr") or "",
                 kunde=kopf.get("kunde") or "", anschrift=list((ang or {}).get("anschrift") or ()),
+                lieferadresse=", ".join((ang or {}).get("lieferadresse") or ()),
                 ansprechpartner=dict(name=ap.get("name") or "", telefon=ap.get("telefon") or "",
                                      email=ap.get("email") or ""),
                 kundenreferenz=(ang or {}).get("kundenreferenz") or kopf.get("kundenreferenz") or "",
