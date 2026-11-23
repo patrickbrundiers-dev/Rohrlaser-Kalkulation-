@@ -168,9 +168,16 @@ def aus_angebot(db, angebot_id):
     k, tab, e = preis_simulator.grundlage(db, a)
     zeilen, summen = rechnen.kalkulation(a, pos, a["ergebnis"], k, tab, e)
     bearbeiter = a.get("bearbeiter")
+    pf = export.format_von(db.einstellung(export.CSV_FORMAT)) == export.PROFIRST
+    kunde = db.kunde(a.get("kundennr"))
     kopfzeile, pos_zeilen = export.daten(
-        a, pos, a["ergebnis"], zeilen, summen, k, tab, e, kunde=db.kunde(a.get("kundennr")),
-        ersteller=teilen.mitarbeiter(db, bearbeiter).get("name") if bearbeiter else None)
+        a, pos, a["ergebnis"], zeilen, summen, k, tab, e, kunde=kunde,
+        ersteller=teilen.mitarbeiter(db, bearbeiter).get("name") if bearbeiter else None,
+        als_satz=pf and db.einstellung(export.CSV_SATZ_ZEILE) != "nein")
+    if pf:          # wie die exportierte Datei (Sätze, Texte für PPEASE); Pos. bleibt die Positionsnummer
+        _, pf_zeilen = export.profirst(a, kopfzeile, pos_zeilen, kunde)
+        i = export.POSITION_SPALTEN.index("Pos.")
+        pos_zeilen = [z[:i] + [alt[i]] + z[i + 1:] for z, alt in zip(pf_zeilen, pos_zeilen)]
     titel = f"Angebot {nr}" + (f" – {a['kunde']}" if a.get("kunde") else "")
     return dict(name=titel, titel=titel, spalten=list(export.POSITION_SPALTEN), zeilen=pos_zeilen, eigen=True,
                 kopf=dict(zip(export.KOPF_SPALTEN, kopfzeile)), angebot_id=angebot_id)
