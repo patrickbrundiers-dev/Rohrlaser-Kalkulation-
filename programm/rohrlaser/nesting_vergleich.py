@@ -117,6 +117,14 @@ def vergleich(kopf, positionen, k, tabellen, einst, abbruch=None, fortschritt=No
                                                                          teile_mm=None), wb, z,
                                          round(zeiten.get(s, 0.0), 2)), strategie=s))
         emp = ne.empfehlung({s: p for s, p in plaene.items() if s != BISHER}, wb)
+        if emp[0] in zs:                                   # Zeile zeigt die Zuschnitt-Variante: Text danach
+            r = next(z for z in zeilen if z["strategie"] == emp[0])
+            teile = [r["laengen"], f"eingekauft {rechnen.zahl(r['gekauft_m'], 2)} m"]
+            if r.get("ersparnis") is not None and abs(r["ersparnis"]) > 0.005:
+                teile.append(f"Einkauf {'−' if r['ersparnis'] > 0 else '+'}{rechnen.zahl(abs(r['ersparnis']), 2)} € "
+                             f"gegenüber bisher")
+            emp = (emp[0], f"{ne.STRATEGIEN[emp[0]]}: " + ", ".join(teile)
+                   + ". Lieferlängen über der Beladelänge schneidet der Lieferant zu (ganze Stange bezahlt).")
         gew = (kopf.get("nesting") or {}).get(schl) or ""
         if (kopf.get("stangen_hand") or {}).get(schl):
             gew = rechnen.NESTING_HAND
