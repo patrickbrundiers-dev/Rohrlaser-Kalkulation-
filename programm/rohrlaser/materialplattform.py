@@ -224,13 +224,14 @@ def _erp_felder(g, preis_m):
     und Abweichung des Ø vom Stammdatenpreis in % (nur gegen Preise/Lieferlängen, nicht gegen den Tonnenpreis)."""
     if not g:
         return dict(erp_schnitt=None, erp_letzter=None, erp_datum="", erp_meter=None, erp_anzahl=0, erp_abw=None,
-                    erp_ober="")
+                    erp_ober="", erp_lieferzeit=None, erp_lz=None)
     schnitt = g.get("durchschnitt")
     d = g.get("letzter_datum")
     return dict(erp_schnitt=schnitt, erp_letzter=g.get("letzter"), erp_datum=d.isoformat() if d else "",
                 erp_meter=g.get("meter"), erp_anzahl=len(g.get("kaeufe") or ()),
                 erp_abw=(schnitt / preis_m - 1) * 100 if schnitt and preis_m and not g.get("oberflaeche") else None,
-                erp_ober=g.get("oberflaeche") or "")
+                erp_ober=g.get("oberflaeche") or "", erp_lz=g.get("lieferzeit"),
+                erp_lieferzeit=(g.get("lieferzeit") or {}).get("tage"))
 
 
 _WS_TEXT = {}
@@ -458,7 +459,7 @@ VERGLEICH = (("preis_m", "Preis [€/m]", 2), ("preis_kg", "Preis [€/kg]", 2),
              ("stand", "Preisstand", None), ("handelslaengen", "Handelslängen [mm]", None),
              ("lieferanten", "Lieferanten", None), ("mindest", "Mindestabnahme [Stangen]", 0),
              ("bestand_stangen", "Bestand [Stangen]", 0), ("erp_schnitt", "ERP-Einkauf Ø [€/m]", 2),
-             ("verschnitt", "Verschnitt bei den Teilen", None))
+             ("erp_lieferzeit", "Lieferzeit Ø [Tage]", 0), ("verschnitt", "Verschnitt bei den Teilen", None))
 
 
 def vergleich(zeilen, teile_mm=None, maschine=None):
@@ -807,7 +808,8 @@ EXPORT = (("profil_id", "Profil-ID"), ("form", "Profilform"), ("a", "A [mm]"), (
           ("preis_m", "Preis [€/m]"), ("quelle", "Preisquelle"), ("stand", "Preisstand"),
           ("lieferant", "Lieferant"), ("handelslaengen", "Handelslängen [mm]"), ("mindest", "Mindestabnahme"),
           ("nutzung", "Angebote"), ("erp_schnitt", "ERP-Einkauf Ø [€/m]"), ("erp_letzter", "ERP letzter Kauf [€/m]"),
-          ("erp_datum", "ERP letzter Kauf am"), ("erp_abw", "ERP Abweichung [%]"))
+          ("erp_datum", "ERP letzter Kauf am"), ("erp_abw", "ERP Abweichung [%]"),
+          ("erp_lieferzeit", "Lieferzeit Ø [Tage]"))
 
 
 def _zelle(v, stellen=None):

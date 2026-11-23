@@ -301,4 +301,80 @@ assert f.reiter.currentWidget() is m and m.bereiche.tabText(m.bereiche.currentIn
 ok("Angebot: „Material …“ öffnet direkt das Fenster; dort Kacheln, Material suchen und zuweisen, "
    "Lieferantenvergleich und Sprünge in die Materialdatenbank")
 
+# Lieferzeit je Material aus dem EK (Patrick 23.11.2026): L-Termin minus Datum Erf.; ERP-Vorschlag im Fenster Material
+import datetime  # noqa: E402
+
+from rohrlaser import funktionen  # noqa: E402
+from rohrlaser.meterpreis_dialog import ERP_VORSCHLAG, LIEFERZEIT, SPALTEN  # noqa: E402
+
+heute = datetime.date.today()
+
+
+def _d(vor, plus=None):
+    t = heute - datetime.timedelta(days=vor) + datetime.timedelta(days=plus or 0)
+    return t.strftime("%d.%m.%Y")
+
+
+EK = ("Bestell-Nr.;ArtNr;Bezeichnung;Zusatztext;Bez4;Menge;Preis;L-Termin;Angebotsdatum;Datum Erf.;erfasst;PE;\r\n"
+      f"1;EQRS235-40x40x3;Quadratrohr 40x40x3 kaltgefertigt;EN 10219- S235 HL 6m;;60;3,10;{_d(60, 14)};;{_d(60)};M;1;\r\n"
+      f"2;EQRS235-40x40x3;Quadratrohr 40x40x3 kaltgefertigt;EN 10219- S235 HL 6m;;120;3,00;{_d(100, 10)};;{_d(100)};M;1;\r\n"
+      f"3;EQRS235-40x40x3;Quadratrohr 40x40x3 kaltgefertigt;EN 10219- S235 HL 6m;;90;3,05;{_d(80, -3)};;{_d(80)};M;1;\r\n"
+      f"4;EQRS235-40x40x3;Quadratrohr 40x40x3 kaltgefertigt;EN 10219- S235 HL 6m;;30;3,20;;;{_d(70)};M;1;\r\n")
+de = E.lesen(EK.encode("cp1252"))
+ze = E.spalten_vorschlag(de["kopf"])
+assert de["kopf"][ze["liefertermin"]] == "L-Termin" and de["kopf"][ze["datum"]] == "Datum Erf.", ze
+alt = {f: i for f, i in ze.items() if f != "liefertermin"}      # gemerkte Zuordnung von vor der Lieferzeit
+assert E.zuordnung_fuer(de["kopf"], {E.vorlage_schluessel(de["kopf"]): alt})[0].get("liefertermin") == ze["liefertermin"]
+ke, meld = E.kaeufe(de, ze)
+assert len(ke) == 4 and not meld and (ke[0]["liefertermin"] - ke[0]["datum"]).days == 14 and ke[3]["liefertermin"] is None
+lz = E.lieferzeit(ke, heute)
+assert lz == dict(tage=12, min=10, max=14, anzahl=2, letzte=14), lz      # Termin vor dem Kauf und ohne Termin zählen nicht
+assert E.lieferzeit_text(lz) == "Ø 12 Tage (10 bis 14, 2 Käufe)" and E.lieferzeit_text(lz, kurz=True) == "12 Tage"
+assert E.lieferzeit(ke[2:], heute) is None and E.lieferzeit_text(None) == ""
+ohne = [dict(x, liefertermin=None) for x in ke]
+E.speichern(db, ohne, "alt.csv")                    # vor dem Update eingelesen: ohne Liefertermin
+assert all(x["liefertermin"] is None for x in E.gespeicherte(db) if x["artikelnr"] == "EQRS235-40x40x3")
+assert E.speichern(db, ke, "neu.csv") == 0          # neu einlesen: kein Kauf doppelt, Liefertermin nachgetragen
+assert sum(1 for x in E.gespeicherte(db) if x["artikelnr"] == "EQRS235-40x40x3" and x["liefertermin"]) == 3
+gr = mp.erp_gruppen(db)[("QR 40x40x3", "S235-10219")]
+assert gr["lieferzeit"]["tage"] == 12 and gr["lieferzeit"]["anzahl"] == 2, gr["lieferzeit"]
+zl = next(z for z in mp.alle_varianten(db) if (z["profil_id"], z["werkstoff_id"]) == ("QR 40x40x3", "S235-10219"))
+assert zl["erp_lieferzeit"] == 12 and any(f == "erp_lieferzeit" for f, *_ in mp.EXPORT)
+assert MB.lieferzeit_erp(db, "QR 40x40x3", "S235-10219").startswith("Ø 12 Tage")
+assert MB.lieferzeit_erp(db, "RE 60x40x3", "S355-10219") == ""
+ok("Lieferzeit je Material aus dem EK: L-Termin minus Erfassungsdatum, Ø/kürzeste/längste, Käufe ohne oder mit "
+   "früherem Termin zählen nicht; Liefertermin wird beim erneuten Einlesen nachgetragen")
+
+db.einstellung_setzen("funktion_erp_preise", "ja")
+funktionen.db_setzen(db)
+f.reiter.setCurrentWidget(an)
+an.erp_vorschlagen()
+an.neu_laden()
+gesehen = {}
+
+
+def fenster2(d):
+    r = next(i for i, g in enumerate(d.gruppen) if g["profil"] == "QR 40x40x3")
+    gesehen["kopf"] = [d.tabelle.horizontalHeaderItem(c).text() for c in (ERP_VORSCHLAG, LIEFERZEIT)]
+    gesehen["lz"] = d.tabelle.item(r, LIEFERZEIT).text()
+    gesehen["lz_tipp"] = d.tabelle.item(r, LIEFERZEIT).toolTip()
+    gesehen["knopf"] = d.erp_knoepfe[r].text() if d.erp_knoepfe[r] else None
+    gesehen["tipp"] = d.erp_knoepfe[r].toolTip() if d.erp_knoepfe[r] else ""
+    gesehen["vorher"] = d.felder[r].text()
+    if d.erp_knoepfe[r]:
+        d.erp_knoepfe[r].click()
+    gesehen["nachher"] = d.felder[r].text()
+    d.annehmen()
+    return True
+
+
+n = an.material_einstellen(fenster2)
+assert gesehen["kopf"] == ["ERP-Vorschlag [€/m]", "Lieferzeit Ø"] == list(SPALTEN[-2:]), gesehen
+assert gesehen["lz"] == "12 Tage" and "10 bis 14" in gesehen["lz_tipp"], gesehen
+assert gesehen["knopf"] and gesehen["knopf"].startswith("3,10") and "nur Vorschlag" in gesehen["tipp"], gesehen
+assert gesehen["vorher"] == "" and gesehen["nachher"] == "3,10" and n == 1, (gesehen, n)
+assert all(p["preis_m"] == 3.1 for p in an.positionen if p["profil_id"] == "QR 40x40x3")
+ok("Fenster Material je Abmessung: Spalten ERP-Vorschlag (Datum, Grund; ein Klick trägt ihn als Meterpreis dieses "
+   "Angebots ein) und Lieferzeit Ø")
+
 print("Alle Tests Materialdatenbank bestanden")

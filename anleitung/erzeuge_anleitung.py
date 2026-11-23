@@ -14462,6 +14462,20 @@ def kapitel_material(i):
            "<b>Bestellnummer</b> beim Lieferanten (Spalte <i>Bestellnummer (Lieferant)</i>, Lieferantenpreise), und "
            "erst danach an Bezeichnung, Maßen und Werkstoff. Zeigt eine Nummer auf mehrere Materialien, gilt sie "
            "nicht (kein Raten).")
+    i.text("<b>Lieferzeit aus dem ERP-Einkauf</b> (seit 0.9.460): Hat die EK-CSV eine Spalte <b>Liefertermin</b> "
+           "(im ERP-Export <i>L-Termin</i>), rechnet das Programm je Kauf die zugesagte Lieferzeit = Liefertermin "
+           "minus Kaufdatum (Erfassungsdatum) und zeigt je Material den Durchschnitt der letzten Monate "
+           "(<i>erp_monate</i>), dazu die kürzeste und die längste: in der Materialübersicht in der Spalte "
+           "<b>Lieferzeit Ø [Tage]</b> und rechts im Detail, im Lieferantenvergleich unter der Tabelle und im Fenster "
+           "<i>Material je Abmessung</i> des Angebots in der Spalte <b>Lieferzeit Ø</b>. Käufe ohne Liefertermin, mit "
+           "einem Termin vor dem Kaufdatum oder mit mehr als 365 Tagen zählen nicht. Der echte Wareneingang steht "
+           "nicht im Export, es ist also die vom Lieferanten zugesagte Zeit. Schon eingelesene Käufe bekommen den "
+           "Liefertermin, wenn die Datei noch einmal eingelesen wird (nichts wird doppelt).",
+           "Im Fenster <i>Material je Abmessung</i> steht daneben die Spalte <b>ERP-Vorschlag [€/m]</b>: der Kauf "
+           "aus dem ERP-Einkauf, der zum Bedarf der Abmessung passt, mit Kaufdatum; der Tooltip nennt Menge, "
+           "Artikel und den Grund, warum er nicht direkt eingesetzt wurde (zu alt oder andere Stangenzahl). Ein "
+           "Klick trägt ihn als Meterpreis für dieses Angebot ein; er gilt nach <i>Übernehmen</i>, die Stammdaten "
+           "bleiben unverändert. Direkt eingesetzte Käufe stehen dort als <i>eingesetzt</i>.")
     i.text("<b>ERP-Import</b> (Bereich ERP-Import, Datei hierher ziehen oder wählen): <b>Materialstamm und EK-Preise "
            "einlesen …</b> für Artikel-/Preislisten, <b>Einkäufe einlesen</b> (EK-CSV) für die Einkaufshistorie "
            "(wie oben) und <b>Preisliste eines Lieferanten …</b>. Gelesen werden CSV in UTF-8 oder ANSI mit Semikolon, "

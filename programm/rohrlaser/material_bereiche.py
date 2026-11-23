@@ -263,6 +263,13 @@ class DashboardSeite(QWidget):
 
 
 # ------------------------------------------------------------------ Lieferantenvergleich
+def lieferzeit_erp(db, profil_id, werkstoff_id):
+    """Text der zugesagten Lieferzeit eines Materials aus dem ERP-Einkauf („Ø 12 Tage (5 bis 21, 8 Käufe)“), sonst ""."""
+    from . import erp_preise
+    g = mp.erp_gruppen(db).get((profil_id, werkstoff_id))
+    return erp_preise.lieferzeit_text((g or {}).get("lieferzeit"))
+
+
 def lieferantenvergleich(seite, profil_id=None, werkstoff_id=None, bedarf=None, frage=True, eltern=None):
     """Lieferantenvergleich für das markierte Material (Materialübersicht oder Tabelle Lieferanten). Ergebnis:
     (Liste aus material_stamm.angebote_fuer, Vorschlag) oder None."""
@@ -301,6 +308,10 @@ def lieferantenvergleich(seite, profil_id=None, werkstoff_id=None, bedarf=None, 
         lay.addWidget(t)
         lay.addWidget(QLabel(f"<b>Vorschlag:</b> {v['lieferant']} – {v['begruendung']}" if v else
                              "Kein gültiger Lieferantenpreis für dieses Material (Tabelle Lieferanten)."))
+        lz = lieferzeit_erp(seite.db, profil_id, werkstoff_id)
+        if lz:
+            lay.addWidget(QLabel(f"<b>Lieferzeit laut ERP-Einkauf:</b> {lz} (Liefertermin minus Erfassungsdatum, "
+                                 "über alle Lieferanten)"))
         bb = QDialogButtonBox(QDialogButtonBox.Close)
         bb.button(QDialogButtonBox.Close).setText("Schließen")
         bb.rejected.connect(d.reject)
