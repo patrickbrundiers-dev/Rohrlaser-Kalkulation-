@@ -2910,14 +2910,15 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.zeiten_seite = ZeitenSeite(self)
         from .optimierung_seite import OptimierungSeite         # Plan X6: Unterreiter von Kalkulation (Reiterleiste
         self.optimierung_seite = OptimierungSeite(self)         # bleibt bei 1280 px ohne Blätterpfeile)
+        # Zusatzarbeiten flexibel (Patrick 23.11.2026): allgemeine Zusatzarbeiten des Angebots und Übersicht je Position,
+        # als Unterreiter von Kalkulation (Reiterleiste bleibt bei 1280 px ohne Blätterpfeile)
+        from .zusatz_global_seite import ZusatzGlobalSeite
+        self.zusatz_seite = ZusatzGlobalSeite(self)
         self.reiter.gruppe("Kalkulation", [(kalk_seite, "Kalkulation"), (self.zeiten_seite, "Zeiten && Arbeitskosten"),
+                                           (self.zusatz_seite, "Zusatzarbeiten"),
                                            (self.optimierung_seite, "Optimierung")])
         self.reiter.addTab(zk_seite, "Zukaufteile")
         self._zukauf_seite = zk_seite
-        # Zusatzarbeiten flexibel (Patrick 23.11.2026): allgemeine Zusatzarbeiten des Angebots und Übersicht je Position
-        from .zusatz_global_seite import ZusatzGlobalSeite
-        self.zusatz_seite = ZusatzGlobalSeite(self)
-        self.reiter.addTab(self.zusatz_seite, "Zusatzarbeiten")
         # Teilebaum mit Offen-Spalte und 3D-Vorschau links neben dem Schnittplan (Lantek-Idee L3)
         self.teile_baum = TeileBaum(self._vorschau_netz)
         self.teile_baum.gewaehlt.connect(self._baum_gewaehlt)

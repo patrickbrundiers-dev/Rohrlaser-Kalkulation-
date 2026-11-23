@@ -11,7 +11,7 @@ Einheitspreisen und Mengen, als eigene Zeilen im Kundenangebot. Bestehende Funkt
 | Zusatzarbeiten je Position mit Menge und Preis von Hand | ja (Fenster Zusatzarbeiten …) | + Haken **Preis = Verkauf** |
 | Preis-Snapshot je Position | ja (Preisstand `stand`) | unverändert |
 | €/Stück, €/m, €/m², €/kg, €/h, €/Angebot | ja | unverändert |
-| Zusatzarbeiten für das ganze Angebot als eigene Zeilen | nein (€/Angebot wurde auf die Teile umgelegt) | **neu**: Reiter *Zusatzarbeiten* |
+| Zusatzarbeiten für das ganze Angebot als eigene Zeilen | nein (€/Angebot wurde auf die Teile umgelegt) | **neu**: Unterreiter *Kalkulation → Zusatzarbeiten* |
 | Prozentualer Zuschlag | nein | **neu** (Grundlage wählbar) |
 | Warnung bei doppelt hinterlegter Leistung | nein | **neu** (Reiter + Angebots-Check) |
 | Darstellung im PDF wählbar | nein („inkl. …“) | **neu**: zusammengefasst / detailliert / nur Gesamtpreis |
@@ -53,7 +53,7 @@ Abgleich über den gemeinsamen Ordner sie mitnimmt. Kopie und neue Fassung über
 
 ## Oberfläche
 
-- Angebot → Reiter **Zusatzarbeiten** (`zusatz_global_seite.py`): Tabelle der allgemeinen Zusatzarbeiten
+- Angebot → Reiter Kalkulation → Unterreiter **Zusatzarbeiten** (`zusatz_global_seite.py`): Tabelle der allgemeinen Zusatzarbeiten
   (Bezeichnung, Menge, Einheit, Preis je Einheit, Gesamt, Beschreibung, intern Kosten/Zeit, Grundlage bei %),
   Knöpfe *＋ Aus Verwaltung*, *＋ Frei*, *＋ Pauschale*, *＋ Zuschlag %*, *Entfernen*, *Standardpreis*,
   *Auf Positionen …*; darunter die Zusatzarbeiten je Position (Übersicht), gelbe Warnung bei Überschneidung,

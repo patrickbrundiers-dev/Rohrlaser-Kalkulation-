@@ -2988,7 +2988,7 @@ def kapitel_angebot(i):
             "<b>Zusatzarbeiten …</b>; Markieren, Löschen und Kopieren gelten wie immer der ganzen Position.",
             "Das Angebots-PDF bleibt unverändert (dort stehen die Arbeiten als „inkl. …“).")
     i.abschnitt("Zusatzarbeiten für das ganze Angebot und feste Einheitspreise", marke="zusatz_global")
-    i.text("Im Reiter <b>Zusatzarbeiten</b> des Angebots stehen Leistungen für das <b>ganze Angebot</b> "
+    i.text("Im Reiter <i>Kalkulation</i> → Unterreiter <b>Zusatzarbeiten</b> des Angebots stehen Leistungen für das <b>ganze Angebot</b> "
            "(Verpackung 45 € pauschal, Sonderbearbeitung 3 h × 65 €/h, Qualitätskontrolle, Zuschlag %). Sie erscheinen "
            "im Kundenangebot als eigene Zeilen unter den Positionen. Je Position gibt es im Fenster "
            "<b>Zusatzarbeiten …</b> den Haken <b>Preis = Verkauf</b> für feste Einheitspreise.", kurz=True)

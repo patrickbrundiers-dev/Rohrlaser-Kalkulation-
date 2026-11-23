@@ -1,4 +1,4 @@
-"""Reiter „Zusatzarbeiten“ im Angebot (Master-Auftrag Zusatzarbeiten flexibel, Patrick 23.11.2026).
+"""Unterreiter „Zusatzarbeiten“ (in Kalkulation) im Angebot (Master-Auftrag Zusatzarbeiten flexibel, Patrick 23.11.2026).
 
 Oben die allgemeinen Zusatzarbeiten für das ganze Angebot (zusatz_global.py) mit Bezeichnung, Menge, Einheit,
 Preis je Einheit (Verkaufspreis), Gesamt, Beschreibung und den internen Werten Kosten und Zeit je Einheit. Darunter
