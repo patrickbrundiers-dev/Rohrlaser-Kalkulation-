@@ -9830,7 +9830,7 @@ def kapitel_ausgabe(i, seiten, ablage):
            "<i>Stückpr.</i> = Satzpreis wie im Angebots-PDF, Gewicht, Einsatzgewicht und <i>HK()</i> je Satz, Zeiten, "
            "Herstellkosten und Einkauf als Summe der Teile, <i>L.</i> und <i>Artikeltext</i> leer, in der Liste der "
            "Arbeitsgänge alle Arbeitsgänge der Teile einmal. Sätze mit Schweißbaugruppe bleiben wie bisher. Satzteile "
-           "einzeln wie früher: Einstellung <i>CSV-Export (PROfirst): jeden Satz als eine Zeile</i> = <i>nein</i>.",
+           "einzeln wie früher: Einstellung <i>CSV-Export: jeden Satz als eine Zeile</i> = <i>nein</i>.",
            "PPEASE setzt den Positionstext selbst aus den Spalten zusammen: Profil aus <i>Liste der Arbeitsgänge</i> "
            "und <i>Werkstofftyp</i>, darunter <i>Länge: &lt;L.&gt;mm</i>, darunter <i>inkl.</i> und die übrigen "
            "Arbeitsgänge; den Artikeltext übernimmt es nicht. Weil PPEASE Sonderzeichen falsch liest (aus "

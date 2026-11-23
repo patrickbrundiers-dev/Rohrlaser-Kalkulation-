@@ -23,7 +23,7 @@ def als_html(neuerungen=None):
 NEUERUNGEN = [
     ["0.9.453", "<b>CSV für PPEASE wie PROfirst</b> ([[csv_export]]): Ein <b>Satz steht als eine Zeile</b> in der "
                 "Positionsdatei (ArtikelNr. = Satzname, Menge = Anzahl Sätze, Stückpreis = Satzpreis wie im PDF); "
-                "abschaltbar mit der Einstellung <i>CSV-Export (PROfirst): jeden Satz als eine Zeile</i>. Werkstofftyp, "
+                "abschaltbar mit der Einstellung <i>CSV-Export: jeden Satz als eine Zeile</i>. Werkstofftyp, "
                 "Artikeltext, Kommentar und Arbeitsgänge enthalten nur noch einfache Zeichen (<i>Rundrohr 54x2</i> "
                 "ohne Ø, <i>Oberflaeche</i>), weil PPEASE aus Ø ein <i>?</i> und aus ä ein Leerzeichen machte. "
                 "<b>Sicherung</b>: Angebotsdokumente mit sehr langem Pfad (Mails mit langem Betreff) werden jetzt "
