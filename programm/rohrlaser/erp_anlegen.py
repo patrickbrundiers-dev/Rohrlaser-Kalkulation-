@@ -144,7 +144,7 @@ def plan(db, kaeufe=None):
     from .profil_neu import profil_id
     k = db.kontext()
     kaeufe = erp_preise.gespeicherte(db) if kaeufe is None else kaeufe
-    artikel = erp_preise.artikel(kaeufe, erp_preise.zuordnungen(db), k)
+    artikel = erp_preise.artikel(kaeufe, erp_preise.zuordnungen(db), k, erp_preise.nummern_von(db))
     profile, werkstoffe, zuord, offen = {}, {}, [], []
     for a in artikel:
         if a.get("gemerkt") or a.get("ignorieren"):
@@ -239,7 +239,7 @@ def werkstoff_je_profil(db, heute=None, monate=None, anteil=VORWAHL_ANTEIL):
     if not kaeufe:
         return {}
     k = db.kontext()
-    zu = {a["schluessel"]: a for a in erp_preise.artikel(kaeufe, erp_preise.zuordnungen(db), k)
+    zu = {a["schluessel"]: a for a in erp_preise.artikel(kaeufe, erp_preise.zuordnungen(db), k, erp_preise.nummern_von(db))
           if a["ampel"] == erp_preise.GRUEN and not a.get("ignorieren") and a.get("profil_id")
           and a.get("werkstoff_id") in k.werkstoffe}
     ab = erp_preise._monate_zurueck(heute, monate)
@@ -260,13 +260,13 @@ def werkstoff_je_profil(db, heute=None, monate=None, anteil=VORWAHL_ANTEIL):
     return out
 
 
-def vorauswahl(messwerte, profile, je_profil, vorgabe=None):
+def vorauswahl(messwerte, profile, je_profil, vorgabe=None, stamm=None, k=None):
     """Werkstoff der Rohre und Profile eines STEP-Imports nach dem EK vorbelegen: Körper ohne eigene Wahl (kein
     Werkstoff aus der STEP-Datei, nicht im Prüfdialog gewählt), deren Profil der Einkauf überwiegend in einem
     anderen Werkstoff als der Vorgabe kauft, bekommen ihn als _werkstoff mit Hinweis (_werkstoff_text). Bleche und
     Normteile bleiben. Als _werkstoff_vorschlag gilt er nicht als Korrektur des Kunden (Importprofil lernt ihn
     nicht). Ergebnis: Anzahl vorbelegter Körper."""
-    if not je_profil:
+    if not je_profil and not stamm:
         return 0
     from . import step
     n = 0
@@ -275,7 +275,16 @@ def vorauswahl(messwerte, profile, je_profil, vorgabe=None):
                 or not m.get("profilform"):
             continue
         pid = m.get("_profil") or step.finde_profil(m, profile)
-        v = je_profil.get(pid)
+        v = (je_profil or {}).get(pid)
+        if not v and stamm and k is not None and pid:
+            # Materialstamm (Master-Auftrag 23.11.2026): nie raten. Gibt es die Abmessung im Stamm nur in anderen
+            # Werkstoffen als der Vorgabe, steht das als Hinweis da; gewählt wird im Prüfdialog.
+            from . import material_stamm
+            ws = [w["werkstoff_id"] for w in material_stamm.werkstoffe_fuer(pid, stamm, k)]
+            if ws and vorgabe not in ws:
+                m["_werkstoff_text"] = (f"Materialstamm: {pid} gibt es in {', '.join(ws[:6])}"
+                                        f"{' …' if len(ws) > 6 else ''}, nicht in {vorgabe} – bitte Werkstoff wählen")
+            continue
         if not v or v["werkstoff_id"] == vorgabe:
             continue
         m["_werkstoff"] = m["_werkstoff_vorschlag"] = v["werkstoff_id"]

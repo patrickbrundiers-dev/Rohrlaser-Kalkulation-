@@ -803,12 +803,39 @@ class MaterialBereich(QWidget):
             m.addAction("Werkstoff archivieren", lambda: self.archivieren("werkstoffe", z["werkstoff_id"], True))
         m.addSeparator()
         m.addAction("Neuer Lieferantenpreis …", lambda: self.lieferant_neu()).setEnabled(bool(z))
+        from . import material_bereiche
+        m.addAction("Lieferantenvergleich …", lambda: material_bereiche.lieferantenvergleich(self)).setEnabled(bool(z))
+        if z:
+            inaktiv = z.get("inaktiv")
+            m.addAction("Im Materialstamm wieder aktiv setzen" if inaktiv else "Im Materialstamm inaktiv setzen",
+                        lambda: self.stamm_aktiv(z, bool(inaktiv)))
         m.addAction("In Tabelle Preise zeigen", lambda: self.stammdaten_zeigen("preise"))
         m.addAction("Als CSV exportieren (markierte) …", lambda: self.exportieren(zs)).setEnabled(bool(zs))
         if zeigen:
             m.exec(self.tabelle.viewport().mapToGlobal(punkt) if punkt is not None else self.tabelle.mapToGlobal(
                 self.tabelle.rect().center()))
         return m
+
+    def stamm_aktiv(self, z, an):
+        """Material im Materialstamm aktiv/inaktiv setzen (inaktiv: in neuen Positionen nicht mehr angeboten, alte
+        Angebote bleiben). Fehlt die Zeile, wird sie angelegt."""
+        if not self.darf("materialstamm"):
+            return None
+        from . import material_stamm as ms
+        import datetime
+        heute = datetime.date.today().isoformat()
+        zeilen = [x for x in self.db.zeilen(ms.STAMM) if (x.get("profil_id"), x.get("werkstoff_id"))
+                  == (z["profil_id"], z["werkstoff_id"])]
+        if not zeilen:
+            self.db.neu(ms.STAMM, dict(profil_id=z["profil_id"], werkstoff_id=z["werkstoff_id"],
+                                       aktiv="ja" if an else "nein", angelegt=heute, geaendert=heute,
+                                       quelle="von Hand"))
+        for x in zeilen:
+            self.db.aendern(ms.STAMM, x["id"], "aktiv", "ja" if an else "nein")
+            self.db.aendern(ms.STAMM, x["id"], "geaendert", heute)
+        self.neu_laden(erzwingen=True)
+        self.f.meldung(f"{z['profil_id']} · {z['werkstoff_id']}: im Materialstamm {'aktiv' if an else 'inaktiv'}")
+        return an
 
     def favorit(self, z):
         mp.favorit_setzen(self.db, z["profil_id"], z["werkstoff_id"], not z["favorit"])
@@ -1048,11 +1075,15 @@ class MaterialBereich(QWidget):
     def exportieren(self, zeilen=None, pfad=None):
         zeilen = zeilen if zeilen is not None else self.sichtbar
         if pfad is None:
-            pfad, _ = QFileDialog.getSaveFileName(self, "Materialliste exportieren", "Material.csv", "CSV (*.csv)")
+            pfad, _ = QFileDialog.getSaveFileName(self, "Materialliste exportieren", "Material.csv",
+                                                  "CSV (*.csv);;Excel (*.xlsx)")
             if not pfad:
                 return None
-        with open(pfad, "w", encoding="utf-8-sig", newline="") as f:
-            f.write(mp.csv_export(zeilen))
+        if str(pfad).lower().endswith(".xlsx"):
+            mp.xlsx_export(zeilen, pfad)
+        else:
+            with open(pfad, "w", encoding="utf-8-sig", newline="") as f:
+                f.write(mp.csv_export(zeilen))
         self.f.meldung(f"{len(zeilen)} Materialien exportiert: {pfad}")
         return pfad
 

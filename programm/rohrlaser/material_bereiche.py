@@ -94,6 +94,24 @@ def einrichten(seite, uebersicht):
         seite.bereiche.addTab(w, name)
     seite.bereiche.setCurrentWidget(uebersicht)
     seite.bereiche.currentChanged.connect(lambda i: bereich_gezeigt(seite, seite.bereiche.tabText(i)))
+    from PySide6.QtGui import QKeySequence, QShortcut
+    for taste, fn in TASTEN(seite):     # nur auf der Seite Material (keine Überschneidung mit dem Hauptfenster)
+        sc = QShortcut(QKeySequence(taste), seite)
+        sc.setContext(Qt.WidgetWithChildrenShortcut)
+        sc.activated.connect(fn)
+
+
+def TASTEN(seite):  # noqa: N802
+    """Tastenkürzel der Seite Material."""
+    def suche():
+        bereich_zeigen(seite, "Materialübersicht")
+        seite.suche.setFocus()
+        seite.suche.selectAll()
+    return (("Ctrl+F", suche),
+            ("Ctrl+Shift+I", lambda: bereich_zeigen(seite, "ERP-Import")),
+            ("Ctrl+Shift+E", lambda: seite.exportieren()),
+            ("Ctrl+Shift+D", lambda: bereich_zeigen(seite, "Dashboard")),
+            ("F5", lambda: bereich_gezeigt(seite, seite.bereiche.tabText(seite.bereiche.currentIndex()))))
 
 
 def bereich_zeigen(seite, name):

@@ -14329,6 +14329,71 @@ def kapitel_material(i):
            "direkt einsetzen, wenn der Kauf höchstens so alt ist</b> [Tage], <b>ERP-Preise: direkt einsetzen bei "
            "Stangenzahl ±</b> [Stangen] und <b>ERP-Preise: Werkstoff je Profil nach dem Einkauf vorwählen</b> "
            "(STEP-Import). Der Menüpunkt <i>ERP-Einkauf einlesen</i> (EK-CSV) steht unter <i>Mehr</i>.")
+    i.abschnitt("Materialdatenbank: Bereiche, Materialstamm und ERP-Import", marke="material_datenbank")
+    i.text("Die Seite <b>Material</b> hat oben Reiter für die Bereiche <b>Dashboard</b>, <b>Materialübersicht</b> "
+           "(die Liste von oben, Start), <b>Werkstoffe</b>, <b>Abmessungen</b>, <b>Materialkombinationen</b>, "
+           "<b>Einkaufspreise</b>, <b>Lieferanten</b>, <b>ERP-Import</b>, <b>Preisverlauf</b>, <b>Importhistorie</b> "
+           "und <b>Einstellungen</b>. Werkstoffe, Abmessungen, Einkaufspreise und Lieferanten sind dieselben "
+           "Tabellen wie unter <i>Einstellungen → Material</i> (Admin-Schutz gilt gleich); es gibt keine zweite "
+           "Datenbank. Werkstoffe und Abmessungen sind unabhängig; welche Kombinationen es gibt, steht im "
+           "<b>Materialstamm</b> (Reiter Materialkombinationen).",
+           "<b>Dashboard</b>: Kacheln mit Anzahl Werkstoffe, Abmessungen, Materialvarianten, im Materialstamm, "
+           "Lieferanten, Preise älter als 30 Tage, Materialien ohne Preis, nur Tonnenpreis, Preisänderungen im "
+           "letzten Import und inaktive Materialien; ein Klick öffnet den Bereich (gefiltert). Darunter der letzte "
+           "ERP-Import und die Preiswarnungen (Prüfvorschläge, Doppelklick öffnet das Material). Knöpfe "
+           "<b>ERP-Import …</b>, <b>Prüfvorschläge</b> und <b>Zur Materialübersicht</b>.",
+           "<b>Materialstamm</b> (Tabelle, auch unter Einstellungen): je Abmessung × Werkstoff × Oberfläche "
+           "<b>Materialnummer (ERP)</b>, <b>Materialbezeichnung</b>, <b>Handelsbezeichnung</b>, <b>Hersteller / "
+           "Lieferant</b>, <b>Aktiv</b>, <b>Angelegt am</b>, <b>Geändert am</b>, Herkunft und Bemerkung. Beim "
+           "Update wird er einmal aus Preisen, Lieferlängen, Lieferantenpreisen und EK-Käufen gefüllt; beide "
+           "Importe tragen die Artikelnummer je Abmessung × Werkstoff ein (eine leere Nummer wird nachgetragen, eine "
+           "vorhandene ändert nur ein bestätigter Import). <b>Inaktiv</b> (Kontextmenü <i>Im Materialstamm inaktiv "
+           "setzen</i>) heißt: in der Auswahl für neue Positionen nicht mehr angeboten; alte Angebote bleiben.",
+           "<b>Erkennung vorhandener Materialien</b>: Beide Importe erkennen ein Material zuerst an einer gemerkten "
+           "Zuordnung, dann an der <b>Artikelnummer</b> (Materialnummer im Materialstamm) bzw. der "
+           "<b>Bestellnummer</b> beim Lieferanten (Spalte <i>Bestellnummer (Lieferant)</i>, Lieferantenpreise), und "
+           "erst danach an Bezeichnung, Maßen und Werkstoff. Zeigt eine Nummer auf mehrere Materialien, gilt sie "
+           "nicht (kein Raten).")
+    i.text("<b>ERP-Import</b> (Bereich ERP-Import, Datei hierher ziehen oder wählen): <b>Materialstamm und EK-Preise "
+           "einlesen …</b> für Artikel-/Preislisten, <b>Einkäufe einlesen</b> (EK-CSV) für die Einkaufshistorie "
+           "(wie oben) und <b>Preisliste eines Lieferanten …</b>. Gelesen werden CSV in UTF-8 oder ANSI mit Semikolon, "
+           "Komma, Tabulator oder senkrechtem Strich, Dezimalkomma oder -punkt, und Excel (.xlsx).",
+           "Im Fenster <b>ERP-Import: Spalten zuordnen</b> schlägt das Programm die Zuordnung nach den Spaltennamen "
+           "vor (auch englisch: Item No, Grade, Size, Price, Unit); jede Spalte lässt sich umstellen. Felder: "
+           "Materialnummer, Bezeichnung, Werkstoff, Abmessung oder einzeln Profilart, Außen-Ø/Breite, Höhe, "
+           "Wandstärke, Länge, EK-Preis (Pflicht), Preiseinheit (€/m, €/kg, €/t, €/100 m, €/Stange bzw. Stück), "
+           "Lieferant, Gewicht, Gültig ab, Oberfläche, Handelsbezeichnung und Bestellnummer. <i>Als Importprofil "
+           "speichern</i> merkt die Zuordnung; beim nächsten Import mit gleichem Spaltenkopf wird sie gewählt. "
+           "<b>Importprofil löschen</b> im Bereich ERP-Import.",
+           "Das Fenster <b>ERP-Import: Vorschau</b> zeigt jede Zeile in einer Gruppe: <b>neu</b>, "
+           "<b>Preisänderung</b> (alter und neuer €/m, Änderung in %, ab ±15 % Warnung), <b>aktualisiert</b>, "
+           "<b>unverändert</b>, <b>doppelt</b>, <b>fehlerhaft</b> und <b>nicht zuordenbar</b> (z. B. <i>S355</i> "
+           "ohne Norm: mehrere Werkstoffe möglich, das Programm rät nicht). Haken bestimmen, welche der Gruppen neu, "
+           "Preisänderung und aktualisiert übernommen werden. <b>Fehlerhafte Zeilen exportieren …</b> schreibt die "
+           "übrigen als CSV. Erst <b>Übernehmen</b> ändert etwas: vorher wird gesichert, alles läuft als ein Lauf; "
+           "neue Profile und Werkstoffe (mit Norm) werden angelegt, der Preis wird aktiver Preis, mit Lieferant auch "
+           "Lieferantenpreis.",
+           "<b>Importhistorie</b>: jeder Lauf mit Zeit, Datei, Importprofil, Benutzer und Zählern; darunter jede "
+           "Änderung (Tabelle, alt, neu). <b>Import rückgängig machen …</b> nimmt einen Lauf zurück; inzwischen von "
+           "Hand geänderte Felder bleiben und werden gemeldet.",
+           "<b>Preisverlauf</b>: jede Preisänderung mit altem und neuem EK, Änderung in %, Datum, Herkunft "
+           "(ERP-Import oder Stammdaten), Lieferant und Importquelle; bei anderer Preisbasis in €/m umgerechnet. "
+           "<b>nur Änderungen ab 10 %</b> filtert; <b>Preisentwicklung des Materials …</b> öffnet die Kurve im "
+           "Reiter Preishistorie. Angebote ändern sich durch einen Import nie rückwirkend (festgeschriebene Preise, "
+           "[[preise_festschreiben]]).")
+    i.text("<b>Lieferanten</b>: beliebig viele je Material mit Bestellnummer, Lieferzeit, Mindestabnahme, "
+           "<b>Staffel ab [m]</b>, <b>Verpackungseinheit [Stangen]</b>, Gültigkeit und <b>Bevorzugter Lieferant</b>. "
+           "<b>Lieferantenvergleich …</b> (Bereich Lieferanten oder Kontextmenü der Materialübersicht) rechnet für "
+           "einen Bedarf in Metern Stangen, Kosten und Lieferzeit je Lieferant und schlägt den günstigsten vor; der "
+           "bevorzugte gewinnt, solange er höchstens 2 % teurer ist.",
+           "<b>STEP-Import</b>: Gibt es eine Abmessung im Materialstamm nur in anderen Werkstoffen als der Vorgabe, "
+           "zeigt der Prüfdialog den Hinweis <i>Materialstamm: … bitte Werkstoff wählen</i>; der Werkstoff wird "
+           "nicht geändert.",
+           "<b>Einstellungen</b> (Bereich): die wichtigsten Werte der Materialdatenbank; <b>Einstellungen "
+           "ERP-Preisimport öffnen</b> und <b>Tabelle Materialindex öffnen</b> springen dorthin.",
+           "Tasten auf der Seite Material: Strg+F Suche, Strg+Umschalt+I ERP-Import, Strg+Umschalt+E Export, "
+           "Strg+Umschalt+D Dashboard, F5 neu laden. <i>Mehr → Als CSV exportieren</i> speichert auch als Excel "
+           "(.xlsx, Dateityp im Speichern-Fenster).")
     i.abschnitt("Vergleichen und Prüfvorschläge", marke="material_vergleich")
     i.text("<b>Vergleichen</b> stellt bis zu acht markierte Materialien nebeneinander: Preis je m und kg, Gewicht, "
            "Güte, Handelslängen, Lieferanten, Preisstand und, wenn ein Angebot offen ist, den <b>Verschnitt</b> bei "

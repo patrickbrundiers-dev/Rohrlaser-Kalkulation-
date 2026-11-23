@@ -32,7 +32,8 @@ FELDER = (("materialnr", "Materialnummer / Artikelnr."), ("bezeichnung", "Bezeic
           ("abmessung", "Abmessung"), ("form", "Profilart"), ("a", "Außen-Ø / Breite [mm]"), ("b", "Höhe [mm]"),
           ("wand", "Wandstärke [mm]"), ("laenge", "Länge [mm]"), ("preis", "EK-Preis"), ("einheit", "Preiseinheit"),
           ("lieferant", "Lieferant"), ("gewicht", "Gewicht [kg/m]"), ("gueltig_ab", "Gültig ab"),
-          ("oberflaeche", "Oberfläche"), ("handelsname", "Handelsbezeichnung"))
+          ("oberflaeche", "Oberfläche"), ("handelsname", "Handelsbezeichnung"),
+          ("bestellnr", "Bestellnummer (Lieferant)"))
 FELD_TITEL = dict(FELDER)
 PFLICHT = ("preis",)                 # dazu Bezeichnung oder Abmessung/Maße (prüft analysieren)
 PROFILE = "material_importprofile"   # Einstellung (intern, nur dieser PC): {Name: dict(kopf, spalten, einheit, lieferant)}
@@ -55,8 +56,11 @@ _KOPF = {"materialnr": ("artikelnummer", "artikelnr", "artnr", "materialnummer",
          "gewicht": ("gewicht", "gewichtjem", "kgm", "kgjem", "metergewicht", "weight"),
          "gueltig_ab": ("gueltigab", "gültigab", "gueltig", "gültig", "datum", "preisdatum", "stand"),
          "oberflaeche": ("oberflaeche", "oberfläche", "ausfuehrung", "ausführung", "finish"),
-         "handelsname": ("handelsbezeichnung", "handelsname", "markenname")}
-_REIHE = ("materialnr", "bezeichnung", "werkstoff", "abmessung", "wand", "preis", "einheit", "lieferant", "gewicht",
+         "handelsname": ("handelsbezeichnung", "handelsname", "markenname"),
+         "bestellnr": ("bestellnummer", "bestellnr", "lieferantenartikelnummer", "lieferantenartnr",
+                       "lieferantenartikelnr", "herstellerartikelnummer", "herstellernummer", "supplierpartno",
+                       "orderno", "bestellcode")}
+_REIHE = ("bestellnr", "materialnr", "bezeichnung", "werkstoff", "abmessung", "wand", "preis", "einheit", "lieferant", "gewicht",
           "gueltig_ab", "laenge", "oberflaeche", "handelsname", "form", "a", "b")
 
 NEU, AKTUALISIERT, PREIS, GLEICH, DOPPELT, FEHLER, OFFEN = (
@@ -228,6 +232,8 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
     except Exception:           # noqa: BLE001  (Datei ohne ERP-Tabellen)
         from . import protokoll
         protokoll.warnung("Materialimport: ERP-Zuordnungen nicht lesbar")
+    from . import material_stamm
+    nummern = material_stamm.nummern(db)    # vorhandene Werte über Artikel- und Bestellnummer erkennen (23.11.2026)
     neue_ws = {}
     gesehen, out = {}, []
     for n, z in enumerate(daten["zeilen"], daten.get("erste", 2)):
@@ -237,7 +243,7 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
         e = dict(zeile=n, materialnr=zelle("materialnr"), bezeichnung=zelle("bezeichnung"), roh=roh, hinweis=[],
                  profil_id=None, profil_neu=None, werkstoff_id=None, werkstoff_neu=None, oberflaeche="", basis=None,
                  preis=None, preis_m=None, alt_m=None, pct=None, laenge=None, lieferant=None, gueltig_ab=None,
-                 handelsname=zelle("handelsname"))
+                 handelsname=zelle("handelsname"), bestellnr=zelle("bestellnr"))
         out.append(e)
         if not any(c.strip() for c in z):
             e.update(gruppe=FEHLER, hinweis=["leere Zeile"])
@@ -273,11 +279,19 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
         if not w and zelle("abmessung") and a is None:
             w = None
         merk = gemerkt.get(e["materialnr"]) if e["materialnr"] else None
-        if merk and merk.get("profil_id") in k.profile and merk.get("werkstoff_id") in k.werkstoffe:
+        quelle = "Zuordnung der Artikelnummer gemerkt"
+        if not (merk and merk.get("profil_id") in k.profile and merk.get("werkstoff_id") in k.werkstoffe):
+            merk = None
+            for nr in (e["materialnr"], e["bestellnr"]):
+                if nr and nummern.get(str(nr).strip()):
+                    merk = nummern[str(nr).strip()]
+                    quelle = f"vorhanden, erkannt über {merk['quelle']} {nr}"
+                    break
+        if merk:
             pid, vorschlag = merk["profil_id"], None
             wid, wneu = merk["werkstoff_id"], None
             e["oberflaeche"] = merk.get("oberflaeche") or ""
-            e["hinweis"].append("Zuordnung der Artikelnummer gemerkt")
+            e["hinweis"].append(quelle)
         else:
             pid, vorschlag = _profil(text, zelle("form"), a, b, w, k)
             form = (k.profile.get(pid) or {}).get("form") if pid else (vorschlag or {}).get("form")
@@ -474,8 +488,8 @@ def ausfuehren(db, posten, gruppen=AUSFUEHRBAR, datei="", importprofil="", siche
                            x.get("lieferant")) == (pid, wid, e["lieferant"]) and (x.get("laenge") or None) == lg
                            and not x.get("ab_menge")), None)
                 lw = dict(basis=e["basis"], preis=e["preis"], gueltig_ab=e["gueltig_ab"])
-                if e.get("materialnr"):
-                    lw["artikelnr"] = e["materialnr"]
+                if e.get("bestellnr") or e.get("materialnr"):
+                    lw["artikelnr"] = e.get("bestellnr") or e["materialnr"]
                 if lz is None:
                     lauf.neu(mp.LIEFERANTEN_TABELLE, dict(lw, profil_id=pid, werkstoff_id=wid,
                                                           lieferant=e["lieferant"], laenge=lg))

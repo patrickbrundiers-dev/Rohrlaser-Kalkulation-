@@ -671,7 +671,7 @@ def erp_gruppen(db, heute=None):
     if not kaeufe:
         return {}
     k = db.kontext()
-    art = erp_preise.artikel(kaeufe, erp_preise.zuordnungen(db), k)
+    art = erp_preise.artikel(kaeufe, erp_preise.zuordnungen(db), k, erp_preise.nummern_von(db))
     monate = _n(db.einstellung("erp_monate")) or 12
     grenze = _n(db.einstellung("erp_ausreisser")) or 0.25
     out = {}
@@ -828,6 +828,48 @@ def csv_export(zeilen):
     for z in zeilen:
         w.writerow([_zelle(z.get(f)) for f, _ in EXPORT])
     return buf.getvalue()
+
+
+def _xml(t):
+    return (str(t).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;"))
+
+
+def xlsx_export(zeilen, pfad, kopf=None, felder=None):
+    """Materialliste als Excel-Datei (.xlsx, ein Blatt, ohne Zusatzpaket): Zahlen als Zahl, Rest als Text."""
+    import zipfile
+    felder = felder or [f for f, _ in EXPORT]
+    kopf = kopf or [dict(EXPORT).get(f, f) for f in felder]
+
+    def zelle(v):
+        if isinstance(v, bool) or v is None:
+            v = "" if v is None else ("ja" if v else "nein")
+        if isinstance(v, (int, float)):
+            return f"<c><v>{v}</v></c>"
+        return f'<c t="inlineStr"><is><t xml:space="preserve">{_xml(v)}</t></is></c>'
+    reihen = [kopf] + [[z.get(f) for f in felder] for z in zeilen]
+    blatt = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats'
+             '.org/spreadsheetml/2006/main"><sheetData>' + "".join(
+                 f'<row r="{i + 1}">' + "".join(zelle(v) for v in r) + "</row>" for i, r in enumerate(reihen))
+             + "</sheetData></worksheet>")
+    ns = "http://schemas.openxmlformats.org"
+    with zipfile.ZipFile(pfad, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", f'<?xml version="1.0" encoding="UTF-8"?><Types xmlns="{ns}/package/2006/'
+                    f'content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.'
+                    'relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName='
+                    '"/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.'
+                    'main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.'
+                    'openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>')
+        zf.writestr("_rels/.rels", f'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="{ns}/package/2006/'
+                    f'relationships"><Relationship Id="rId1" Type="{ns}/officeDocument/2006/relationships/'
+                    'officeDocument" Target="xl/workbook.xml"/></Relationships>')
+        zf.writestr("xl/workbook.xml", f'<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="{ns}/spreadsheetml/'
+                    f'2006/main" xmlns:r="{ns}/officeDocument/2006/relationships"><sheets><sheet name="Material" '
+                    'sheetId="1" r:id="rId1"/></sheets></workbook>')
+        zf.writestr("xl/_rels/workbook.xml.rels", f'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="{ns}/'
+                    f'package/2006/relationships"><Relationship Id="rId1" Type="{ns}/officeDocument/2006/'
+                    'relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>')
+        zf.writestr("xl/worksheets/sheet1.xml", blatt)
+    return pfad
 
 
 IMPORT_SPALTEN = {"profil-id": "profil_id", "profil": "profil_id", "werkstoff-id": "werkstoff_id",

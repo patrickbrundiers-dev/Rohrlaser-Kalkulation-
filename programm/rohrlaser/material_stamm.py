@@ -112,6 +112,30 @@ def zeilen_je(db_oder_zeilen):
     return {schluessel(z): z for z in zeilen}
 
 
+def nummern(db):
+    """{Nummer: dict(profil_id, werkstoff_id, oberflaeche, quelle)} vorhandener Materialien: Materialnummer (ERP) im
+    Materialstamm und Artikel-/Bestellnummer der Lieferantenpreise. Eine Nummer, die auf mehrere Materialien zeigt,
+    fehlt (nie raten)."""
+    k = db.kontext()
+    je = {}
+    for z in db.zeilen(STAMM):
+        if z.get("materialnr"):
+            je.setdefault(str(z["materialnr"]).strip(), []).append(
+                (z.get("profil_id"), z.get("werkstoff_id"), z.get("oberflaeche") or "", "Materialnummer (Materialstamm)"))
+    for z in db.zeilen("material_lieferanten"):
+        if z.get("artikelnr"):
+            je.setdefault(str(z["artikelnr"]).strip(), []).append(
+                (z.get("profil_id"), z.get("werkstoff_id"), "", f"Bestellnummer {z.get('lieferant') or 'Lieferant'}"))
+    out = {}
+    for nr, treffer in je.items():
+        mat = {t[:3] for t in treffer}
+        if len(mat) == 1 and nr:
+            pid, wid, ober = next(iter(mat))
+            if pid in k.profile and wid in k.werkstoffe:
+                out[nr] = dict(profil_id=pid, werkstoff_id=wid, oberflaeche=ober, quelle=treffer[0][3])
+    return out
+
+
 def werkstoffe_fuer(profil_id, stamm_zeilen, k, nur_aktiv=True):
     """Werkstoffe, die es in dieser Abmessung laut Materialstamm gibt: [dict(werkstoff_id, aktiv, materialnr,
     bezeichnung)], aktive zuerst, dann nach Werkstoff-ID. Inaktive nur mit nur_aktiv=False. Eine Liste mit mehr als

@@ -10416,7 +10416,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 and self.db.einstellung("erp_werkstoff_vorwahl") != "nein":
             # Patrick 23.11.2026: Werkstoff je Profil nach dem EK vorwählen (Mail und Importprofil des Kunden gehen vor)
             from . import erp_anlegen
-            erp_anlegen.vorauswahl(messwerte, self.k.profile, erp_anlegen.werkstoff_je_profil(self.db), werkstoff)
+            erp_anlegen.vorauswahl(messwerte, self.k.profile, erp_anlegen.werkstoff_je_profil(self.db), werkstoff,
+                                   stamm=self.db.zeilen("materialstamm"), k=self.k)
         if "anbau_weglassen" in vorgaben:
             for m in messwerte:
                 m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])

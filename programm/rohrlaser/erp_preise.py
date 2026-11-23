@@ -484,10 +484,23 @@ def zuordnung_vergessen(db, schluessel_liste):
         db.con.executemany("DELETE FROM erp_zuordnung WHERE schluessel=?", [(s,) for s in schluessel_liste])
 
 
-def artikel(kauf_liste, gemerkt, k):
+def nummern_von(db):
+    """Artikel-/Bestellnummern vorhandener Materialien (material_stamm.nummern); ohne Materialstamm leer."""
+    try:
+        from . import material_stamm
+        return material_stamm.nummern(db)
+    except Exception:           # noqa: BLE001  (Datei ohne Materialstamm)
+        from . import protokoll
+        protokoll.warnung("ERP-Preise: Nummern des Materialstamms nicht lesbar")
+        return {}
+
+
+def artikel(kauf_liste, gemerkt, k, nummern=None):
     """Je ERP-Artikel (Schlüssel) eine Zeile der Prüfliste: dict(schluessel, artikelnr, bezeichnung, kaeufe, meter,
     profil_id, werkstoff_id, oberflaeche, ampel, hinweis, gemerkt, ignorieren, vorschlag, kandidaten). Gemerkte
-    Zuordnungen gelten vor der Erkennung, solange Profil und Werkstoff noch in den Stammdaten stehen."""
+    Zuordnungen gelten vor der Erkennung, solange Profil und Werkstoff noch in den Stammdaten stehen. Danach erkennt
+    die Artikelnummer ein vorhandenes Material (nummern = material_stamm.nummern: Materialnummer im Materialstamm,
+    Bestellnummer beim Lieferanten), erst dann die Bezeichnung (Patrick 23.11.2026)."""
     je = {}
     for kauf in kauf_liste:
         a = je.setdefault(kauf["schluessel"], dict(schluessel=kauf["schluessel"], artikelnr=kauf["artikelnr"],
@@ -503,6 +516,11 @@ def artikel(kauf_liste, gemerkt, k):
         elif z and z.get("profil_id") in k.profile and z.get("werkstoff_id") in k.werkstoffe:
             a.update(profil_id=z["profil_id"], werkstoff_id=z["werkstoff_id"], oberflaeche=z.get("oberflaeche") or "",
                      ampel=GRUEN, hinweis="gemerkt", gemerkt=True, ignorieren=False, vorschlag=None, kandidaten=[])
+        elif nummern and a["artikelnr"] and nummern.get(str(a["artikelnr"]).strip()):
+            n = nummern[str(a["artikelnr"]).strip()]
+            a.update(profil_id=n["profil_id"], werkstoff_id=n["werkstoff_id"], oberflaeche=n.get("oberflaeche") or "",
+                     ampel=GRUEN, hinweis=f"erkannt über {n['quelle']}", gemerkt=False, ignorieren=False,
+                     vorschlag=None, kandidaten=[])
         else:
             e = zerlegen(a["bezeichnung"] + artikelnr_hinweis(a["artikelnr"]), k)
             a.update(profil_id=e["profil_id"], werkstoff_id=e["werkstoff_id"], oberflaeche=e["oberflaeche"],
@@ -687,7 +705,7 @@ def verlauf_eintraege(db, k):
     liste = gespeicherte(db)
     if not liste:
         return []
-    zu = {a["schluessel"]: a for a in artikel(liste, zuordnungen(db), k)
+    zu = {a["schluessel"]: a for a in artikel(liste, zuordnungen(db), k, nummern_von(db))
           if a["ampel"] == GRUEN and not a.get("ignorieren") and a.get("profil_id") and a.get("werkstoff_id")}
     tage = {}
     for kauf in liste:
@@ -727,7 +745,7 @@ def angebot_vorschlag(db, kopf, positionen, ergebnis, k, tabellen, heute=None):
     monate = db.einstellung("erp_monate") or 12
     grenze = db.einstellung("erp_ausreisser") or 0.25
     gemerkt = zuordnungen(db)
-    zu = {a["schluessel"]: a for a in artikel(liste, gemerkt, k)
+    zu = {a["schluessel"]: a for a in artikel(liste, gemerkt, k, nummern_von(db))
           if a["ampel"] == GRUEN and not a.get("ignorieren") and a.get("profil_id") and a.get("werkstoff_id")}
     je = {}
     for kauf in liste:
