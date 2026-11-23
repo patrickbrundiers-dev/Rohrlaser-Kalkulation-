@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.460", "<b>Nesting-Arbeitsplatz und Verschachtelung auf CAD/CAM-Niveau</b> ([[nesting]]): im Reiter "
+                "Optimierung je Abmessung fünf Strategien gegen den bisherigen Schnittplan (A wenigstes Material, "
+                "B geringste Materialkosten, C Reststücke zuerst, D schnellste Fertigung, E ausgewogen in €). "
+                "Gemischte Lieferlängen mit Preisen je Länge und Mindestabnahme, 12 m mit Zuschnitt (die ganze Stange "
+                "wird bezahlt), Stangenbild maßstäblich mit Teilen, Schnitten, Rest und Verschnitt, Teile von Hand "
+                "umsetzen (geprüft, nie überbelegt), Einkauf und kalkulatorische Kosten getrennt, lokale Hinweise. "
+                "Reststücke nur mit Lager und Reststücken (Vorgabe aus); Lagerposten mit Zustand frei/gesperrt/"
+                "Ausschuss und Spalte verwertbar. Ohne Wahl rechnet jedes Angebot genau wie bisher. Das "
+                "Kundenangebot zeigt nichts davon.",
+     "Nesting-Arbeitsplatz: Strategien A–E je Abmessung, Mischlängen mit Preisen, 12 m mit Zuschnitt, "
+     "Teile von Hand umsetzen ([[nesting]])."],
     ["0.9.458", "<b>Kundenverwaltung mit eigenem Menü</b> ([[kunden]]): Reiter und Menü <i>Kunden</i> mit "
                 "Kundenübersicht (Tabelle oder Karten, Live-Suche, Filter Status und Gruppe, Export Excel/CSV), "
                 "<b>Kundenprofil</b> mit acht Reitern (Kennzahlen Umsatz, Angebote, Aufträge, Quote, offene Angebote; "

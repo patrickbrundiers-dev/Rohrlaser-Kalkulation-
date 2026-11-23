@@ -281,7 +281,7 @@ if maxw and maxw < 12000:
 else:
     print("Zuschnitt 12 m: Maschine lädt 12 m selbst, kein Zuschnitt nötig")
 
-# ------------------------------------------------------------------ 10 Gespeichert je Angebot (Schema 103)
+# ------------------------------------------------------------------ 10 Gespeichert je Angebot (Schema 104)
 aid = db.angebot_neu(dict(nummer="NEST-1", kunde="Test", maschine="T03", stange=6000))
 db.nesting_speichern(aid, {schl: "B"}, {schl: hand})
 a = db.angebot(aid)

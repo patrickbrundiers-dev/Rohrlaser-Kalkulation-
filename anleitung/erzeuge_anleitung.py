@@ -3802,6 +3802,52 @@ def abschnitte_profirst_angebot(i):
            "nach oben und unten nicht gleich viel, z. B. weil eine Stange mehr gebraucht wird (beim Materialpreis "
            "wird neu optimiert); beim Vorschub ist berücksichtigt, dass die Zeit mit 1/Vorschub geht. Ein "
            "ermittelter Maschinenstundensatz bleibt dabei, wie er ist. Das Angebot ändert sich nicht.")
+    i.abschnitt("Nesting-Arbeitsplatz: Verschachtelung je Abmessung", marke="nesting")
+    i.text("Reiter <b>Kalkulation → Optimierung</b>, Knopf <b>Nesting-Arbeitsplatz …</b>: je Abmessung fünf "
+           "Strategien gegen den bisherigen Schnittplan, die Stangen maßstäblich untereinander und Teile von Hand "
+           "umsetzen. Ohne Wahl rechnet jedes Angebot genau wie bisher.", kurz=True)
+    i.genauer()
+    i.liste("<b>A Minimaler Materialverbrauch</b>: kleinste eingekaufte Stangenlänge; die Lieferlängen der "
+            "Abmessung (Stammdaten <i>Lieferlängen</i>, z. B. 6, 6,5 und 7 m) werden gemischt.",
+            "<b>B Geringste Materialkosten</b>: kleinster Einkaufspreis aus den Preisen je Lieferlänge der "
+            "Materialdatenbank. Fehlt ein Preis, gilt die Länge nie als billig (nie 0 €).",
+            "<b>C Maximale Reststückverwertung</b>: nur mit Lager <i>und</i> Reststücken (Einstellungen → Lager; "
+            "Vorgabe aus). Freie, verwertbare Reststücke derselben Abmessung zuerst, der Rest wie B.",
+            "<b>D Schnellste Fertigung</b>: wenigste Beladungen der Maschine, dann wenigste verschiedene "
+            "Belegungen (Programme).",
+            "<b>E Ausgewogen</b> (Empfehlung): Bewertung in €: Material + Beladungen (Stangenwechsel) + € je "
+            "verschiedene Belegung (Einstellung <i>Verschachtelung ausgewogen: € je verschiedene Stangenbelegung</i>, "
+            "Vorgabe 5 €).")
+    i.liste("<b>Gemischt werden nur ganze Lieferstangen</b>, die die Maschine laden kann; jede Stange wird ganz "
+            "bezahlt.",
+            "<b>12 m mit Zuschnitt</b>: Lieferlängen über der Beladelänge der Maschine schneidet der Lieferant zu; "
+            "bezahlt wird immer die ganze 12-m-Stange. Die Strategien prüfen das als eigene Variante, auch gemischt "
+            "(z. B. 10 × 12 m mit Zuschnitt + 1 × 6 m); die Zeile zeigt dann „Zuschnitt“.",
+            "<b>Mindestabnahme</b> (Stammdaten Lieferlängen, z. B. Walzlängen vom Werk ab ca. 20 t): eine solche "
+            "Länge nimmt die Strategie nur, wenn der Plan mindestens so viele Stangen braucht.",
+            "<b>Nahtlose Rohre mit Herstelllänge 5 bis 7 m</b>: als Lieferlänge die kürzeste zugesagte Länge "
+            "(5.000 mm) eintragen; so passt der Plan auf jede gelieferte Stange.")
+    i.text("Die Tabelle zeigt je Strategie: Stangen je Länge, eingekaufte Länge, Einkauf und kalkulatorische "
+           "Materialkosten (mit Reststücken zum Restwert), Teilelänge, Schnittverluste, verwertbaren Rest, nicht "
+           "verwertbaren Verschnitt, Ausnutzung, Material je Teil, Beladungen, verschiedene Belegungen, Einkauf "
+           "gegenüber bisher und die Rechenzeit. Rechts stehen die Materialkosten je Position (nach Teilelänge "
+           "verteilt). Jede Stange ist geprüft: Teile + Schnittverluste + Endbeschnitt + Rest = Stangenlänge, der "
+           "Greiferrest bleibt frei, keine Stange ist überbelegt.")
+    i.liste("<b>Bild</b>: Endbeschnitt grau, Teile in der Farbe ihrer Position, Schnitte schwarz, verwertbarer Rest "
+            "grün, nicht verwertbarer Verschnitt rot schraffiert, Greiferrest dunkelgrau.",
+            "<b>Von Hand umsetzen</b>: Teil anklicken, dann eine andere Stange; rechts neben die Stangen = neue Stange. "
+            "Passt es nicht, steht dort, wie viel frei ist und wie viel das Teil braucht. Die Kennzahlen rechnen sofort "
+            "neu, <b>Rückgängig</b> nimmt den letzten Schritt zurück.",
+            "<b>Strategie übernehmen</b>: gilt für diese Abmessung und rechnet bei jeder Mengenänderung neu. "
+            "<b>Belegung von Hand übernehmen</b>: diese Stangen bleiben fest; ändert sich ein Teil, wird nur die "
+            "betroffene Stange aufgelöst, neue Teile plant Strategie B dazu. <b>Wie bisher rechnen</b> nimmt beides "
+            "zurück. Mit <b>Übernehmen und neu optimieren</b> gilt es im Angebot.",
+            "<b>Hinweise</b> (lokal, ohne Internet, nur Vorschläge): mögliche Einsparung, schwach belegte Stange, hoher "
+            "Verschnitt, passende Reststücke im Lager, fehlende Preise. Die Hinweise rechnen und ändern nichts.",
+            "Das Kundenangebot zeigt davon nichts: keine Strategie, keine Einkaufspreise, keine Reststücke.",
+            "Für alle Abmessungen auf einmal: Einstellungen → Lieferlängen-Regeln → <i>Verschachtelung: Strategie für "
+            "alle Abmessungen</i> (Vorgabe „bisher“). Eine Wahl je Abmessung im Nesting-Arbeitsplatz geht vor. "
+            "Kundenmaterial, Musterteile und von Hand vorgegebene Stangen rechnen immer wie bisher.")
     i.abschnitt("Schachtelvergleich in einer Tabelle", marke="schachtelvergleich")
     i.text("<i>Varianten vergleichen</i>, Reiter <b>Schachtelvergleich</b>: je Stangengruppe alle Einteilungen "
            "nebeneinander mit Stangen, Material [kg] und [€], Stangenlänge gesamt, Verschnitt [mm] und [%], Material "
@@ -11995,7 +12041,16 @@ def kapitel_fertigung(i):
             "der ins Lager kommt</i> (Vorgabe 500 mm) als eigene Posten ins Lager und werden bei späteren Aufträgen "
             "zuerst eingeplant. Ohne die Einstellung bleiben Reste wie bisher nur Verschnitt.",
             "<i>Reststücke und Lagerstangen: Wert in Prozent des Materialpreises</i> bewertet Lagermaterial im "
-            "Variantenvergleich (Vorgabe 100 %).",
+            "Variantenvergleich und in der Verschachtelung (Vorgabe 100 %).",
+            "<b>Zustand …</b>: Posten <i>frei</i>, <i>gesperrt</i> (z. B. krumm oder zurückgehalten) oder "
+            "<i>Ausschuss</i>; gesperrte und Ausschuss-Posten plant weder der Lagerplan noch die Verschachtelung ein. "
+            "Spalte <b>verwertbar</b>: ein Reststück ist erst wiederverwendbar, wenn es mindestens den kürzesten "
+            "Rest fürs Lager hat und nach Endbeschnitt, Greiferrest (Spannbereich) und einem Schnitt noch "
+            "<i>Reststücke: verwertbar erst, wenn nach Endbeschnitt und Greiferrest so viel bleibt</i> (Vorgabe 100 mm) übrig "
+            "ist.",
+            "Mit Lager und Reststücken nimmt die Strategie <b>C Reste zuerst</b> im Nesting-Arbeitsplatz "
+            "([[nesting]]) freie Reststücke ins Angebot; der Lagerplan reserviert dann genau diese Reststücke. "
+            "Einkauf 0 €, kalkulatorisch der Restwert.",
             "Das Lager steht in der eigenen Datendatei und wird zwischen Arbeitsplätzen nicht abgeglichen "
             "([[mehrere_arbeitsplaetze]]); es gehört an einen Arbeitsplatz, z. B. die Arbeitsvorbereitung.")
     i.abschnitt("Material aus Lager im Auftrag", marke="material_aus_lager")
