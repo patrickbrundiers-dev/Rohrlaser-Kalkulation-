@@ -22,7 +22,8 @@ db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
 f = Hauptfenster(db, stumm=True)
 f.resize(1400, 860)
 f.show()
-assert f.kunden.ansicht.editTriggers() & KLICK, "Kundenliste: Klick in die gewählte Zeile bearbeitet"
+assert f.kunden.tabelle.ansicht.editTriggers() & KLICK, "Kundentabelle: Klick in die gewählte Zeile bearbeitet"
+assert not f.kunden.ansicht.editTriggers(), "Kundenübersicht (23.11.2026): Klick wählt, Doppelklick öffnet das Profil"
 assert all(s.ansicht.editTriggers() & KLICK or getattr(s, "admin_gesperrt", False) for s in f.seiten), \
     "alle Stammdaten-Tabellen (außer vom Admin gesperrte)"
 print("OK     Kundenliste und alle Stammdaten: Klick in die gewählte Zelle bearbeitet")

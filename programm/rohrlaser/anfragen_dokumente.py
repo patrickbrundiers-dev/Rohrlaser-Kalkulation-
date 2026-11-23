@@ -197,7 +197,8 @@ def herkunft_html(akte, kunden_namen=None):
     if z.get("ohne_kunde"):
         k = "<b>Intern (ohne Kunde)</b>"
     elif kunde:
-        k = f"<b>{e(kunde)} {e(namen.get(kunde) or z.get('kunde_name') or akte.kopf.get('kunde_name') or '')}</b>"
+        k = (f"<b>{e(kunde)} {e(namen.get(kunde) or z.get('kunde_name') or akte.kopf.get('kunde_name') or '')}</b>"
+             f" · <a href='kunde-profil:{e(kunde)}'>Kundenprofil</a>")     # 23.11.2026 Kundenverwaltung
     else:
         k = "<b>kein Kunde gesetzt</b>"
     wer = f" von {e(z['bestaetigt_von'])}" if z.get("bestaetigt_von") else ""

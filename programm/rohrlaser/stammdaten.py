@@ -228,7 +228,28 @@ KUNDEN = Tabelle(
      Feld("bemerkung", "Bemerkung", breite=200),
      # Kundenhinweis (Plan PROfirst G1, 12.11.2026): groß im Angebotskopf, wahlweise auf den Werkstattpapieren
      Feld("hinweis", "Kundenhinweis", breite=220),
-     Feld("hinweis_werkstatt", "Hinweis auf Werkstattpapiere", "auswahl", auswahl="janein", breite=80)),
+     Feld("hinweis_werkstatt", "Hinweis auf Werkstattpapiere", "auswahl", auswahl="janein", breite=80),
+     # Kundenverwaltung (Patrick 23.11.2026, Schema 102, kunden_daten.py): leer = wie bisher
+     Feld("firmenzusatz", "Firmenzusatz", breite=140),
+     Feld("rechtsform", "Rechtsform", breite=90),
+     Feld("kundentyp", "Kundentyp", "auswahl", auswahl="kundentyp", breite=90),
+     Feld("branche", "Branche", breite=110),
+     Feld("website", "Website", breite=150),
+     Feld("status", "Kundenstatus", "auswahl", auswahl="kundenstatus", breite=80),
+     Feld("kundengruppe", "Kundengruppe", breite=100),
+     Feld("ort", "Ort", breite=120),
+     Feld("bundesland", "Bundesland", breite=100),
+     Feld("ust_id", "Umsatzsteuer-ID", breite=110),
+     Feld("steuernr", "Steuernummer", breite=100),
+     Feld("waehrung", "Währung", "auswahl", auswahl="waehrung", breite=60),
+     Feld("kreditlimit", "Kreditlimit [€]", "zahl", 0, 1000000000, stellen=2, breite=90),
+     Feld("zahlungsbedingung", "Zahlungsbedingungen (Text)", breite=170),
+     Feld("preisvereinbarung", "Individuelle Preisvereinbarungen", breite=200),
+     Feld("notizen", "Interne Kundennotizen", breite=200),
+     Feld("archiviert", "Archiviert", "auswahl", auswahl="janein", breite=70),
+     Feld("angelegt", "Angelegt", breite=130),
+     Feld("angelegt_von", "Angelegt von", breite=60),
+     Feld("geaendert", "Geändert", breite=130)),
     ("kundennr",),
     "Kunden für den Angebotskopf: Kundennummer wählen, dann kommen Name, Anschrift und Zahlungsbedingungen ins "
     "Angebot. Skonto, Skontofrist und Zahlungsziel leer = Vorgabe aus den Einstellungen. PLZ und Land (leer = PLZ aus "
@@ -2305,7 +2326,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "kundentyp": ["Firma", "Privatkunde", "Händler", "Lieferant"], "kundenstatus": ["Aktiv", "Inaktiv", "Gesperrt"], "waehrung": ["EUR", "CHF", "USD", "GBP", "PLN", "CZK"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"], "sd_quelle": list(SD_QUELLEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),

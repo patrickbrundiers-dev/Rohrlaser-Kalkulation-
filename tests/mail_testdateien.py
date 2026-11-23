@@ -129,6 +129,9 @@ def _nachricht(betreff, text, absender_name, absender, datum, anhaenge, html=Non
     if ansi:
         stroeme["__substg1.0_0037001E"] = betreff.encode("cp1252")
         stroeme["__substg1.0_1000001E"] = text.encode("cp1252")
+        for nr, w in ((0x0C1A, absender_name), (0x5D01, absender), (0x0C1F, absender)):
+            if w:                                   # alte Datei: Absender ebenfalls als cp1252-Text (001E)
+                stroeme[f"__substg1.0_{nr:04X}001E"] = w.encode("cp1252")
     else:
         for nr, w in ((0x0037, betreff), (0x0C1A, absender_name), (0x5D01, absender), (0x0C1F, absender)):
             k, v = _text(nr, w)

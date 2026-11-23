@@ -37,6 +37,7 @@ ART_TEXT = {DIREKT: "direkt vom Kunden", WEITERGELEITET: "intern weitergeleitet"
 # Punkte je Merkmal (je Kunde zusammengezählt)
 P_ADRESSE, P_REGEL_ADRESSE, P_REGEL_DOMAIN = 100, 100, 70
 P_DOMAIN, P_DOMAIN_NAME, P_SIGNATUR, P_TELEFON, P_KUNDENNR, P_NAME_TEXT = 60, 40, 35, 35, 50, 30
+P_UST = 100                     # 23.11.2026: gleiche USt-ID wie beim Kunden (eindeutig je Firma)
 EINDEUTIG_AB, ZWEI_MERKMALE_AB, VORSCHLAG_AB, ABSTAND = 100, 95, 30, 40
 
 REGELN = "regeln.json"          # im Ordner _outlook der Akten
@@ -215,16 +216,27 @@ def zuordnen(m, kunden, eigene=(), firma="", regeln=(), jetzt=None, nachrichten_
                     dazu(nr, P_DOMAIN_NAME, f"Domain @{dom} passt zum Firmennamen")
         daten = mail.kunde_daten(o, "", eigene) or {}
         if daten.get("name") and "@" not in daten["name"]:
+            from .kunden_daten import namenskern       # 23.11.2026: auch „Gesellschaft mbH“, „GmbH & Co. KG“
             kern = mail._kompakt(re.sub(mail.FIRMA, "", daten["name"]))
+            kern2 = namenskern(daten["name"])
             for k in kunden:
                 kk = mail._kompakt(re.sub(mail.FIRMA, "", str(k.get("name") or "")))
-                if len(kern) >= 5 and kk and (kern == kk or (len(kk) >= 6 and (kk in kern or kern in kk))):
+                if (len(kern) >= 5 and kk and (kern == kk or (len(kk) >= 6 and (kk in kern or kern in kk)))) or \
+                        (len(kern2) >= 4 and kern2 == namenskern(k.get("name"))):
                     dazu(k["kundennr"], P_SIGNATUR, f"Firma „{daten['name']}“ in der Signatur")
         tel = _ziffern(daten.get("telefon"))
         if len(tel) >= 6:
-            for k in kunden:
-                if _ziffern(k.get("telefon")) == tel:
+            for k in kunden:            # Zentrale und (mit kunden_daten.mit_kontakten) alle Ansprechpartner
+                if any(_ziffern(t) == tel for t in (k.get("telefone") or [k.get("telefon")])):
                     dazu(k["kundennr"], P_TELEFON, f"Telefon {daten['telefon']} wie beim Kunden")
+        from .anfrage_kunde import UST_DE, UST_ID
+        sig = mail._signatur(mail._absender_text(o, eigene))
+        u = UST_ID.search(sig) or UST_DE.search(sig)
+        ust = re.sub(r"[^0-9A-Z]", "", (u.group(1) if u and u.re is UST_ID else u.group(0) if u else "").upper())
+        if len(ust) >= 10:
+            for k in kunden:
+                if re.sub(r"[^0-9A-Z]", "", str(k.get("ust_id") or "").upper()) == ust:
+                    dazu(k["kundennr"], P_UST, f"USt-ID {ust} wie beim Kunden")
     # Kundennummer bzw. Kundenname im Text (auch bei internen Anfragen: der Kollege nennt den Kunden)
     text = (o.volltext() if o is not None else (m.volltext() if m is not None else ""))
     for nr in dict.fromkeys(KUNDENNR_TEXT.findall(text)):

@@ -74,6 +74,12 @@ KOPF = (
     Feld("bg_lose", "Schweißbaugruppe: Preis lose Einzelteile nennen", "auswahl", auswahl="janein"),
     # OFFER-015 (Paket 2e, 13.11.2026): Angebot und Auftragsbestätigung auf Englisch (englisch.py); leer = deutsch
     Feld("englisch", "Angebot auf Englisch", "auswahl", auswahl="janein"),
+    # Kundenverwaltung (23.11.2026, Schema 102): gewählter Ansprechpartner und Lieferadresse des Kunden (Kennung uid
+    # aus kunden_ansprechpartner/kunden_adressen und der Stand als Text fürs PDF); leer = wie bisher
+    Feld("kunde_ansprech_uid", "Ansprechpartner des Kunden (Kennung)"),
+    Feld("kunde_ansprech", "Ansprechpartner des Kunden"),
+    Feld("liefer_uid", "Lieferadresse (Kennung)"),
+    Feld("lieferadresse", "Lieferadresse"),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;

@@ -74,7 +74,7 @@ VERZOEGERT = "Verzögert"
 # Kopffelder des Auftrags (Name, Titel); änderbar mit Historie
 KOPF = (("kunde", "Kunde"), ("kundennr", "Kundennummer"), ("ansprechpartner", "Ansprechpartner"),
         ("projekt", "Projekt"), ("bestellnr", "Bestellnummer des Kunden"), ("auftragsdatum", "Auftragsdatum"),
-        ("liefertermin", "Liefertermin"), ("verantwortlich", "Zuständig"),
+        ("liefertermin", "Liefertermin"), ("lieferadresse", "Lieferadresse"), ("verantwortlich", "Zuständig"),
         ("anforderungen", "Besondere Kundenanforderungen"), ("bemerkung", "Bemerkung"))
 KOPF_TITEL = dict(KOPF)
 POSITION_AENDERBAR = (("menge", "Menge"), ("liefertermin", "Liefertermin"), ("bemerkung", "Bemerkung"))
@@ -235,7 +235,7 @@ def _anwenden(con, e):
                                             vorher.get("_nr") or n0 + i + 1, _json(dict(p, _nr=vorher.get("_nr")
                                                                                           or n0 + i + 1))))
         for f in ("kunde", "kundennr", "ansprechpartner", "projekt", "bestellnr", "liefertermin",
-                  "anforderungen"):       # leere Kopffelder aus dem (weiteren) Angebot ergänzen
+                  "anforderungen", "lieferadresse", "ansprech_uid"):       # leere Kopffelder aus dem (weiteren) Angebot ergänzen
             w = ((d or {}).get("kopf") or {}).get(f)
             if w and not kopf.get(f):
                 kopf[f] = w
@@ -478,7 +478,9 @@ def stand(db, angebot_id_, ordner=None, dateien=None):
             selbstkosten=round(_n(z.get("selbst_position")), 2), preis_teil=round(_n(z.get("preis_teil")), 4),
             preis=round(_n(z.get("preis_position")), 2), zeichnungen=zeichnungen, **_zeit_min(z, stueck)))
     kopf = dict(kunde=a.get("kunde"), kundennr=a.get("kundennr"),
-                ansprechpartner=kunde.get("ansprechpartner") or "", projekt=a.get("kundenreferenz") or "",
+                ansprechpartner=a.get("kunde_ansprech") or kunde.get("ansprechpartner") or "",
+                ansprech_uid=a.get("kunde_ansprech_uid") or "",
+                lieferadresse=a.get("lieferadresse") or "", projekt=a.get("kundenreferenz") or "",
                 bestellnr=a.get("auftragsnr") or "", liefertermin=a.get("liefertermin") or "",
                 anforderungen=str(a.get("bemerkung") or "").strip(), maschine=a.get("maschine"))
     zeiten = [dict(schritt=x.get("schritt"), art=x.get("art"), minuten=round(_n(x.get("gesamt_min")), 2),
