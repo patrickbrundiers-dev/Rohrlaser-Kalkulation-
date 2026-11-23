@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.460", "<b>Nesting-Arbeitsplatz und Verschachtelung auf CAD/CAM-Niveau</b> ([[nesting]]): im Reiter "
+    ["0.9.461", "<b>Nesting-Arbeitsplatz und Verschachtelung auf CAD/CAM-Niveau</b> ([[nesting]]): im Reiter "
                 "Optimierung je Abmessung fünf Strategien gegen den bisherigen Schnittplan (A wenigstes Material, "
                 "B geringste Materialkosten, C Reststücke zuerst, D schnellste Fertigung, E ausgewogen in €). "
                 "Standard 6 m und 12 m mit Zuschnitt (die ganze 12-m-Stange "
@@ -32,6 +32,18 @@ NEUERUNGEN = [
                 "Kundenangebot zeigt nichts davon.",
      "Nesting-Arbeitsplatz: Strategien A–E je Abmessung, 6 m und 12 m mit Zuschnitt (ganze Stange bezahlt), "
      "Teile von Hand umsetzen ([[nesting]])."],
+    ["0.9.460", "<b>Lieferzeit je Material aus dem ERP-Einkauf</b> ([[material_datenbank]]): der EK-Import liest den "
+                "Liefertermin (L-Termin); je Material steht die durchschnittliche zugesagte Lieferzeit (Liefertermin "
+                "minus Erfassungsdatum, dazu kürzeste und längste) in der Materialübersicht, im Lieferantenvergleich "
+                "und im Fenster <i>Material je Abmessung</i>. Dafür die EK-CSV einmal neu einlesen. Im Fenster "
+                "<i>Material je Abmessung</i> neu: Spalte <b>ERP-Vorschlag</b> (ein Klick trägt den Kauf als Meterpreis "
+                "dieses Angebots ein) und <b>Lieferant (Vorschlag)</b> zum Bedarf. In der <b>Vorschau des ERP-Imports</b> "
+                "lassen sich nicht zuordenbare Zeilen von Hand zuordnen (die Artikelnummer wird gemerkt), und sie zeigt, "
+                "welche offenen Angebote danach anders rechnen. Im Prüfdialog des STEP-Imports stehen die Werkstoffe "
+                "aus dem Materialstamm oben. Behoben: kurze Preislisten mit Semikolon und Dezimalkommas in der "
+                "Bezeichnung wurden nicht gelesen.",
+     "Lieferzeit je Material aus dem ERP-Einkauf, ERP-Vorschlag und Lieferantenvorschlag im Fenster Material je "
+     "Abmessung, Zuordnen in der Import-Vorschau"],
     ["0.9.459", "<b>Neue Seite Material</b> ([[material_seite]]) in der Seitenleiste: jedes Material (Abmessung × "
                 "Werkstoff) als eine Zeile mit Gewicht, €/kg, €/m, Handelslängen, Lieferant, Preisstand und "
                 "Verwendung. <b>Suche</b> beim Tippen (<i>40x40x2</i>, <i>Rundrohr 42,4x2 S235</i>, <i>1.4301</i>, "

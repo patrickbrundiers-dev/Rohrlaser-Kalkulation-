@@ -35,7 +35,7 @@ SPALTEN = (("favorit", "★", None, True), ("profil_id", "Abmessung", None, True
            ("bestand_stangen", "Bestand", 0, False), ("werkstoff_nr", "Werkstoff-Nr.", None, False),
            ("norm", "Norm", None, False), ("erp_schnitt", "ERP Ø €/m", 2, True),
            ("erp_letzter", "ERP letzter €/m", 2, False), ("erp_datum", "ERP letzter Kauf", None, False),
-           ("erp_abw", "ERP Abw. %", 1, True), ("vorschlag_m", "Vorschlag €/m", 2, True),
+           ("erp_abw", "ERP Abw. %", 1, True), ("erp_lieferzeit", "Lieferzeit Ø [Tage]", 0, True), ("vorschlag_m", "Vorschlag €/m", 2, True),
            ("materialnr", "Materialnr.", None, False), ("material_bez", "Materialbezeichnung", None, False),
            ("handelsname", "Handelsbezeichnung", None, False))
 LISTE, MATRIX = "Liste", "Matrix"
@@ -126,6 +126,11 @@ class MaterialModell(QAbstractTableModel):
             if feld == "vorschlag_m" and z.get("vorschlag_m") is not None:
                 return (f"Preisvorschlag aus der Historie, Sicherheit {z.get('vorschlag_sicher')}; Begründung und "
                         "Übernehmen im Reiter Preishistorie")
+            if feld == "erp_lieferzeit":
+                from .erp_preise import lieferzeit_text
+                return ("Zugesagte Lieferzeit aus dem ERP-Einkauf (Liefertermin minus Erfassungsdatum): "
+                        + lieferzeit_text(z.get("erp_lz"))) if z.get("erp_lz") else (
+                    "Noch keine Lieferzeit: EK-CSV mit der Spalte L-Termin (neu) einlesen.")
             if feld.startswith("erp_") and z.get("erp_anzahl"):
                 return (f"ERP-Einkauf: {z['erp_anzahl']} Käufe, {zahl_als_text(z['erp_meter'], 0)} m, Ø "
                         f"{zahl_als_text(z['erp_schnitt'], 2)} €/m" + (f" (mit {z['erp_ober']})" if z["erp_ober"] else "")
@@ -584,6 +589,9 @@ class MaterialBereich(QWidget):
                            f"{zahl_als_text(z['erp_meter'], 0)} m)" + (
                                f", {zahl_als_text(z['erp_abw'], 1)} % zum Stammdatenpreis"
                                if z.get("erp_abw") is not None else "")))
+        if z.get("erp_lz"):
+            from .erp_preise import lieferzeit_text
+            zeilen.append(("Lieferzeit (ERP)", lieferzeit_text(z["erp_lz"]) + ", zugesagt laut Liefertermin"))
         if z.get("bestand_stangen") is not None:
             zeilen.append(("Lager (verfügbar)", f"{z['bestand_stangen']} Stangen, {z['bestand_reste']} Reststücke"))
         if z.get("archiviert"):

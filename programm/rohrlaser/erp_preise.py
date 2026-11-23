@@ -32,7 +32,9 @@ FELDER = (("datum", "Kaufdatum"), ("menge", "Menge [m]"), ("preis", "Meterpreis 
           ("artikelnr", "Artikelnummer"), ("bezeichnung", "EK-Artikel (Bezeichnung)"),
           # Patricks ERP-Export (EKexport_S235/S355.csv, 20.11.2026): Zusatztext mit Norm, Güte und Oberfläche
           # („EN 10219- S235 HL 6m gestrahlt“), Preiseinheit PE (Preis je PE Meter)
-          ("zusatz", "Zusatztext (Norm, Güte)"), ("pe", "Preiseinheit"))
+          ("zusatz", "Zusatztext (Norm, Güte)"), ("pe", "Preiseinheit"),
+          # Patrick 23.11.2026: Lieferzeit je Material = Liefertermin (L-Termin) minus Kaufdatum (Datum Erf.)
+          ("liefertermin", "Liefertermin"))
 FELD_TITEL = dict(FELDER)
 PFLICHT = ("datum", "menge", "preis", "bezeichnung")      # Artikelnummer darf fehlen (dann zählt die Bezeichnung)
 VORLAGEN = "erp_vorlagen"       # Einstellung (intern): {Spaltenkopf mit | getrennt: {Feld: Spaltennummer}}
@@ -47,8 +49,9 @@ _KOPF = {"datum": ("kaufdatum", "datumerf", "bestelldatum", "datum", "belegdatum
          "bezeichnung": ("ekartikel", "artikelbezeichnung", "bezeichnung", "artikeltext", "beschreibung", "text",
                          "artikel", "material"),
          "zusatz": ("zusatztext", "zusatz", "langtext"),
-         "pe": ("pe", "preiseinheit", "preiseinh")}
-_REIHE = ("preis", "artikelnr", "datum", "menge", "zusatz", "bezeichnung", "pe")    # „Meterpreis“ enthält „meter“: Preis zuerst
+         "pe": ("pe", "preiseinheit", "preiseinh"),
+         "liefertermin": ("ltermin", "liefertermin", "lieferterminbestaetigt", "liefertermingeplant", "wunschtermin")}
+_REIHE = ("preis", "artikelnr", "liefertermin", "datum", "menge", "zusatz", "bezeichnung", "pe")    # „Meterpreis“ enthält „meter“: Preis zuerst
 
 
 class ErpFehler(ValueError):
@@ -68,7 +71,7 @@ def lesen(roh):
     zeilen = text.splitlines()
     if not any(z.strip() for z in zeilen):
         raise ErpFehler("Die Datei ist leer.")
-    trenner, sep_zeile = kunden_csv._trenner(zeilen)
+    trenner, sep_zeile = _trenner(zeilen)
     if sep_zeile:
         zeilen = zeilen[1:]
     alle = [[kunden_csv._excel_wert(c).strip() for c in z] for z in csv.reader(io.StringIO("\n".join(zeilen)),
@@ -82,6 +85,23 @@ def lesen(roh):
                     "Menge; Meterpreis; Artikelnummer; EK-Artikel).")
 
 
+def _trenner(zeilen):
+    """Trennzeichen wie kunden_csv._trenner, aber nach Gleichmäßigkeit statt nach der größten Anzahl in einer Zeile:
+    das Zeichen, das in den meisten der ersten Zeilen so oft steht wie in der Kopfzeile. Sonst gewinnt in einer
+    kurzen Liste mit Semikolon eine Zeile mit drei Dezimalkommas („Rohr 42,4x2,0 …;2,60“) und nichts wird gelesen."""
+    t, sep_zeile = kunden_csv._trenner(zeilen)
+    if sep_zeile:
+        return t, True
+    probe = [z for z in zeilen[:15] if z.strip()]
+    if not probe:
+        return t, False
+
+    def guete(c):
+        n = probe[0].count(c)
+        return (sum(1 for z in probe if z.count(c) == n) if n else 0, n, c == ";", c == t)
+    return max(kunden_csv.TRENNER, key=guete), False
+
+
 def spalten_vorschlag(kopf):
     """{Feld: Spaltennummer} aus den Spaltenköpfen; nicht erkannte Felder fehlen."""
     namen = [_norm(k) for k in kopf]
@@ -91,8 +111,8 @@ def spalten_vorschlag(kopf):
             if feld in out:
                 continue
             for wort in _KOPF[feld]:
-                if not gleich and feld == "pe":
-                    break               # „pe“ steckt in vielen Wörtern: nur genau
+                if not gleich and feld in ("pe", "liefertermin"):
+                    break               # „pe“ steckt in vielen Wörtern, der Liefertermin darf kein Datum wegnehmen: nur genau
                 treffer = [i for i in sorted(frei) if (namen[i] == wort if gleich else wort in namen[i])]
                 if treffer:
                     out[feld] = treffer[0]
@@ -109,7 +129,12 @@ def zuordnung_fuer(kopf, vorlagen):
     """Gespeicherte Zuordnung für genau diesen Spaltenkopf, sonst der Vorschlag. Ergebnis (zuordnung, gespeichert)."""
     v = (vorlagen or {}).get(vorlage_schluessel(kopf))
     if v and all(isinstance(i, int) and 0 <= i < len(kopf) for i in v.values()):
-        return dict(v), True
+        v = dict(v)
+        if "liefertermin" not in v:         # Zuordnung von vor der Lieferzeit: Spalte L-Termin nachtragen
+            i = spalten_vorschlag(kopf).get("liefertermin")
+            if i is not None and i not in v.values():
+                v["liefertermin"] = i
+        return v, True
     return spalten_vorschlag(kopf), False
 
 
@@ -185,7 +210,7 @@ def kaeufe(daten, zuordnung):
             p = p / pe          # Preis je PE (z. B. je 100 m)
         art = zelle("artikelnr")
         zus = _zusatz(zelle("zusatz"))
-        out.append(dict(zeile=n, datum=d, menge=m, preis=p, artikelnr=art,
+        out.append(dict(zeile=n, datum=d, menge=m, preis=p, artikelnr=art, liefertermin=datum(zelle("liefertermin")),
                         bezeichnung=" ".join(bez.split()) + (f" · {zus}" if zus else ""),
                         schluessel=schluessel(art, bez)))
     return out, meldungen
@@ -424,6 +449,8 @@ TABELLEN_SQL = (
 def einrichten(con):
     for sql in TABELLEN_SQL:
         con.execute(sql)
+    if "liefertermin" not in set(db_verbindung.spalten(con, "erp_kaeufe")):
+        con.execute("ALTER TABLE erp_kaeufe ADD COLUMN liefertermin TEXT")  # L-Termin des Kaufs (Lieferzeit)
     if "erp_preise" not in set(db_verbindung.spalten(con, "angebote")):
         con.execute("ALTER TABLE angebote ADD COLUMN erp_preise TEXT")      # gewählte ERP-Preise je Angebot (JSON)
 
@@ -442,6 +469,12 @@ def speichern(db, liste, datei=""):
             "importiert) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [(k["datum"].isoformat(), k["schluessel"], k["artikelnr"], k["bezeichnung"], k["menge"], k["preis"],
               datei, _jetzt()) for k in liste])
+        # schon gespeicherte Käufe bekommen den Liefertermin beim erneuten Einlesen nach (Menge/Preis wie gespeichert)
+        db.con.executemany(
+            "UPDATE erp_kaeufe SET liefertermin = ? WHERE datum = ? AND schluessel = ? AND menge = ? AND preis = ? "
+            "AND (liefertermin IS NULL OR liefertermin <> ?)",
+            [(k["liefertermin"].isoformat(), k["datum"].isoformat(), k["schluessel"], k["menge"], k["preis"],
+              k["liefertermin"].isoformat()) for k in liste if k.get("liefertermin")])
     return db.con.execute(zaehlen).fetchone()[0] - vorher
 
 
@@ -451,6 +484,10 @@ def gespeicherte(db):
     for r in db.con.execute("SELECT * FROM erp_kaeufe ORDER BY datum, id"):
         z = dict(r)
         z["datum"] = datetime.date.fromisoformat(z["datum"])
+        try:
+            z["liefertermin"] = datetime.date.fromisoformat(z["liefertermin"]) if z.get("liefertermin") else None
+        except ValueError:
+            z["liefertermin"] = None
         out.append(z)
     return out
 
@@ -560,6 +597,34 @@ def _t(x, stellen=2):
     return f"{x:,.{stellen}f}".replace(",", " ").replace(".", ",").replace(" ", ".")
 
 
+LIEFERZEIT_MAX = 365      # Tage: längere „Lieferzeiten“ sind Abrufe/Rahmenbestellungen oder Tippfehler
+
+
+def lieferzeit(kauf_liste, heute=None, monate=12):
+    """Zugesagte Lieferzeit aus den Käufen: Liefertermin minus Kaufdatum (Erfassung) in Tagen, über die letzten
+    monate Monate. Käufe ohne Liefertermin, mit Termin vor dem Kaufdatum oder mehr als LIEFERZEIT_MAX Tagen zählen
+    nicht. Ergebnis dict(tage Ø gerundet, min, max, anzahl, letzte) oder None."""
+    heute = heute or datetime.date.today()
+    ab = _monate_zurueck(heute, monate)
+    tage = [((x["liefertermin"] - x["datum"]).days, x["datum"]) for x in kauf_liste
+            if x.get("liefertermin") and x["datum"] >= ab and 0 <= (x["liefertermin"] - x["datum"]).days <= LIEFERZEIT_MAX]
+    if not tage:
+        return None
+    werte = [t for t, _ in tage]
+    return dict(tage=round(sum(werte) / len(werte)), min=min(werte), max=max(werte), anzahl=len(werte),
+                letzte=max(tage, key=lambda x: x[1])[0])
+
+
+def lieferzeit_text(lz, kurz=False):
+    """„Ø 12 Tage (5 bis 21, 8 Käufe)“ bzw. kurz „12 Tage“; leer ohne Wert."""
+    if not lz:
+        return ""
+    t = f"{lz['tage']} Tag" + ("" if lz["tage"] == 1 else "e")
+    if kurz:
+        return t
+    return f"Ø {t} ({lz['min']} bis {lz['max']}, {lz['anzahl']} " + ("Kauf)" if lz["anzahl"] == 1 else "Käufe)")
+
+
 def auswerten(kauf_liste, artikel_liste, k, tabellen, heute=None, monate=12, grenze=0.25):
     """Je Profil + Werkstoff + Oberfläche eine Gruppe aus den Käufen der zugeordneten Artikel (grün, nicht
     übersprungen): dict(profil_id, werkstoff_id, oberflaeche, kaeufe [Kauf + ausreisser, im_zeitraum, gerechnet],
@@ -602,7 +667,7 @@ def auswerten(kauf_liste, artikel_liste, k, tabellen, heute=None, monate=12, gre
                         min=min((x["preis"] for x in im), default=None), max=max((x["preis"] for x in im), default=None),
                         von=rech[0]["datum"] if rech else None, bis=rech[-1]["datum"] if rech else None,
                         ausreisser=sum(1 for x in kaeufe_g if x["ausreisser"]), heute=hp, herkunft=herkunft,
-                        abweichung=abw, kg_m=kg_je_m(pid, wid, k)))
+                        abweichung=abw, kg_m=kg_je_m(pid, wid, k), lieferzeit=lieferzeit(liste, heute, monate)))
     return sorted(out, key=lambda g: (g["oberflaeche"] != "", g["profil_id"].lower(), g["werkstoff_id"].lower(),
                                       g["oberflaeche"].lower()))
 

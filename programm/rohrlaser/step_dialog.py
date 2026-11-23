@@ -977,7 +977,15 @@ class StepPruefDialog(QDialog):
             if ist_blech and self.blech_werkstoffe:
                 self._blech_werkstoffe_fuellen(ws)
             else:
-                liste_fuellen(ws, k, "werkstoff")
+                oben = [] if (ist_blech or ist_df or ist_voll) else self._stamm_werkstoffe(m.get("_profil") or vorschlag)
+                if oben:        # Ausbau 4.1: Werkstoffe, die es für die Abmessung laut Materialstamm gibt, zuerst
+                    from .fenster import ueberschrift
+                    ws.addItem("")
+                    ueberschrift(ws, self.STAMM_TITEL)
+                    ws.addItems(oben)
+                    ws.setToolTip(f"Laut Materialstamm gibt es {m.get('_profil') or vorschlag} in: {', '.join(oben)} "
+                                  "(oben in der Liste). Der Werkstoff wird nie geraten; andere bleiben wählbar.")
+                liste_fuellen(ws, k, "werkstoff", None if oben else "")
             if ist_blech:                   # Zukaufartikel: automatisch oder ein vorhandener Blechartikel
                 pr.addItem(self.AUTOMATISCH, None)
                 gleich, aehnlich = zukauf.blech_dubletten(step.blech(m), m.get("_werkstoff"), zukauf_liste)
@@ -1844,6 +1852,23 @@ class StepPruefDialog(QDialog):
         zeile.addWidget(text, 1)
         zeile.addWidget(wahl)
         return zeile
+
+    STAMM_TITEL = "— im Materialstamm —"
+
+    def _stamm_werkstoffe(self, profil_id):
+        """Aktive Werkstoffe, die der Materialstamm für diese Abmessung kennt (Materialdatenbank), sonst []."""
+        if not profil_id or profil_id not in self.k.profile:
+            return []
+        if not hasattr(self, "_stamm_zeilen"):
+            db = getattr(self.parent(), "db", None)
+            try:
+                self._stamm_zeilen = db.zeilen("materialstamm") if db is not None else []
+            except Exception:       # noqa: BLE001  (nur Reihenfolge der Auswahl: nie den Prüfdialog verhindern)
+                self._stamm_zeilen = []
+        if not self._stamm_zeilen:
+            return []
+        from . import material_stamm
+        return [w["werkstoff_id"] for w in material_stamm.werkstoffe_fuer(profil_id, self._stamm_zeilen, self.k)]
 
     def _vorschlaege_auffrischen(self):
         """Nach dem Umschalten einer PDF: Stückzahlen und Werkstoffe aus den Messwerten in die Zeilen."""

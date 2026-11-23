@@ -10,18 +10,23 @@ Zusatzfenster (Patrick 23.10.2026, Freigabe 1a–6a, abmessung_fenster.py): Dopp
 Gewicht öffnet das Abmessungs-Fenster (Stangenbild, Schnittmuster, Bilanz, Teileliste), auf Material € oder berechnet
 €/m den Preis-Aufbau, auf Querschnitt oder Abmessung die Profil-Info; Rechtsklick auf eine Zeile zeigt alle Schritte.
 """
+import datetime
+
 from PySide6.QtCore import QPointF, QSize, Qt
 from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from . import hilfe, naht, querschnitt, rechnen, stil, wand_dialog
+from . import erp_preise, hilfe, naht, querschnitt, rechnen, stil, wand_dialog
 from .stammdaten import (EIGENMATERIAL, KUNDENMATERIAL, MATERIAL_HERKUNFT, ROH, ROHR_FORMEN, ROHRARTEN, zahl_als_text,
                          zahl_aus_text)
 
 GRAU = "#5F6B7A"
 SPALTEN = ("", "Abmessung", "Werkstoff", "Oberfläche", "Lieferlänge [mm]", "Material", "Pos.", "Stangen", "Meter",
-           "Gewicht [kg]", "Material [€]", "berechnet [€/m]", "Meterpreis [€/m]", "Stangen vorgegeben", "Rohrart")
+           "Gewicht [kg]", "Material [€]", "berechnet [€/m]", "Meterpreis [€/m]", "Stangen vorgegeben", "Rohrart",
+           "ERP-Vorschlag [€/m]", "Lieferzeit Ø", "Lieferant (Vorschlag)")
+LIEFERANT = 17      # Lieferantenvorschlag zum Bedarf (material_stamm.lieferant_vorschlag), Doppelklick = Vergleich
+ERP_VORSCHLAG, LIEFERZEIT = 15, 16      # ERP-Kauf zum Bedarf (ein Klick übernimmt ihn), Lieferzeit aus dem ERP-Einkauf
 VORGABE = 13        # Spalte mit dem Knopf für die von Hand vorgegebenen Stangen (stangen_vorgabe_dialog.py)
 ROHRART = 14        # Rohrart je Abmessung (Patrick 31.10.2026, Plan 6a), nur Rund-, Quadrat- und Rechteckrohr
 WIE_WERKSTOFF = "wie Werkstoff"
@@ -37,7 +42,8 @@ DOPPELKLICK = {0: ("profil", "Profil-Info: Querschnitt, Kennwerte, passende Masc
                    "Verschnitt)"),
                9: ("abmessung:bilanz", "Abmessung öffnen: Gewichtsbilanz"),
                10: ("preis", "Preis-Aufbau: Einkauf je Lieferlänge, Zuschlag, Verteilung auf die Positionen"),
-               11: ("preis", "Preis-Aufbau mit Herkunft des Meterpreises (Lieferant, Gültig ab)")}
+               11: ("preis", "Preis-Aufbau mit Herkunft des Meterpreises (Lieferant, Gültig ab)"),
+               17: ("lieferanten", "Lieferantenvergleich für den Bedarf dieser Abmessung")}
 
 
 def _z(w, stellen=2):
@@ -202,6 +208,8 @@ class MeterpreisDialog(QDialog):
         self.tabelle.setShowGrid(False)
         self.felder, self.werkstoffe, self.oberflaechen, self.laengen, self.herkunft = [], [], [], [], []
         self.rohrarten = []         # je Zeile QComboBox oder None (kein Hohlprofil)
+        self.erp_knoepfe = []       # je Zeile QPushButton (ERP-Vorschlag übernehmen) oder None
+        self.lieferzeiten = self._lieferzeiten()
         fett = QFont()
         fett.setBold(True)
         ob_liste = [ROH] + sorted(o for o in k.oberflaechen if o.lower() != ROH)
@@ -276,8 +284,22 @@ class MeterpreisDialog(QDialog):
             self.tabelle.setCellWidget(r, VORGABE, kv)
             self._vorgabe_text(r)
             self.rohrarten.append(self._rohrart_feld(r, g, k))
+            self.erp_knoepfe.append(self._erp_feld(r, g))
+            lz = self.lieferzeiten.get((g["profil"], g["werkstoff"]))
+            it = QTableWidgetItem(erp_preise.lieferzeit_text(lz, kurz=True) if lz else "–")
+            it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            it.setToolTip(("Zugesagte Lieferzeit aus dem ERP-Einkauf (Liefertermin minus Erfassungsdatum): "
+                           + erp_preise.lieferzeit_text(lz)) if lz else
+                          "Keine Lieferzeit aus dem ERP-Einkauf (EK-CSV mit der Spalte L-Termin einlesen)")
+            self.tabelle.setItem(r, LIEFERZEIT, it)
+            v = None if g["kunde"] else self._lieferant(g)
+            it = QTableWidgetItem(f"{v['lieferant']} · {_z(v['preis_m'])} €/m" if v else "–")
+            it.setToolTip((v["begruendung"] + "\nDoppelklick: " + DOPPELKLICK[LIEFERANT][1]) if v else
+                          ("Kundenmaterial: kein Einkauf" if g["kunde"] else
+                           "Kein gültiger Lieferantenpreis für dieses Material (Materialdatenbank, Lieferanten)"))
+            self.tabelle.setItem(r, LIEFERANT, it)
         kopf_z = self.tabelle.horizontalHeader()
-        for i, b in enumerate((BILD + 10, 130, 150, 95, 125, 140, 70, 60, 65, 85, 85, 110, 115, 175, 175)):
+        for i, b in enumerate((BILD + 10, 130, 150, 95, 125, 140, 70, 60, 65, 85, 85, 110, 115, 175, 175, 150, 95, 210)):
             if b:
                 self.tabelle.setColumnWidth(i, b)
         kopf_z.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -493,6 +515,8 @@ class MeterpreisDialog(QDialog):
         ziel = DOPPELKLICK[c][0]
         if ziel.startswith("abmessung"):
             return self.abmessung(r, ziel.split(":")[1])
+        if ziel == "lieferanten":
+            return self.lieferantenvergleich(r)
         return self.preis(r) if ziel == "preis" else self.profil(r)
 
     def abmessung(self, r, fokus="stangen"):
@@ -546,6 +570,67 @@ class MeterpreisDialog(QDialog):
         if zeigen:
             self.zeigen(d)
         return d
+
+    def _lieferzeiten(self):
+        """{(Profil, Werkstoff): erp_preise.lieferzeit} aus dem ERP-Einkauf; leer ohne Angebot/Käufe."""
+        db = getattr(self.seite, "db", None)
+        if db is None:
+            return {}
+        try:
+            from . import materialplattform as mp
+            return {s: g["lieferzeit"] for s, g in mp.erp_gruppen(db).items() if g.get("lieferzeit")}
+        except Exception:           # noqa: BLE001  (Anzeige: nie das Fenster verhindern)
+            return {}
+
+    def _lieferant(self, g):
+        """Lieferantenvorschlag für die Abmessung zum Bedarf laut Schnittplan (ohne Plan: Meter der Teile): dict mit
+        lieferant, preis_m, begruendung oder None. Nur Anzeige, ändert nichts am Angebot."""
+        db = getattr(self.seite, "db", None)
+        if db is None:
+            return None
+        try:
+            from . import material_stamm as ms
+            from . import materialplattform as mp
+            if not hasattr(self, "_lieferanten_zeilen"):
+                self._lieferanten_zeilen = db.zeilen(mp.LIEFERANTEN_TABELLE)
+            kgm = mp.kg_je_m(self.k.profile.get(g["profil"]) or {}, self.k.werkstoffe.get(g["werkstoff"]) or {})
+            return ms.lieferant_vorschlag(self._lieferanten_zeilen, g["profil"], g["werkstoff"], kgm,
+                                          g.get("meter") or g.get("teile_m") or 30.0)
+        except Exception:           # noqa: BLE001  (Anzeige: nie das Fenster verhindern)
+            return None
+
+    def _erp_feld(self, r, g):
+        """Spalte ERP-Vorschlag: Kauf aus dem ERP-Einkauf zum Bedarf dieser Abmessung (erp_preise.angebot_vorschlag).
+        Direkt eingesetzte Käufe stehen nur da; ein Vorschlag wird mit einem Klick als Meterpreis dieses Angebots
+        eingetragen (gilt nach 'Übernehmen'). Ergebnis: der Knopf oder None."""
+        e = g.get("erp") or (None if g["kunde"] else rechnen.erp_preis(self.kopf, g["gruppe"], vorschlag=True))
+        if not e:
+            it = QTableWidgetItem("–")
+            it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            it.setToolTip("Kein passender Kauf im ERP-Einkauf" if not g["kunde"] else "Kundenmaterial: kein Einkauf")
+            self.tabelle.setItem(r, ERP_VORSCHLAG, it)
+            return None
+        try:
+            tag = datetime.date.fromisoformat(str(e.get("datum"))[:10]).strftime("%d.%m.%Y")
+        except ValueError:
+            tag = ""
+        if g.get("erp"):
+            it = QTableWidgetItem(f"{_z(e['preis'])} eingesetzt")
+            it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            it.setToolTip(e.get("bemerkung") or "")
+            self.tabelle.setItem(r, ERP_VORSCHLAG, it)
+            return None
+        b = QPushButton(f"{_z(e['preis'])}" + (f"  ({tag})" if tag else ""))
+        b.setToolTip((e.get("bemerkung") or "") + "\nKlick: als Meterpreis für dieses Angebot eintragen "
+                     "(gilt nach 'Übernehmen'; die Stammdaten bleiben unverändert)")
+        b.clicked.connect(lambda _=False, r=r, p=e["preis"]: self.erp_uebernehmen(r, p))
+        self.tabelle.setCellWidget(r, ERP_VORSCHLAG, b)
+        return b
+
+    def erp_uebernehmen(self, r, preis):
+        """ERP-Vorschlag der Zeile als eigenen Meterpreis eintragen (nur dieses Angebot)."""
+        self.felder[r].setText(_z(preis))
+        self.tabelle.selectRow(r)
 
     def zeile(self):
         """Markierte Abmessung (Zeile) für die Aktionen im Kopf; ohne Markierung die erste."""
