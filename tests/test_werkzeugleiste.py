@@ -167,11 +167,10 @@ for nid, ziel in (("nav_start", f.start), ("nav_angebote", f.angebote), ("nav_ku
                   ("nav_einstellungen", f.bereich), ("nav_zukauf", f.zukauf)):
     aktionen.ausfuehren(f, aktionen.AKTION[nid])
     assert f.reiter.currentWidget() is ziel, nid
-seite_profile = next(s for s in f.seiten if s.t.name == "profile")
 aktionen.ausfuehren(f, aktionen.AKTION["mat_suchen"])
-assert f.reiter.currentWidget() is f.bereich and f.bereich.unter.currentWidget() is seite_profile
+assert f.reiter.currentWidget() is f.material
 ok("Angebot kopieren aus dem geöffneten Angebot, Navigation zu Start/Angebote/Kunden/Einstellungen/Zukauf, "
-   "Material suchen öffnet die Profile")
+   "Material suchen öffnet die Seite Material")
 
 thema = aktionen.ausfuehren(f, aktionen.AKTION["thema"])
 from rohrlaser import stil  # noqa: E402

@@ -100,11 +100,14 @@ for t in TABELLE.values():
 
 # 5) Umbenennen eines Schlüssels ändert die Verweise mit; doppelte Schlüssel werden abgewiesen
 pid = next(z["id"] for z in db.zeilen("profile") if z["profil_id"] == "RR 42,4x2,0")
-assert db.verweise("profile", pid) == 2
+n_stamm = sum(1 for z in db.zeilen("materialstamm") if z["profil_id"] == "RR 42,4x2,0")
+assert db.verweise("profile", pid) == 2 + n_stamm      # 2 Preise + Materialstamm (Materialdatenbank 23.11.2026)
 db.aendern("profile", pid, "profil_id", "RR 42,4x2")
 assert db.einstellung("stammdaten_herkunft") == "eigene Werte"   # Startseite: keine Beispielwerte mehr
 assert sum(1 for z in db.zeilen("preise") if z["profil_id"] == "RR 42,4x2") == 2
 assert not any(z["profil_id"] == "RR 42,4x2,0" for z in db.zeilen("preise"))
+assert sum(1 for z in db.zeilen("materialstamm") if z["profil_id"] == "RR 42,4x2") == n_stamm
+assert not any(z["profil_id"] == "RR 42,4x2,0" for z in db.zeilen("materialstamm"))
 try:
     db.aendern("profile", pid, "profil_id", "QR 40x40x3")
     raise AssertionError("doppelte Profil-ID angenommen")
@@ -183,11 +186,11 @@ assert db.einstellung("gewinn") == 0.125
 # Reiter: Kunden eigener Reiter, die übrigen Stammdaten und die Vorgaben unter Einstellungen (mit Passwort)
 haupt = [fenster.reiter.tabText(i) for i in range(fenster.reiter.count())]
 assert haupt == ["Start", "Anfragen", "Materialanfragen", "Angebote", "Aufträge", "Rahmenaufträge", "Produktion", "Auswertung", "Versand", "Fertigung", "Lager", "Kunden", "Frachtkosten", "Zukaufartikel",
-                 "Einstellungen"], haupt
+                 "Material", "Einstellungen"], haupt
 b = fenster.bereich
 from rohrlaser.einstellungen_ordnung import SEITEN as EINST_SEITEN  # noqa: E402
 assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())] == [s.titel for s in EINST_SEITEN] + ["★ Favoriten", "Profile", "Werkstoffe", "Oberflächen",
-                                                                 "Preise", "Lieferlängen", "Materialindex", "Maschinen", "Schneiddaten", "Gewinde",
+                                                                 "Preise", "Lieferlängen", "Material-Lieferanten", "Materialstamm", "Materialindex", "Maschinen", "Schneiddaten", "Gewinde",
                                                                  "Zusatzarbeiten", "Blech-Werkstoffe",
                                                                  "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)", "Dreh-/Fräs-Werkstoffe",
                                                                  "Prüfregeln (Fertigung)",

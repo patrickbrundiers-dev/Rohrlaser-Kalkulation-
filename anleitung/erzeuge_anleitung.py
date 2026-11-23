@@ -630,8 +630,8 @@ def kapitel_ueberblick(i):
         (1, "Stand des Angebots in der Schrittanzeige: ✓ <i>Optimiert</i> grün. Ist das Angebot noch nicht "
             "optimiert (gelb) oder <i>Veraltet</i> (rot, [[veraltet]]), steht das zusätzlich oben in der Übersicht.")])
     i.text("Links die <b>Seitenleiste</b> nach Arbeitsbereichen: <i>Arbeiten</i> (Start, Angebote, Kunden), "
-           "<i>Auftrag</i> (Versand, Fertigung, Lager), <i>Pflege</i> (Frachtkosten [[frachtkosten]], Zukaufartikel "
-           "[[zukauf]]) und ganz unten <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen oben in der "
+           "<i>Auftrag</i> (Versand, Fertigung, Lager), <i>Pflege</i> (Material [[material_seite]], Frachtkosten [[frachtkosten]], "
+           "Zukaufartikel [[zukauf]]) und ganz unten <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen oben in der "
            "Menüzeile neben <i>Datei … Hilfe</i>: ganz links die <i>Angebotsliste</i> (blau hinterlegt, damit "
            "sie sich von den Angeboten abhebt), daneben je Angebot ein Reiter, der sich mit dem × schließt; rechts daneben die Suche (Strg+K). Die Angebote erscheinen, solange "
            "<i>Angebote</i> gewählt ist; ein Klick auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. "
@@ -13640,9 +13640,11 @@ def kapitel_stammdaten(i):
             "Oberfläche) den Kauf zum Bedarf laut Schnittplan: den neuesten Kauf mit ähnlicher Menge (halb bis "
             "doppelt so viele Meter), sonst den neuesten überhaupt. Es zählen nur Käufe der letzten 12 Monate, "
             "Ausreißer (mehr als 25 % vom Median, z. B. Kleinmenge) nur, wenn sie im Verlauf von Hand mitgerechnet "
-            "werden. Der Meterpreis dieses Kaufs gilt dann für die Abmessung im Angebot, die Bemerkung nennt dazu "
-            "den Durchschnitt der 12 Monate; ohne passenden Kauf rechnet das Angebot wie bisher (Lieferlängen, "
-            "Preise bzw. Tonnenpreis).",
+            "werden. Seit 23.11.2026 wird ein Kauf nur <b>direkt eingesetzt</b>, wenn er höchstens "
+            "<i>erp_direkt_tage</i> alt ist (Vorgabe 4 Wochen) und seine Stangenzahl auf ±<i>erp_direkt_stangen</i> "
+            "(Vorgabe 2) zum Bedarf passt; dann gilt sein Meterpreis für die Abmessung, die Bemerkung nennt dazu den "
+            "Durchschnitt der 12 Monate. Sonst steht er nur als Vorschlag mit Grund in der Bemerkung, und das "
+            "Angebot rechnet wie ohne Kauf (Lieferlängen, Preise bzw. Tonnenpreis) ([[material_erp]]).",
             "<b>Preisverlauf …</b> (Knopf über den Preisen): die Käufe stehen dort als eigene Kurve „ERP-Einkauf“ je "
             "Abmessung (je Tag nach Menge gewichtet, mit Menge und Artikel) samt Durchschnitt und Änderung über "
             "3/6/12 Monate, neben den Ständen der Stammdaten-Preise.",
@@ -14348,6 +14350,218 @@ def kapitel_stammdaten(i):
             "Geometrie-Erkennung (Sechskantloch → Einnietmutter, Senkung → Senken), Prüfregeln der Fertigung und "
             "eigene Angebotsregeln, je mit Bedingung, Folge, Art und aktiv ja/nein, filterbar nach Quelle. Geändert "
             "wird jede Regel weiter an ihrer Stelle.")
+
+
+def kapitel_material(i):
+    i.kapitel("Material suchen, vergleichen und pflegen", marke="material_seite")
+    i.text("Die Seite <b>Material</b> in der Seitenleiste (Bereich <i>Pflege</i>) zeigt jedes Material als eine Zeile: "
+           "<b>Abmessung × Werkstoff</b> mit Gewicht, €/kg, €/m, Handelslängen, Lieferant, Preisstand und wie oft es "
+           "in Angeboten steht. Sie liest und schreibt dieselben Tabellen wie <i>Einstellungen → Material</i> "
+           "(Profile, Werkstoffe, Preise, Lieferlängen); eine zweite Materialverwaltung gibt es nicht.",
+           "Ohne weitere Wahl zeigt die Liste nur Materialien mit Preis, Lieferant oder Verwendung; <i>Mehr → Alle "
+           "Kombinationen</i> zeigt jede Abmessung mit jedem Werkstoff. Auch zehntausende Zeilen bleiben flüssig: "
+           "die Liste lädt beim Blättern nach.",
+           "Der Admin-Schutz gilt hier genauso: Was die Tabellen <i>Preise</i> oder <i>Werkstoffe</i> ändert "
+           "(Preis übernehmen, Mehrfach ändern, Werkstoff archivieren), geht nur nach <i>Als Admin freischalten "
+           "…</i>; Suchen, Vergleichen, Favoriten und Lieferantenpreise erfassen gehen immer.")
+    i.text("Seitenleiste → <b>Material</b>: suchen (z. B. <i>40x40x2</i>, <i>Rundrohr 42,4x2 S235</i>, "
+           "<i>1.4301</i>), filtern, vergleichen, Lieferantenpreise pflegen, an Positionen zuweisen.", kurz=True)
+    i.abschnitt("Suchen und filtern", marke="material_suche")
+    i.liste("<b>Suche</b> oben, sofort beim Tippen: Maße (<i>40x40x2</i>, <i>60x40x3</i>, <i>42,4x2</i>; "
+            "<i>42x2</i> findet auch 42,4 × 2), Profilart (<i>Rundrohr</i>, <i>Quadratrohr</i>), Werkstoff, "
+            "Werkstoff-Nr. (<i>1.4301</i>), Gleichnamen (<i>V2A</i>, <i>AISI 304</i>), Materialgruppe und "
+            "Lieferant. Mehrere Wörter grenzen ein; <i>stahl</i> findet nicht <i>Edelstahl</i>.",
+            "<b>Filter</b> links mit Anzahl je Wert: Materialgruppe, Profilart, Werkstoff, Wandstärke, Handelslänge, "
+            "Lieferant, Preisquelle und Zustand (Preis fehlt, älter als 30 Tage, ohne Lieferant, archiviert).",
+            "<b>★ Favoriten</b> (je Arbeitsplatz), <b>Zuletzt</b> und <b>Häufig</b> (aus den Angeboten).",
+            "<b>Liste / Matrix</b>: die Matrix zeigt je Profilart Abmessungen × Werkstoffe mit €/m; grün = Preis "
+            "aktuell, gelb = älter als 30 Tage, grau = aus dem Tonnenpreis, rot = kein Preis. Doppelklick springt "
+            "in die Liste.",
+            "Spalten ein- und ausblenden mit der rechten Maustaste auf den Spaltenköpfen; die Auswahl bleibt "
+            "gemerkt.")
+    i.abschnitt("Detail, Lieferanten und Preishistorie", marke="material_lieferanten")
+    i.text("Rechts das markierte Material in fünf Reitern: <b>Übersicht</b> (Querschnitt, Gewicht, Dichte, Preis, "
+           "Preis wie im Angebot mit Teuerung, Mindestabnahme, Lagerbestand wenn das Lager eingeschaltet ist), "
+           "<b>Lieferanten</b>, <b>Alternativen</b>, <b>Verwendung</b> (Angebote, Doppelklick öffnet) und "
+           "<b>Preishistorie</b> (früher <i>Verlauf</i>).",
+           "Unter <b>Lieferanten</b> stehen beliebig viele Lieferanten je Material mit Preis (€/kg, €/m oder "
+           "€/Stange), Lieferlänge, Gültigkeit, Lieferzeit, Mindestabnahme und Bestellnummer. Gerechnet wird weiter "
+           "mit dem <b>aktiven Preis</b> aus <i>Preise</i> bzw. <i>Lieferlängen</i>; <b>Als aktiven Preis "
+           "übernehmen</b> schreibt den markierten Lieferantenpreis dorthin. Offene Angebote meldet danach der "
+           "Preiswächter, festgeschriebene Angebote bleiben unverändert ([[preise_festschreiben]]).",
+           "<i>Mehr → Preisliste importieren</i> liest CSV oder Excel eines Lieferanten (Spalten Profil, Werkstoff, "
+           "Preis, Basis, Länge, Gültig ab/bis, Lieferzeit, Mindestabnahme, Artikelnr.). Vorher wird gesichert; "
+           "unbekannte Abmessungen werden gemeldet und nicht angelegt.")
+    i.abschnitt("ERP-Einkauf, Preishistorie und Preisvorschläge", marke="material_erp")
+    i.text("<i>Mehr → ERP-Einkauf (EK-CSV) einlesen …</i> liest die Einkaufs-CSV aus dem ERP (derselbe Import wie "
+           "unter [[erp_preise]], mit Spaltenzuordnung und Prüfliste). Danach zeigt die Liste je Material die Spalten "
+           "<b>ERP Ø €/m</b> (nach Menge gewichtet, Zeitraum <i>erp_monate</i>, ohne Ausreißer), <b>ERP letzter</b>, "
+           "<b>ERP am</b>, <b>ERP Abw. %</b> (Ø gegen den aktiven Preis) und <b>Vorschlag €/m</b>. Der Filter "
+           "<i>Zustand</i> kennt dazu <i>mit ERP-Einkauf</i>, <i>ERP weicht über 10 % ab</i> und <i>mit "
+           "Preisvorschlag</i>.",
+           "Der Reiter <b>Preishistorie</b> zeigt die Kurve mit Stammdatenpreis, jedem ERP-Kauf (Punktgröße nach "
+           "Menge, Ausreißer hohl) und Lieferantenpreisen, darunter den Trend (Ø 3/6/12 Monate, % je Jahr), die "
+           "Tabelle <b>Je Monat</b> (Käufe, Meter, Ø, Min, Max, Stammpreis, Abweichung) und <b>Alle Einträge</b>. "
+           "<b>ERP-Käufe …</b> öffnet den Verlauf des Imports, in dem einzelne Käufe mit- oder nicht mitgerechnet "
+           "werden.",
+           "<b>Preisvorschlag</b>: aus den eigenen Käufen der letzten 12 Monate, neuere stärker gewichtet "
+           "(Halbwertszeit 90 Tage), bei klarem Trend bis heute fortgeschrieben (höchstens ±10 %); ohne Käufe der "
+           "günstigste gültige Lieferantenpreis, sonst €/kg ähnlicher Abmessungen desselben Werkstoffs × kg/m. "
+           "Ein Vorschlag erscheint nur ab 3 % Abweichung, mit Quelle, Sicherheit und Begründung. <b>Vorschlag "
+           "übernehmen</b> schreibt ihn nach Rückfrage in <i>Preise</i> (in deren Preisbasis, Gültig ab heute, "
+           "Admin-Schutz, KI-Protokoll); auch die <b>Prüfvorschläge</b> listen ihn. Automatisch ändert sich kein "
+           "Stammdatenpreis.",
+           "<b>Im Angebot</b> (Funktion ERP-Preise eingeschaltet): Ein ERP-Kauf wird nach dem Optimieren nur "
+           "<b>direkt eingesetzt</b>, wenn er höchstens <i>erp_direkt_tage</i> alt ist (Vorgabe 28 Tage = 4 Wochen) "
+           "und seine Stangenzahl höchstens <i>erp_direkt_stangen</i> (Vorgabe ±2) vom Bedarf laut Schnittplan "
+           "abweicht; Ausreißer nie. Sonst bleibt er ein <b>Vorschlag</b> mit Begründung (z. B. <i>Kauf 80 Tage "
+           "alt</i>, <i>40 statt 12 Stangen</i>), und das Angebot rechnet mit dem Stammdatenpreis.")
+    i.text("<i>Mehr → Profile und Werkstoffe aus dem EK anlegen …</i> (läuft auch gleich nach dem Einlesen): Aus "
+           "jeder EK-Bezeichnung mit Zusatztext und Artikelnummer werden Profilart, Maße, Güte, Norm und Naht "
+           "gelesen. Fehlende <b>Profile</b> werden mit der Profil-ID wie beim STEP-Import angelegt; ein fehlender "
+           "<b>Werkstoff</b> derselben Güte mit anderer Norm (z. B. S275 EN 10210 warmgefertigt, nahtlos) wird von "
+           "einem vorhandenen Werkstoff dieser Güte abgeleitet (Dichte, Tonnenpreis, Lasereigenschaften) und "
+           "bekommt Norm, Rohrart und Angebotstext; Bemerkung <i>aus ERP-EK angelegt, bitte prüfen</i>. EN 10219 "
+           "kaltgefertigt = geschweißt, EN 10210 warmgefertigt bzw. <i>nahtlos</i>, E-Güten = EN 10305. S235 EN 10210 "
+           "gibt es nicht: solche Käufe gehen auf S235 EN 10219. Flachstahl, Winkel und Träger bekommen nie eine "
+           "Rohrnorm. Vorher wird gesichert; die Zuordnung jedes EK-Artikels wird gemerkt. Was unklar ist (Maß "
+           "nicht erkannt, Norm mehrdeutig wie <i>S355</i> ohne Norm), bleibt in der Prüfliste. Ohne Admin-Freigabe "
+           "für Werkstoffe werden nur Profile angelegt.",
+           "<b>Werkstoff-Vorauswahl je Profil</b>: Beim STEP-Import bekommen Rohre und Profile, deren Abmessung der "
+           "Einkauf in den letzten <i>erp_monate</i> überwiegend (mindestens 60 % der Meter) in einem bestimmten "
+           "Werkstoff mit Norm gekauft hat, diesen Werkstoff vorgewählt, mit Hinweis <i>Werkstoff laut "
+           "EK-Einkauf</i> im Prüfdialog. Ein Werkstoff aus der STEP-Datei, aus der E-Mail oder aus dem "
+           "Importprofil des Kunden geht vor; im Prüfdialog bleibt er änderbar. Abschalten mit der Einstellung "
+           "<i>erp_werkstoff_vorwahl</i>.",
+           "Die Einstellungen dazu stehen unter <i>Einstellungen → ERP-Preisimport → Auswertung</i>: <b>ERP-Preise: "
+           "direkt einsetzen, wenn der Kauf höchstens so alt ist</b> [Tage], <b>ERP-Preise: direkt einsetzen bei "
+           "Stangenzahl ±</b> [Stangen] und <b>ERP-Preise: Werkstoff je Profil nach dem Einkauf vorwählen</b> "
+           "(STEP-Import). Der Menüpunkt <i>ERP-Einkauf einlesen</i> (EK-CSV) steht unter <i>Mehr</i>.")
+    i.abschnitt("Materialdatenbank: Bereiche, Materialstamm und ERP-Import", marke="material_datenbank")
+    i.text("Die Seite <b>Material</b> hat oben Reiter für die Bereiche <b>Dashboard</b>, <b>Materialübersicht</b> "
+           "(die Liste von oben, Start), <b>Werkstoffe</b>, <b>Abmessungen</b>, <b>Materialkombinationen</b>, "
+           "<b>Einkaufspreise</b>, <b>Lieferanten</b>, <b>ERP-Import</b>, <b>Preisverlauf</b>, <b>Importhistorie</b> "
+           "und <b>Einstellungen</b>. Werkstoffe, Abmessungen, Einkaufspreise und Lieferanten sind dieselben "
+           "Tabellen wie unter <i>Einstellungen → Material</i> (Admin-Schutz gilt gleich); es gibt keine zweite "
+           "Datenbank. Werkstoffe und Abmessungen sind unabhängig; welche Kombinationen es gibt, steht im "
+           "<b>Materialstamm</b> (Reiter Materialkombinationen).",
+           "<b>Dashboard</b>: Kacheln mit Anzahl Werkstoffe, Abmessungen, Materialvarianten, im Materialstamm, "
+           "Lieferanten, Preise älter als 30 Tage, Materialien ohne Preis, nur Tonnenpreis, Preisänderungen im "
+           "letzten Import und inaktive Materialien; ein Klick öffnet den Bereich (gefiltert). Darunter der letzte "
+           "ERP-Import und die Preiswarnungen (Prüfvorschläge, Doppelklick öffnet das Material). Knöpfe "
+           "<b>ERP-Import …</b>, <b>Prüfvorschläge</b> und <b>Zur Materialübersicht</b>.",
+           "<b>Materialstamm</b> (Tabelle, auch unter Einstellungen): je Abmessung × Werkstoff × Oberfläche "
+           "<b>Materialnummer (ERP)</b>, <b>Materialbezeichnung</b>, <b>Handelsbezeichnung</b>, <b>Hersteller / "
+           "Lieferant</b>, <b>Aktiv</b>, <b>Angelegt am</b>, <b>Geändert am</b>, Herkunft und Bemerkung. Beim "
+           "Update wird er einmal aus Preisen, Lieferlängen, Lieferantenpreisen und EK-Käufen gefüllt; beide "
+           "Importe tragen die Artikelnummer je Abmessung × Werkstoff ein (eine leere Nummer wird nachgetragen, eine "
+           "vorhandene ändert nur ein bestätigter Import). <b>Inaktiv</b> (Kontextmenü <i>Im Materialstamm inaktiv "
+           "setzen</i>) heißt: in der Auswahl für neue Positionen nicht mehr angeboten; alte Angebote bleiben.",
+           "<b>Erkennung vorhandener Materialien</b>: Beide Importe erkennen ein Material zuerst an einer gemerkten "
+           "Zuordnung, dann an der <b>Artikelnummer</b> (Materialnummer im Materialstamm) bzw. der "
+           "<b>Bestellnummer</b> beim Lieferanten (Spalte <i>Bestellnummer (Lieferant)</i>, Lieferantenpreise), und "
+           "erst danach an Bezeichnung, Maßen und Werkstoff. Zeigt eine Nummer auf mehrere Materialien, gilt sie "
+           "nicht (kein Raten).")
+    i.text("<b>ERP-Import</b> (Bereich ERP-Import, Datei hierher ziehen oder wählen): <b>Materialstamm und EK-Preise "
+           "einlesen …</b> für Artikel-/Preislisten, <b>Einkäufe einlesen</b> (EK-CSV) für die Einkaufshistorie "
+           "(wie oben) und <b>Preisliste eines Lieferanten …</b>. Gelesen werden CSV in UTF-8 oder ANSI mit Semikolon, "
+           "Komma, Tabulator oder senkrechtem Strich, Dezimalkomma oder -punkt, und Excel (.xlsx).",
+           "Im Fenster <b>ERP-Import: Spalten zuordnen</b> schlägt das Programm die Zuordnung nach den Spaltennamen "
+           "vor (auch englisch: Item No, Grade, Size, Price, Unit); jede Spalte lässt sich umstellen. Felder: "
+           "Materialnummer, Bezeichnung, Werkstoff, Abmessung oder einzeln Profilart, Außen-Ø/Breite, Höhe, "
+           "Wandstärke, Länge, EK-Preis (Pflicht), Preiseinheit (€/m, €/kg, €/t, €/100 m, €/Stange bzw. Stück), "
+           "Lieferant, Gewicht, Gültig ab, Oberfläche, Handelsbezeichnung und Bestellnummer. <i>Als Importprofil "
+           "speichern</i> merkt die Zuordnung; beim nächsten Import mit gleichem Spaltenkopf wird sie gewählt. "
+           "<b>Importprofil löschen</b> im Bereich ERP-Import.",
+           "Das Fenster <b>ERP-Import: Vorschau</b> zeigt jede Zeile in einer Gruppe: <b>neu</b>, "
+           "<b>Preisänderung</b> (alter und neuer €/m, Änderung in %, ab ±15 % Warnung), <b>aktualisiert</b>, "
+           "<b>unverändert</b>, <b>doppelt</b>, <b>fehlerhaft</b> und <b>nicht zuordenbar</b> (z. B. <i>S355</i> "
+           "ohne Norm: mehrere Werkstoffe möglich, das Programm rät nicht). Haken bestimmen, welche der Gruppen neu, "
+           "Preisänderung und aktualisiert übernommen werden. <b>Fehlerhafte Zeilen exportieren …</b> schreibt die "
+           "übrigen als CSV. Erst <b>Übernehmen</b> ändert etwas: vorher wird gesichert, alles läuft als ein Lauf; "
+           "neue Profile und Werkstoffe (mit Norm) werden angelegt, der Preis wird aktiver Preis, mit Lieferant auch "
+           "Lieferantenpreis.",
+           "<b>Importhistorie</b>: jeder Lauf mit Zeit, Datei, Importprofil, Benutzer und Zählern; darunter jede "
+           "Änderung (Tabelle, alt, neu). <b>Import rückgängig machen …</b> nimmt einen Lauf zurück; inzwischen von "
+           "Hand geänderte Felder bleiben und werden gemeldet.",
+           "<b>Preisverlauf</b>: jede Preisänderung mit altem und neuem EK, Änderung in %, Datum, Herkunft "
+           "(ERP-Import oder Stammdaten), Lieferant und Importquelle; bei anderer Preisbasis in €/m umgerechnet. "
+           "<b>nur Änderungen ab 10 %</b> filtert; <b>Preisentwicklung des Materials …</b> öffnet die Kurve im "
+           "Reiter Preishistorie. Angebote ändern sich durch einen Import nie rückwirkend (festgeschriebene Preise, "
+           "[[preise_festschreiben]]).")
+    i.text("<b>Im Angebot</b> öffnet der Knopf <b>Material …</b> wie bisher direkt das Fenster <i>Material je "
+           "Abmessung</i> ([[material_fenster]]). Es hat oben jetzt Kennzahlen als Kacheln (Abmessungen, Stangen, "
+           "Meter Einkauf, Gewicht, Material €, Kundenmaterial, ohne Preis) und die Knöpfe <b>Material suchen und "
+           "zuweisen …</b> (übernimmt die Eingaben und zeigt die Materialübersicht mit dem Material der markierten "
+           "Abmessung), <b>Lieferantenvergleich …</b> (Bedarf laut Schnittplan) und <b>Materialdatenbank</b> mit den "
+           "Bereichen Dashboard, Materialübersicht, Einkaufspreise, Lieferanten, Preisverlauf und ERP-Import. Die "
+           "markierte Zeile ist die Abmessung für diese Knöpfe; beide stehen auch im Kontextmenü der Zeile.")
+    i.text("<b>Lieferanten</b>: beliebig viele je Material mit Bestellnummer, Lieferzeit, Mindestabnahme, "
+           "<b>Staffel ab [m]</b>, <b>Verpackungseinheit [Stangen]</b>, Gültigkeit und <b>Bevorzugter Lieferant</b>. "
+           "<b>Lieferantenvergleich …</b> (Bereich Lieferanten oder Kontextmenü der Materialübersicht) rechnet für "
+           "einen Bedarf in Metern Stangen, Kosten und Lieferzeit je Lieferant und schlägt den günstigsten vor; der "
+           "bevorzugte gewinnt, solange er höchstens 2 % teurer ist.",
+           "<b>STEP-Import</b>: Gibt es eine Abmessung im Materialstamm nur in anderen Werkstoffen als der Vorgabe, "
+           "zeigt der Prüfdialog den Hinweis <i>Materialstamm: … bitte Werkstoff wählen</i>; der Werkstoff wird "
+           "nicht geändert.",
+           "<b>Einstellungen</b> (Bereich): die wichtigsten Werte der Materialdatenbank; <b>Einstellungen "
+           "ERP-Preisimport öffnen</b> und <b>Tabelle Materialindex öffnen</b> springen dorthin.",
+           "Tasten auf der Seite Material: Strg+F Suche, Strg+Umschalt+I ERP-Import, Strg+Umschalt+E Export, "
+           "Strg+Umschalt+D Dashboard, F5 neu laden. <i>Mehr → Als CSV exportieren</i> speichert auch als Excel "
+           "(.xlsx, Dateityp im Speichern-Fenster).")
+    i.abschnitt("Vergleichen und Prüfvorschläge", marke="material_vergleich")
+    i.text("<b>Vergleichen</b> stellt bis zu acht markierte Materialien nebeneinander: Preis je m und kg, Gewicht, "
+           "Güte, Handelslängen, Lieferanten, Preisstand und, wenn ein Angebot offen ist, den <b>Verschnitt</b> bei "
+           "dessen Teilelängen je Stangenlänge. Der beste Wert ist grün. Alternativen haben immer <b>denselben "
+           "Werkstoff</b>; gleichwertige Werkstoffe stehen nur als Hinweis da.",
+           "<b>Prüfvorschläge</b> prüft auf diesem PC, ohne Internet: fehlende Preise oder Dichten, ungewöhnliche "
+           "Dichten, Ausreißer im €/kg gegenüber gleichen Profilen, große Preissprünge, alte Preise, Materialien "
+           "ohne Lieferant, doppelt angelegte Abmessungen und günstigere gültige Lieferantenpreise. Jeder Vorschlag "
+           "nennt seine Begründung. Geändert wird nur nach <b>Übernehmen</b> (aktiven Preis übernehmen, Dublette "
+           "archivieren), mit Eintrag im KI-Protokoll; <b>Ablehnen</b> blendet den Vorschlag dauerhaft aus. "
+           "Werkstoff, Güte und technische Werte ändert keine Aktion.")
+    i.abschnitt("Schnellfunktionen", marke="material_schnell")
+    i.liste("<b>Neues Material</b>: neue Abmessung (Formular wie beim STEP-Import), neuer Werkstoff, neuer "
+            "Lieferantenpreis.",
+            "Rechte Maustaste: Favorit, Vergleichen, <b>Den markierten Positionen des offenen Angebots zuweisen</b>, "
+            "Abmessung oder Werkstoff duplizieren, <b>Mehrere ändern</b> (Preis um %, Lieferant, Gültig ab, "
+            "Mindestabnahme, Lieferlänge, Endbeschnitt, Greiferrest, Bemerkung; Güte, Dichte und Maße bewusst "
+            "nicht), Archivieren, CSV-Export.",
+            "<b>Archivieren</b> nimmt eine Abmessung oder einen Werkstoff aus den Auswahllisten neuer Positionen. "
+            "Nichts wird gelöscht; bestehende Angebote rechnen unverändert weiter. <i>Mehr → Archivierte zeigen</i> "
+            "holt sie zurück.",
+            "Im Angebot: rechte Maustaste auf eine Rohrposition → <b>Material suchen und zuweisen …</b> springt auf "
+            "die Seite Material, gefiltert auf die Profilart, das Material der Position markiert. Nach dem Zuweisen "
+            "bitte neu optimieren.")
+    i.genauer()
+    i.text("Die Knöpfe oben: <b>★ Favoriten</b>, <b>Zuletzt</b>, <b>Häufig</b>, <i>Liste/Matrix</i>, "
+           "<b>Vergleichen</b>, <b>Prüfvorschläge</b>, <b>Neues Material</b> (Neue Abmessung …, Neuer Werkstoff … "
+           "(Einstellungen), Neuer Lieferantenpreis …) und <b>Mehr</b> mit <i>Liste als CSV exportieren …</i>, "
+           "<i>Preisliste eines Lieferanten importieren (CSV/Excel) …</i>, <i>ERP-Einkauf (EK-CSV) einlesen …</i>, "
+           "<i>Profile und Werkstoffe aus dem EK anlegen …</i>, <i>Alle Kombinationen Abmessung × "
+           "Werkstoff zeigen</i>, <i>Archivierte zeigen</i>, <i>Spalten …</i> und den Tabellen Profile, Werkstoffe, "
+           "Preise, Lieferlängen und Material-Lieferanten. Im Reiter Lieferanten: <i>Neu …</i>, <i>Als Preis "
+           "übernehmen</i>, <i>Löschen</i>. Im Reiter Preishistorie: <i>Vorschlag übernehmen</i>, <i>ERP-Käufe …</i>, "
+           "Unterreiter <i>Je Monat</i> und <i>Alle Einträge</i>. Das Menü der rechten Maustaste in der Liste: <i>Als Favorit markieren</i>, "
+           "<i>Vergleichen</i>, <i>Den markierten Positionen des offenen Angebots zuweisen</i>, <i>Abmessung "
+           "duplizieren …</i>, <i>Werkstoff duplizieren …</i>, <i>Mehrere ändern …</i>, <i>Abmessung archivieren</i>, "
+           "<i>Werkstoff archivieren</i>, <i>Neuer Lieferantenpreis …</i>, <i>In Tabelle Preise zeigen</i> und "
+           "<i>Als CSV exportieren (markierte) …</i>. Rechte Maustaste auf die Spaltenköpfe: Spalten ein/aus und "
+           "<i>Spalten wie ab Werk</i>.",
+           "Die Lieferantenpreise stehen in der Tabelle <b>Material-Lieferanten</b> (<i>Einstellungen → Material → "
+           "Material-Lieferanten</i>): Profil-ID, Werkstoff-ID, Lieferant (aus dem Lieferantenstamm der "
+           "Zukaufartikel), Artikelnr. des Lieferanten, Preisbasis, Preis, Lieferlänge, Gültig ab, Gültig bis, "
+           "Lieferzeit, Mindestabnahme und Bemerkung. Je Profil, Werkstoff, Lieferant und Lieferlänge eine Zeile.")
+    i.bild("stamm_material_lieferanten", "Einstellungen, Material-Lieferanten: Lieferantenpreise je Material",
+           hoehe=70 * mm, kurz=False)
+    i.bild("stamm_materialstamm", "Einstellungen, Materialstamm: Abmessung × Werkstoff mit Materialnummer aus dem ERP",
+           hoehe=70 * mm, kurz=False)
+    i.abschnitt("Materialbilanz je Abmessung", marke="material_bilanz")
+    i.text("Im Abmessungs-Fenster (Doppelklick im Fenster <i>Material …</i> des Angebots) steht unter der Meter- und "
+           "Gewichtsbilanz der <b>theoretische Verbrauch</b> (Teilelängen × Meterpreis) gegen den <b>Einkauf</b> "
+           "(bezahlte Stangen), die Mehrkosten durch Verschnitt in € und %, ein Hinweis, wenn die Mindestabnahme "
+           "mehr Stangen verlangt, und die <b>Reststücke</b> ab der Einstellung <i>rest_min_laenge</i>. Reststücke "
+           "werden nur gemeldet: kein Restelager, keine Verrechnung.")
 
 
 def kapitel_zukauf(i):
@@ -16055,6 +16269,8 @@ STECKBRIEFE = {
     "stammdaten": ("Kunden (auch per CSV), Profile, Werkstoffe, Preise, Maschinen, Schneiddaten und weitere Tabellen "
                    "pflegen.",
                    "Reiter <i>Kunden</i>; Reiter <i>Einstellungen</i> mit den Unterreitern"),
+    "material_seite": ("Materialien (Abmessung × Werkstoff) suchen, filtern, vergleichen, Lieferantenpreise pflegen und "
+                       "an Positionen zuweisen.", "Seitenleiste → <i>Material</i> (Bereich Pflege)"),
     "zukauf": ("Zukaufartikel, Lieferanten, Einkaufspreise und Aufschläge verwalten.", "Reiter <i>Zukaufartikel</i>"),
     "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",
                      "Reiter <i>Frachtkosten</i>"),
@@ -16089,7 +16305,7 @@ TEILE = [
       kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
-     [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten,
+     [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_material, kapitel_zukauf, kapitel_frachtkosten,
       kapitel_pflege, kapitel_admin_datenbank, kapitel_lizenz]),
     ("Anhang", "Nachschlagen", "STEP-Messung im Detail, Tastenkürzel, häufige Fragen und die Neuerungen je "
      "Version.",

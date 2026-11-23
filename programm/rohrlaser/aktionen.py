@@ -92,6 +92,16 @@ def _stammdaten(f, tabelle, suche=False):
     return seite
 
 
+def _material_suchen(f):
+    """Seite Material mit dem Cursor im Suchfeld (Materialplattform 23.11.2026); ohne sie die Tabelle Profile."""
+    if not hasattr(f, "material_zeigen"):
+        return _stammdaten(f, "profile", suche=True)
+    m = f.material_zeigen()
+    m.suche.setFocus()
+    m.suche.selectAll()
+    return m
+
+
 def _mit_angebot(methode, *args, zeile=False):
     """Aufruf einer Methode der geöffneten Angebotsseite (bei zeile=True mit der gewählten Positionszeile)."""
     def aufruf(f):
@@ -330,8 +340,8 @@ AKTIONEN = (
     _A("d3_ansicht", "STEP-Viewer (3D-Ansicht) …", "3D-Editor", "ansicht3d",
        "Alle Teile des Angebots in 3D, die gewählte zuerst", _mit_angebot("ansicht_3d"), "angebot"),
     # Material
-    _A("mat_suchen", "Material suchen", "Material", "suche", "Profile in den Stammdaten suchen",
-       lambda f: _stammdaten(f, "profile", suche=True)),
+    _A("mat_suchen", "Material suchen", "Material", "suche", "Seite Material: Abmessung, Werkstoff, Werkstoff-Nr. suchen",
+       lambda f: _material_suchen(f)),
     _A("mat_verwaltung", "Materialverwaltung", "Material", "material", "Profile (Abmessungen) und Werkstoffe pflegen",
        lambda f: _stammdaten(f, "profile")),
     _A("mat_werkstoffe", "Werkstoffe", "Material", "material", "Werkstoffe und Preise pflegen",

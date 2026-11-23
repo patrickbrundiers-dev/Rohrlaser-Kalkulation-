@@ -1880,10 +1880,20 @@ def erp_schluessel(profil, werkstoff, oberflaeche):
     return f"{profil}|{werkstoff}|{oberflaeche or ''}"
 
 
-def erp_preis(kopf, gr):
+def erp_preis(kopf, gr, vorschlag=False):
     """ERP-Einkaufspreis, den das Angebot nach dem Optimieren für Profil + Werkstoff + Oberfläche gewählt hat (Plan
     ERP-Preise 30.10.2026: Vorschlag nach Bedarf, angebote.erp_preise): dict(preis €/m, datum, menge, stangen,
-    artikelnr, bemerkung) oder None (dann wie bisher Lieferlängen/Preise/Tonnenpreis). Nie bei Kundenmaterial."""
+    artikelnr, bemerkung) oder None (dann wie bisher Lieferlängen/Preise/Tonnenpreis). Nie bei Kundenmaterial.
+    Seit 23.11.2026 (Patrick) wird nur ein Kauf direkt eingesetzt, der jung genug ist und zur Stangenzahl passt
+    (direkt=True, erp_preise.angebot_vorschlag); die anderen sind nur Vorschlag (vorschlag=True liefert sie).
+    Ältere Angebote ohne das Feld rechnen wie bisher."""
+    z = _erp_eintrag(kopf, gr)
+    if z is None:
+        return None
+    return z if bool(z.get("direkt", True)) != vorschlag else None
+
+
+def _erp_eintrag(kopf, gr):
     e = (kopf or {}).get("erp_preise")
     if not e or "Kunde" in tuple(gr[4:]):
         return None
@@ -3671,6 +3681,8 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                 werkstoff_laser={w: v for w in sorted(werkstoffe, key=str) if (v := _laser_werte(k.werkstoffe.get(w)))},
                 # ab 29.10.2026 (Schema 68): Teuerungszuschlag der Werkstoffe (nur gesetzte)
                 teuerung={w: v for w in sorted(werkstoffe, key=str) if (v := _teuerung_werte(k.werkstoffe.get(w)))},
+                # ab 23.11.2026 (Materialplattform, Schema 103): Dichte der Werkstoffe (Gewicht = Preis bei €/kg)
+                werkstoff_dichte={w: (k.werkstoffe.get(w) or {}).get("dichte") for w in sorted(werkstoffe, key=str)},
                 aufpreise={o: (k.oberflaechen.get(o) or {}).get("aufpreis_m") for o in sorted(ofl)},
                 # ab 28.10.2026 (Plan Abrechnungsregeln): Basis der Aufpreise und Regeln der Zusatzarbeiten
                 aufpreis_basen={o: (k.oberflaechen.get(o) or {}).get("aufpreis_basis") or "€/m" for o in sorted(ofl)},
@@ -3693,8 +3705,12 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                                    programmierung_gleich=einst.get("programmierung_gleich") or "ja",
                                    # ab 17.11.2026 (Systemprüfung CALC-01): Richtpreise kaufmännisch gerundet
                                    rundung_kaufm=einst.get("rundung_kaufm") or "ja"),
-                profile={pid: dict(k.profile[pid]) for pid in profile if pid in k.profile},
+                profile={pid: {n: v for n, v in k.profile[pid].items() if n not in OHNE_SNAPSHOT}
+                         for pid in profile if pid in k.profile},
                 maschinen={m: dict(k.maschinen[m])} if m in k.maschinen else {})
+
+
+OHNE_SNAPSHOT = ("archiviert",)     # Felder der Profile ohne Einfluss auf die Rechnung (nicht festschreiben)
 
 
 def _angebotsregeln_aus(tabellen):
@@ -3808,6 +3824,10 @@ def preisbasis_anwenden(kopf, k, tabellen):
     ws = {w: dict(z, **{n: (fest_t.get(w) or {}).get(n) for n in TEUERUNG_FELDER})
           if w in (pb.get("tonnenpreise") or {}) and _teuerung_werte(z) != (fest_t.get(w) or {}) else z
           for w, z in ws.items()}
+    if isinstance(pb.get("werkstoff_dichte"), dict):    # vor dem 23.11.2026 festgeschrieben: aktuelle Dichte
+        ws = {w: dict(z, dichte=pb["werkstoff_dichte"][w])
+              if w in pb["werkstoff_dichte"] and pb["werkstoff_dichte"][w] is not None
+              and z.get("dichte") != pb["werkstoff_dichte"][w] else z for w, z in ws.items()}
     basen = pb.get("aufpreis_basen") or {}      # vor dem 28.10.2026 festgeschrieben: €/m
     of = {o: dict(z, aufpreis_m=pb["aufpreise"][o], aufpreis_basis=basen.get(o) or "€/m")
           if o in (pb.get("aufpreise") or {}) else z for o, z in k.oberflaechen.items()}
@@ -3857,7 +3877,7 @@ def _ohne_spaetere(neu, alt):
 def _fest(aktuell, fest):
     """Zeile aus dem Snapshot, wenn sie abweicht (gleiche Zeile bleibt die der Stammdaten), sonst die aktuelle."""
     if not isinstance(fest, dict) or json.dumps(fest, sort_keys=True, default=str) == \
-            json.dumps(aktuell, sort_keys=True, default=str):
+            json.dumps(_ohne_spaetere(aktuell, fest), sort_keys=True, default=str):
         return aktuell
     return dict(aktuell, **fest)
 
@@ -3884,6 +3904,7 @@ def _vergleich(pb):
                 werkstoff_laser=pb.get("werkstoff_laser") if "werkstoff_laser" in pb else None,
                 aufpreis_basen=pb.get("aufpreis_basen") if "aufpreis_basen" in pb else None,
                 teuerung=pb.get("teuerung") or {},          # vor dem 29.10.2026 festgeschrieben: ohne Zuschlag
+                werkstoff_dichte=pb.get("werkstoff_dichte") if "werkstoff_dichte" in pb else None,
                 zusatz_regeln=_regeln_vergleich(pb["zusatz_regeln"]) if "zusatz_regeln" in pb else None)
 
 
@@ -3951,6 +3972,9 @@ def preisbasis_abweichung(kopf, k, tabellen):
             t = lambda v: f"{zahl(_n(v.get('teuerung_wert')))} {v.get('teuerung_art')}" if v else "ohne"
             out.append(f"Teuerungszuschlag {w}: {t(a)} → {t(n)}" if t(a) != t(n)
                        else f"Teuerungszuschlag {w}: Stand geändert")
+    for w, d in (alt["werkstoff_dichte"] or {}).items():
+        if d is not None and (neu["werkstoff_dichte"] or {}).get(w) != d:
+            out.append(f"Dichte {w}: {zahl(d)} → {zahl((neu['werkstoff_dichte'] or {}).get(w))} kg/dm³")
     if "lieferlaengen" in pb and alt["lieferlaengen"] != neu["lieferlaengen"]:
         out.append("Lieferlängen geändert")
     if "gewinde" in pb and alt["gewinde"] != neu["gewinde"]:
