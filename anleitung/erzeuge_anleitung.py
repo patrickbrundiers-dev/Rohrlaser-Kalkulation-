@@ -8389,9 +8389,10 @@ def kapitel_zukauf_angebot(i):
                (1, "Bezeichnung eintippen; ohne zentrale Verwaltung gibt es keine Auswahl aus dem Stamm"),
                (2, "<b>▲</b> / <b>▼</b>: markierte Zeilen nach oben bzw. unten (Reihenfolge im Angebot und in den "
                    "PDFs)"),
-               (3, "<b>Mehrere hinzufügen …</b>: je Zeile Bezeichnung; Menge; EK; Artikelnr.; Lieferant, auch als "
-                   "Zellen aus Excel eingefügt"),
-               (4, "<b>Aus anderem Angebot …</b>: Zukaufartikel eines anderen Angebots als unabhängige Kopie"),
+               (3, "<b>Mehrere hinzufügen …</b> (Fenster <i>Mehrere Zukaufartikel hinzufügen</i>): je Zeile "
+                   "Bezeichnung; Menge; EK; Artikelnr.; Lieferant, auch als Zellen aus Excel eingefügt"),
+               (4, "<b>Aus anderem Angebot …</b> (Fenster <i>Zukaufartikel aus anderem Angebot kopieren</i>): "
+                   "Zukaufartikel eines anderen Angebots als unabhängige Kopie"),
                (5, "Spalten mit EK je Einheit, <b>EK gesamt</b> (Einstand aller Teile der Position), Aufschlag, VK; "
                    "Herkunft <i>nur im Angebot</i>"),
                (6, "Summe der Position: EK, VK netto, MwSt. (Satz des Angebots), VK brutto und Aufschlag – nur "
