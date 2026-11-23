@@ -14484,7 +14484,8 @@ def kapitel_material(i):
            "und beim Übernehmen merkt sich das Programm die Artikelnummer: der nächste Import und der EK-Import "
            "erkennen den Artikel von selbst.",
            "<b>Auswirkung auf offene Angebote</b>: Unter den Gruppen steht, wie viele offene Angebote nach der "
-           "Übernahme mit neuen Materialpreisen rechnen; <b>Betroffene Angebote …</b> zeigt sie mit Kunde, Anzahl "
+           "Übernahme mit neuen Materialpreisen rechnen; <b>Betroffene Angebote …</b> zeigt sie im Fenster "
+           "<i>ERP-Import: betroffene offene Angebote</i> mit Kunde, Anzahl "
            "Positionen, Material, bisherigem und neuem €/m. Festgeschriebene Angebote und Positionen mit eigenem "
            "Meterpreis ändern sich nicht und stehen nicht in der Liste.",
            "Im Fenster <i>Material je Abmessung</i> des Angebots nennt die Spalte <b>Lieferant (Vorschlag)</b> den "
