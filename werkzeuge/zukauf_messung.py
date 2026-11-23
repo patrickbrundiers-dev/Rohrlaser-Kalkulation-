@@ -3,7 +3,8 @@
 Legt eine Prüfdatenbank mit einem großen Artikelstamm (Vorgabe 3.000 Zukaufartikel mit je einem Lieferanten) und einem
 Angebot mit 40 Positionen an (20 davon mit Zukaufteilen, halb aus dem Stamm, halb frei) und misst je Vorgang die Zeit
 (Median aus mehreren Läufen) und die Datenbankabfragen auf die Zukauf-Tabellen (zukauf_*):
-  Angebot öffnen, Angebot neu rechnen, Angebots-Check, Dialog „Zukaufteile …“ öffnen, Rechen-Tabellen neu bauen.
+  Angebot öffnen, Angebot neu rechnen, Angebots-Check, Dialog „Zukaufteile …“ öffnen, Rechen-Tabellen neu bauen,
+  Reiter Zukaufartikel laden (beim Programmstart und nach jedem Abgleich).
 Gemessen wird mit zentraler Verwaltung aus und ein (vor der Änderung gab es den Schalter nicht: beide Läufe gleich).
 
 Aufruf (nicht als root, PostgreSQL-Prüfserver):
@@ -106,6 +107,7 @@ def lauf(db, a, f, laeufe):
         p = next(x for x in seite.positionen if x.get("zukauf"))
         vorgang("Dialog Zukaufteile öffnen", lambda: ZukaufDialog(seite, db, p).deleteLater())
         vorgang("Rechen-Tabellen neu bauen", db._tabellen_bauen)
+        vorgang("Reiter Zukaufartikel laden", f.zukauf.neu_laden)       # beim Start und nach jedem Abgleich
     finally:
         zaehler.ende()
     return out

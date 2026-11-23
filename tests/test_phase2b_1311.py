@@ -33,6 +33,7 @@ from rohrlaser.stammdaten import TABELLE  # noqa: E402
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+db.einstellung_setzen("funktion_zukauf_stamm", "ja")     # zentrale Zukaufartikelverwaltung
 fenster = Hauptfenster(db, tmp, stumm=True)
 KOPF = {k: v for k, v in B.KOPF.items() if k not in ("nummer", "kundennr", "kunde")}
 ROHR = dict(B.POSITIONEN[0])          # RR 42,4x2,0 S235, 1250 mm
