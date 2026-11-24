@@ -668,7 +668,11 @@ class AustauschSeite(QWidget):
         self.uebersicht.datei_gewaehlt.connect(self.zeige_datei)
         self.leer = QLabel("")
         self.leer.setAlignment(Qt.AlignCenter)
-        for w in (self.uebersicht, self.liste, self.kachel):
+        self.uebersicht_flaeche = QScrollArea()             # rollt in kleinen Fenstern statt sie zu vergrößern
+        self.uebersicht_flaeche.setWidgetResizable(True)
+        self.uebersicht_flaeche.setFrameShape(QScrollArea.NoFrame)
+        self.uebersicht_flaeche.setWidget(self.uebersicht)
+        for w in (self.uebersicht_flaeche, self.liste, self.kachel):
             self.stapel.addWidget(w)
         for v in (self.liste, self.kachel):
             v.doubleClicked.connect(lambda i: self.oeffnen_doppelt(i.row()))
@@ -948,7 +952,7 @@ class AustauschSeite(QWidget):
         self.k_hoch.setEnabled(schreiben)
         self.k_ordner.setEnabled(schreiben and not (b in ad.OHNE_ORDNER_OBEN and not self.ansicht[2]))
         if art == UEBERSICHT:
-            self.stapel.setCurrentWidget(self.uebersicht)
+            self.stapel.setCurrentWidget(self.uebersicht_flaeche)
             u = ad.uebersicht(self.db, self.alle_eintraege(), self.metas, ad.gesehen(self.db),
                               erststart=self.erststart())
             self.uebersicht.fuellen(u)

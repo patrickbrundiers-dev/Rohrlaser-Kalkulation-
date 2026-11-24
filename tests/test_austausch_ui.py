@@ -82,7 +82,7 @@ for i in range(s.nav.topLevelItemCount()):
 for t in ("Übersicht", "Neu für mich", "Meine Aufgaben", "Favoriten", "Zuletzt verwendet", "Wer arbeitet woran",
           "Gemeinsame Dateien", "Mein Ordner", "Archiv", "Papierkorb"):
     assert any(x.startswith(t) for x in texte), (t, texte)
-assert s.stapel.currentWidget() is s.uebersicht and not s.k_hoch.isEnabled()
+assert s.stapel.currentWidget() is s.uebersicht_flaeche and not s.k_hoch.isEnabled()
 ok("B1 Reiter Austausch (Gruppe Arbeiten), Navigation, Start mit Übersicht")
 
 # ------------------------------------------------------------------ B2 Hochladen, Ordner, Ansicht
