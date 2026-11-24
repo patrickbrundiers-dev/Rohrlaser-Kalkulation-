@@ -21,13 +21,24 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.477", "<b>Anfragen löschen und Zusammenführen ohne Wiederkehr</b> ([[anfragen_sammeln]]): Nach dem "
+    ["0.9.478", "<b>Anfragen löschen und Zusammenführen ohne Wiederkehr</b> ([[anfragen_sammeln]]): Nach dem "
                 "Zusammenführen und Kalkulieren erschienen die übernommenen Anfragen wieder als neu, weil ihre "
                 "Originale im Anfrage-Ordner liegen blieben. Jetzt kommen sie nach .uebernommen und werden nie neu "
                 "angelegt. Neu ist <i>Löschen …</i> mit dem Ordner <i>Gelöscht</i> und <i>Wiederherstellen</i>. Outlook: Kam dieselbe Mail ein "
                 "zweites Mal (Inhalt schon in der Anfrage), gehörte sie keiner Anfrage, blieb im Eingang liegen und "
                 "wurde nie verschoben. Jetzt wandert sie mit der Anfrage nach In Bearbeitung und Erledigt.",
      "Anfragen löschen; zusammengeführte kommen nicht wieder als neu; Outlook verschiebt auch doppelte Mails"],
+    ["0.9.477", "<b>Austauschordner 2.0</b> ([[austausch]]): neue Seite <b>Austausch</b> unter Arbeiten, der "
+                "gemeinsame Ordner als Datei- und Projektverwaltung im Programm. Liste oder Kacheln mit Vorschau, "
+                "Suche über alle Bereiche (auch Kommentare und Dateiinhalt), Filter nach Typ, Mitarbeiter, Kunde, "
+                "Status und Zeitraum, Favoriten, zuletzt verwendet, gespeicherte Suchen. Hochladen per Knopf oder "
+                "Ziehen mit Fortschritt; gleicher Name wird nie überschrieben (neue Version, beide behalten oder "
+                "überspringen). Automatische Zuordnung zu Angebot, Auftrag, PPEASE-Nr., Anfrage und Kunde, unsichere "
+                "Treffer als Vorschlag zum Bestätigen. Verantwortlich, Status, Priorität, Fällig, Aufgabe, "
+                "Kommentare mit @Kürzel, Verlauf, Versionen mit Wiederherstellen, Papierkorb (endgültig nur Admin), "
+                "Archiv, Bearbeitungssperre mit „in Bearbeitung von …“, Übersicht mit Kacheln und einstellbare "
+                "Benachrichtigungen ohne Flut. Ohne Server: Dateien im gemeinsamen Ordner, Angaben über den Abgleich.",
+     "Neue Seite Austausch: gemeinsame Dateien mit Zuordnung, Aufgaben, Versionen und Papierkorb"],
     ["0.9.476", "<b>Rechenkern 2.0, Teil 1: schneller bei genau gleichen Ergebnissen</b>: Staffeln rechnen die "
                 "Schnittzeit je Position nur noch einmal für alle Stufen, denn sie hängt nicht von der Stückzahl ab "
                 "(Staffeln etwa 15–20 % schneller). Beim STEP-Import rechnen die Booleschen "
