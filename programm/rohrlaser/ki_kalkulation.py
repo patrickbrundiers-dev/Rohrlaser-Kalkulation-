@@ -132,6 +132,14 @@ def preis_erklaeren(ctx, fuer_kunde=False):
             zeilen_t.append(f"Ertrag je Laserstunde {_z(ertrag / h)} € ({_z(h, 2)} h).")
     except Exception:           # noqa: BLE001
         protokoll.warnung("ki_kalkulation: abgefangen")
+    try:        # Produktionsdaten-Intelligenz: worauf die Zeit beruht (nie höher als belegt)
+        from . import produktion_genauigkeit as pg
+        bw = pg.angebot(ctx.db, pos)
+        if bw:
+            zeilen_t.append("Datenbasis Bearbeitungszeit: " + "; ".join(f"Pos. {p.get('pos') or '?'} {pg.kurz(b)}"
+                                                                       for p, b in bw[:4]) + (" …" if len(bw) > 4 else ""))
+    except Exception:           # noqa: BLE001
+        protokoll.warnung("ki_kalkulation: Datenbasis abgefangen")
     _ = rechnen
     return dict(text="\n".join(zeilen_t), positionen=pos_out, anteile=anteile)
 
