@@ -29,10 +29,15 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QComboBox, QDial
                                QPushButton, QScrollArea, QSizePolicy, QSplitter, QStackedWidget, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from . import nesting as ne, nesting_vergleich as nv, optimierung as opt, rechnen, stil
-from .stangen_ansicht import MASS_HOEHE, LINEAL_HOEHE, bereiche, stange_zeichnen, teil_farben
+from . import nesting as ne, nesting_abwicklung as na, nesting_vergleich as nv, optimierung as opt, rechnen, stil
+from . import stangen_abwicklung as sa
+from .nesting_abwicklung_bild import EBENEN, AbwicklungAnsicht
+from .stangen_ansicht import MASS_HOEHE, LINEAL_HOEHE, stange_zeichnen, teil_farben
 
-BEARBEITEN, STANGENBILD, DREI_D = "Bearbeiten (2D)", "Stangenbild wie Optimierung", "3D"
+BEARBEITEN, STANGENBILD, DREI_D = "Alle Stangen", "Stangenbild", "3D"
+ABWICKLUNG, TECHNISCH = "Abwicklung", "Technisch"
+ANSICHTEN = (ABWICKLUNG, DREI_D, TECHNISCH, BEARBEITEN, STANGENBILD)     # Reihenfolge der Knöpfe und Seiten
+ANSICHT_EINSTELLUNG = "nesting_ansicht"     # zuletzt benutzte Ansicht (Patrick 24.11.2026)
 
 
 def status_text(d):
@@ -386,8 +391,14 @@ class NestingDialog(QDialog):
         kopf.addWidget(QLabel("Abmessung:"))
         kopf.addWidget(self.abm, 1)
         kopf.addSpacing(12)
-        for name in (BEARBEITEN, STANGENBILD, DREI_D):
+        tipps = {ABWICKLUNG: "Abwicklung der gewählten Stange: Teile, Schnitte, Konturen am Umfang (Hauptansicht)",
+                 DREI_D: "Echte Bauteile (STEP bzw. aus den Eingaben) auf der gewählten Stange",
+                 TECHNISCH: "Maßhaltige Abwicklung mit Koordinaten der Schnitte und Konturen",
+                 BEARBEITEN: "Alle Stangen untereinander: Teile ziehen, von Hand verschachteln",
+                 STANGENBILD: "Stangenbild wie im Reiter Optimierung"}
+        for name in ANSICHTEN:
             b = QPushButton(name)
+            b.setToolTip(tipps[name])
             b.setCheckable(True)
             b.clicked.connect(lambda _=False, n=name: self.ansicht_setzen(n))
             self.ansicht_knoepfe.addButton(b)
@@ -397,7 +408,7 @@ class NestingDialog(QDialog):
                              ("+", 1.25, "vergrößern (Strg + Mausrad)")):
             b = QPushButton(txt)
             b.setToolTip(tipp)
-            b.clicked.connect(lambda _=False, f=f: self.bild.zoom_setzen(1.0 if f is None else self.bild.zoom * f))
+            b.clicked.connect(lambda _=False, f=f: self._zoom(f))
             kopf.addWidget(b)
         kopf.addSpacing(12)
         self.bereich_knoepfe = {}
@@ -428,7 +439,11 @@ class NestingDialog(QDialog):
         self.reste_liste = QListWidget()
         self.uebrig_liste = QListWidget()
         self.uebrig_liste.itemSelectionChanged.connect(self._einsetzen_waehlen)
+        self.stangen_liste = QListWidget()
+        self.stangen_liste.setToolTip("Stange wählen (Pfeiltasten): alle Ansichten zeigen diese Stange")
+        self.stangen_liste.currentRowChanged.connect(lambda r: self.stange_gewaehlt(r) if r >= 0 else None)
         self.links = QTabWidget()
+        self.links.addTab(self.stangen_liste, "Stangen")
         self.links.addTab(self.teile_tabelle, "Bauteile")
         mat = QScrollArea()
         mat.setWidgetResizable(True)
@@ -457,14 +472,33 @@ class NestingDialog(QDialog):
         self.rahmen = QScrollArea()
         self.rahmen.setWidgetResizable(True)
         self.rahmen.setWidget(self.bild)
-        from .nesting_3d import Nesting3D
         from .stangen_ansicht import UEBERSICHT, StangenSeite
         self.stangenseite = StangenSeite(UEBERSICHT)
-        self.drei_d = Nesting3D()
+        self._quelle(parent)
+        self.abw = AbwicklungAnsicht()
+        self.tech = AbwicklungAnsicht(technisch=True)
+        for a in (self.abw, self.tech):
+            a.teil_gewaehlt.connect(self.abwicklung_teil)
+            a.bereich_gewaehlt.connect(lambda t: self.hinweis.setText(t))
+            a.gemessen.connect(lambda t: self.hinweis.setText(t))
+            a.zur_position.connect(self.zur_position)
+            a.im_3d.connect(self.teil_im_3d)
+        self.koord = QTableWidget(0, 7)
+        self.koord.setHorizontalHeaderLabels(["Teil", "Art", "Kontur", "x von [mm]", "x bis [mm]", "Umfang [mm]",
+                                              "Winkel [°] / Seite"])
+        self._tabelle_stil(self.koord)
+        tech_w = QSplitter(Qt.Vertical)
+        tech_w.addWidget(self.tech)
+        tech_w.addWidget(self.koord)
+        tech_w.setSizes([420, 200])
+        from .ansicht3d import Ansicht3DMitKnoepfen
+        self.drei_d = Ansicht3DMitKnoepfen()
+        self.drei_d_info = []
         self.mitte = QStackedWidget()
-        self.mitte.addWidget(self.rahmen)
-        self.mitte.addWidget(self.stangenseite)
-        self.mitte.addWidget(self.drei_d)
+        self.seiten = {ABWICKLUNG: self._abw_seite(), DREI_D: self.drei_d, TECHNISCH: tech_w,
+                       BEARBEITEN: self.rahmen, STANGENBILD: self.stangenseite}
+        for name in ANSICHTEN:
+            self.mitte.addWidget(self.seiten[name])
         self.hinweis = QLabel("")
         self.hinweis.setWordWrap(True)
         self.kennzahlen = QLabel("")
@@ -489,6 +523,16 @@ class NestingDialog(QDialog):
             k, w = _karte(titel)
             self.karten[schl] = w
             rg.addWidget(k, n // 2, n % 2)
+        self.info = QLabel("")
+        self.info.setWordWrap(True)
+        self.info.setTextFormat(Qt.RichText)
+        self.info.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.info.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        info_r = QScrollArea()
+        info_r.setWidgetResizable(True)
+        info_r.setFrameShape(QFrame.NoFrame)
+        info_r.setWidget(self.info)
+        rg.addWidget(info_r, 5, 0, 1, 2)
         rg.setRowStretch(5, 1)
         self.rechts.setMinimumWidth(300)
 
@@ -573,7 +617,7 @@ class NestingDialog(QDialog):
         lay.addWidget(self.veraltet)
         lay.addWidget(self.senkrecht, 1)
         lay.addLayout(unten_k)
-        self.ansicht_setzen(BEARBEITEN)
+        self.ansicht_setzen(self._ansicht_gemerkt(), merken=False)
         if vergleich:
             if start:
                 i = next((n for n, v in enumerate(vergleich) if v["schluessel"] == start[0]), 0)
@@ -599,37 +643,286 @@ class NestingDialog(QDialog):
     def bereich_zeigen(self, name, an):
         {"Links": self.links, "Rechts": self.rechts, "Unten": self.unten}[name].setVisible(an)
 
-    def ansicht_setzen(self, name):
+    def _quelle(self, parent):
+        """Profil und STEP-Netz je Position von der Angebotsseite (kopf, k, db); ohne sie keine Abwicklung/3D."""
+        self.profil_von, self.netz_von, self._db = None, None, getattr(parent, "db", None)
+        if parent is not None and getattr(parent, "k", None) is not None and getattr(parent, "kopf", None) is not None:
+            self.profil_von = sa.profil_funktion(parent.kopf, parent.k)
+            db = parent.db
+            self.netz_von = lambda p: db.netz(p["id"]) if p.get("id") else None
+        self._merker, self._merker3d, self._abw_cache = {}, {}, {}
+
+    def _ansicht_gemerkt(self):
+        try:
+            w = self._db.einstellung(ANSICHT_EINSTELLUNG) if self._db is not None else None
+        except Exception:       # noqa: BLE001 – ohne Datenbank: Abwicklung
+            w = None
+        return w if w in ANSICHTEN else ABWICKLUNG
+
+    def _abw_seite(self):
+        """Seite Abwicklung: Werkzeugleiste (Ebenen, Richtung, 1:1, Messen, Stange blättern) über der Zeichnung."""
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        leiste = QHBoxLayout()
+        self.k_voriger = QPushButton("◀")
+        self.k_voriger.setToolTip("Vorige Stange (Bild auf)")
+        self.k_voriger.clicked.connect(lambda: self._blaettern(-1))
+        self.k_naechster = QPushButton("▶")
+        self.k_naechster.setToolTip("Nächste Stange (Bild ab)")
+        self.k_naechster.clicked.connect(lambda: self._blaettern(1))
+        for k in (self.k_voriger, self.k_naechster):
+            k.setFixedWidth(32)
+        self.stange_titel = QLabel("")
+        leiste.addWidget(self.k_voriger)
+        leiste.addWidget(self.stange_titel, 1)
+        leiste.addWidget(self.k_naechster)
+        self.ebenen_knoepfe = {}
+        for schl, name in EBENEN:
+            b = QPushButton(name)
+            b.setCheckable(True)
+            b.setChecked(True)
+            b.toggled.connect(lambda an, k=schl: (self.abw.ebene(k, an), self.tech.ebene(k, an)))
+            self.ebenen_knoepfe[schl] = b
+            leiste.addWidget(b)
+        self.k_senkrecht = QPushButton("Senkrecht")
+        self.k_senkrecht.setCheckable(True)
+        self.k_senkrecht.setToolTip("Stange senkrecht statt waagerecht zeigen")
+        self.k_senkrecht.toggled.connect(lambda an: (setattr(self.abw, "senkrecht", an), self.abw.update()))
+        self.k_eins = QPushButton("Umfang 1:1")
+        self.k_eins.setCheckable(True)
+        self.k_eins.setToolTip("Umfang im selben Maßstab wie die Länge (sonst auf die Höhe gestreckt)")
+        self.k_eins.toggled.connect(lambda an: [(setattr(a, "eins_zu_eins", an), a.update()) for a in (self.abw,
+                                                                                                        self.tech)])
+        self.k_messen = QPushButton("Messen")
+        self.k_messen.setCheckable(True)
+        self.k_messen.setToolTip("Zwei Punkte anklicken: Abstand längs und am Umfang (Esc: löschen)")
+        self.k_messen.toggled.connect(self._messen)
+        for k in (self.k_senkrecht, self.k_eins, self.k_messen):
+            leiste.addWidget(k)
+        lay.addLayout(leiste)
+        lay.addWidget(self.abw, 1)
+        return w
+
+    def _messen(self, an):
+        for a in (self.abw, self.tech):
+            a.messen, a.messpunkte = an, []
+            a.update()
+        if an:
+            self.hinweis.setText("Messen: zwei Punkte in der Abwicklung anklicken.")
+
+    def _zoom(self, f):
+        name = getattr(self, "ansicht", BEARBEITEN)
+        if name in (ABWICKLUNG, TECHNISCH):
+            a = self.abw if name == ABWICKLUNG else self.tech
+            a.einpassen() if f is None else a.zoom_um(f)
+        elif name == DREI_D:
+            self.drei_d.ansicht.einpassen() if f is None and hasattr(self.drei_d.ansicht, "einpassen") else None
+        else:
+            self.bild.zoom_setzen(1.0 if f is None else self.bild.zoom * f)
+
+    def ansicht_setzen(self, name, merken=True):
         for b in self.ansicht_knoepfe.buttons():
             b.setChecked(b.text() == name)
-        self.mitte.setCurrentIndex((BEARBEITEN, STANGENBILD, DREI_D).index(name))
+        self.mitte.setCurrentIndex(ANSICHTEN.index(name))
         self.ansicht = name
+        if merken and self._db is not None:
+            try:
+                self._db.einstellung_setzen(ANSICHT_EINSTELLUNG, name)
+            except Exception:       # noqa: BLE001 – nur lesen: Ansicht nicht merken
+                pass
         self._nebenansichten()
 
+    def _stange_nr(self):
+        n = len(self.bild.stangen)
+        i = self.bild.stange_nr if self.bild.stange_nr is not None else 0
+        return i if 0 <= i < n else (0 if n else None)
+
     def _nebenansichten(self):
-        """Stangenbild der Optimierung und 3D aus denselben Stangen wie das 2D-Bild."""
+        """Die sichtbare Ansicht aus denselben Stangen wie das 2D-Bild (nur die sichtbare wird gerechnet)."""
         anz = self.bild.anzeige
-        if self.mitte.currentIndex() == 1:
+        name = getattr(self, "ansicht", BEARBEITEN)
+        i = self._stange_nr()
+        if name == STANGENBILD:
             self.stangenseite.setzen([(s, None) for s in anz])
-        elif self.mitte.currentIndex() == 2:
-            i = self.bild.stange_nr if self.bild.stange_nr is not None else 0
+        elif name in (ABWICKLUNG, TECHNISCH):
+            self._abwicklung_zeigen(i)
+        elif name == DREI_D:
             self._drei_d_stange(i)
+        self._stange_info(i)
+
+    def stange_daten(self, i):
+        """Abwicklung der Stange i des gezeigten Plans (nesting_abwicklung.stange) oder None; je Plan zwischengemerkt."""
+        s = self.bild._anzeige_von(i) if i is not None and self.bild.stangen else None
+        if s is None or self.profil_von is None:
+            return None, s
+        schl = (id(s), i)
+        if schl not in self._abw_cache:
+            if len(self._abw_cache) > 64:
+                self._abw_cache.clear()
+            try:
+                self._abw_cache[schl] = (s, na.stange(s, self.positionen, self.profil_von, self._merker))
+            except (ValueError, KeyError, TypeError, ZeroDivisionError, AttributeError, IndexError):
+                self._abw_cache[schl] = (s, None)
+        return self._abw_cache[schl][1], s
+
+    def _rest_ok(self, s):
+        v = self.aktuell()
+        if v is None or s is None:
+            return None
+        from .stangen_ansicht import rest_regel
+        d = v["daten"]
+        einst = {"rest_min_laenge": d["min_rest"], "rest_min_nutz": d["min_nutz"]}
+        return rest_regel(lambda: einst)(s)
+
+    def _abwicklung_zeigen(self, i):
+        d, s = self.stange_daten(i)
+        farben = {r: f.name() for r, f in self.bild.farben.items()}
+        ok = self._rest_ok(s)
+        self.abw.setzen(d, farben, ok)
+        self.tech.setzen(d, farben, ok)
+        n = len(self.bild.stangen)
+        self.k_voriger.setEnabled(bool(i))
+        self.k_naechster.setEnabled(i is not None and i + 1 < n)
+        if s is not None:
+            self.stange_titel.setText(f"<b>Stange {i + 1} von {n}</b> · {rechnen.zahl(s['stange'], 0)} mm"
+                                      + (f" · Reststück {s.get('rest')}" if s.get("rest") else ""))
+        else:
+            self.stange_titel.setText("Zuschnitt bzw. leere Stange: keine Abwicklung" if n else "")
+        self.koord.setRowCount(0)
+        if d is not None:
+            for z in na.koordinaten(d):
+                r = self.koord.rowCount()
+                self.koord.insertRow(r)
+                werte = (z["teil"], z["art"], z["text"], rechnen.zahl(z["x"], 1),
+                         rechnen.zahl(z["x_bis"], 1) if z["x_bis"] is not None else "",
+                         rechnen.zahl(z["t"], 1) if z["t"] is not None else "",
+                         (f"{rechnen.zahl(z['winkel'], 1)} / {z['seite']}" if z["winkel"] is not None else ""))
+                for c, txt in enumerate(werte):
+                    self.koord.setItem(r, c, QTableWidgetItem(txt))
 
     def _drei_d_stange(self, i):
-        v = self.aktuell()
-        s = self.bild._anzeige_von(i) if self.bild.stangen else None
-        if s is None:
-            self.drei_d.setzen(None, [])
+        s = self.bild._anzeige_von(i) if i is not None and self.bild.stangen else None
+        if s is None or self.profil_von is None:
+            self.drei_d.setzen(None, "", "Keine 3D-Daten (Zuschnitt, leere Stange oder Profil unbekannt).")
+            self.drei_d_info = []
             return
-        self.drei_d.setzen(dict(s, nr=i + 1), bereiche(s), {r: f.name() for r, f in self.bild.farben.items()},
-                           v["gruppe"].querschnitt if v else ())
+        from PySide6.QtWidgets import QApplication
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            netz, self.drei_d_info = na.netz_stange(s, self.positionen, self.profil_von, self.netz_von, self._merker3d)
+        finally:
+            QApplication.restoreOverrideCursor()
+        step = sum(1 for x in self.drei_d_info if x["quelle"] == "STEP")
+        eing = sum(1 for x in self.drei_d_info if x["quelle"] == "Eingaben")
+        hinweise = [f"Teil {x['nr']}: {x['hinweis']}" for x in self.drei_d_info if x["hinweis"]]
+        self.drei_d.setzen(netz, f"Stange {i + 1}: {rechnen.zahl(s['stange'], 0)} mm",
+                           f"{step} Teile aus STEP, {eing} aus den Eingaben gebaut; Lage und Drehung aus dem "
+                           "Nesting-Ergebnis." + (" " + " · ".join(hinweise) if hinweise else ""))
 
     def stange_gewaehlt(self, i):
+        if i is None or not (0 <= i < len(self.bild.stangen)):
+            return
         self.bild.stange_nr = i
         self.bild.update()
-        if self.mitte.currentIndex() == 2:
-            self._drei_d_stange(i)
+        if self.stangen_liste.currentRow() != i:
+            self.stangen_liste.blockSignals(True)
+            self.stangen_liste.setCurrentRow(i)
+            self.stangen_liste.blockSignals(False)
+        self._nebenansichten()
         self._knoepfe()
+
+    def _blaettern(self, schritt):
+        i = self._stange_nr()
+        if i is not None:
+            self.stange_gewaehlt(max(0, min(len(self.bild.stangen) - 1, i + schritt)))
+
+    def keyPressEvent(self, e):
+        if e.key() in (Qt.Key_PageDown, Qt.Key_PageUp):
+            self._blaettern(1 if e.key() == Qt.Key_PageDown else -1)
+            return
+        super().keyPressEvent(e)
+
+    def _stangen_liste_fuellen(self):
+        sl = self.stangen_liste
+        sl.blockSignals(True)
+        sl.clear()
+        for n, (laenge, folge, rest) in enumerate(self.bild.stangen):
+            teile = sum(t.laenge for t, _ in folge)
+            name = f"Reststück {rest} – {rechnen.zahl(laenge, 0)} mm" if rest else \
+                f"Stange {n + 1} – {rechnen.zahl(laenge, 0)} mm"
+            sl.addItem(f"{name} · {len(folge)} Teile · {rechnen.zahl(100 * teile / laenge, 1) if laenge else '0'} %")
+        i = self._stange_nr()
+        if i is not None:
+            sl.setCurrentRow(i)
+        sl.blockSignals(False)
+
+    def _stange_info(self, i):
+        """Infopanel rechts: Stange (Material, Profil, Längen, Kennzahlen) und, wenn gewählt, das Teil."""
+        v = self.aktuell()
+        s = self.bild._anzeige_von(i) if i is not None and self.bild.stangen else None
+        if v is None or s is None:
+            self.info.setText("")
+            return
+        g, z = v["gruppe"], rechnen.zahl
+        k = na.kennzahlen(None, s)
+        prof = (v.get("profil_werte") or (None, None))[0] or {}
+        wand = prof.get("wand") or prof.get("s") or prof.get("wandstaerke") if isinstance(prof, dict) else None
+        kgm = (v.get("profil_werte") or (None, None))[1]
+        preis = None
+        for x in v["daten"]["laengen"]:
+            if abs(x.laenge - s["stange"]) < 0.5 and x.preis is not None:
+                preis = x.preis
+        zeilen = [f"<b>Stange {i + 1}</b>" + (f" (Reststück {s.get('rest')})" if s.get("rest") else ""),
+                  f"Profil {g.profil}" + (f", Wand {z(wand, 1)} mm" if wand else ""),
+                  f"Werkstoff {g.werkstoff}" + (f", {g.oberflaeche}" if g.oberflaeche else ""),
+                  f"Stangenlänge {z(s['stange'], 0)} mm" + (f" · {z(kgm * s['stange'] / 1000, 1)} kg" if kgm else ""),
+                  f"Teile {k['teile']} · Verbrauch {z(k['teile_mm'], 0)} mm",
+                  f"Schnittfugen {z(k['schnitt_mm'], 1)} mm · Endbeschnitt {z(k['end_mm'], 0)} mm",
+                  f"Rest {z(k['rest_mm'], 0)} mm · Greiferrest {z(k['greif_mm'], 0)} mm",
+                  f"Ausnutzung {z(100 * k['ausnutzung'], 1)} %",
+                  f"Materialkosten {z(preis)} € (Lieferstange)" if preis is not None else "Materialkosten: Preis fehlt"]
+        teil = self._teil_info()
+        self.info.setText("<br>".join(zeilen) + (("<hr>" + teil) if teil else ""))
+
+    def _teil_info(self):
+        a = self.abw if getattr(self, "ansicht", "") != TECHNISCH else self.tech
+        if a.daten is None or a.auswahl is None or a.auswahl >= len(a.daten["teile"]):
+            return ""
+        t = a.daten["teile"][a.auswahl]
+        z = rechnen.zahl
+        p = next((q for q in self.positionen if q.get("id") == t.get("position_id")), {}) or {}
+        quelle = next((x["quelle"] for x in self.drei_d_info if x["nr"] == a.auswahl + 1), "")
+        step = "STEP-Geometrie" if (p.get("step_merkmale") or quelle == "STEP") else "aus den Eingaben"
+        return "<br>".join([
+            f"<b>Teil {a.auswahl + 1}: Pos. {t.get('pos')}</b> {t.get('artikel') or ''}",
+            f"Bezeichnung {t.get('bezeichnung') or '—'}",
+            f"Geometrie: {step}",
+            f"Länge {z(t['laenge'], 1)} mm",
+            f"Position auf der Stange {z(t['von'], 1)} bis {z(t['bis'], 1)} mm",
+            f"Umfangslage +{z(t['dt'], 1)} mm am Umfang",
+            f"Drehwinkel {z(t['drehung'], 0)}°" + (" · gewendet (Ende B vorn)" if t.get("gewendet") else ""),
+            f"Bearbeitungskonturen {len(t['konturen'])}"])
+
+    def abwicklung_teil(self, i):
+        self.abw.auswahl = self.tech.auswahl = i
+        self.abw.update()
+        self.tech.update()
+        self._stange_info(self._stange_nr())
+
+    def teil_im_3d(self, i):
+        self.ansicht_setzen(DREI_D)
+        self.hinweis.setText(f"Teil {i + 1} der Stange im 3D (Farbe wie in der Abwicklung).")
+
+    def zur_position(self, ref):
+        """Rechtsklick „Zur Position“: Zeile der Position in „Bauteile“ wählen."""
+        zeile = next((n for n, p in enumerate(self.positionen) if rechnen.schluessel(p, n) == ref), None)
+        if zeile is None:
+            return
+        r = next((n for n, z_ in enumerate(getattr(self, "_teile_zeilen", [])) if z_ - rechnen.ZEILE0 == zeile), None)
+        if r is not None:
+            self.links.setCurrentWidget(self.teile_tabelle)
+            self.teile_tabelle.selectRow(r)
 
     def stange_anspringen(self, nr):
         """Stange nr (Nummer im Schnittplan) im Bild wählen und hinrollen (Sprung aus dem Stangenbild)."""
@@ -644,6 +937,7 @@ class NestingDialog(QDialog):
         if i is not None and i < len(self.bild.stangen):
             self.stange_gewaehlt(i)
             self.rahmen.ensureVisible(0, self.bild.OBEN + i * self.bild.ZEILE, 0, self.bild.ZEILE)
+            self.stangen_liste.scrollToItem(self.stangen_liste.item(i))
 
     # -------------------------------------------------------------- Anzeige
     def aktuell(self):
@@ -799,6 +1093,8 @@ class NestingDialog(QDialog):
                              "Übernehmen plant genau so.")
         self.pos_tabelle.setRowCount(0)
         self._karten(None, zs)
+        self._abw_cache.clear()
+        self._stangen_liste_fuellen()
         self._nebenansichten()
 
     def _werte(self, stangen):
@@ -813,6 +1109,8 @@ class NestingDialog(QDialog):
         self.bild.setzen(v["gruppe"], stangen, d["min_rest"], d["min_nutz"], positionen=self.positionen,
                          reste=d["reste"])
         self._teile_eingeplant(stangen)
+        self._abw_cache.clear()     # Stangen geändert (Strategie, Ziehen, Auflösen): Abwicklung neu, Teil-Merker bleiben
+        self._stangen_liste_fuellen()
         self._nebenansichten()
         if not stangen:
             self.kennzahlen.setText("")
@@ -974,7 +1272,7 @@ class NestingDialog(QDialog):
         self.bild.stange_nr = None
         self._neu(neu, uebrig, f"Stange {i + 1} aufgelöst: {len(uebrig) - len(self.uebrig)} Teile unter „Nicht "
                                "eingeplant“. Teil wählen und auf eine Stange klicken.", fest=True)
-        self.links.setCurrentIndex(3)
+        self.links.setCurrentIndex(self.links.count() - 1)
 
     def rueckgaengig(self):
         if not self.verlauf:

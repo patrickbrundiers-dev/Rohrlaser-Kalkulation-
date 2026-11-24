@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.472", "<b>Nesting: Stangenabwicklung und 3D auf CAD/CAM-Niveau</b> ([[nesting]]): neue Hauptansicht "
+                "<i>Abwicklung</i> je Materialstange, maßstäblich mit echtem Umfang (Eckradien, Seiten bzw. Grad), "
+                "jedes Teil an seinem Platz aus dem Nesting mit Drehung und Wenden, Gehrungen, Bohrungen, Langlöcher "
+                "und Gravuren an der richtigen Stelle am Umfang, Endbeschnitt, Schnittfugen, Rest und Greiferrest. "
+                "Zoom, Messen, Ebenen ein/aus, waagerecht/senkrecht, Umfang 1:1. <i>3D</i> zeigt die echten "
+                "STEP-Teile auf der Stange (sonst aus den Eingaben, nie gestreckt), <i>Technisch</i> die Koordinaten "
+                "jedes Schnitts und jeder Kontur. Links die Stangenliste zum Blättern, rechts Infopanel für Stange "
+                "und Teil; die letzte Ansicht bleibt gemerkt.",
+     "Nesting: Abwicklung je Stange mit Umfang, Konturen und Schnitten, 3D mit echten STEP-Teilen, Technische Ansicht."],
     ["0.9.470", "<b>Nesting-Arbeitsplatz 2.0</b> ([[nesting]]): neuer Aufbau mit Bauteilen, Material und Resten "
                 "links, dem Bild in der Mitte (Bearbeiten 2D, Stangenbild wie in der Optimierung, 3D), Kennzahlen "
                 "rechts und Optimierungsvergleich, Kosten, Berechnungsprotokoll und CSV-Export unten; Bereiche ein- "

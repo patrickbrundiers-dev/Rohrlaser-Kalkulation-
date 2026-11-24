@@ -42,6 +42,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("KB", "Blech/Kantteil (Zukauf, nicht gelasert)", "#6F9FD8", None),   # STEP-Prüfdialog: Art Blech
     ("KD", "Dreh-/Frästeil (Zukauf, nicht gelasert)", "#C9A227", None),  # STEP-Prüfdialog: Art Dreh-/Frästeil
     ("NT", "Normteil/Zukaufteil", "#3F4650", None),   # Baugruppe im STEP-Prüfdialog: Schrauben, Muttern … (21.11.2026)
+    ("RS", "Stange: Endbeschnitt, Rest, Greiferrest", "#C7CDD4", None),  # Nesting-Arbeitsplatz 3D (24.11.2026)
     ("B", "Biegelinien", "#2E7D32", "#2E7D32"),
     ("SN", "Schweißnähte", "#1A1A1A", "#1A1A1A"),        # Baugruppen-Ansicht: Nahtgruppen (schwarz: auf allen
     ("SV", "Nahtvorschläge (STEP)", "#D000D0", "#D000D0"),  # Teilfarben sichtbar), offene Nahtkandidaten magenta
@@ -137,7 +138,7 @@ WEISS_ANTEIL = {VERDECKT_AUS: 0.94, TECHNISCH: 0.93}          # Flächen so weit
 PRUEF_DURCH = frozenset(("A", "BL", "UO", "AN", "KB", "KD"))  # Prüfmodus: diese Flächen (außen) durchsichtig
 TECHNISCH_KANTE = "#141A20"     # Technisch (CAD): einheitlich fast schwarz
 VERDECKT_PIXEL = 9.0            # Kanten in Stücke dieser Länge [px] teilen und je Stück die Verdeckung prüfen
-NEUTRAL_ARTEN = ("A", "I", "BL", "AN", "UO", "KB", "KD", "NT", "S", "X")    # Körperflächen (Konturen betont: hell)
+NEUTRAL_ARTEN = ("A", "I", "BL", "AN", "UO", "KB", "KD", "NT", "RS", "S", "X")    # Körperflächen (Konturen betont: hell)
 BETONT_HELL, BETONT_BREITE = 0.62, 3.4
 HAUCH_FARBE = stil.farbe_fest("#B6C0CA")      # Nur Konturen: Körperkanten ganz hell
 # Flächentypen: Farbe je Art des Flächenkatalogs (FT_ + Art); Flächen ohne Katalog (ältere Messung) FT_Netz
@@ -161,7 +162,7 @@ KANTEN_WINKEL = 0.9     # cos des Knickwinkels: darüber gilt ein Übergang als 
 # Kantenklassen (20.11.2026): Innenkanten = nur an der Innenwand (Innenecken, Lochränder innen) – eigene Farbe, einzeln
 # ausblendbar; alles mit einer Außenfläche ist außen
 KANTE_AUSSEN, KANTE_INNEN = "a", "i"
-AUSSEN_ARTEN = frozenset(("A", "BL", "AN", "UO", "KB", "KD", "NT", "N", "S", "EW", "EO", "ES", "UW"))
+AUSSEN_ARTEN = frozenset(("A", "BL", "AN", "UO", "KB", "KD", "NT", "RS", "N", "S", "EW", "EO", "ES", "UW"))
 GLATT_MAX = 150000      # Rundungen glatt schattieren (Normale je Ecke) nur bis zu so vielen Dreiecken
 MESSEN = stil.farbe_fest("#B42318")
 FANG = stil.farbe_fest("#0070C0")            # Messen: gefangenes Element unter der Maus

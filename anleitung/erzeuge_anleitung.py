@@ -3860,8 +3860,32 @@ def abschnitte_profirst_angebot(i):
             "Machbarkeit); unten <i>Optimierungsvergleich</i>, <i>Kosten je Position</i>, "
             "<i>Berechnungsprotokoll</i> und <i>Export</i>. Die Knöpfe <b>Links</b>, <b>Rechts</b>, <b>Unten</b> "
             "blenden Bereiche aus, die Teiler ändern die Größe. Hell und dunkel wie das Programm.",
-            "<b>Ansichten</b> aus denselben Daten: <i>Bearbeiten (2D)</i>, <i>Stangenbild wie Optimierung</i> und "
-            "<i>3D</i> (gewählte Stange als Rohr, ziehen = drehen, Mausrad = Zoom, Doppelklick = zurück).",
+            "<b>Ansichten</b> aus denselben Nesting-Daten (oben umschalten, die zuletzt benutzte bleibt gemerkt): "
+            "<i>Abwicklung</i>, <i>3D</i>, <i>Technisch</i>, <i>Alle Stangen</i> (Bearbeiten, Teile ziehen) und "
+            "<i>Stangenbild</i> wie in der Optimierung. Links im Reiter <i>Stangen</i> jede Stange mit Länge, "
+            "Teilen und Ausnutzung („Stange 1 – 6.000 mm“, „Reststück … – 1.250 mm“); Pfeiltasten bzw. "
+            "<b>Bild auf/ab</b> oder ◀ ▶ blättern.",
+            "<b>Abwicklung</b> der gewählten Stange maßstäblich: Länge waagerecht (Knopf <i>Senkrecht</i> dreht), "
+            "quer der echte Umfang der Außenhaut mit Eckradien (Seiten oben, vorne, unten, hinten bzw. Grad beim "
+            "Rundrohr, Radiusübergänge gestrichelt, Schweißnaht). Jedes Teil liegt genau dort, wo das Nesting es "
+            "plant, mit seiner Drehung (Konturen an der richtigen Stelle am Umfang) und gewendet, wenn Ende B vorn "
+            "liegt; Gehrungen und Schrägschnitte als echte Schnittkanten, Bohrungen, Langlöcher, Ausschnitte und "
+            "Gravuren wie im Teile-Editor. Dazu Endbeschnitt, Schnittfugen, Rest (grün verwertbar, rot Verschnitt) "
+            "und Greiferrest, Kettenmaß und Gesamtmaß. Knöpfe: Bemaßung, Schnittpositionen, Konturen, Reste "
+            "markieren, Seiten/Winkel ein- und ausblenden, <i>Umfang 1:1</i> (Umfang im Längenmaßstab), "
+            "<i>Messen</i> (zwei Punkte: Abstand längs und am Umfang). Mausrad = Zoom an der Maus, ziehen = "
+            "verschieben, Doppelklick bzw. F = ganze Stange. Klick auf ein Teil: rechts seine Daten; Rechtsklick: "
+            "<i>Zur Position</i>, <i>Gleiche Teile hervorheben</i>, <i>Im 3D zeigen</i>.",
+            "<b>3D</b>: die echten Bauteile auf der Stange, gelegt und gedreht nach dem Nesting. Hat die Position "
+            "ein STEP-Netz, wird es gezeigt, sonst das Rohr aus den Eingaben (wie im Teile-Editor). Passt ein "
+            "STEP-Netz nicht zur Teillänge, wird nichts gestreckt: das Teil kommt aus den Eingaben und der Grund "
+            "steht unter dem Bild. Endbeschnitt, Rest und Greiferrest grau.",
+            "<b>Technisch</b>: dieselbe Abwicklung mit Koordinaten an jedem Schnitt und jeder Kontur und darunter "
+            "eine Tabelle (Teil, Art, Kontur, x von/bis ab Materialanfang, Lage am Umfang, Winkel/Seite).",
+            "<b>Infopanel</b> rechts: Stange (Profil, Wand, Werkstoff, Länge, Gewicht, Teile, Verbrauch, "
+            "Schnittfugen, Endbeschnitt, Rest, Greiferrest, Ausnutzung, Materialkosten) und das gewählte Teil "
+            "(Position, Bezeichnung, STEP oder Eingaben, Länge, Lage auf der Stange, Umfangslage, Drehwinkel, "
+            "gewendet, Anzahl Konturen).",
             "<b>Bild</b> wie das Stangenbild: Gehrungen schräg, Gehrungen ineinander grün, gemeinsamer Schnitt als "
             "blaues Dreieck, Schnittfugen, Schweißnaht, verwertbarer Rest grün, Verschnitt rot schraffiert, "
             "Greiferrest; darunter Maßkette und Lineal. Strg + Mausrad zoomt, mittlere Maustaste verschiebt. Auch "
