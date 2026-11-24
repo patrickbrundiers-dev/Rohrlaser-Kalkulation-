@@ -5384,7 +5384,9 @@ def kapitel_step(i):
             "Es wird nichts nachgebaut oder verschoben.",
             "<b>Offen gezeichnete Rohre:</b> Bei der Variante „aus dem Rohr gelasert“ werden die Endlinien der Ringe "
             "und Wände vorher in der Abwicklung bereinigt (Punkte auf einer Geraden fallen weg). Die Linie bleibt "
-            "gleich, der 3D-Körper hat aber viel weniger Flächen. U-Profile messen so 5- bis 13-mal schneller.",
+            "gleich, der 3D-Körper hat aber viel weniger Flächen. U-Profile messen so 5- bis 13-mal schneller. "
+            "Auch die Erkennung der offenen Seite und der Schenkel nimmt die Lage aus dem Kern (nochmals etwa 12 % "
+            "schneller).",
             "<b>Rundrohr-Bohrungen:</b> Mit dem Abwicklungskern ist die Wandrichtung am Rundrohr exakt. Eine radiale "
             "Bohrung galt vorher je nach Lage als bis zu 0,7° schräg und wurde dann mit der 3D-Schnittlänge statt "
             "der 2D-Rundrohr-Regel gerechnet.",

@@ -9,6 +9,7 @@ A11 Flachstahl (N3): zwei fast gleich gute Längsrichtungen, klar längste gewin
     Platte bleiben bei der bisherigen Rechnung.
 A12 Freiform-Mantel (N6): B-Spline-Flächen, die genau einer Ebene/einem Zylinder entsprechen, zählen als solche;
     ungleiche Querschnitte der Näherung (R02) bleiben bei der bisherigen Rechnung.
+A13 Lage für die Erkennung offener Rohre und der Schenkel aus dem Kern (N5): gleiches System wie _lage.
 A10 Prüfbasis (N7): Sollwerte JSON hin und zurück gleich; Auswahl von Prüf-STEPs gegen tests/daten/
     abwicklungskern_soll.json (Modus an) ohne Abweichung.
 
@@ -154,5 +155,24 @@ del ak.PROTOKOLL[:]
 g.analysiere_datei(str(HIER / "step_regression/R02_RR42-4x2_L1000_Freiform.step"))
 assert ak.PROTOKOLL[0]["methode"] == "bisher"      # Querschnitte der Näherung ungleich: bisherige Rechnung
 ok("A12 Freiform: B-Spline-Wände als Ebene erkannt (R01, R05 über den Kern, gleich der Prüfbasis), R02 wie bisher")
+
+# A13 Lage für Erkennung offener Rohre und Schenkel (N5)
+import step_offenes_rohr as o  # noqa: E402
+ak.modus_setzen("an")
+del SOLIDE[:]
+g.analysiere_datei(str(HIER / "step_profile/P01_U50x30x3_L800.step"))
+u = SOLIDE[0]
+a3, b3 = ak.achssystem(u), g._lage(u)[0]
+for x, y in ((a3.Direction(), b3.Direction()), (a3.XDirection(), b3.XDirection())):
+    assert abs(abs(x.Dot(y)) - 1) < 1e-9
+from OCP.gp import gp_Vec  # noqa: E402
+dv = gp_Vec(b3.Location(), a3.Location())
+quer_ab = dv.Crossed(gp_Vec(b3.Direction())).Magnitude()
+assert quer_ab < 1e-6, quer_ab          # Ursprung nur entlang der Achse anders (Kern: Mitte der Länge)
+assert ak.profil_vorgabe(u) is ak.profil_vorgabe(u)            # gleiche Lage nicht zweimal rechnen
+assert o.erkennen(u, 3.0) is not None
+ak.modus_setzen("aus")
+assert ak.achssystem(u).Location().Distance(b3.Location()) < 1e-12   # Modus aus: bisher (_lage)
+ok("A13 Lage für offene Rohre/Schenkel aus dem Kern gleich _lage, Zwischenspeicher, Modus aus = _lage")
 g._profil_messen = _alt
 print("Alle Tests bestanden.")

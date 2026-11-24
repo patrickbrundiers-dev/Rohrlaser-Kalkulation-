@@ -323,20 +323,42 @@ def lage(solid):
     ax3n = gp_Ax3(o, ax3.Direction(), gp_Dir(xr.X(), xr.Y(), xr.Z()))
     info = dict(methode="abwicklung", achse_anteil=round(anteil, 4), frei=[[round(a - zm, 2), round(b - zm, 2)]
                 for a, b in frei[:6]], schnitte=len(schnitte), lage_s=round(time.perf_counter() - uhr, 4),
-                zs=[z - zm for z in zs], netto=max(netto), laenge=zmax - zmin)
+                zs=[z - zm for z in zs], netto=max(netto), laenge=zmax - zmin,
+                z_mitte=(zmin + zmax) / 2 - zm)
     info["_fl"] = fl            # für die Gegenproben (gegenproben), nicht ins Protokoll
     return (ax3n, info), None
 
 
+_ZULETZT = []           # [(solid, Ergebnis)]: dieselbe Lage nicht zweimal rechnen (erkennen, schenkel, Messung)
+ZULETZT_MAX = 8
+
+
 def profil_vorgabe(solid):
     """Für step_geometrie._profil_messen: (ax3, Lagen z relativ zur Mitte, info) oder (None, grund)."""
+    for s, erg in _ZULETZT:
+        if s.IsSame(solid):
+            return erg
     try:
-        erg, grund = lage(solid)
+        erg = lage(solid)
     except Exception as e:  # Rückfall auf die bisherige Rechnung
-        return None, f"Fehler {type(e).__name__}: {e}"
-    if erg is None:
-        return None, grund
-    return erg, None
+        erg = (None, f"Fehler {type(e).__name__}: {e}")
+    _ZULETZT.insert(0, (solid, erg))
+    del _ZULETZT[ZULETZT_MAX:]
+    return erg
+
+
+def achssystem(solid):
+    """Rohrsystem wie step_geometrie._lage(solid)[0] (Achse Z, Mitte, X-Richtung), mit wirksamem Kern aus der
+    Flächenparametrisierung (Plan 2.0, N5: Erkennung offener Rohre und Schenkel), sonst bisher."""
+    if neu_aktiv():
+        erg, _ = profil_vorgabe(solid)
+        if erg is not None:
+            # Ursprung wie _lage in der Mitte der Länge (der Querschnitt ist längs gleich: nur entlang der Achse)
+            ax3, info = erg
+            d = ax3.Direction()
+            o = ax3.Location().Translated(gp_Vec(d.X(), d.Y(), d.Z()).Multiplied(info.get("z_mitte", 0.0)))
+            return gp_Ax3(o, d, ax3.XDirection())
+    return g._lage(solid)[0]
 
 
 # ---------------------------------------------------------------------------------------------------------------

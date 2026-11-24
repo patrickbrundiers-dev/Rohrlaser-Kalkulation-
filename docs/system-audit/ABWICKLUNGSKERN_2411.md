@@ -230,3 +230,24 @@ behoben.
   die Querschnitte der Näherung weichen um bis zu 0,6 % voneinander ab, die Volumen-Probe schlägt an.
 - Gegen die Prüfbasis: 124 von 124 gleich, Summe 91,5 → 82,3 s, Kernquote 87 % (184 von 211), Vertrauen 100 bei
   145 Messungen.
+
+### PR D (Teil): Lage für die Erkennung offener Rohre und der Schenkel (N5)
+
+- `step_abwicklungskern.achssystem(solid)`: Rohrsystem aus dem Kern (Achse, X-Richtung, Ursprung in der Mitte der
+  Länge) statt `_lage` (bis 21 Suchschnitte) in `step_offenes_rohr.erkennen` und `step_schenkel`. Richtung und
+  X-Richtung gleich `_lage` (1e-9), der Ursprung liegt nur entlang der Achse anders (`_lage` nimmt den Schwerpunkt,
+  bei Bohrungen leicht versetzt). Ohne Kern-Lage oder im Modus aus: `_lage` wie bisher.
+- `profil_vorgabe` merkt sich die letzten 8 Körper (`IsSame`): Erkennung und Messung rechnen dieselbe Lage nur einmal.
+- 9 U-/C-Profil-Dateien (je 3 Läufe): 9,2 → 8,1 s (−12 %). Gegen die Prüfbasis 124 von 124 gleich.
+- Nicht umgesetzt: die restlichen Booleschen Operationen der Variante „aus dem Rohr“ ganz in 2D. Sie kosten bei
+  U-Profilen noch etwa 15 % der Zeit. Ein 2D-Ersatz müsste Fenster, Ringe, Gehrungen und Laschen als Bereiche der
+  Abwicklung nachbauen; der Nutzen (unter 0,2 s je Teil) steht nicht im Verhältnis zum Risiko für die Grundregel
+  „Konturen 100 % wie STEP“.
+
+### PR C: Anbauteile und lange Fenster (N4), nicht umgesetzt
+
+Die 8 Rückfälle „Volumen größer als Querschnitt × Länge“ sind Rohre mit Anbauteilen (Bolzen, Laschen, Kopfplatte) und
+R02/I02 (ungenaue Freiform-Näherung). Die bisherige Rechnung braucht dort 0,1–0,6 s je Teil. Ein Kern-Weg müsste die
+Anbauteil-Trennung (`_anbau_trennen`) ersetzen; deren Ergebnisse (Regelanteil, Hinweise, Längsanbau) stehen in der
+Messung und würden sich ändern. Gewinn klein, Risiko für falsch erkannte Anbauteile hoch: bleibt bei der bisherigen
+Rechnung. Das gleiche gilt für die 6 Teile ohne merkmalsfreien Bereich (Querschnitt überall belegt).

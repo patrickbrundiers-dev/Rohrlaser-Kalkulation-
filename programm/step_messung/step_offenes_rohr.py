@@ -101,7 +101,8 @@ def _offen(luecken, a, b, d):
 def erkennen(solid, d):
     """Offene Seite des Körpers: dict(ax3, seite, luecken [(von, bis)], huelle (x0, y0, x1, y1), z (zmin, zmax)) im
     lokalen System (Z = Achse) oder None."""
-    ax3, _ = g._lage(solid)
+    import step_abwicklungskern as ak
+    ax3 = ak.achssystem(solid)      # mit Abwicklungskern aus den Flächen (gleiches System), sonst _lage
     lok = g._transformiere(solid, ax3)
     zmin, zmax = g._z_bereich(lok)
     if zmax - zmin < 3 * d:
