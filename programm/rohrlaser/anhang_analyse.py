@@ -135,7 +135,7 @@ def rolle(d, typ=None):
         return KAPUTT
     if endung in (".step", ".stp") and typ not in (None, "step"):
         return KAPUTT
-    if endung in ENDUNGEN["step"] or endung == ".tubx" or typ == "step":
+    if endung in ENDUNGEN["step"] or endung in (".tubx", ".artube", ".bpf") or typ == "step":
         return MODELL
     if endung in (".msg", ".eml") or typ == "eml":
         return MAIL

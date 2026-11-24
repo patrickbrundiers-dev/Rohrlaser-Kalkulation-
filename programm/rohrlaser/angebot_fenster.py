@@ -5520,9 +5520,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import (BLECH, DXF, LEER, PDF, RAHMEN, ROHR, ROHRZUG, SCHWEISS, TEXT_BAUTEIL, TRUMPF,
-                                    UEBERNEHMEN, VORLAGE,
-                                    ZUKAUF, TypDialog)
+        from .neue_position import (BLECH, BLM, DXF, LEER, PDF, RAHMEN, ROHR, ROHRZUG, SCHWEISS, TEXT_BAUTEIL,
+                                    TRUMPF, UEBERNEHMEN, VORLAGE, ZUKAUF, TypDialog)
         if typ is None:
             if self.f.stumm:
                 typ = LEER
@@ -5539,6 +5538,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return typ if self.blech_aus_dxf() else None
         if typ == TRUMPF:
             return typ if self.aus_trumpf() else None
+        if typ == BLM:
+            return typ if self.aus_blm() else None
         if typ == PDF:
             return typ if self.rohr_aus_pdf(dialog=dialog) else None
         if typ == ZUKAUF:
@@ -6103,6 +6104,25 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.f.meldung(f"Pos. {nr} angelegt: {kopf['bezeichnung']}, Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € "
                        "je Stück als EK (Zukaufteil)." + zusatz_text)
         return True
+
+    def aus_blm(self, pfade=None):
+        """BLM/Adige-Programme (ARTUBE, BPF; Patrick 24.11.2026) wählen und wie STEP messen (step_messung/step_blm.py):
+        Prüfdialog, 3D, Position wie beim STEP-Import. Ergebnis: Anzahl gewählter Dateien (0 = abgebrochen)."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        if not pfade:
+            pfade, _ = QFileDialog.getOpenFileNames(
+                self, "Aus BLM-Programm", str(self.db.einstellung("blm_ordner") or ""),
+                "BLM ArTube und Teileprogramme (*.artube *.ARTUBE *.bpf *.BPF);;Alle (*)")
+            if not pfade:
+                return 0
+            self.db.einstellung_setzen("blm_ordner", str(Path(pfade[0]).parent))
+        from . import cad_import
+        doppelt = cad_import.blm_doppelte([Path(p) for p in pfade])     # BPF neben seiner ARTUBE: nur einmal
+        pfade = [str(p) for p in pfade if Path(p) not in doppelt]
+        self.step_importieren(pfade)
+        return len(pfade)
 
     def aus_trumpf(self, pfade=None):
         """Positionen aus TRUMPF-Rohrprogrammen (LST und TUBX, trumpf_programm; Patrick 20.11.2026): je Teil eine
@@ -10341,8 +10361,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if dateien is None:
             dateien, _ = QFileDialog.getOpenFileNames(
                 self, "STEP- und DXF-Dateien wählen", str(step_ablage.start_ordner(self.db)),
-                "STEP, IGES, ZIP, DXF und TRUMPF (*.step *.stp *.igs *.iges *.zip *.STEP *.STP *.IGS *.IGES *.ZIP *.dxf "
-                "*.DXF *.lst *.LST *.tubx *.TUBX);;"
+                "STEP, IGES, ZIP, DXF, TRUMPF und BLM (*.step *.stp *.igs *.iges *.zip *.STEP *.STP *.IGS *.IGES *.ZIP "
+                "*.dxf *.DXF *.lst *.LST *.tubx *.TUBX *.artube *.ARTUBE *.bpf *.BPF);;"
                 f"{step.CAD_FILTER};;"
                 "DXF-Dateien (*.dxf *.DXF);;TRUMPF-Rohrprogramme (*.lst *.LST *.tubx *.TUBX)")
             if not dateien:

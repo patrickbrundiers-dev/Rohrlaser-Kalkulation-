@@ -2177,6 +2177,8 @@ def kapitel_angebot(i):
                 "wie aus dem Blech-Editor ([[dxf_import]]), eine Rohrzeichnung öffnet den Rohr-Editor ([[dxf_rohr]])"],
                ["<b>Aus TRUMPF-Programm (LST/TUBX)</b>", "LST: je Teil eine Position mit Profil, Länge, Stückzahl, "
                 "Schneidweg, Einstichen und TRUMPF-Zeit; TUBX: Messung wie eine STEP-Datei ([[trumpf_programm]])"],
+               ["<b>Aus BLM-Programm (ARTUBE/BPF)</b>", "ArTube-Projekte und BLM-Teileprogramme wählen: Messung wie "
+                "eine STEP-Datei mit Prüfdialog und 3D ([[blm_programm]])"],
                ["<b>Aus PDF-Zeichnung (Test)</b>", "nur mit der Einstellung: Profil, Länge und Schriftfeld aus "
                 "einer PDF-Zeichnung oder einem Scan in den Rohr-Editor ([[pdf_zeichnung]])"],
                ["<b>Zukaufteil</b>", "die Schnellanlage für Normteile, Schrauben, Handelsware"],
@@ -8775,6 +8777,29 @@ def kapitel_zukauf_angebot(i):
            "Einstiche und die Zeiten für Anschnitt, Konturen und Abschnitt: berechnet von TruTops und gemessen, "
            "wenn die Maschine die LST nach dem Lauf gespeichert hat (diese Fassung ersetzt die alte). Vergleich, "
            "Vorschläge und Freigabe stehen unter [[lernsystem]].")
+    i.abschnitt("BLM-Programme einlesen (ARTUBE und BPF)", marke="blm_programm")
+    i.text("Projekte aus <b>BLM ArTube</b> (<i>.artube</i>) und fertige Teileprogramme für BLM/Adige-Rohrlaser "
+           "(<i>.bpf</i>, z. B. LT7, LT8) gehen wie eine STEP-Datei durch den STEP-Import: <i>Neue Position → Aus "
+           "BLM-Programm (ARTUBE/BPF)</i>, auf das Angebot ziehen oder im Ablagefeld bzw. in der Dateiauswahl des "
+           "STEP-Imports wählen; ganze Ordner, ZIP und Anfragen gehen ebenso. Es folgen Prüfdialog, 3D-Ansicht und Position mit Profil, Länge, Schneidweg, Konturen, Enden und "
+           "Bohrungen (mit Gewinde-Vorschlag).", kurz=True)
+    i.genauer()
+    i.tabelle(["Datei", "so wird gemessen"], [
+        ["<b>BPF</b>", "Das Programm enthält den Querschnitt exakt (Strecken und Bögen, außen und innen), die Länge, "
+         "den Werkstoff und je Kontur den Schneidweg mit Brennerrichtung. Daraus entsteht der Körper: Rohr aus dem "
+         "Querschnitt, jede Kontur entlang des Schneidwegs durch die ganze Wand ausgeschnitten, Kreise als exakte "
+         "Bohrungen. Anfahrwege zählen nicht zur Kontur; teilt das CAM eine Kontur in Stücke mit kleinem Spalt "
+         "(kleiner als die Schnittfuge), wird der Spalt geschlossen wie beim Schneiden. Bögen außer Kreisen bleiben "
+         "Vielecke in der CAM-Toleranz (wenige Hundertstel)."],
+        ["<b>ARTUBE</b>", "Liegt das BPF des Teils daneben (gleicher Name im selben Ordner), gilt das BPF. Sonst "
+         "wird das 3D-Netz der ARTUBE zum Körper (wie bei TUBX), Bohrungen werden aus den Netzpunkten exakt "
+         "nachgebohrt; Eckenradien bleiben Vielecke. Den echten ArTube-Körper (Parasolid) kann nur ArTube selbst "
+         "lesen."]], [30, 140])
+    i.text("Wer beide Dateien eines Teils wählt oder zieht, bekommt das Teil nur einmal (die ARTUBE nimmt das BPF). "
+           "Der Prüfdialog nennt die Quelle, Profil und Werkstoff laut BLM-Programm und das Volumen im Vergleich mit "
+           "dem Volumen, das das BLM-Programm selbst angibt (gleich = Konturen lagegenau). Den Werkstoff übernimmt "
+           "die Position wie bei STEP aus der Einstellung bzw. dem Prüfdialog; Laserzeiten rechnet das Programm wie "
+           "immer selbst.")
     i.abschnitt("Produktionsdaten & Lernsystem", marke="lernsystem")
     i.text("<i>Datei → Produktionsdaten & Lernsystem …</i> (auch aus der Lernzentrale): die Kalkulation lernt aus "
            "den gemessenen Zeiten der Maschine. Oben Kacheln (LST-Dateien, Teile, mit gemessener Zeit, zugeordnet, "

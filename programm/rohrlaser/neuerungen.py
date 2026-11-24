@@ -35,6 +35,14 @@ NEUERUNGEN = [
                 "einmal gebaut statt zweimal. Für das Fenster <i>Schneidweg berechnen</i> und das 3D-Bild stehen "
                 "neue Messabschnitte im Zeitwächter (Supportpaket zeigt die Ursache).",
      "Hänger behoben: Optimieren/Material nach ERP-Import (87 s → unter 1 s), Programmstart, BG-Editor öffnen"],
+    ["0.9.464", "<b>BLM-Programme einlesen: ARTUBE und BPF</b> ([[blm_programm]]): ArTube-Projekte (.artube) und "
+                "Teileprogramme für BLM/Adige-Rohrlaser (.bpf, z. B. LT7/LT8) gehen wie eine STEP-Datei durch den "
+                "STEP-Import – <i>Neue Position → Aus BLM-Programm</i>, Ziehen, Ablagefeld, Ordner, ZIP und Anfragen. "
+                "Aus dem BPF kommt der Querschnitt exakt, jede Kontur wird entlang des Schneidwegs ausgeschnitten, Kreise "
+                "werden exakte Bohrungen; Anfahrwege zählen nicht, vom CAM geteilte Konturen werden wieder eins. Die "
+                "ARTUBE nimmt das BPF daneben, sonst ihr 3D-Netz mit exakt nachgebohrten Bohrungen. Geprüft mit einem "
+                "echten Teil: Volumen gleich dem Wert im BLM-Programm.",
+     "BLM ArTube (.artube) und BPF-Programme (.bpf) wie STEP einlesen: Profil exakt, Konturen, Bohrungen, 3D"],
     ["0.9.463", "<b>ERP-EK: S355 nicht mehr als Corten</b> ([[erp_preise]]): <i>Profile und Werkstoffe aus dem EK "
                 "anlegen</i> (läuft nach jedem Einlesen) hat seit 0.9.459 EK-Artikel mit „S355“ und „EN 10219“ "
                 "ohne genaue Güte dem Werkstoff <b>S355J2WH wetterfest</b> zugeordnet statt S355 EN 10219. Jetzt "
