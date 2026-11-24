@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.479", "<b>Generalüberholung, Paket 3: Dunkelmodus besser lesbar</b>: Alle 68 Ansichten (Hauptreiter, "
+    ["0.9.481", "<b>Generalüberholung, Paket 3: Dunkelmodus besser lesbar</b>: Alle 68 Ansichten (Hauptreiter, "
                 "Reiter des Angebots, alle Einstellungsseiten) wurden in Hell und Dunkel auf Lesbarkeit gemessen. Zwei "
                 "Stellen hatten im Dunkelmodus weiße Schrift auf Hellblau (2,0 bzw. 2,6 : 1): der Knopf <i>Weiter ▸</i> "
                 "im Arbeitsablauf des Angebots und die gewählte Spaltenansicht (<i>Alle</i>, <i>Erfassen</i> …). Sie "
