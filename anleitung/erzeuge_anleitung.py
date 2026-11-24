@@ -8909,7 +8909,7 @@ def kapitel_zukauf_angebot(i):
            "die Position wie bei STEP aus der Einstellung bzw. dem Prüfdialog; Laserzeiten rechnet das Programm wie "
            "immer selbst.")
     i.abschnitt("Produktionsdaten-Intelligenz (LST und BPF)", marke="lernsystem")
-    i.text("<i>Datei → Produktionsdaten-Intelligenz …</i> (auch aus der Lernzentrale, seit 0.9.471): die Kalkulation "
+    i.text("<i>Datei → Produktionsdaten-Intelligenz …</i> (auch aus der Lernzentrale, seit 0.9.470): die Kalkulation "
            "lernt aus den Maschinendaten. Gelesen werden TRUMPF-<b>LST</b> und BLM-<b>BPF</b> aus dem eingestellten "
            "Ordner (<b>LST-Ordner einlesen</b>) oder über <b>Dateien importieren …</b> (mehrere Dateien auf einmal). "
            "Alles läuft im Hintergrund, "

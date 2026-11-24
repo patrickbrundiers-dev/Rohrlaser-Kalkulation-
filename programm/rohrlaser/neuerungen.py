@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.471", "<b>Produktionsdaten-Intelligenz</b> ([[lernsystem]]): Das Fenster <i>Datei → "
+    ["0.9.470", "<b>Produktionsdaten-Intelligenz</b> ([[lernsystem]]): Das Fenster <i>Datei → "
                 "Produktionsdaten-Intelligenz …</i> liest jetzt TRUMPF-LST und BLM-BPF (Ordner oder <i>Dateien "
                 "importieren …</i>, im Hintergrund, abbrechbar). Jeder Wert steht mit Einheit, Quelle und Deutung im "
                 "Reiter <i>Maschinendaten</i>, z. B. Laser an je Leistungsstufe, Verfahrzeit, Einstiche, Konturen, "
