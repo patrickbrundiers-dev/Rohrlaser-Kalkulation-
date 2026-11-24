@@ -426,6 +426,8 @@ def step_messung_protokollieren(dauer, anzahl, stand, befehl, abgebrochen=False)
                 teile.append("langsamste: " + "; ".join(f"{n} K{k} {s:g} s" for n, k, s in z["langsamste"][:3]))
         if abgebrochen:
             teile.append("abgebrochen")
+        from . import leistung      # Median/Perzentile je STEP-Schritt (Master-Auftrag 24.11.2026, Punkt 12)
+        leistung.step_zeiten(z, dauer, anzahl, round(mb, 1))
         return tempo.messung("STEP-Messung", dauer, ", ".join(teile))
     except Exception:       # noqa: BLE001 – Protokoll ist Zusatz
         return None

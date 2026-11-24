@@ -28,6 +28,14 @@ NEUERUNGEN = [
                 "zur Liste</i> oder <i>Ohne diese Teile übernehmen</i>. Ohne sie fehlen diese Teile im Angebot und "
                 "stehen in der Meldung, statt mit falschem Schneidweg übernommen zu werden.",
                 "STEP-Import: noch laufende Teile nie halbfertig übernehmen (kein Rohr ohne Bohrungen mehr)"],
+    ["0.9.476", "<b>Rechenkern 2.0, Teil 1: schneller bei genau gleichen Ergebnissen</b>: Staffeln rechnen die "
+                "Schnittzeit je Position nur noch einmal für alle Stufen, denn sie hängt nicht von der Stückzahl ab "
+                "(Staffeln etwa 15–20 % schneller). Beim STEP-Import rechnen die Booleschen "
+                "Operationen auf allen Prozessorkernen (U-Profile mit vielen Konturen etwa 1,3× schneller, alle 126 "
+                "Prüf-STEPs zusammen 11 %). Jede Zahl bleibt gleich. Neu in der Diagnose: <b>Leistung je "
+                "Verarbeitungsschritt</b> mit Median, 95-%-Wert, CPU, Arbeitsspeicher und Anzahl je Schritt "
+                "(STEP-Import mit Teilschritten, Optimieren, Kalkulation, Staffeln, PDF …) ([[diagnose]]).",
+     "Staffeln und STEP-Import schneller (bitgleich); Leistung je Schritt in der Diagnose"],
     ["0.9.474", "<b>Nesting: Stangenabwicklung und 3D auf CAD/CAM-Niveau</b> ([[nesting]]): neue Hauptansicht "
                 "<i>Abwicklung</i> je Materialstange, maßstäblich mit echtem Umfang (Eckradien, Seiten bzw. Grad), "
                 "jedes Teil an seinem Platz aus dem Nesting mit Drehung und Wenden, Gehrungen, Bohrungen, Langlöcher "
