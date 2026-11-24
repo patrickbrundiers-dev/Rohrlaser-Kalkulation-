@@ -27,7 +27,7 @@ class OptimierungSeite(QWidget):
         self.nesting_knopf.setToolTip("Verschachtelung je Abmessung: Strategien (wenig Material, günstigster Einkauf, "
                                       "Reste zuerst, schnell fertigen, ausgewogen) gegen den bisherigen Plan, "
                                       "Stangen maßstäblich, Teile von Hand umsetzen")
-        self.nesting_knopf.clicked.connect(lambda: self.seite.nesting_arbeitsplatz())
+        self.nesting_knopf.clicked.connect(lambda: self.nesting_oeffnen())
         self.tabelle = QTableWidget(0, len(ov.SPALTEN))
         self.tabelle.setHorizontalHeaderLabels([t for _, t in ov.SPALTEN])
         self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -121,6 +121,12 @@ class OptimierungSeite(QWidget):
     def _knoepfe(self):
         v = self.markiert()
         self.uebernehmen_knopf.setEnabled(bool(v and v.get("aktion") and not self.seite.db.nur_lesen))
+
+    def nesting_oeffnen(self):
+        """Nesting-Arbeitsplatz; bei einem markierten Verschachtelungs-Vorschlag gleich bei dessen Abmessung."""
+        a = (self.markiert() or {}).get("aktion") or {}
+        start = (a["schluessel"], None) if a.get("typ") == "nesting" else None
+        return self.seite.nesting_arbeitsplatz(start=start)
 
     def uebernehmen(self, v=None):
         v = v or self.markiert()
