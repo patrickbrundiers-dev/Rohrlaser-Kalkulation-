@@ -177,7 +177,19 @@ def als_markdown(z):
     return "\n".join(zeilen) + "\n"
 
 
+def konsole_sicher():
+    """Ausgaben nie am Zeichensatz der Konsole scheitern lassen (Sammel-Update 0.9.465, Lauf 2397: Windows-Konsole
+    cp1252, „→“ im Änderungstext brach update_paket.py nach dem fertigen Paket ab). Nicht darstellbare Zeichen
+    erscheinen als \\u2192 statt eines Abbruchs."""
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv=None):
+    konsole_sicher()
     ap = argparse.ArgumentParser()
     unter = ap.add_subparsers(dest="befehl", required=True)
     p = unter.add_parser("pruefen")
