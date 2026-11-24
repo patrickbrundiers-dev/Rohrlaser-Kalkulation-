@@ -72,7 +72,7 @@ assert any(t == "Mein Arbeitsplatz" for t in titel) and any(t == "Profile" for t
 seite = {s.schluessel: s for s in f.einstellungen.seiten}
 assert not seite["e_zuschlaege"].felder["gewinn"].isEnabled(), "geschützt: grau"
 assert seite["e_arbeitsplatz"].felder["benutzer_name"].isEnabled(), "Mein Arbeitsplatz frei"
-assert seite["e_step"].felder["step_kopieren"].isEnabled(), "freie Seite"
+assert seite["e_step_ablauf"].felder["step_kopieren"].isEnabled(), "freie Seite"
 assert not seite["e_versand"].felder["versand_aktiv"].isEnabled(), "Funktionsschalter auch beim Thema gesperrt"
 st = {s.t.name: s for s in f.seiten}
 assert st["preise"].admin_gesperrt and not st["profile"].__dict__.get("admin_gesperrt")
@@ -103,7 +103,7 @@ f.admin_seite.haken["e_step"].setChecked(True)
 f.admin_seite.haken["preise"].setChecked(False)
 assert "e_step" in admin_schutz.geschuetzt_liste(db) and "preise" not in admin_schutz.geschuetzt_liste(db)
 b.sperren()
-assert not seite["e_step"].felder["step_kopieren"].isEnabled() and not st["preise"].admin_gesperrt
+assert not seite["e_step"].felder["flach_als"].isEnabled() and not st["preise"].admin_gesperrt
 assert not f.admin_seite.haken["e_step"].isEnabled(), "Seite Admin-Schutz immer geschützt"
 b.oeffnen("geheim")
 f.admin_seite.vorschlag_setzen()
