@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.471", "<b>Anfragen löschen und Zusammenführen ohne Wiederkehr</b> ([[anfragen_sammeln]]): Nach dem "
+                "Zusammenführen und Kalkulieren erschienen die übernommenen Anfragen wieder als neu, weil ihre "
+                "Originale im Anfrage-Ordner liegen blieben. Jetzt kommen sie nach .uebernommen und werden nie neu "
+                "angelegt. Neu ist <i>Löschen …</i> mit dem Ordner <i>Gelöscht</i> und <i>Wiederherstellen</i>.",
+     "Anfragen löschen (Ordner Gelöscht, wiederherstellbar); zusammengeführte kommen nicht wieder als neu"],
     ["0.9.470", "<b>Nesting-Arbeitsplatz 2.0</b> ([[nesting]]): neuer Aufbau mit Bauteilen, Material und Resten "
                 "links, dem Bild in der Mitte (Bearbeiten 2D, Stangenbild wie in der Optimierung, 3D), Kennzahlen "
                 "rechts und Optimierungsvergleich, Kosten, Berechnungsprotokoll und CSV-Export unten; Bereiche ein- "

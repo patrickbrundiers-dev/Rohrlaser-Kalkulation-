@@ -118,7 +118,7 @@ try:
     raise AssertionError("zweimal erledigt")
 except ak.AblageFehler:
     pass
-assert not hasattr(pb, "loeschen") and not hasattr(ak, "loeschen")
+assert not hasattr(ak, "loeschen")     # 24.11.2026: Ablage.loeschen legt nur in „Gelöscht“, Dateien bleiben
 a1 = pb.wieder_oeffnen(a1, jetzt=t(70))
 assert a1.status == ak.BEARBEITUNG and a1.stand["angebote"] == ["2026-00042"]
 a1 = pb.zurueckgeben(a1, jetzt=t(80))

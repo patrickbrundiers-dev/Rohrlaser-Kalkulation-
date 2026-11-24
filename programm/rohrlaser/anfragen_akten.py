@@ -70,6 +70,10 @@ GETRENNT = "wieder_eigenstaendig"       # in der weiteren Anfrage: wieder eigens
 ART_GEAENDERT = "art_geaendert"         # 20.11.2026 (anfrage_art): Mail-Art bzw. Sachgebiet von Hand korrigiert
 NACHTRAG_GESEHEN = "nachtrag_gesehen"   # 20.11.2026 (anhang_analyse): geänderte Angaben aus Nachträgen gesehen
 PHASE = "phase"                         # 20.11.2026 (anfrage_phase): Phase von Hand oder aus einem Outlook-Ordner
+# Anfrage löschen (Patrick 24.11.2026): in den Ordner „Gelöscht“ (Papierkorb), für alle Plätze ausgeblendet; die
+# Dateien bleiben in der Akte, damit Outlook-Abgleich und Doppel-Erkennung sie nicht neu anlegen; wiederherstellbar
+GELOESCHT = "geloescht"
+WIEDERHERGESTELLT = "wiederhergestellt"
 ZUORDNUNG_FELDER = {"automatisch": "Kunde automatisch", "kunde": "Kunde geändert", "bestaetigt": "Kunde bestätigt",
                     "ansprechpartner": "Ansprechpartner geändert", "absender": "Absender korrigiert",
                     "ohne_kunde": "Intern (ohne Kunde)", "zuruecksetzen": "Zuordnung zurückgesetzt"}
@@ -83,7 +87,8 @@ AKTION_TEXT = {EINGEGANGEN: "Eingegangen", DATEI_DAZU: "Datei dazu", ZUGEWIESEN:
                DATEI_WEG: "Zu anderer Anfrage verschoben", ZUSAMMEN: "Anfragen zusammengeführt",
                AUFGEGANGEN: "Zusammengeführt in", TRENNEN: "Zusammenführung rückgängig",
                GETRENNT: "Wieder eigenständig", ART_GEAENDERT: "Mail-Art geändert",
-               NACHTRAG_GESEHEN: "Änderungen aus Nachträgen gesehen", PHASE: "Phase"}
+               NACHTRAG_GESEHEN: "Änderungen aus Nachträgen gesehen", PHASE: "Phase",
+               GELOESCHT: "Gelöscht", WIEDERHERGESTELLT: "Wiederhergestellt"}
 AUSSORTIER_GRUENDE = ("Werbung", "Rechnung", "Lieferant / Einkauf", "Bewerbung", "Sonstiges")
 AUSSORTIER_VORSCHLAG = 2    # so oft vom selben Absender aussortiert: beim nächsten Mal „Keine Anfrage?“ vorschlagen
 AUTO = "Automatik"          # Kürzel-Zusatz im Verlauf für automatische Zuweisungen
@@ -210,7 +215,8 @@ def stand_aus_verlauf(ereignisse):
              kunde=None, kunde_name="", kunde_bestaetigt=False, ohne_kunde=False, ansprechpartner=None,
              absender_korr=None, internet_ids=[], zuordnung_von="", weg={}, kategorien={}, zusammen=[],
              zusammengefuehrt_in="", status_vor="", mids_weg=[], art_korr=None, nachtrag_gesehen=0, phase="",
-             phase_von="", nachgefasst=0, rueckfrage_fehlt=[])
+             phase_von="", nachgefasst=0, rueckfrage_fehlt=[], geloescht="", geloescht_von="", geloescht_grund="",
+             status_vor_loeschen="", erledigt_vor_loeschen="")
     for e in sorted(ereignisse, key=lambda e: (e.get("zeit", ""), e.get("kuerzel", ""), e.get("nr", 0))):
         a, k, z = e.get("aktion"), e.get("kuerzel", ""), e.get("zeit", "")
         e["ungueltig"] = False
@@ -311,6 +317,21 @@ def stand_aus_verlauf(ereignisse):
                 continue
             s.update(status=ERLEDIGT, erledigt_am=z, erledigt_von=k, aussortiert=e.get("neu") or "Sonstiges",
                      zugewiesen="")
+        elif a == GELOESCHT:
+            if s["geloescht"]:
+                e["ungueltig"] = True
+                continue
+            s.update(status_vor_loeschen=s["status"], erledigt_vor_loeschen=s["erledigt_am"], geloescht=z,
+                     geloescht_von=k, geloescht_grund=" ".join(str(e.get("neu") or "").split()), status=ERLEDIGT,
+                     erledigt_am=s["erledigt_am"] or z, erledigt_von=s["erledigt_von"] or k, zugewiesen="")
+        elif a == WIEDERHERGESTELLT:
+            if not s["geloescht"]:
+                e["ungueltig"] = True
+                continue
+            s.update(status=s["status_vor_loeschen"] or NEU, erledigt_am=s["erledigt_vor_loeschen"], geloescht="",
+                     geloescht_von="", geloescht_grund="", status_vor_loeschen="", erledigt_vor_loeschen="")
+            if s["status"] != ERLEDIGT:
+                s["erledigt_von"] = ""
         elif a == ZUGEWIESEN:
             if s["status"] != NEU:
                 e["ungueltig"] = True
@@ -342,7 +363,7 @@ def stand_aus_verlauf(ereignisse):
                 continue
             s.update(status=ERLEDIGT, erledigt_am=z, erledigt_von=k)
         elif a == WIEDER:
-            if s["status"] != ERLEDIGT:
+            if s["status"] != ERLEDIGT or s["geloescht"]:
                 e["ungueltig"] = True
                 continue
             s.update(status=BEARBEITUNG if s["bearbeiter"] else NEU, erledigt_am="", erledigt_von="",
@@ -503,6 +524,11 @@ class Akte:
     @property
     def aussortiert(self):
         return self.stand.get("aussortiert", "")
+
+    @property
+    def geloescht(self):
+        """Zeit des Löschens (Ordner „Gelöscht“) oder ''."""
+        return self.stand.get("geloescht", "")
 
     @property
     def adresse(self):
@@ -959,6 +985,24 @@ class OrdnerAblage:
         self.ereignis(akte, AUSSORTIERT, neu=" ".join(str(grund or "").split()) or "Sonstiges", jetzt=jetzt)
         return self.neu_lesen(akte)
 
+    def loeschen(self, akte, grund="", jetzt=None):
+        """Anfrage löschen (Patrick 24.11.2026): in den Ordner „Gelöscht“, aus allen anderen Listen und Zählern
+        heraus, Status Erledigt (Outlook legt die Mail nach Erledigt). Die Akte mit ihren Dateien bleibt liegen, damit
+        dieselbe Mail oder Datei nicht als neue Anfrage zurückkommt; „Wiederherstellen“ holt sie zurück."""
+        akte = self.neu_lesen(akte)
+        if akte.geloescht:
+            raise AblageFehler("Die Anfrage ist schon gelöscht.")
+        self.ereignis(akte, GELOESCHT, alt=akte.status, neu=grund, jetzt=jetzt)
+        return self.neu_lesen(akte)
+
+    def wiederherstellen(self, akte, jetzt=None):
+        """Gelöschte Anfrage zurück in ihren alten Ordner (Neu, In Bearbeitung oder Erledigt)."""
+        akte = self.neu_lesen(akte)
+        if not akte.geloescht:
+            raise AblageFehler("Die Anfrage ist nicht gelöscht.")
+        self.ereignis(akte, WIEDERHERGESTELLT, neu=akte.stand.get("status_vor_loeschen") or NEU, jetzt=jetzt)
+        return self.neu_lesen(akte)
+
     def vormessung_merken(self, akte, text, stempel, jetzt=None):
         """Ergebnis der Vormessung in den Verlauf (einmal je Dateistand, alle Plätze sehen es)."""
         akte = self.neu_lesen(akte)
@@ -1084,8 +1128,11 @@ def ist_meine(a, ich):
 
 def zaehlen(akten, ich=""):
     """{neu, in_bearbeitung, erledigt, meine} für die Zählerleiste; meine = mir zugewiesen (neu) oder meine offenen."""
-    z = {NEU: 0, BEARBEITUNG: 0, ERLEDIGT: 0, "meine": 0, AUSSORTIERT: 0}
+    z = {NEU: 0, BEARBEITUNG: 0, ERLEDIGT: 0, "meine": 0, AUSSORTIERT: 0, GELOESCHT: 0}
     for a in akten:
+        if a.geloescht:
+            z[GELOESCHT] += 1
+            continue
         z[AUSSORTIERT if a.aussortiert else a.status] += 1
         z["meine"] += ist_meine(a, ich)
     return z
@@ -1098,12 +1145,16 @@ def filtern(akten, ordner=None, ich="", text="", bearbeiter="", prioritaet="", s
     worte = [w for w in str(text or "").lower().split() if w]
     out = []
     for a in akten:
+        if (ordner == GELOESCHT) != bool(a.geloescht):     # Gelöschte nur im Ordner „Gelöscht“
+            continue
         if ordner == "meine":
             if not ist_meine(a, ich):
                 continue
         elif ordner == AUSSORTIERT:
             if not a.aussortiert:
                 continue
+        elif ordner == GELOESCHT:
+            pass
         elif ordner and (a.status != ordner or a.aussortiert):
             continue
         if bearbeiter and bearbeiter not in (a.bearbeiter, a.stand["zugewiesen"]):
@@ -1117,6 +1168,8 @@ def filtern(akten, ordner=None, ich="", text="", bearbeiter="", prioritaet="", s
             if not all(w in t for w in worte):
                 continue
         out.append(a)
+    if ordner == GELOESCHT:
+        return sorted(out, key=lambda a: a.geloescht, reverse=True)
     if ordner in (ERLEDIGT, AUSSORTIERT):
         return sorted(out, key=lambda a: a.stand["erledigt_am"], reverse=True)
     rang = {p: i for i, p in enumerate(reversed(PRIORITAETEN))}
@@ -1208,6 +1261,7 @@ def auswertung(akten, vorgaenge=None, jetzt=None, wochen=12):
     der letzten wochen Wochen; std_bis_angebot = mittlere Zeit vom Eingang bis zum ersten Angebot (Stunden);
     mitarbeiter = {Kürzel: dict(…, std_bis_angebot, angebote, beauftragt)}; treffer = (Anfragen mit Angebot,
     davon beauftragt) über vorgaenge {Angebotsnummer: Vorgang} (Vorgang 'Beauftragt')."""
+    akten = [a for a in akten if not a.geloescht]       # gelöschte zählen nicht mit
     jetzt = jetzt or datetime.datetime.now()
     vorgaenge = vorgaenge or {}
     start = (jetzt - datetime.timedelta(weeks=wochen - 1)).date()
@@ -1286,7 +1340,7 @@ def verlauf_text(e):
         t += f" für {neu}" if neu and neu != e.get("kuerzel") else ""
     elif a == RUECKFRAGE:
         t = ("Erinnerung an die Rückfrage" if e.get("nachfassen") else t) + ": " + " ".join(str(neu or "").split())[:80]
-    elif a in (NOTIZ, STAND, ANGEBOT, AUSSORTIERT, VORMESSUNG, NACHTRAG_GESEHEN):
+    elif a in (NOTIZ, STAND, ANGEBOT, AUSSORTIERT, VORMESSUNG, NACHTRAG_GESEHEN, GELOESCHT):
         t += f": {neu}" if neu else ""
     elif a == VERSENDET:
         t += f": {neu}" + (f" an {e['an']}" if e.get("an") else "")
@@ -1586,10 +1640,17 @@ def aus_ordner(abl, liste, kunden=(), jetzt=None, inbox=None):
         akte = abl.lesen(nr) if nr else None
         # Ohne Mail (nur Dateien): dieselbe Datei nach Übernahme wieder im Ordner = neue Anfrage (z. B. Wiederholung
         # mit gleicher STEP), denn die Originale einer übernommenen Akte liegen nicht mehr im Eingang
-        while akte is not None and akte.status != NEU and not a.mails:
+        while akte is not None and akte.status != NEU and not a.mails and not _weg(akte, ld):
             h = f"{h[:40]}-{akte.nr}"
             nr = abl.schluessel_akte(h)
             akte = abl.lesen(nr) if nr else None
+        if akte is not None and _weg(akte, ld):
+            # zusammengeführt, gelöscht oder „Keine Anfrage“ (Patrick 24.11.2026): die Originale liegen noch im
+            # Anfrage-Ordner; nie wieder als neue Anfrage anlegen, sondern weglegen
+            if inbox:
+                eingang_ablegen(a, inbox, akte.nr)
+            out[a.schluessel] = akte
+            continue
         try:
             if akte is None and a.mails:
                 akte = _als_antwort(abl, a, h, kunden, jetzt, inbox)
@@ -1609,6 +1670,27 @@ def aus_ordner(abl, liste, kunden=(), jetzt=None, inbox=None):
         if akte is not None:
             out[a.schluessel] = akte
     return out
+
+
+def _weg(akte, leitdatei=None):
+    """Akte ist in eine andere zusammengeführt, gelöscht oder als „Keine Anfrage“ aussortiert und die Leitdatei im
+    Anfrage-Ordner ist nicht neuer als das (dann ist es noch das Original; eine später wieder abgelegte gleiche Datei
+    ist eine neue Anfrage)."""
+    s = akte.stand
+    if s.get("geloescht"):
+        seit = s["geloescht"]
+    elif s.get("zusammengefuehrt_in") or s.get("aussortiert"):
+        seit = s.get("erledigt_am") or ""
+    else:
+        return False
+    d = _datum(seit)
+    if d is None or leitdatei is None:
+        return True
+    try:
+        geaendert = datetime.datetime.fromtimestamp(Path(leitdatei).stat().st_mtime)
+    except OSError:
+        return True
+    return geaendert <= d + datetime.timedelta(minutes=1)
 
 
 def _als_antwort(abl, anfrage, h, kunden, jetzt, inbox):

@@ -1423,9 +1423,9 @@ def kapitel_angebote(i):
             "eine eigene <b>Akte</b> mit Nummer <i>A-2026-00042</i>. Die Akte enthält eine Kopie der Mail und aller "
             "Anhänge mit Prüfsumme. Dieselbe Mail ergibt nie zwei Akten; ein Nachtrag des Kunden kommt dazu, "
             "solange die Anfrage neu ist.",
-            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt, Meine oder Keine Anfrage zeigt "
-            "diesen Ordner; jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung 0</b>, "
-            "<b>Erledigt 0</b>, <b>Meine 0</b> und <b>Keine Anfrage 0</b>. "
+            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt, Meine, Keine Anfrage oder Gelöscht "
+            "zeigt diesen Ordner; jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung "
+            "0</b>, <b>Erledigt 0</b>, <b>Meine 0</b>, <b>Keine Anfrage 0</b> und <b>Gelöscht 0</b>. "
             "Daneben Suche (Kunde, Betreff, Text, Dateiname, Angebotsnummer) und Filter nach Bearbeiter, Priorität "
             "und Zeitraum (Erledigt: letzte 90 Tage, auf Wunsch länger). Die Zahl der neuen Anfragen steht auch in "
             "der Seitenleiste.",
@@ -1721,6 +1721,15 @@ def kapitel_angebote(i):
             "Hauptanfrage. Automatisch wird nie zusammengeführt.",
             "<b>Zusammenführung rückgängig</b>: trennt die zuletzt zusammengeführten Anfragen wieder. Gelöscht wird "
             "nichts, die Originaldateien bleiben unverändert.",
+            "<b>Originale im Anfrage-Ordner</b>: Beim Zusammenführen legt das Programm die Originale der übernommenen "
+            "Anfragen aus dem Anfrage-Ordner in dessen Unterordner .uebernommen. So erscheinen sie nach dem "
+            "Kalkulieren nicht wieder als neue Anfrage. Das gilt auch für gelöschte und aussortierte Anfragen.",
+            "<b>Löschen …</b>: legt die gewählte Anfrage in den Ordner <i>Gelöscht</i> (oben in der Zählerleiste). Dort "
+            "ist sie für alle Kollegen aus den Listen, Zählern und der Auswertung heraus, und in Outlook kommt die Mail "
+            "nach Erledigt. Ein Grund ist freiwillig. Eine neue Anfrage darf jeder löschen, eine übernommene nur der "
+            "Bearbeiter oder der Admin. Verknüpfte Angebote bleiben erhalten. <i>Wiederherstellen</i> holt die Anfrage "
+            "in ihren alten Ordner zurück. Die Dateien bleiben in der Akte, damit dieselbe Mail nicht als neue "
+            "Anfrage wiederkommt.",
             "<b>Sicherheit</b>: Zusammenführen dürfen der Bearbeiter und der Admin, eine neue Anfrage darf jeder "
             "zusammenführen. Eine Sperre verhindert, dass zwei Plätze gleichzeitig dieselben Anfragen zusammenführen. "
             "Ein Journal sorgt dafür, dass ein Absturz oder Netzabbruch mittendrin beim nächsten Start sauber zu Ende "
