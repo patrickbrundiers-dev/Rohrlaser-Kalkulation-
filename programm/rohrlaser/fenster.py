@@ -2312,6 +2312,11 @@ class EinstellungenSeite(QScrollArea):
                     haupt.reiter.setTabVisible(haupt.reiter.indexOf(getattr(haupt, seite)), haupt.auftraege_an())
             if hasattr(haupt, "rechte_anwenden"):
                 haupt.rechte_anwenden()
+        if e.name == "austausch_aktiv":
+            haupt = self.window()
+            if hasattr(haupt, "austausch"):
+                haupt.reiter.setTabVisible(haupt.reiter.indexOf(haupt.austausch),
+                                           self.db.einstellung("austausch_aktiv") != "nein")
         if e.name in ("fertigung_aktiv", "fertigung_status"):
             haupt = self.window()
             if hasattr(haupt, "fertigung_anwenden"):
@@ -3387,6 +3392,11 @@ class Hauptfenster(QMainWindow):
         self.reiter.addTab(self.anfragen_seite, "Anfragen")
         self.reiter.setTabVisible(self.reiter.indexOf(self.anfragen_seite), anfragen_akten.aktiv(db))
         self.anfragen_seite.neu_laden()
+        # Austausch: Austauschordner 2.0 als Datei- und Projektmanager im Programm (Patrick 24.11.2026)
+        from .austausch_seite import AustauschSeite
+        self.austausch = AustauschSeite(self)
+        self.reiter.addTab(self.austausch, self.austausch.titel)
+        self.reiter.setTabVisible(self.reiter.indexOf(self.austausch), self.db.einstellung("austausch_aktiv") != "nein")
         # Materialanfragen an Lieferanten: Historie mit Status (Materialanfragen über Outlook, 13.11.2026)
         from .materialanfragen_seite import MaterialanfragenSeite
         self.materialanfragen = MaterialanfragenSeite(self)

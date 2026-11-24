@@ -20,13 +20,14 @@ EINSTELLUNG = "navigation_breite"
 
 # Arbeitsbereiche in dieser Reihenfolge; Seiten ohne Eintrag kommen unter „Pflege“, Einstellungen steht ganz unten
 GRUPPEN = ("Arbeiten", "Auftrag", "Pflege")
-GRUPPE = {"Start": "Arbeiten", "Anfragen": "Arbeiten", "Materialanfragen": "Arbeiten", "Angebote": "Arbeiten", "Kunden": "Arbeiten",
+GRUPPE = {"Start": "Arbeiten", "Anfragen": "Arbeiten", "Austausch": "Arbeiten", "Materialanfragen": "Arbeiten", "Angebote": "Arbeiten", "Kunden": "Arbeiten",
           "Aufträge": "Auftrag", "Rahmenaufträge": "Auftrag", "Produktion": "Auftrag", "Auswertung": "Auftrag", "Versand": "Auftrag", "Fertigung": "Auftrag", "Lager": "Auftrag",
           "Material": "Pflege", "Zukaufartikel": "Pflege", "Frachtkosten": "Pflege", "Einstellungen": None}
-SYMBOL = {"Start": "start", "Anfragen": "mail", "Materialanfragen": "material", "Angebote": "angebote", "Kunden": "kunden", "Aufträge": "auftraege", "Rahmenaufträge": "auftraege", "Produktion": "produktion", "Auswertung": "auswertung", "Versand": "versand", "Fertigung": "fertigung",
+SYMBOL = {"Start": "start", "Anfragen": "mail", "Austausch": "ordner", "Materialanfragen": "material", "Angebote": "angebote", "Kunden": "kunden", "Aufträge": "auftraege", "Rahmenaufträge": "auftraege", "Produktion": "produktion", "Auswertung": "auswertung", "Versand": "versand", "Fertigung": "fertigung",
           "Lager": "lager", "Material": "materialstamm", "Zukaufartikel": "zukauf", "Frachtkosten": "fracht", "Einstellungen": "einstellungen"}
 TIPP = {"Start": "Übersicht: Kennzahlen, zuletzt bearbeitete Angebote, Datensicherung",
         "Anfragen": "Kundenanfragen: Neu, In Bearbeitung, Erledigt; übernehmen, zuweisen, kalkulieren",
+        "Austausch": "Austauschordner: gemeinsame Dateien, Zuordnung zu Kunde/Angebot, Aufgaben, Versionen",
         "Materialanfragen": "Anfragen an Lieferanten: Entwurf, Versendet, Angebot erhalten, Abgeschlossen",
         "Angebote": "Angebotsliste und geöffnete Angebote",
         "Kunden": "Kundenstamm; Doppelklick zeigt die Angebote des Kunden",
