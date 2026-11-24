@@ -8921,8 +8921,8 @@ def kapitel_zukauf_angebot(i):
            "Laser sie schneidet. Liegt eine LST mit gleichem Namen dabei, wird sie nicht zusätzlich eingelesen. "
            "Rückgängig nimmt alle eingelesenen Positionen auf einmal zurück.")
     i.text("<b>Produktionsdaten fürs Lernen</b> (seit 0.9.437): In den Einstellungen (STEP-Import, "
-           "TRUMPF-Programme) die Einstellung <i>TRUMPF-Programme: Ordner der gefertigten LST-Dateien fürs Lernen (leer = "
-           "aus)</i> setzen; am besten einen gemeinsamen "
+           "TRUMPF-Programme) die Einstellung <i>Maschinendaten: Ordner der gefertigten LST- und BPF-Dateien fürs Lernen "
+           "(leer = aus)</i> setzen; am besten einen gemeinsamen "
            "Ordner, in den die Maschine die LST nach dem Lauf speichert. Gelesen werden alle LST-Dateien auch in "
            "Unterordnern, jede nur einmal (auch als Kopie oder umbenannt); unveränderte Dateien öffnet das Programm "
            "beim nächsten Mal gar nicht. Je Teil merkt es sich Auftrag, PPEASE-Nummer (aus Jobname, "
@@ -8953,14 +8953,26 @@ def kapitel_zukauf_angebot(i):
            "dem Volumen, das das BLM-Programm selbst angibt (gleich = Konturen lagegenau). Den Werkstoff übernimmt "
            "die Position wie bei STEP aus der Einstellung bzw. dem Prüfdialog; Laserzeiten rechnet das Programm wie "
            "immer selbst.")
-    i.abschnitt("Produktionsdaten & Lernsystem", marke="lernsystem")
-    i.text("<i>Datei → Produktionsdaten & Lernsystem …</i> (auch aus der Lernzentrale): die Kalkulation lernt aus "
-           "den gemessenen Zeiten der Maschine. Oben Kacheln (LST-Dateien, Teile, mit gemessener Zeit, zugeordnet, "
-           "Abweichung, STEP-Messung prüfen, Vorschläge bereit), darunter vier Reiter. <b>LST-Ordner einlesen</b> "
-           "liest im Hintergrund; das Fenster bleibt bedienbar.")
+    i.abschnitt("Produktionsdaten-Intelligenz (LST und BPF)", marke="lernsystem")
+    i.text("<i>Datei → Produktionsdaten-Intelligenz …</i> (auch aus der Lernzentrale, seit 0.9.471): die Kalkulation "
+           "lernt aus den Maschinendaten. Gelesen werden TRUMPF-<b>LST</b> und BLM-<b>BPF</b> aus dem eingestellten "
+           "Ordner (<b>LST-Ordner einlesen</b>) oder über <b>Dateien importieren …</b> (mehrere Dateien auf einmal). "
+           "Alles läuft im Hintergrund, "
+           "<b>Abbrechen</b> hält es an, eine kaputte Datei stört die übrigen nicht. Maschinenprogramme werden nur "
+           "gelesen, nie verändert. Oben zwei Kachelzeilen (Dateien, Teile, gemessen, zugeordnet, Abweichung, "
+           "STEP-Messung prüfen, Vorschläge; BPF-Dateien, Datenqualität, Lernschritte, Genauigkeit, Fortschritt, "
+           "Zeitmodelle), darunter die Reiter.", kurz=True)
+    i.genauer()
     i.liste(
-        "<b>Produktionsdaten</b>: alle gelesenen Teile mit Datenqualität (vollständig, Teilwerte fehlen, "
-        "unplausibel) und Gründen. Gelernt wird nur aus vollständigen Teilen.",
+        "<b>Produktionsdaten</b>: alle gelesenen Teile mit Format (LST/BPF), Datenqualität (vollständig, Teilwerte "
+        "fehlen, unplausibel) und Gründen. Gelernt wird nur aus vollständigen Teilen; eine BPF enthält keine Zeiten "
+        "und zählt deshalb nur für Geometrie und Abgleich.",
+        "<b>Maschinendaten</b>: jeder Wert des gewählten Teils mit Einheit, Quelle (Abschnitt und Feld der Datei "
+        "oder „berechnet aus …“) und Deutung; unsichere Deutungen sind markiert. Aus der LST kommen u. a. Laser an "
+        "je Leistungsstufe und Verfahrzeit (Laser aus), Einstiche, Konturen, Positionierungen, Umspannen, Vollkreise, "
+        "Materialverbrauch und Teile je Stange; aus der BPF Profil, Konturen je Art, Schnittlänge, Anfahrwege, "
+        "Eilgänge und Gehrungen. Fehlt ein Wert in der Datei, wird er nicht ergänzt. Steht eine reine Laserzeit in "
+        "der Datei, gilt sie als Laserzeit; Einstich, Positionieren und Zuschläge kommen wie gewohnt dazu.",
         "<b>Vergleich</b>: je Teil Angebot und Position. Zugeordnet wird über die PPEASE-Nummer (Angebotsnummer "
         "oder die PPEASE-Nummer der Dokumentenablage), sonst über die Artikelnummer, sonst über gleiche Merkmale "
         "(Profil, Werkstoff, Länge ± 0,5 mm, Schneidweg ± 2 %) in Angeboten der letzten 6 Monate. Unsichere "
@@ -8980,10 +8992,27 @@ def kapitel_zukauf_angebot(i):
         "(Haken <i>Abgelehnte zeigen</i>). "
         "<b>Laserzeit je Baustein …</b> öffnet die Kalibrierung: dort lernt das Programm mit den LST-Zeiten je "
         "Baustein, das Einstechen mit eigenem Faktor (die Einstichzeit bleibt ein eigener Posten).",
+        "<b>Abgleich</b>: zum Teil der Vergleichszeile 12 Werte Kalkulation gegen Maschine (Material, Einstiche, "
+        "Konturen, Schnittlänge, Konturklassen groß/mittel/klein, Zeit, Laserzeit, Positionierzeit, Vorschub, "
+        "Ausnutzung), jeweils gekennzeichnet als berechnet, geschätzt, aus der Maschine ermittelt oder fehlt; darunter "
+        "die Ursachen der Zeitabweichung in Sekunden (Schnittlänge, Einstiche, Positionieren, Vorschub/Laserleistung, "
+        "übrige Zeit).",
+        "<b>Genauigkeit</b>: je Bereich (Material, Geometrie, Zeit), wie gut die Kalkulation durch Produktionsdaten "
+        "belegt ist: <i>sehr gut</i> nur mit mindestens 10 gemessenen Teilen und höchstens 10 % Abweichung, "
+        "<i>gut</i> ab 3 gemessenen Teilen bis 20 %, nur CAM-Zeiten höchstens <i>gering</i>, sonst <i>keine "
+        "Produktionsdaten</i>. Die KI (Angebots-Check, Preis erklären) nennt diese Datenbasis je Position.",
+        "<b>Lernanalyse</b>: Zeitmodell je Maschine, Werkstoff und Wandbereich aus den Konturklassen: Vorschub groß, "
+        "mittel und klein und Sekunden je Einstich, gerechnet aus der Laser-an-Zeit vieler Programme (ab 3 "
+        "Programmen), daneben der Vorschub der Kalkulation und die Gegenprobe. Das Modell ist ein Hinweis und ändert "
+        "keine Schneiddaten. Dazu die häufigsten Ursachen über alle Teile.",
+        "<b>Importprotokoll</b>: jede gelesene Datei mit Format, Version, Teilen, Fehlermeldung und Anzahl nicht "
+        "gedeuteter Felder.",
         "<b>Protokoll</b>: jede Freigabe, Zurücknahme und Ablehnung mit Datum, Gruppe, Faktor und Begründung. "
         "<b>Zurücksetzen</b> stellt die alten Werte wieder her (nur die, die seitdem niemand geändert hat). Die "
         "Freigaben stehen auch unter Kennwerte ([[lernen]]).")
-    i.text("Ohne Freigabe ändert sich an der Kalkulation nichts.")
+    i.text("Ohne Freigabe ändert sich an der Kalkulation nichts. Jeder Vorschlag hat eine <b>Gegenprobe</b> (Spalte "
+           "in Vorschläge): jedes Programm wird aus den übrigen gelernt und geprüft, ob der Faktor die Abweichung "
+           "wirklich verkleinert. Ist er nicht besser, geht die Freigabe nur mit ausdrücklicher Bestätigung.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "
