@@ -84,10 +84,12 @@ Speicher kann dort nichts bringen. Schwankung zwischen Läufen ±2 %.
 | Formheilung (Übertragen) | 294,6 s | – (aus dem Speicher) |
 | Laden aus dem Speicher | – | 0,23 s |
 | Kopien suchen | 0,08 s | – (gemerkt) |
-| Geometrieanalyse (Körper messen) | siehe Lauf | siehe Lauf |
-| Gesamtdauer | U29_ALT | U29_NEU |
-| RAM-Spitze | U29_RAM_ALT | U29_RAM_NEU |
-| Messwertgleichheit | Referenz | U29_GLEICH |
+| Geometrieanalyse (Körper messen, 3 Prozesse) | 1.313,8 s | 1.102,0 s |
+| Gesamtdauer (`--prozesse 3`) | 1.468,8 s (CPU 2.729,5 s) | 1.095,1 s (CPU 2.333,7 s); erstes Lesen mit Speicher 1.396,5 s |
+| RAM-Spitze | 2.928 MB | 2.785 MB (erstes Lesen 3.042 MB) |
+| Messwertgleichheit | Referenz | alle Konturen, Längen, Arten, Zeiten gleich; 20 Werte anders, nur Komponenten der Dreh-/Fräsachse nahe 0 (Größe 1e-15, 15. Stelle) |
+
+Die 20 Achswerte unterscheiden sich genauso zwischen zwei Läufen des neuen Codes (erstes Lesen gegen Wiedereinlesen, andere Stellen). Sie kommen also aus der Verteilung auf 3 Messprozesse, nicht aus dem Speicher; sie sind numerisch null und ändern keinen Preis. Die 126 Prüf-STEPs (ein Prozess je Datei) sind bitgleich.
 
 Abwicklung: im Ablauf von „Körper messen“ enthalten; wird im Thread „STEP-Schnittwege über Abwicklung“ neu gebaut.
 
