@@ -85,7 +85,8 @@ DREHPUNKT_FEIN = 80000  # Drehpunkt bis zu so vielen Dreiecken im vollen Modell 
 TEILFARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#E15759", "#76B7B2", "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F",
               "#BAB0AC", "#2F4B7C", "#A05195")
 FARBE.update({f"F{n}": QColor(f) for n, f in enumerate(TEILFARBEN)})
-FARBE["X"] = stil.farbe_fest("#D9DDE2")     # nicht gewählte Teile, wenn andere hervorgehoben sind
+FARBE["X"] = stil.farbe_fest("#D9DDE2")
+FARBE["RS"].setAlpha(110)    # Nesting: Endbeschnitt, Rest, Greiferrest halb durchsichtig (Teile davor bleiben klar)     # nicht gewählte Teile, wenn andere hervorgehoben sind
 LINIE = {a: QColor(l or f) for a, _, f, l in ARTEN}
 NAEHTE, NAHT_BREITE = ("SN", "SV", "SH", "SX"), 4.5     # Schweißnähte dicker und immer sichtbar (Normale 0)
 HINTERGRUND = stil.farbe_fest("#FFFFFF")     # unten; oben HINTERGRUND_OBEN, dazwischen Verlauf (hintergrund_bei)
@@ -3090,6 +3091,50 @@ class Ansicht3D(QWidget):
             p.setPen(QPen(stil.farbe("#E07000"), 1.5))
             p.drawEllipse(QPointF(x, y), 5, 5)
             p.drawPoint(QPointF(x, y))
+        self._schilder_zeichnen(p)
+
+    def _schilder_zeichnen(self, p):
+        """Schilder [(Punkt 3D, Text, Farbe)] über dem Modell (Nesting-Arbeitsplatz: Positionsnummer je Teil);
+        sich überdeckende Schilder werden weggelassen (beim Zoomen erscheinen sie)."""
+        schilder = getattr(self, "schilder", None)
+        if not schilder or self.modell is None:
+            return
+        bild = self.bildpunkt()
+        fm = p.fontMetrics()
+        belegt = []
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        for punkt, text, farbe in schilder:
+            x, y = bild(punkt)[:2]
+            w = fm.horizontalAdvance(text) + 10
+            r = QRectF(x - w / 2, y - 24, w, 17)
+            if not QRectF(self.rect()).contains(r) or any(r.intersects(b) for b in belegt):
+                continue
+            belegt.append(r)
+            p.setPen(QPen(QColor(farbe).darker(130), 1))
+            p.setBrush(stil.farbe("#FFFFFF"))
+            p.drawRoundedRect(r, 4, 4)
+            p.drawLine(QPointF(x, r.bottom()), QPointF(x, y))
+            p.setPen(stil.farbe("#202020"))
+            p.drawText(r, Qt.AlignCenter, text)
+        p.restore()
+
+    def einpassen_auf(self, punkte, anteil=0.8):
+        """Wie einpassen, aber auf die Punkte [(x, y, z)] (z. B. ein Teil auf der Stange). False ohne Punkte."""
+        if self.modell is None or not punkte:
+            return False
+        self.zoom, self.versatz = 1.0, (0.0, 0.0)
+        bild = self.bildpunkt()
+        px = [bild(v) for v in punkte]
+        x0, x1 = min(q[0] for q in px), max(q[0] for q in px)
+        y0, y1 = min(q[1] for q in px), max(q[1] for q in px)
+        w, h = max(1, self.width()), max(1, self.height())
+        k = max(0.2, min(200.0, anteil * min(w / max(x1 - x0, 4.0), (h - 60) / max(y1 - y0, 4.0))))
+        self.zoom = k
+        self.versatz = (-((x0 + x1) / 2 - w / 2) * k, -((y0 + y1) / 2 - h / 2) * k)
+        self.update()
+        self.gedreht.emit()
+        return True
 
     def _markierung_zeichnen(self, p):
         """Hervorgehobene Linien (Teile-Editor), Messung und Werkzeug (Griffe, Maße) über dem Bild."""

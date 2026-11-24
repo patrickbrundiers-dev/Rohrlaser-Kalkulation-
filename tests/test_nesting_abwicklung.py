@@ -178,4 +178,25 @@ tech.resize(1200, 400)
 tech.setzen(d, {}, False)
 assert not tech.grab().isNull()
 ok("Zeichnung waagerecht/senkrecht, Ebenen ein/aus, Bildpunkt <-> mm umkehrbar, technische Ansicht")
+# ------------------------------------------------------------------ Moderne Ansichten (Plan M1-M7)
+from rohrlaser import dxf, nesting_ansicht_ui as ui  # noqa: E402
+from rohrlaser.nesting_abwicklung_bild import ruhig  # noqa: E402
+c = ruhig("#4E79A7", 0.55)
+assert c.red() > 0x4E and c.blue() > 0xA7 and c.blue() >= c.red()          # heller, Farbton bleibt
+el = na.dxf_elemente(d)
+assert sum(1 for e in el if e[0] == "LINE" and e[1] == dxf.AUSSEN) >= 11 * 4
+assert any(e[0] == "TEXT" and "Stange 6000" in e[4] for e in el)
+txt = dxf.schreiben(el, dxf.layer_namen(aw.ROHR_LAYER))
+assert "AUSSENKONTUR" in txt and "INNENKONTUR" in txt
+b = ui.balken_daten(0, viele, {}, True)
+assert b["titel"].startswith("Stange 1 – ") and abs(b["abschnitte"][-1][2] - 6000) < 1e-9
+assert [a for a, *_ in b["abschnitte"]].count("teil") == 11
+k = ui.InfoKarte("Stange")
+k.setzen("Stange 1", [("Profil", "QR 40×40×3"), ("Länge", "6000 mm")], 0.9, "")
+k.setzen("Stange 2", [("Profil", "QR 40×40×3")])
+assert "Stange 2" in k.text() and "6000" not in k.text() and not k.balken.isVisibleTo(k)
+a.hover = 0
+a.punkt_markiert = (260, 20)
+assert not a.grab().isNull() and "Pos. 10" in a.teil_text(0)
+ok("Moderne Ansichten: ruhige Farben, DXF der Stange, Belegungsbalken, Infokarten, Zeigen/Markieren")
 print("Alle Tests OK")

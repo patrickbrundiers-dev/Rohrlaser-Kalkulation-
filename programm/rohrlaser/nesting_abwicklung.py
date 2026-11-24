@@ -222,10 +222,32 @@ def _gerade(profil, laenge):
         return None
 
 
-def netz_stange(s, positionen, profil_von, netz_von=None, merker=None):
+def _farbnummer(farbe_ref, ref, farbe_je):
+    """Nummer der Teilfarbe (ansicht3d.TEILFARBEN) wie in der Abwicklung, sonst je Position der Reihe nach."""
+    from .ansicht3d import TEILFARBEN
+    f = (farbe_ref or {}).get(ref)
+    if f:
+        f = str(f).upper()
+        for n, x in enumerate(TEILFARBEN):
+            if x.upper() == f:
+                return n
+    return farbe_je.setdefault(ref, len(farbe_je))
+
+
+def _hoehe(profil):
+    """Halbe Außenhöhe des Profils [mm] (für Schilder und Einpassen im 3D)."""
+    try:
+        q = sk.Querschnitt(profil)
+        return max(float(q.H), float(q.B)) / 2
+    except (ValueError, TypeError, KeyError, AttributeError, ZeroDivisionError):
+        return 20.0
+
+
+def netz_stange(s, positionen, profil_von, netz_von=None, merker=None, farbe_ref=None):
     """3D-Netz der Stange: (Netz oder None, [dict(nr, ref, quelle 'STEP' | 'Eingaben' | '', hinweis)] je Teil).
     netz_von(Position) = gespeichertes STEP-Netz (Bytes oder dict) oder None. Farben: je Position eine Teilfarbe
-    (Reihenfolge wie im Stangenbild), Rest/Verschnitt als eigene Art."""
+    (Reihenfolge wie im Stangenbild), Rest/Verschnitt als eigene Art. farbe_ref = {Bezug: Farbe} aus der Abwicklung:
+    dieselbe Farbe im 3D (Teilfarben ansicht3d.TEILFARBEN; info je Teil zusätzlich mitte = Punkt über dem Teil)."""
     from . import rohr3d
     from .ansicht3d import baugruppe, entpacken
     from .stangen_ansicht import bereiche
@@ -267,9 +289,13 @@ def netz_stange(s, positionen, profil_von, netz_von=None, merker=None):
                     hinweis = hinweis or "kein 3D-Modell"
         if n:
             n = dict(n, lage=lage_auf_stange(t["von"], t.get("drehung"), t["laenge"], wenden.gewendet(p)))
-            farben.append(farbe_je.setdefault(t.get("ref"), len(farbe_je)))
+            farben.append(_farbnummer(farbe_ref, t.get("ref"), farbe_je))
             netze.append(n)
-        info.append(dict(nr=len(info) + 1, ref=t.get("ref"), quelle=quelle, hinweis=hinweis))
+        hoehe = _hoehe(profil)
+        info.append(dict(nr=len(info) + 1, ref=t.get("ref"), quelle=quelle, hinweis=hinweis, pos=t.get("pos"),
+                         mitte=(0.0, hoehe, (float(t["von"]) + float(t["bis"])) / 2),
+                         ecken=[(sx * hoehe, sy * hoehe, float(z)) for z in (t["von"], t["bis"]) for sx in (-1, 1)
+                                for sy in (-1, 1)]))
     if profil0:
         for art, von, bis, _ in bereiche(s):
             if art in ("end", "rest", "greif") and bis - von > 0.5:
@@ -284,3 +310,40 @@ def netz_stange(s, positionen, profil_von, netz_von=None, merker=None):
     if netz and "NT" in netz.get("t", {}):
         netz["t"]["RS"] = netz["t"].pop("NT")         # Reststücke/Endbeschnitt/Greiferrest eigene Farbe
     return netz, info
+
+
+# ------------------------------------------------------------------------------------------------ DXF der Stange
+def dxf_elemente(d):
+    """Elemente für dxf.schreiben (Layer wie die Rohrabwicklung, abwicklung.ROHR_LAYER): x längs ab Materialanfang,
+    y = Umfang − t. Je Teil der Umriss (außen), Konturen (innen) bzw. Gravuren, Seitenkanten/Radiusübergänge,
+    Stangenrand und Bereichsgrenzen, Beschriftung (Pos., Länge, Bereiche, Kopfzeile)."""
+    from . import dxf
+    U, L = d["umfang"], d["laenge"]
+
+    def p(x, t):
+        return (round(x, 4), round(U - t, 4))
+
+    def zug(layer, pts, zu=False):
+        z = list(pts) + (list(pts[:1]) if zu else [])
+        return [("LINE", layer, p(*a), p(*b)) for a, b in zip(z, z[1:]) if abs(a[0] - b[0]) + abs(a[1] - b[1]) > 1e-6]
+    elem = zug(dxf.TEXT, [(0, 0), (L, 0), (L, U), (0, U)], True)
+    for art, von, bis in d["bereiche"]:
+        if art != "teil":
+            elem += zug(dxf.TEXT, [(von, 0), (von, U)]) + zug(dxf.TEXT, [(bis, 0), (bis, U)])
+            elem.append(("TEXT", dxf.TEXT, p(von, -4), 3.0,
+                         f"{ {'end': 'Endbeschnitt', 'rest': 'Rest', 'greif': 'Greiferrest', 'schnitt': 'Fuge'}.get(art, art)} "
+                         f"{rechnen.zahl(bis - von, 1)}"))
+    for t_, art in d["kanten"]:
+        if t_ > 1e-6:
+            elem += zug(dxf.HOCH if art == "kante" else dxf.RUNTER, [(0, t_), (L, t_)])
+    for n, t in enumerate(d["teile"], 1):
+        elem += zug(dxf.AUSSEN, t["umriss"], True)
+        for k in t["konturen"]:
+            for stueck in sa.kontur_teile(k["punkte"], U):
+                stueck = [(x, min(max(q, 0.0), U)) for x, q in stueck]
+                elem += zug(dxf.GRAVUR if k["gravur"] else dxf.INNEN, stueck, k["geschlossen"] and not k["gravur"])
+        elem.append(("TEXT", dxf.TEXT, p((t["von"] + t["bis"]) / 2 - 20, U / 2), 4.0,
+                     f"{n}: Pos. {t.get('pos')} {rechnen.zahl(t['laenge'], 1)}"))
+    elem.append(("TEXT", dxf.TEXT, p(0, U + 10), 4.0,
+                 f"Stange {rechnen.zahl(L, 0)} mm, Umfang Außenhaut {rechnen.zahl(U, 1)} mm, {len(d['teile'])} Teile"))
+    return elem

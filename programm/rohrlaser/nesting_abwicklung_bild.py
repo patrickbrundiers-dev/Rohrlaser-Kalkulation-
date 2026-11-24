@@ -15,7 +15,7 @@ ein Teil: Kontextmenü (zur Position, gleiche Teile hervorheben, im 3D zeigen).
 """
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
-from PySide6.QtWidgets import QMenu, QSizePolicy, QWidget
+from PySide6.QtWidgets import QMenu, QSizePolicy, QToolTip, QWidget
 
 from . import rechnen, stil, stangen_abwicklung as sa
 
@@ -25,6 +25,18 @@ EBENEN = (("bemassung", "Bemaßung"), ("schnitte", "Schnittpositionen"), ("kontu
 
 def _z(v, n=1):
     return rechnen.zahl(v, n)
+
+
+def ruhig(farbe, anteil=0.55):
+    """Ruhige Flächenfarbe (modernes CAD/CAM-Aussehen, Plan M2): die Teilfarbe anteil zu Weiß gemischt."""
+    c = QColor(farbe)
+    return QColor(int(c.red() + (255 - c.red()) * anteil), int(c.green() + (255 - c.green()) * anteil),
+                  int(c.blue() + (255 - c.blue()) * anteil))
+
+
+LEGENDE = (("Teil", "#A9BCD3", None), ("Kontur", "#FDE3E1", "#B42318"), ("Gravur", None, "#2E7D32"),
+           ("Schnittfuge", "#30363D", None), ("Rest verwertbar", "#A5D6A7", None), ("Verschnitt", "#F6D5D5", "#E15759"),
+           ("Endbeschnitt", "#A6A6A6", None), ("Greiferrest", "#E06666", None))
 
 
 def _schritt(pixel_je_mm, ziel_px=70):
@@ -43,12 +55,12 @@ class AbwicklungAnsicht(QWidget):
     zur_position = Signal(str)          # Bezug (ref)
     im_3d = Signal(int)
 
-    RAND_L, RAND_R, RAND_O, RAND_U = 74, 24, 34, 86
+    RAND_L, RAND_R, RAND_O, RAND_U = 74, 24, 46, 86
 
     def __init__(self, technisch=False):
         super().__init__()
         self.daten, self.farben, self.rest_ok = None, {}, None
-        self.auswahl, self.markiert_ref = None, None
+        self.auswahl, self.markiert_ref, self.hover, self.punkt_markiert = None, None, None, None
         self.ebenen = {k: True for k, _ in EBENEN}
         self.technisch = technisch
         self.senkrecht, self.eins_zu_eins = False, False
@@ -68,7 +80,7 @@ class AbwicklungAnsicht(QWidget):
         self.farben = {r: QColor(f) for r, f in (farben or {}).items()}
         if self.auswahl is not None and (not daten or self.auswahl >= len(daten["teile"])):
             self.auswahl = None
-        self.messpunkte = []
+        self.messpunkte, self.hover, self.punkt_markiert = [], None, None
         self.update()
 
     def ebene(self, name, an):
@@ -195,18 +207,23 @@ class AbwicklungAnsicht(QWidget):
         for i, t in enumerate(d["teile"]):
             poly = QPolygonF([self.pkt(x, s) for x, s in t["umriss"]])
             farbe = QColor(self.farben.get(t["ref"], stil.farbe("#4E79A7")))
-            flaeche = QColor(farbe)
-            gew = self.auswahl == i
+            gew, ueber = self.auswahl == i, self.hover == i
             gleich = self.markiert_ref is not None and t["ref"] == self.markiert_ref
-            flaeche.setAlpha(205 if gew else 150 if gleich else 120)
-            p.setBrush(flaeche)
-            p.setPen(QPen(stil.farbe(stil.ORANGE), 2.6) if gew else QPen(stil.farbe("#202020"), 1.1))
+            p.setBrush(stil.farbe(ruhig(farbe, 0.3 if gew or gleich else 0.42 if ueber else 0.55).name()))
+            if gew:                 # Auswahl: weicher Schein und Akzentrand
+                schein = QColor(stil.farbe(stil.AKZENT))
+                schein.setAlpha(60)
+                p.setPen(QPen(schein, 8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                p.drawPolygon(poly)
+                p.setPen(QPen(stil.farbe(stil.AKZENT), 2.2))
+            else:
+                p.setPen(QPen(stil.farbe(farbe.darker(150).name()), 1.8 if ueber else 1.0))
             p.drawPolygon(poly)
             self._flaechen.append((poly, i))
             # Beschriftung in der Mitte
             r = poly.boundingRect()
             if (r.height() if self.senkrecht else r.width()) > 34:
-                p.setPen(stil.farbe("#111111"))
+                p.setPen(stil.farbe_fest("#111111"))
                 p.drawText(r, Qt.AlignCenter, f"{t['pos'] if t.get('pos') is not None else t.get('artikel') or ''}\n"
                                               f"{_z(t['laenge'], 1)}")
         p.setBrush(Qt.NoBrush)
@@ -216,7 +233,9 @@ class AbwicklungAnsicht(QWidget):
             for i, t in enumerate(d["teile"]):
                 for k in t["konturen"]:
                     farbe = stil.farbe("#2E7D32") if k["gravur"] else stil.farbe("#B42318")
-                    p.setPen(QPen(farbe, 1.5 if self.auswahl == i else 1.2))
+                    p.setPen(QPen(farbe, 1.5 if self.auswahl == i else 1.2,
+                                  Qt.DashLine if k["gravur"] else Qt.SolidLine))
+                    p.setBrush(Qt.NoBrush if k["gravur"] or not k["geschlossen"] else stil.farbe("#FDE3E1"))
                     for stueck in sa.kontur_teile(k["punkte"], U):
                         poly = QPolygonF([self.pkt(x, s) for x, s in stueck])
                         r = poly.boundingRect()
@@ -234,7 +253,21 @@ class AbwicklungAnsicht(QWidget):
                             belegt.append(r)
                             p.setPen(stil.farbe("#7A1A12"))
                             p.drawText(r, Qt.AlignLeft | Qt.AlignVCenter, txt)
+        p.setBrush(Qt.NoBrush)
         p.setRenderHint(QPainter.Antialiasing, False)
+        # feines Raster längs (Abstand nach Zoomstufe), nur auf dem Band
+        if self.ebenen["raster"]:
+            netz = QColor(stil.farbe("#000000"))
+            netz.setAlpha(22)
+            p.setPen(QPen(netz, 0.6))
+            sch = _schritt(self._mm(), 36)
+            a0, a1 = self._lang_px()
+            x = 0.0
+            while x <= L:
+                q = self.pkt(x, 0)
+                if a0 <= (q.y() if self.senkrecht else q.x()) <= a1:
+                    p.drawLine(q, self.pkt(x, U))
+                x += sch
         # Seitenkanten, Radiusübergänge, Naht
         if self.ebenen["raster"]:
             for t_, art in d["kanten"]:
@@ -255,6 +288,14 @@ class AbwicklungAnsicht(QWidget):
                     p.drawLine(a, b)
         p.setPen(QPen(stil.farbe("#5F6B7A"), 1))
         p.drawRect(band)
+        # markierte Stelle (Zeile der Koordinatentabelle)
+        if self.punkt_markiert is not None:
+            q = self.pkt(*self.punkt_markiert)
+            p.setRenderHint(QPainter.Antialiasing, True)
+            p.setPen(QPen(stil.farbe(stil.AKZENT), 2))
+            p.drawEllipse(q, 9, 9)
+            p.drawLine(q - QPointF(14, 0), q + QPointF(14, 0))
+            p.drawLine(q - QPointF(0, 14), q + QPointF(0, 14))
         # Messen
         if self.messpunkte:
             p.setPen(QPen(stil.farbe("#B42318"), 1.6, Qt.DashLine))
@@ -313,11 +354,14 @@ class AbwicklungAnsicht(QWidget):
             stellen = sorted({0.0, L} | {round(t["von"], 3) for t in d["teile"]} | {round(t["bis"], 3)
                                                                                  for t in d["teile"]})
             y = self.pkt(0, U).y() + 16
-            p.setPen(QPen(stil.farbe("#30363D"), 0.8))
+            p.setPen(QPen(stil.farbe(stil.TEXT), 0.8))
             for x0, x1 in zip(stellen, stellen[1:]):
                 q0, q1 = self.pkt(x0, U), self.pkt(x1, U)
                 p.drawLine(QPointF(q0.x(), y - 4), QPointF(q0.x(), y + 4))
                 p.drawLine(QPointF(q0.x(), y), QPointF(q1.x(), y))
+                if q1.x() - q0.x() > 14:        # Maßpfeile nach ISO 129 (geschlossen, gefüllt)
+                    self._pfeil(p, QPointF(q0.x(), y), 1)
+                    self._pfeil(p, QPointF(q1.x(), y), -1)
                 if q1.x() - q0.x() > 26:
                     p.drawText(QRectF(q0.x(), y - 15, q1.x() - q0.x(), 13), Qt.AlignCenter, _z(x1 - x0, 1))
             q = self.pkt(L, U)
@@ -347,6 +391,32 @@ class AbwicklungAnsicht(QWidget):
                 + (f" · Ohne Daten: Pos. {', '.join(str(x) for x in d['fehlt'])}" if d["fehlt"] else ""))
         p.drawText(QRectF(self.RAND_L, 2, max(self.width() - self.RAND_L - 10, 50), 14), Qt.AlignLeft | Qt.AlignVCenter,
                    kopf)
+        self._legende(p, p.fontMetrics().horizontalAdvance(kopf) + self.RAND_L + 24)
+
+    def _pfeil(self, p, spitze, richtung):
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setBrush(p.pen().color())
+        p.drawPolygon(QPolygonF([spitze, spitze + QPointF(7 * richtung, -2.2), spitze + QPointF(7 * richtung, 2.2)]))
+        p.restore()
+
+    def _legende(self, p, frei_ab):
+        """Kleine Legende rechts in der Kopfzeile (nur wenn Platz; sonst steht sie im Tooltip)."""
+        fm = p.fontMetrics()
+        breite = sum(fm.horizontalAdvance(n) + 22 for n, _, _ in LEGENDE)
+        x = self.width() - self.RAND_R - breite
+        if x < frei_ab:
+            return
+        for name, flaeche, rand in LEGENDE:
+            r = QRectF(x, 5, 10, 9)
+            if flaeche:
+                p.fillRect(r, stil.farbe(flaeche))
+            if rand:
+                p.setPen(QPen(stil.farbe(rand), 1.2, Qt.DashLine if name == "Gravur" else Qt.SolidLine))
+                p.drawRect(r) if flaeche else p.drawLine(r.left(), r.center().y(), r.right(), r.center().y())
+            p.setPen(stil.farbe(stil.TEXT_GRAU))
+            p.drawText(QRectF(x + 13, 2, fm.horizontalAdvance(name) + 4, 14), Qt.AlignLeft | Qt.AlignVCenter, name)
+            x += fm.horizontalAdvance(name) + 22
 
     # ------------------------------------------------------------------ Treffer und Maus
     def teil_bei(self, punkt):
@@ -389,7 +459,27 @@ class AbwicklungAnsicht(QWidget):
             self.bereich_gewaehlt.emit(self.bereich_text(*b))
         self._ziehen = (punkt, self.versatz)
 
+    def teil_text(self, i):
+        t = self.daten["teile"][i]
+        return (f"<b>Teil {i + 1}: Pos. {t.get('pos')}</b> {t.get('artikel') or ''}<br>Länge {_z(t['laenge'], 1)} mm · "
+                f"x {_z(t['von'], 1)} bis {_z(t['bis'], 1)} mm<br>Drehung {_z(t['drehung'], 0)}°"
+                + (" · gewendet" if t.get("gewendet") else "") + f" · {len(t['konturen'])} Konturen")
+
+    def leaveEvent(self, _):
+        if self.hover is not None:
+            self.hover = None
+            self.update()
+
     def mouseMoveEvent(self, e):
+        if self._ziehen is None and self.daten:
+            i = self.teil_bei(QPointF(e.position()))
+            if i != self.hover:
+                self.hover = i
+                self.update()
+                if i is None:
+                    QToolTip.hideText()
+                else:
+                    QToolTip.showText(e.globalPosition().toPoint(), self.teil_text(i), self)
         if self._ziehen is not None and e.buttons() & (Qt.LeftButton | Qt.MiddleButton):
             start, alt = self._ziehen
             d = QPointF(e.position()) - start

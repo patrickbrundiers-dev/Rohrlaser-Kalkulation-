@@ -28,8 +28,11 @@ NEUERUNGEN = [
                 "Zoom, Messen, Ebenen ein/aus, waagerecht/senkrecht, Umfang 1:1. <i>3D</i> zeigt die echten "
                 "STEP-Teile auf der Stange (sonst aus den Eingaben, nie gestreckt), <i>Technisch</i> die Koordinaten "
                 "jedes Schnitts und jeder Kontur. Links die Stangenliste zum Blättern, rechts Infopanel für Stange "
-                "und Teil; die letzte Ansicht bleibt gemerkt.",
-     "Nesting: Abwicklung je Stange mit Umfang, Konturen und Schnitten, 3D mit echten STEP-Teilen, Technische Ansicht."],
+                "und Teil; die letzte Ansicht bleibt gemerkt. Modern gestaltet: Umschalter mit Symbolen (Strg+1–5), "
+                "Ebenen-Menü, ruhige Teilfarben in allen Ansichten, Hervorhebung mit Tooltip, Raster, Legende, "
+                "Maßpfeile; 3D zoomt auf das gewählte Teil und zeigt Positionsschilder; Koordinatentabelle und Bild "
+                "verbunden, Abwicklung als PDF/DXF; Infokarten mit Teilvorschau; Stangenliste mit Belegungsbalken.",
+     "Nesting: Abwicklung je Stange, 3D mit echten STEP-Teilen, Technische Ansicht, moderne Ansichten, PDF/DXF."],
     ["0.9.470", "<b>Nesting-Arbeitsplatz 2.0</b> ([[nesting]]): neuer Aufbau mit Bauteilen, Material und Resten "
                 "links, dem Bild in der Mitte (Bearbeiten 2D, Stangenbild wie in der Optimierung, 3D), Kennzahlen "
                 "rechts und Optimierungsvergleich, Kosten, Berechnungsprotokoll und CSV-Export unten; Bereiche ein- "
