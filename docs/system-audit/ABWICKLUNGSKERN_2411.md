@@ -117,8 +117,8 @@ Darstellung.
 - Protokoll: je Datei `phasen.abwicklungskern` (neu/Rückfall/Gründe/ungleich/Zeiten), im Programm als Zeile im
   Tempo-Protokoll (Support-Paket).
 - Einstellung `step_abwicklungskern` (STEP-Import → Toleranzen, Experte) → `--abwicklungskern` an STEP-Import.exe. Der
-  Zwischenspeicher-Schlüssel enthält die wirksamen Einstellungen, also auch den Modus. Zwei Einträge der Seite
-  STEP-Import (*Dateien*) stehen jetzt unter *Ablage und Teilen* (Höchstzahl 25 je Seite).
+  Zwischenspeicher-Schlüssel enthält die wirksamen Einstellungen, also auch den Modus. Der Biegerohr-Faktor steht
+  jetzt auf der Seite *Knickrahmen und Steckverbindung* (Höchstzahl 25 je Seite).
 - Werkzeug `werkzeuge/abwicklungskern_vergleich.py` (alt/neu je Datei im selben Prozess, `--wdh`, Bericht) und
   `werkzeuge/step_benchmark.py` mit `RL_ABWICKLUNGSKERN=aus|an` (eigene Prozesse: CPU, RAM).
 - Test `tests/test_abwicklungskern.py` (A1–A7) in tests/alle.py.
