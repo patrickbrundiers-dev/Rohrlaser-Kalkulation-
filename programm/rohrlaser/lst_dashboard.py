@@ -17,7 +17,7 @@ Vorschläge mit Gegenprobe."""
 import threading
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QBrush
+from PySide6.QtGui import QBrush, QFont, QFontMetrics
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QDialog, QDialogButtonBox, QHBoxLayout, QInputDialog,
                                QLabel, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QTabWidget,
                                QVBoxLayout, QWidget)
@@ -80,7 +80,22 @@ def _tabelle(spalten):
     t.verticalHeader().setVisible(False)
     t.horizontalHeader().setStretchLastSection(True)
     t.setSortingEnabled(False)
+    _breiten(t)                      # leere Tabelle: Spalten so breit wie der Kopf
     return t
+
+
+def _breiten(tab):
+    """Spalten an den Inhalt anpassen, jede mindestens so breit wie ihr Kopf in einer Zeile (der Kopf ist einzeilig
+    hoch, ein umgebrochener Kopf wäre abgeschnitten)."""
+    tab.resizeColumnsToContents()
+    schrift = QFont(tab.horizontalHeader().font())
+    schrift.setBold(True)
+    fm = QFontMetrics(schrift)
+    for c in range(tab.columnCount() - 1):           # die letzte Spalte füllt den Rest
+        it = tab.horizontalHeaderItem(c)
+        kopf = fm.horizontalAdvance(it.text() if it else "") + 24
+        if tab.columnWidth(c) < kopf:
+            tab.setColumnWidth(c, kopf)
 
 
 def _fuellen(tab, zeilen, farbe=None, rechts=()):
@@ -96,7 +111,7 @@ def _fuellen(tab, zeilen, farbe=None, rechts=()):
             elif f:
                 it.setBackground(QBrush(stil.farbe(f)))
             tab.setItem(r, c, it)
-    tab.resizeColumnsToContents()
+    _breiten(tab)
 
 
 def _gegenprobe(val):
