@@ -5,7 +5,8 @@ Kannst du das aus der .lst auch so auslesen“; rohrlaser/lst_bahn.py, step_mess
 - S2 LST-Werte: Schnittlänge am Material wird Schneidweg, „Cutting length“ bleibt Maschinenweg, Laser-an-Zeit und
   Verfahrzeit aus CONSUMPTION_TIMES, Konturen je Klasse (Hüllmaß, Länge); unplausibler NC-Teil: Werte wie bisher
 - S3 3D: Rohr aus dem Schneidweg exakt wie die STEP (Volumen, Profil, Länge, Bohrung)
-- S4 Kalkulation: Laser-an-Zeit als reine Laserzeit (Patrick 24.11.: „als reine Laserzeit nutzen und die restlichen
+- S4 Kalkulation: Laser-an-Zeit als reine Laserzeit, Verfahrzeit der LST statt Verfahren/Drehen, gemessene Zeit
+  vor berechneter, nur das Fehlende (Nebenzeit, Entnahme) berechnet; (Patrick 24.11.: „als reine Laserzeit nutzen und die restlichen
   Werte dazurechnen wie jetzt auch“), Einstiche enthalten (Entscheidung Patrick) bzw. eigener Posten, Einstellung
   ganz/nein, Schneidzeit von Hand geht vor; Konturklassen als Text
 - S5 BPF: Geschwindigkeitsstufe je Kontur im Bericht
@@ -154,19 +155,25 @@ def _s3():
 @fall("S4 Kalkulation: Laser-an-Zeit als reine Laserzeit, Einstiche enthalten/eigen, ganz/nein, Hand geht vor")
 def _s4():
     (t,) = tp.lst_lesen(TMP / "TEST_QR.lst")
-    p = dict(step_merkmale=json.dumps({"programm": {"laser_an_s": t["laser_an_s"]}}))
-    assert rechnen.programm_laserzeit(p, {}) == (4.5, True)                     # Vorgabe: Einstiche enthalten
-    assert rechnen.programm_laserzeit(p, {"programmzeit_einstiche": "eigen"}) == (4.5, False)
+    p = dict(step_merkmale=json.dumps({"programm": {"laser_an_s": t["laser_an_s"], "verfahren_s": t["verfahren_s"]}}))
+    assert rechnen.programm_laserzeit(p, {}) == (4.5, True, 2.0)               # Vorgabe: Einstiche enthalten
+    assert rechnen.programm_laserzeit(p, {"programmzeit_einstiche": "eigen"}) == (4.5, False, 2.0)
     for w in ("ganz", "nein"):
         assert rechnen.programm_laserzeit(p, {"trumpf_zeit": w}) is None, w
     assert rechnen.programm_laserzeit(dict(p, zeit_manuell=9.0), {}) is None
     assert rechnen.programm_laserzeit({}, {}) is None
-    anteile = dict(gross=3.0, klein=1.0, einstiche=0.8, ecken=0.0, bewegen=2.0, drehen=1.0, neben=1.5)
-    neu = rechnen.laser_aus_programm(anteile, 4.5, True)                       # alles in der Laser-an-Zeit
+    g = dict(step_merkmale=json.dumps({"programm": {"laser_an_s": 4.5, "verfahren_s": 2.0, "gemessen_s": 7.8}}))
+    s_, _e, v_ = rechnen.programm_laserzeit(g, {})                              # gemessen gilt, Anteile wie im Programm
+    assert abs(s_ - 5.4) < 1e-9 and abs(v_ - 2.4) < 1e-9, (s_, v_)
+    anteile = dict(gross=3.0, klein=1.0, einstiche=0.8, ecken=0.0, anfahren=1.5, drehen=0.5, neben=1.5, entnahme=2.0)
+    neu = rechnen.laser_aus_programm(anteile, 4.5, True, 2.0)                  # alle Zeiten der LST übernommen
     assert abs(neu["gross"] - 4.5 * 0.75) < 1e-9 and abs(neu["klein"] - 4.5 * 0.25) < 1e-9 and neu["einstiche"] == 0
-    assert (neu["bewegen"], neu["drehen"], neu["neben"]) == (2.0, 1.0, 1.5), neu      # Rest wie bisher berechnet
-    neu = rechnen.laser_aus_programm(anteile, 4.5, False)                      # Einstiche eigener Posten
-    assert neu["einstiche"] == 0.8 and abs(neu["gross"] + neu["klein"] - 3.7) < 1e-9, neu
+    assert abs(neu["anfahren"] - 1.5) < 1e-9 and abs(neu["drehen"] - 0.5) < 1e-9, neu   # Verfahren aus der LST
+    assert (neu["neben"], neu["entnahme"]) == (1.5, 2.0), neu                  # nur das Fehlende berechnet
+    neu = rechnen.laser_aus_programm(anteile, 4.5, True, 4.0)
+    assert abs(neu["anfahren"] - 3.0) < 1e-9 and abs(neu["drehen"] - 1.0) < 1e-9, neu
+    neu = rechnen.laser_aus_programm(anteile, 4.5, False)                      # Einstiche eigen, Verfahren berechnet
+    assert neu["einstiche"] == 0.8 and abs(neu["gross"] + neu["klein"] - 3.7) < 1e-9 and neu["anfahren"] == 1.5, neu
     assert rechnen.laser_aus_programm(dict(bewegen=1.0), 2.0, True)["gross"] == 2.0
     assert rechnen.klassen_text(dict(gross_n=1, gross_mm=300.5, klein_n=2, klein_mm=62.8)) == \
         "groß 1 × 300,5 mm, klein 2 × 62,8 mm"

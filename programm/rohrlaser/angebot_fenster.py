@@ -6212,6 +6212,13 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 daten = {k_: t.get(k_) for k_ in tp._PROGRAMM_FELDER if t.get(k_) not in (None, "")}
                 if daten.get("laser_an_s"):
                     werte["step_merkmale"] = json.dumps({"programm": daten}, ensure_ascii=False)
+                    if modus == "ja":
+                        klassen.append(f"{t['artikel']}: Zeit aus der LST je Teil: Laser an {daten['laser_an_s']:g} s"
+                                       + (f", Verfahren und Drehen {daten['verfahren_s']:g} s"
+                                          if daten.get("verfahren_s") is not None else "")
+                                       + (f", an der Maschine gemessen {daten['gemessen_s']:g} s"
+                                          if daten.get("gemessen_s") else "")
+                                       + "; dazu berechnet: Nebenzeit, Messen, Entnahme und Beladen")
                 # ja: Laser-an-Zeit = reine Laserzeit, Rest berechnet (rechnen.programm_laserzeit); ohne Laser-an-Zeit
                 # oder ganz: ganze TRUMPF-Zeit je Teil als Schneidzeit von Hand
                 if t["zeit_s"] and (modus == "ganz" or (modus != "nein" and not daten.get("laser_an_s"))):

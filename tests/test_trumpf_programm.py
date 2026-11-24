@@ -214,7 +214,7 @@ s.aus_trumpf([str(tmp / "TEST_P11.lst")])
 p6 = db.positionen(a)[-1]
 assert p6["zeit_manuell"] in (None, "") and '"laser_an_s": 40.5' in p6["step_merkmale"], p6
 from rohrlaser import rechnen  # noqa: E402
-assert rechnen.programm_laserzeit(p6, {"trumpf_zeit": "ja"}) == (40.5, True), p6["step_merkmale"]
+assert rechnen.programm_laserzeit(p6, {"trumpf_zeit": "ja"}) == (40.5, True, 32.7), p6["step_merkmale"]
 db.einstellung_setzen("trumpf_zeit", "ganz")
 s.aus_trumpf([str(tmp / "TEST_P11.lst")])
 assert db.positionen(a)[-1]["zeit_manuell"] == 73.2, db.positionen(a)[-1]

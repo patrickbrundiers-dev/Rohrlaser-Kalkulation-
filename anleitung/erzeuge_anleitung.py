@@ -8788,8 +8788,9 @@ def kapitel_zukauf_angebot(i):
         ["Konturen", "jede Kontur aus dem Schneidweg mit Hüllmaß und Länge, eingeteilt in groß, mittel und klein nach "
          "den Grenzen der Maschine (wie bei der STEP-Messung); der Bericht nennt Anzahl und Länge je Klasse"],
         ["Laserzeit", "Einstellung <i>TRUMPF-Programm: Laserzeit aus dem Programm</i> (STEP-Import): <i>ja</i> "
-         "(Vorgabe) = die Laser-an-Zeit der LST ist die reine Laserzeit, Verfahren, Drehen, Nebenzeit und Entladen "
-         "rechnet das Programm wie immer dazu; <i>ganz</i> = die ganze von TRUMPF berechnete Zeit (Anschnitt + "
+         "(Vorgabe) = alle Zeiten der LST werden übernommen (Laser an als reine Laserzeit, Laser aus als Verfahren "
+         "und Drehen, gemessene Zeit vor berechneter); nur was die LST nicht enthält (Nebenzeit, Messen, Entnahme, "
+         "Beladen) rechnet das Programm wie immer dazu; <i>ganz</i> = die ganze von TRUMPF berechnete Zeit (Anschnitt + "
          "Konturen + Abschnitt) wird Schneidzeit von Hand; <i>nein</i> = das Programm rechnet alles selbst. Ohne "
          "Laser-an-Zeit in der LST gilt bei <i>ja</i> die ganze TRUMPF-Zeit"]], [40, 130])
     i.text("<b>Programmierter Schneidweg aus der LST</b> (Patrick 24.11.2026, seit 0.9.468): Der NC-Teil der LST "
@@ -8807,7 +8808,11 @@ def kapitel_zukauf_angebot(i):
            "(<i>CONSUMPTION_TIMES</i>): <i>Laser an</i> ist das Schneiden einschließlich der Einstiche, <i>Laser aus</i> "
            "das Verfahren und Drehen. Beide zusammen sind die berechnete TRUMPF-Zeit je Teil. Beladen, Entladen, "
            "Rohrwechsel und Nebenzeiten stehen nicht in der LST. Mit der Vorgabe ersetzt die Laser-an-Zeit in der "
-           "Kalkulation das Schneiden und die Ecken (verteilt auf groß, mittel, klein nach den berechneten Anteilen); "
+           "Kalkulation das Schneiden und die Ecken (verteilt auf groß, mittel, klein nach den berechneten Anteilen), "
+           "die Laser-aus-Zeit ersetzt Verfahren und Drehen. Hat die Maschine das Teil schon gemessen (die LST nach "
+           "dem Lauf gespeichert), gilt die gemessene Zeit. Nur was fehlt, rechnet das Programm dazu (Patrick "
+           "24.11.2026: „nur das dazurechnen, was fehlt“). Die Pausen-Einstellungen für Laden und Entladen in der "
+           "LST (z. B. Haltezeit Bundablage) sind Maschinenparameter, keine Zeit je Teil; "
            "die Einstiche sind enthalten (Einstellung <i>TRUMPF-Programm: Einstiche</i> = <i>enthalten</i>, "
            "Entscheidung Patrick 24.11.2026). Mit <i>eigen</i> bleibt die berechnete Einstichzeit ein eigener Posten "
            "und wird von der Laser-an-Zeit abgezogen. Eine Schneidzeit von Hand geht immer vor.")

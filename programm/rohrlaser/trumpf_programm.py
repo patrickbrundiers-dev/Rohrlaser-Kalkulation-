@@ -240,7 +240,10 @@ def lst_lesen(pfad=None, text=None, name=None):
                 maschinenzeit_s=round(_zahl(info.get("Maschinenzeit")) * 60.0, 1)
                 if _zahl(info.get("Maschinenzeit")) else None,
                 strahl_s=_strahl(ab.get("CONSUMPTION_TIMES") or [], len(pt)),
-                laser_an_s=laser_an, verfahren_s=verfahren))
+                laser_an_s=laser_an, verfahren_s=verfahren,
+                # an der Maschine gemessene Zeit je Teil (Mittel bzw. letzter Lauf), gilt vor der berechneten
+                gemessen_s=round(sum(v or 0.0 for v in gemessen.values()), 2) if gemessen and
+                any(gemessen.values()) else None))
             _bahn_werte(teile[-1], bahn, len(pt), weg)
     if not teile:
         raise TrumpfFehler(f"{name}: kein Teil im Programm gefunden.")
@@ -283,8 +286,8 @@ def _bahn_werte(t, bahn, teile, weg):
 # Programmdaten je Datei (Name ohne Endung, klein): beim Übernehmen aus der Messung in positionen.step_merkmale
 # ['programm'] (Laser-an-Zeit, TRUMPF-Zeit, Schneidweg); step.step_dateien trägt LST-Dateien (auch neben einer TUBX) ein
 PROGRAMMDATEN = {}
-_PROGRAMM_FELDER = ("quelle", "programm", "laser_an_s", "verfahren_s", "zeit_s", "maschinenweg", "schnittlaenge_material",
-                    "einstiche", "stueck", "maschine")
+_PROGRAMM_FELDER = ("quelle", "programm", "laser_an_s", "verfahren_s", "gemessen_s", "messungen", "zeit_s",
+                    "maschinenweg", "schnittlaenge_material", "einstiche", "stueck", "maschine")
 
 
 def programm_merken(pfad, auch=()):
