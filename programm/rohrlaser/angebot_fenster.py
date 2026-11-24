@@ -7372,6 +7372,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 sichtbar = mit_satz_zusatz and not self.fremd() and not self.db.nur_lesen
             elif text == "Baugruppe in anderes Angebot kopieren …":
                 sichtbar = mit_bg
+            elif text == "3D aus STEP nachladen …":          # nur mit Funktion Schnellimport (24.11.2026)
+                sichtbar = sichtbar and funktionen.an(funktionen.SCHNELLIMPORT, self.db)
             elif text == "Alle Schweißbaugruppen nachrechnen":      # Teil 2, A7
                 sichtbar = bool(baugruppe.baugruppen(self.positionen)) and not self.fremd() \
                     and not self.db.nur_lesen

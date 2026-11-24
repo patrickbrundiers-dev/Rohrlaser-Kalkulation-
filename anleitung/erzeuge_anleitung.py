@@ -5111,10 +5111,14 @@ def kapitel_step(i):
            "<b>Schneidweg &amp; Zusatzarbeiten (Schnellkalkulation)</b> misst genauso (dieselbe Messung, dieselben "
            "Schneidwege, dieselben Werte bis auf die letzte Stelle), baut aber keinen editierbaren 3D-Körper: "
            "gespeichert werden nur die Linienzüge der Konturen. Statt des Prüfdialogs erscheint eine kompakte "
-           "Ergebnisübersicht, danach rechnet die Kalkulation wie immer.", kurz=True)
-    i.liste("<b>Modus wählen</b>: nach der Dateiwahl fragt das Fenster <b>STEP-Import: Importmodus</b>. Das Häkchen "
+           "Ergebnisübersicht, danach rechnet die Kalkulation wie immer. Der Schnellimport ist <b>optional</b> und "
+           "ab Werk ausgeschaltet: <i>Einstellungen → Funktionen → Schnellimport STEP (ohne 3D)</i>. Aus heißt: "
+           "jeder Import ist vollständig, ohne Frage nach dem Modus; die Seite <i>STEP-Import: Schnellimport</i> "
+           "und „3D aus STEP nachladen …“ sind ausgeblendet. Er spart vor allem Arbeitsspeicher (bis 68 %) und den "
+           "Prüfdialog, an Rechenzeit nur etwa 5 %.", kurz=True)
+    i.liste("<b>Modus wählen</b> (Funktion an): nach der Dateiwahl fragt das Fenster <b>STEP-Import: Importmodus</b>. Das Häkchen "
             "<i>Als Vorgabe für neue Importe merken</i> speichert die Wahl. Unter <i>Einstellungen → STEP-Import: "
-            "Ablauf → Importmodus</i> stehen <i>STEP-Import: Importmodus als Vorgabe (vollständig oder "
+            "Schnellimport → Importmodus</i> stehen <i>STEP-Import: Importmodus als Vorgabe (vollständig oder "
             "Schnellkalkulation)</i> und <i>STEP-Import: bei jedem Import nach dem Importmodus fragen</i> (nein = "
             "immer die Vorgabe). „Art ändern …“ und "
             "das Ersetzen einer Position messen immer vollständig.",

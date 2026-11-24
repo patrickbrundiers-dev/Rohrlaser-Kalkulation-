@@ -55,14 +55,25 @@ def modus_aus_text(text):
     return MODUS_SCHNELL if str(text or "").strip().lower().startswith("schnell") else MODUS_VOLL
 
 
+def an(db):
+    """Funktion Schnellimport eingeschaltet (funktionen.SCHNELLIMPORT, Vorgabe aus, Patrick 24.11.2026)? Ohne
+    Datenbank aus."""
+    if db is None:
+        return False
+    from . import funktionen
+    return db.einstellung(funktionen.SCHNELLIMPORT) == "ja"
+
+
 def vorgabe(db):
-    """Importmodus als Vorgabe (Einstellung step_importmodus, Vorgabe vollständig)."""
-    return modus_aus_text(db.einstellung("step_importmodus") if db is not None else None)
+    """Importmodus als Vorgabe (Einstellung step_importmodus, Vorgabe vollständig); Funktion aus: immer vollständig."""
+    if not an(db):
+        return MODUS_VOLL
+    return modus_aus_text(db.einstellung("step_importmodus"))
 
 
 def fragen(db):
-    """Bei jedem Import nach dem Modus fragen (Einstellung step_importmodus_fragen, Vorgabe ja)."""
-    return (db.einstellung("step_importmodus_fragen") if db is not None else None) != "nein"
+    """Bei jedem Import nach dem Modus fragen (Einstellung step_importmodus_fragen, Vorgabe ja); Funktion aus: nie."""
+    return an(db) and db.einstellung("step_importmodus_fragen") != "nein"
 
 
 def mess_argumente(modus):

@@ -46,7 +46,7 @@ class ModusDialog(QDialog):
             lay.addWidget(text)
             self.knoepfe[m] = r
         self.vorgabe_haken = QCheckBox("Als Vorgabe für neue Importe merken")
-        self.vorgabe_haken.setToolTip("Einstellungen → STEP-Import: Ablauf → Importmodus. Dort lässt sich die Frage "
+        self.vorgabe_haken.setToolTip("Einstellungen → STEP-Import: Schnellimport → Importmodus. Dort lässt sich die Frage "
                                       "auch abschalten.")
         lay.addWidget(self.vorgabe_haken)
         box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)

@@ -68,8 +68,13 @@ class _Db:
 
 @fall("Logik: Modus aus Einstellung, Frage, Messargument, Stufen, Merken/Lesen/Nachladen")
 def _logik():
-    assert si.vorgabe(_Db()) == si.MODUS_VOLL and si.vorgabe(_Db(step_importmodus="Schnellkalkulation")) == si.MODUS_SCHNELL
-    assert si.fragen(_Db()) and not si.fragen(_Db(step_importmodus_fragen="nein"))
+    an = {"funktion_schnellimport": "ja"}
+    assert si.vorgabe(_Db(**an)) == si.MODUS_VOLL
+    assert si.vorgabe(_Db(step_importmodus="Schnellkalkulation", **an)) == si.MODUS_SCHNELL
+    assert si.fragen(_Db(**an)) and not si.fragen(_Db(step_importmodus_fragen="nein", **an))
+    # Funktion aus (Vorgabe, Patrick 24.11.2026): immer vollständig, keine Frage
+    assert not si.an(_Db()) and not si.an(None) and not si.fragen(_Db())
+    assert si.vorgabe(_Db(step_importmodus="Schnellkalkulation")) == si.MODUS_VOLL
     assert si.mess_argumente(si.MODUS_SCHNELL) == ["--netze-linien"] and si.mess_argumente(si.MODUS_VOLL) == []
     assert si.nur_linien({"nur_linien": True, "l": {}}) and not si.nur_linien({"p": [1], "t": {}})
     assert len(si.STUFEN) == 4 and si.stufe_text(9) == si.STUFEN[3]
@@ -123,6 +128,7 @@ def _fenster(db, tmp):
 
 db = Datenbank(TMP / "rohrlaser.db")
 fenster = _fenster(db, TMP)
+db.einstellung_setzen("funktion_schnellimport", "ja")      # Vorgabe aus (Patrick 24.11.2026)
 db.einstellung_setzen("step_importmodus_fragen", "nein")
 GESEHEN = {"pruef": 0, "ueber": 0}
 UEBER_AKTION = {"abwaehlen": None, "voll": False}
@@ -254,7 +260,13 @@ def _moduswahl():
         assert seite._importmodus_waehlen([str(DATEIEN[0])]) is None
         db.einstellung_setzen("step_importmodus_fragen", "nein")
         assert seite._importmodus_waehlen([str(DATEIEN[0])]) == si.MODUS_SCHNELL
+        # Funktion aus: ohne Frage vollständig, auch wenn die Vorgabe Schnellkalkulation ist
+        db.einstellung_setzen("step_importmodus_fragen", "ja")
+        db.einstellung_setzen("funktion_schnellimport", "nein")
+        ModusDialog.exec = lambda self: (_ for _ in ()).throw(AssertionError("keine Frage bei Funktion aus"))
+        assert seite._importmodus_waehlen([str(DATEIEN[0])]) == si.MODUS_VOLL
     finally:
+        db.einstellung_setzen("funktion_schnellimport", "ja")
         ModusDialog.exec = alt
         fenster.stumm = True
         db.einstellung_setzen("step_importmodus", "vollständig")
@@ -272,9 +284,17 @@ def _kaputt():
         assert not seite.positionen, (modus, len(seite.positionen))
 
 
-@fall("Einstellungen: Seite „STEP-Import: Ablauf“ mit Importmodus, Auswahl der Werte")
+@fall("Einstellungen: Funktion Schnellimport (Vorgabe aus), Seite „STEP-Import: Schnellimport“ nur wenn an")
 def _einstellungen():
-    from rohrlaser import einstellungen_ordnung as eo, stammdaten
+    from rohrlaser import einstellungen_ordnung as eo, funktionen, stammdaten
+    assert funktionen.FUNKTION[funktionen.SCHNELLIMPORT].vorgabe == "nein"
+    assert stammdaten.EINSTELLUNG[funktionen.SCHNELLIMPORT].vorgabe == "nein"
+    assert funktionen.seite_an("e_step_ablauf", db)
+    db.einstellung_setzen(funktionen.SCHNELLIMPORT, "nein")
+    try:
+        assert not funktionen.seite_an("e_step_ablauf", db) and funktionen.seite_an("e_step", db)
+    finally:
+        db.einstellung_setzen(funktionen.SCHNELLIMPORT, "ja")
     assert eo.seiten_von("step_importmodus") == ["e_step_ablauf"] == eo.seiten_von("step_importmodus_fragen")
     namen = {e.name for e in stammdaten.EINSTELLUNGEN}
     assert {"step_importmodus", "step_importmodus_fragen"} <= namen
