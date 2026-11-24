@@ -29,6 +29,21 @@ NEUERUNGEN = [
                 "es brauchen: Fenster mit vielen Feldern bauen sich spürbar schneller auf. Alle Rechenergebnisse "
                 "bleiben gleich (Fingerabdruck aller Positionen geprüft).",
      "Generalüberholung 2: Start und Bedienung schneller"],
+    ["0.9.474", "<b>Nesting: Stangenabwicklung und 3D auf CAD/CAM-Niveau</b> ([[nesting]]): neue Hauptansicht "
+                "<i>Abwicklung</i> je Materialstange, maßstäblich mit echtem Umfang (Eckradien, Seiten bzw. Grad), "
+                "jedes Teil an seinem Platz aus dem Nesting mit Drehung und Wenden, Gehrungen, Bohrungen, Langlöcher "
+                "und Gravuren an der richtigen Stelle am Umfang, Endbeschnitt, Schnittfugen, Rest und Greiferrest. "
+                "Zoom, Messen, Ebenen ein/aus, waagerecht/senkrecht, Umfang 1:1. <i>3D</i> zeigt die echten "
+                "STEP-Teile auf der Stange (sonst aus den Eingaben, nie gestreckt), <i>Technisch</i> die Koordinaten "
+                "jedes Schnitts und jeder Kontur. Links die Stangenliste zum Blättern, rechts Infopanel für Stange "
+                "und Teil; die letzte Ansicht bleibt gemerkt. Modern gestaltet: Umschalter mit Symbolen (Strg+1–5), "
+                "Ebenen-Menü, ruhige Teilfarben in allen Ansichten, Hervorhebung mit Tooltip, Raster, Legende, "
+                "Maßpfeile; 3D zoomt auf das gewählte Teil und zeigt Positionsschilder; Koordinatentabelle und Bild "
+                "verbunden, Abwicklung als PDF/DXF; Infokarten mit Teilvorschau; Stangenliste mit Belegungsbalken. "
+                "Verschnitt zwischen den Teilen (Gehrungsdreiecke, Fugen) rot in Abwicklung und 3D, mit Fläche und "
+                "gleichwertiger Länge je Stange. Der 1. Schnitt (Besäumschnitt, Endbeschnitt) ist in Abwicklung, 3D, "
+                "Koordinatentabelle und DXF eingezeichnet.",
+     "Nesting: Abwicklung je Stange, 3D mit echten STEP-Teilen, Technische Ansicht, moderne Ansichten, PDF/DXF."],
     ["0.9.473", "<b>Eigener STEP-Viewer</b> ([[step_viewer]]): <i>Datei → STEP-Viewer</i> (Strg+Umschalt+O) oder "
                 "Rechtsklick auf eine Position → <i>Im STEP-Viewer öffnen …</i> zeigt eine STEP-Datei ohne Angebot: "
                 "Format (AP203/AP214/AP242), Einheit und Baugruppe sofort, danach alle Bauteile nach Art, 3D mit "
