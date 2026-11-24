@@ -1090,20 +1090,25 @@ def main(ziel):
     d.felder["gewinn"].setText("12")
     d.show()
     QApplication.processEvents()
+    # Fenster der Stufe wie ein eigenes Angebot (24.11.2026): Positionen, Kalkulation, Schnittplan, Einstellungen
+    foto.foto("staffel_positionen", d, [(d.kopf, 1), (d.reiter.tabBar(), 2), (d.mengen, 3), (d.summenzeile, 4),
+                                        (d.rechnen_knopf, 5)])
+    d.zeigen(d.felder["gewinn"].parentWidget())
+    QApplication.processEvents()
     foto.foto("staffel_stufe", d, [(d.felder["gewinn"], 1), (d.felder["fracht"], 2), (d.erweitert, 3),
-                                   (d.preise, 4), (d.mengen, 5)])
+                                   (d.gruppen["Einstellungen"].tabBar(), 4)])
     d.reject()
     d = StufeDialog(st, st.modell.daten[0])          # Kalkulation und Zeiten der Stufe (09.11.2026)
     d.show()
-    d.reiter.setCurrentIndex(1)
-    QApplication.processEvents()
     e = d.ergebnis
+    d.zeigen(e.kalk_seite)
+    QApplication.processEvents()
     foto.foto("staffel_kalkulation", d, [(e.stand, 1), (e.summen, 2), (e.preis, 3), (e.kompakt_haken, 4),
                                          (e.kompakt_ansicht, 5)])
-    d.reiter.setCurrentIndex(2)
+    d.zeigen(e.zeiten_seite)
     QApplication.processEvents()
     foto.foto("staffel_zeiten", d, [(e.zeiten, 1), (e.zeit_summen, 2)])
-    d.reiter.setCurrentIndex(3)
+    d.zeigen(e.werte_seite)
     QApplication.processEvents()
     foto.foto("staffel_werte", d, [(e.werte, 1)])
     d.reject()

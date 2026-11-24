@@ -178,7 +178,7 @@ ok("6  Fertigung und Rüsten je Stufe = Zeit × Stundensatz der Arbeitsschritte 
 
 # 9) Änderung eines Werts der Stufe: sofort neue Preise, kein neuer Mengenlauf
 from PySide6.QtCore import Qt  # noqa: E402
-from rohrlaser.staffel_seite import StufeDialog, angebotspreise  # noqa: E402
+from rohrlaser.staffel_seite import StufeDialog, _z, angebotspreise  # noqa: E402
 st = s.st_seite
 m = st.modell
 assert m.rowCount() == 6 and m.data(m.index(0, 2)) == "Satz Rahmen: 2"     # alte Aufrufe: je Menge eine Stufe
@@ -309,8 +309,19 @@ json.dumps(st.zeilen)
 zb = st.baum.zeile("zeiten")
 assert zb is not None and st.baum.zeile("zeit_laser") is not None and zb.text(2).endswith("min")
 d = StufeDialog(st, m.daten[3])
-assert [d.reiter.tabText(i) for i in range(d.reiter.count())] == ["Einstellungen und Mengen", "Kalkulation", "Stangen", "Zeiten",
-                                                                 "Wirksame Werte"]
+# Aufbau wie ein eigenes Angebot (Patrick 24.11.2026): Reiter und Unterreiter des Angebots, Kopf und Summenzeile
+assert [d.reiter.tabText(i) for i in range(d.reiter.count())] == ["Positionen", "Kalkulation", "Schnittplan",
+                                                                 "Einstellungen", "Übersicht"]
+assert d.reiter_titel() == ["Positionen", "Kalkulation › Kalkulation", "Kalkulation › Zeiten & Arbeitskosten",
+                            "Schnittplan › Stangen", "Einstellungen › Einstellungen", "Einstellungen › Materialpreise",
+                            "Einstellungen › Wirksame Werte", "Übersicht"], d.reiter_titel()
+assert "Stufe 4" in d.kopf.text() and "Netto gesamt" in d.summenzeile.text()
+assert d.uebersicht.rowCount() == len(d.ergebnis.zeilen) >= 1
+assert d.uebersicht.werte(0)["Gegenprobe"].startswith("="), d.uebersicht.werte(0)
+r0 = next(r for r, (schl, _, _) in enumerate(d.auswahl) if schl == staffeln.txt(d.ergebnis.zeilen[0]["schluessel"]))
+assert d.mengen.item(r0, 7).text() == _z(d.ergebnis.zeilen[0]["preis_einheit"]) and d.mengen.item(r0, 8).text()
+d.zeigen(d.ergebnis.zeiten_seite)
+assert d.reiter.tabText(d.reiter.currentIndex()) == "Kalkulation" and d.gruppen["Kalkulation"].currentIndex() == 1
 e = d.ergebnis
 assert "Stand: Mengenlauf" in e.stand.text() and "Verkaufspreis" in e.summen.text()
 assert e.preis.rowCount() == 1 and e.preis.item(0, 5).text().startswith("gleich")
@@ -321,14 +332,31 @@ assert any(t.startswith("Materialpreis") for t in werte) and any(t.startswith("L
 e.kompakt_haken.setChecked(False)
 assert not e.alle_ansicht.isHidden() and e.kompakt_ansicht.isHidden()
 d.reject()
-speichern(3, gewinn=30)                     # Gewinn der Stufe nach dem Mengenlauf: Staffelpreis neu, Grund genannt
+# Gewinn der Stufe gehört seit 24.11.2026 zur Kalkulation (Staffel = Angebot): Stufe veraltet, ihr Mengenlauf rechnet
+# neu, danach ist der Staffelpreis wieder der Preis der Kalkulation mit 30 % Gewinn
+speichern(3, gewinn=30)
+assert st.anzahl_veraltet() == 1
+assert st.rechnen(alle=False) is not None and st.anzahl_veraltet() == 0
 d = StufeDialog(st, m.daten[3])
 e = d.ergebnis
-assert float(e.preis.item(0, 4).text().replace(".", "").replace(",", ".")) > 0 and "Gewinn" in e.preis.item(0, 5).text()
+assert float(e.preis.item(0, 3).text().replace(".", "").replace(",", ".")) > 0 and e.preis.item(0, 5).text().startswith("gleich")
 werte = {e.werte.item(r, 0).text(): (e.werte.item(r, 1).text(), e.werte.item(r, 2).text()) for r in range(e.werte.rowCount())}
 assert werte["Gewinn [%]"] == ("30,0 %", "Stufe")
 d.reject()
 speichern(3, gewinn=None)
+assert st.rechnen(alle=False) is not None and st.anzahl_veraltet() == 0
+# Bedienung wie im Angebot: „Übernehmen und rechnen“ speichert, rechnet die Stufe sofort neu, Fenster bleibt offen
+d = StufeDialog(st, m.daten[3])
+vor = d.mengen.item(r0, 7).text()
+d.felder["gewinn"].setText("40")
+assert d.uebernehmen() and st.anzahl_veraltet() == 0 and d.stufe.get("gewinn") == 40
+nach = d.mengen.item(r0, 7).text()
+assert nach and nach != vor and d.ergebnis.preis.item(0, 3).text() == nach, (vor, nach)
+werte = {d.ergebnis.werte.item(r, 0).text(): d.ergebnis.werte.item(r, 1).text() for r in range(d.ergebnis.werte.rowCount())}
+assert werte["Gewinn [%]"] == "40,0 %" and d.uebersicht.werte(0)["Gegenprobe"].startswith("=")
+d.felder["gewinn"].setText("")
+assert d.uebernehmen() and d.mengen.item(r0, 7).text() == vor and st.anzahl_veraltet() == 0
+d.reject()
 d = StufeDialog(st, {"id": None})           # noch nicht gerechnete Stufe: Hinweis statt Werte
 assert "noch nicht gerechnet" in d.ergebnis.stand.text() and d.ergebnis.preis.rowCount() == 0
 d.reject()
@@ -336,7 +364,7 @@ d.reject()
 # Stangen im Reiter Staffeln (markierte Stufe), je Abmessung der Vergleich zum Angebot
 from rohrlaser.staffel_seite import angebot_schema, vergleich_je_abmessung  # noqa: E402
 d = StufeDialog(st, m.daten[1])
-assert "Stangen" in [d.reiter.tabText(i) for i in range(d.reiter.count())]
+assert "Schnittplan › Stangen" in d.reiter_titel()
 an = d.ergebnis.stangen
 sch = staffeln.schema_der_zeile(st.zeilen, d.ergebnis.zeilen[0])
 assert an.tabelle.rowCount() == len(sch["abmessungen"]) + 1 and an.tabelle.item(an.tabelle.rowCount() - 1, 0).text() == "Summe"
@@ -349,7 +377,7 @@ st.ansicht.setCurrentIndex(m.index(2, 0))
 st.stangen_zeigen(immer=True)
 assert st.stangen_titel.text().startswith("<b>Stufe 3</b>") and st.stangen.tabelle.rowCount() >= 2
 assert st.stangen.tabelle.item(st.stangen.tabelle.rowCount() - 1, 2).text().endswith("Stangen")
-ok("Stufe öffnen: Reiter Kalkulation (Summen, Preis der Stufe, Tabelle je Bauteil), Stangen, Zeiten und wirksame "
+ok("Stufe öffnen wie ein Angebot (Positionen, Kalkulation, Schnittplan, Einstellungen, Übersicht, Übernehmen und rechnen): Reiter Kalkulation (Summen, Preis der Stufe, Tabelle je Bauteil), Stangen, Zeiten und wirksame "
    "Werte; Zeiten und Stangenoptimierung auch im Reiter Staffeln")
 
 # Menge geändert: Stufe veraltet; angelegte Stufen rechnet das Programm nach einer kurzen Pause selbst neu
