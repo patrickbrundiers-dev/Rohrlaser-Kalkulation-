@@ -2249,6 +2249,9 @@ EINSTELLUNGEN = (
     Einstellung("benutzer_telefon", "Telefon (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("teilen_ordner", "Gemeinsamer Ordner der Mitarbeiter (leer = nicht teilen)", "Benutzer", "ordner", ""),
     Einstellung("teilen_takt", "Automatischer Abgleich alle [min] (0 = aus)", "Benutzer", "zahl", 1.0, 0, 60),
+    # Austauschordner 2.0 (austausch_dateien.py, Patrick 24.11.2026)
+    Einstellung("austausch_aktiv", "Seite Austausch verwenden (gemeinsame Dateien, Zuordnung, Aufgaben, Versionen)",
+                "Benutzer", "auswahl", "ja", auswahl="janein"),
     Einstellung("teilen_meldung", "Windows-Meldung bei Übergaben, Anfragen, Notizen und fälligen Wiedervorlagen",
                 "Benutzer", "auswahl", "ja", auswahl="janein"),
     Einstellung("nummern_vorrat", "Angebotsnummern im Vorrat für Arbeiten ohne gemeinsamen Ordner (0 = vorläufige "
