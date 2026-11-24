@@ -14,7 +14,7 @@ Faktor. Bei einem Unterschied ist der Rückgabewert 1.
 
 Aufruf (PostgreSQL wie in CI über werkzeuge/mit_pg.py, nicht als root):
   python werkzeuge/mit_pg.py -- python werkzeuge/rechen_benchmark.py lauf  BAUM ergebnis.json [--groessen S,M,L,XL]
-         [--wdh 3] [--profil ordner]
+         [--wdh 3] [--wdh-lang 1] [--profil ordner]   (Median, 90 %/95 % und längster Lauf je Messung)
   python werkzeuge/rechen_benchmark.py vergleich alt.json neu.json [--bericht bericht.md]
 BAUM = Wurzel eines Programmstands (z. B. ein git worktree des alten Stands); ohne Angabe dieser Stand.
 """
@@ -80,7 +80,19 @@ def _messen(name, fn, wdh, kalt, profil=None):
         zeiten.append(time.perf_counter() - t)
         cpu.append(time.process_time() - c)
     return dict(name=name, n=wdh, median_s=statistics.median(zeiten), min_s=min(zeiten), cpu_s=statistics.median(cpu),
-                ram_mb=round(_ram_mb(), 1), abdruck=_abdruck(erg))
+                ram_mb=round(_ram_mb(), 1), abdruck=_abdruck(erg), **_perzentile(zeiten))
+
+
+def _perzentile(zeiten):
+    """Hohe Perzentile und längster Lauf (Master-Auftrag 24.11.2026: einzelne schnelle Läufe dürfen das Ergebnis
+    nicht verfälschen); Rang-Verfahren wie rohrlaser.leistung.perzentil (linear, wie Excel QUANTIL.INKL)."""
+    w = sorted(zeiten)
+
+    def p(q):
+        r = (len(w) - 1) * q / 100.0
+        i = int(r)
+        return w[-1] if i >= len(w) - 1 else w[i] + (w[i + 1] - w[i]) * (r - i)
+    return dict(p90_s=p(90), p95_s=p(95), max_s=w[-1], zeiten_s=[round(z, 6) for z in zeiten])
 
 
 def lauf(args):
@@ -133,12 +145,13 @@ def lauf(args):
         def staf():
             return staffeln.rechnen_alle(kopf, pos, stufen, k, tab, e)
         if g != "XL" or args.xl_staffeln:
-            out["messungen"].append(dict(_messen(f"Staffeln kalt [{g}]", staf, 1, True, args.profil), **info))
+            out["messungen"].append(dict(_messen(f"Staffeln kalt [{g}]", staf, args.wdh_lang, True, args.profil), **info))
 
         def mv():
             return maschinen_vergleich.vergleich(kopf, pos, k, tab, einst)
         if g in ("S", "M", "L"):
-            out["messungen"].append(dict(_messen(f"Maschinenvergleich kalt [{g}]", mv, 1, True, args.profil), **info))
+            out["messungen"].append(dict(_messen(f"Maschinenvergleich kalt [{g}]", mv, args.wdh_lang, True,
+                                                     args.profil), **info))
         for z in out["messungen"][-9:]:
             if z.get("groesse") == g:
                 print(f"{z['name']:<34} {z['median_s']:8.3f} s  CPU {z['cpu_s']:7.3f} s  RAM {z['ram_mb']:7.1f} MB  "
@@ -157,8 +170,9 @@ def vergleich(args):
     neu = json.loads(Path(args.neu).read_text(encoding="utf-8"))
     a = {m["name"]: m for m in alt["messungen"]}
     zeilen = [f"Alt: {alt['stand']}  ·  Neu: {neu['stand']}", "",
-              "| Messung | Positionen | Teile | alt s | neu s | Faktor | RAM alt/neu MB | gleich |",
-              "|---|---:|---:|---:|---:|---:|---|---|"]
+              "| Messung | Positionen | Teile | Läufe | alt Median s | neu Median s | alt 95 % s | neu 95 % s | Faktor "
+              "(Median) | RAM alt/neu MB | gleich |",
+              "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|"]
     fehler = 0
     for m in neu["messungen"]:
         x = a.get(m["name"])
@@ -167,8 +181,10 @@ def vergleich(args):
         gleich = x["abdruck"] == m["abdruck"]
         fehler += not gleich
         faktor = x["median_s"] / m["median_s"] if m["median_s"] > 0 else 0
-        zeilen.append(f"| {m['name']} | {m['positionen']} | {m['teile']} | {_z(x['median_s'])} | {_z(m['median_s'])} | "
-                      f"{_z(faktor)} | {x['ram_mb']:.0f} / {m['ram_mb']:.0f} | {'ja' if gleich else '**NEIN**'} |")
+        p95 = [_z(v["p95_s"]) if v.get("p95_s") is not None else "–" for v in (x, m)]
+        zeilen.append(f"| {m['name']} | {m['positionen']} | {m['teile']} | {x['n']}/{m['n']} | {_z(x['median_s'])} | "
+                      f"{_z(m['median_s'])} | {p95[0]} | {p95[1]} | {_z(faktor)} | {x['ram_mb']:.0f} / "
+                      f"{m['ram_mb']:.0f} | {'ja' if gleich else '**NEIN**'} |")
     text = "\n".join(zeilen) + "\n"
     print(text)
     if args.bericht:
@@ -184,6 +200,7 @@ def main(argv=None):
     lp.add_argument("ergebnis")
     lp.add_argument("--groessen", default="S,M,L,XL")
     lp.add_argument("--wdh", type=int, default=3)
+    lp.add_argument("--wdh-lang", type=int, default=1, help="Läufe für Staffeln und Maschinenvergleich")
     lp.add_argument("--profil")
     lp.add_argument("--xl-staffeln", action="store_true")
     vp = sub.add_parser("vergleich")

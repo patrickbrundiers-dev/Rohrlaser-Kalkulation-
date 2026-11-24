@@ -739,6 +739,20 @@ def kapitel_start(i):
             "100 ms, 1 s, länger) mit der längsten Anweisung, fehlgeschlagene Berechnungen mit dem letzten Befund "
             "sowie die Hintergrundaufgaben (Optimieren, Staffelpreise, Maschinenvergleich, Wiederholteile, "
             "Sicherung): was gerade läuft und seit wann, und wie oft und wie lange sie seit dem Start liefen.",
+            "<b>Leistung je Verarbeitungsschritt (Rechenkern 2.0, 24.11.2026):</b> Ein eigener Abschnitt zeigt für "
+            "jeden wichtigen Schritt (STEP-Import gesamt und seine Teilschritte Datei lesen, umwandeln und heilen, "
+            "Flächen nähen, Baugruppenstruktur, gleiche Körper suchen, Körper messen, Baugruppe auswerten; "
+            "Optimieren, Kalkulation, Staffeln, Maschinenvergleich, Nesting-Vergleich, PDF für Angebot, "
+            "Werkstattpapiere, Kalkulation und Angebotsakte) die Anzahl, den <i>Median</i> und den <i>95-%-Wert</i> "
+            "der letzten 256 Läufe, den längsten Lauf, die Gesamtzeit, die CPU-Auslastung, den Arbeitsspeicher und "
+            "den größten Zuwachs während eines Laufs sowie Zählwerte wie Dateien, MB und Körper, dazu Fehler und "
+            "Warnungen. Der 95-%-Wert zeigt, wie lange es in den langsamen Fällen dauert – ein einzelner schneller "
+            "Lauf verfälscht ihn nicht. Gemessen wird nur um die Schritte herum; Ergebnisse ändert das nicht.",
+            "<b>Schneller ohne andere Ergebnisse (Rechenkern 2.0):</b> Die Staffeln rechnen die Schnittzeit je "
+            "Position nur noch einmal für alle Stufen, weil sie nicht von der Stückzahl abhängt (Staffeln etwa "
+            "15–20 % schneller). Beim STEP-Import rechnen die Booleschen Operationen (z. B. beim Schließen offen "
+            "gezeichneter U-Profile) auf allen Prozessorkernen: U-Profile mit vielen Konturen etwa 1,3× schneller, "
+            "die 126 Prüf-STEPs zusammen 11 %. Alle Werte bleiben auf die letzte Stelle gleich.",
             "<b>Ergebnisprüfung:</b> Nach jeder Kalkulation prüft das Programm das Ergebnis unabhängig von der "
             "Rechnung: jede Zahl muss gültig sein (kein NaN, nicht unendlich). Sonst zeigt der Angebots-Check einen "
             "FEHLER ([[angebots_check]]), das Protokoll eine Warnung und die Diagnose die fehlgeschlagene "
@@ -3863,8 +3877,48 @@ def abschnitte_profirst_angebot(i):
             "Machbarkeit); unten <i>Optimierungsvergleich</i>, <i>Kosten je Position</i>, "
             "<i>Berechnungsprotokoll</i> und <i>Export</i>. Die Knöpfe <b>Links</b>, <b>Rechts</b>, <b>Unten</b> "
             "blenden Bereiche aus, die Teiler ändern die Größe. Hell und dunkel wie das Programm.",
-            "<b>Ansichten</b> aus denselben Daten: <i>Bearbeiten (2D)</i>, <i>Stangenbild wie Optimierung</i> und "
-            "<i>3D</i> (gewählte Stange als Rohr, ziehen = drehen, Mausrad = Zoom, Doppelklick = zurück).",
+            "<b>Ansichten</b> aus denselben Nesting-Daten, oben als Umschalter mit Symbolen (Strg+1 bis Strg+5; "
+            "die zuletzt benutzte bleibt gemerkt): <i>Abwicklung</i>, <i>3D</i>, <i>Technisch</i>, <i>Alle "
+            "Stangen</i> (Bearbeiten, Teile ziehen) und <i>Stangenbild</i> wie in der Optimierung. Links im Reiter "
+            "<i>Stangen</i> jede Stange mit Länge, Teilen, Ausnutzung und einem kleinen Belegungsbalken (Teile in "
+            "Farbe, Rest grün bzw. rot); über der Abwicklung das Feld „Stange 1 von 3“; Pfeiltasten, <b>Bild "
+            "auf/ab</b> oder ◀ ▶ blättern.",
+            "<b>Abwicklung</b> der gewählten Stange maßstäblich: Länge waagerecht (Knopf <i>Senkrecht</i> dreht), "
+            "quer der echte Umfang der Außenhaut mit Eckradien (Seiten oben, vorne, unten, hinten bzw. Grad beim "
+            "Rundrohr, Radiusübergänge gestrichelt, Schweißnaht). Jedes Teil liegt genau dort, wo das Nesting es "
+            "plant, mit seiner Drehung (Konturen an der richtigen Stelle am Umfang) und gewendet, wenn Ende B vorn "
+            "liegt; Gehrungen und Schrägschnitte als echte Schnittkanten, Bohrungen, Langlöcher, Ausschnitte und "
+            "Gravuren wie im Teile-Editor. Dazu Endbeschnitt, Schnittfugen, Rest (grün verwertbar, rot Verschnitt) "
+            "und Greiferrest, Kettenmaß mit Maßpfeilen und Gesamtmaß, feines Raster und eine kleine Legende. Der "
+            "<b>Verschnitt zwischen den Teilen</b> (Fläche zwischen den Schnittkanten benachbarter Teile, z. B. die "
+            "Dreiecke bei Gehrungen, mit den Schnittfugen) ist rot schraffiert; Maus darüber bzw. Klick nennt "
+            "Fläche in cm² und die gleichwertige Rohrlänge, rechts steht die Summe je Stange; im 3D sind dieselben "
+            "Stücke rot. Der <b>1. Schnitt</b> (Besäumschnitt am Stangenanfang, Ende des Endbeschnitts, z. B. "
+            "10 mm) ist als kräftige Linie mit Schild <i>1. Schnitt · Besäumen</i> eingezeichnet, im 3D beschriftet "
+            "und steht als erste Zeile in der Koordinatentabelle der technischen Ansicht und in der DXF. Die "
+            "Teile haben ruhige Farben (dieselben wie im 3D und unter <i>Alle Stangen</i>); unter der Maus wird ein "
+            "Teil hervorgehoben und ein Tooltip nennt Pos., Länge und Lage, das gewählte Teil hat einen blauen "
+            "Rand. Menü <i>Ebenen</i>: Bemaßung, Schnittpositionen, Konturen, Reste markieren, Seiten/Winkel ein- "
+            "und ausblenden; <i>Senkrecht</i> (Taste S), <i>Umfang 1:1</i> (Umfang im Längenmaßstab), "
+            "<i>Messen</i> (Taste M, zwei Punkte: Abstand längs und am Umfang). Mausrad = Zoom an der Maus, "
+            "ziehen = verschieben, Doppelklick bzw. F = ganze Stange. Klick auf ein Teil: rechts seine Daten; "
+            "Rechtsklick: <i>Zur Position</i>, <i>Gleiche Teile hervorheben</i>, <i>Im 3D zeigen</i>.",
+            "<b>3D</b>: die echten Bauteile auf der Stange, gelegt und gedreht nach dem Nesting. Hat die Position "
+            "ein STEP-Netz, wird es gezeigt, sonst das Rohr aus den Eingaben (wie im Teile-Editor). Passt ein "
+            "STEP-Netz nicht zur Teillänge, wird nichts gestreckt: das Teil kommt aus den Eingaben und der Grund "
+            "steht unter dem Bild. Endbeschnitt, Rest und Greiferrest grau und halb durchsichtig, über jedem Teil "
+            "ein Schild mit Nummer und Pos. Das 3D zeigt zuerst das gewählte Teil groß (ohne Wahl die ersten "
+            "1,5 m); <i>Ganze Stange</i> zeigt alles, <i>Auf Teil</i> holt das gewählte Teil zurück. Klick auf ein "
+            "Teil wählt es in allen Ansichten.",
+            "<b>Technisch</b>: dieselbe Abwicklung mit Koordinaten an jedem Schnitt und jeder Kontur und darunter "
+            "eine Tabelle (Teil, Art, Kontur, x von/bis ab Materialanfang, Lage am Umfang, Winkel/Seite). Klick "
+            "auf eine Zeile markiert die Stelle im Bild (Fadenkreuz), Klick auf ein Teil wählt seine Zeilen. "
+            "<b>PDF</b> speichert die Abwicklung der Stange maßstäblich auf A4 quer, <b>DXF</b> als Zeichnung (x "
+            "längs, y Umfang in mm, Layer wie die Rohrabwicklung).",
+            "<b>Infopanel</b> rechts als Karten unter den Kennzahlen: Stange mit Ausnutzungsbalken (Profil, Wand, "
+            "Werkstoff, Länge, Gewicht, Teile, Verbrauch, Schnittfugen, Endbeschnitt, Rest, Greiferrest, "
+            "Materialkosten) und das gewählte Teil mit kleiner 3D-Vorschau (Position, Bezeichnung, STEP oder "
+            "Eingaben, Länge, Lage auf der Stange, Umfangslage, Drehwinkel, gewendet, Anzahl Konturen).",
             "<b>Bild</b> wie das Stangenbild: Gehrungen schräg, Gehrungen ineinander grün, gemeinsamer Schnitt als "
             "blaues Dreieck, Schnittfugen, Schweißnaht, verwertbarer Rest grün, Verschnitt rot schraffiert, "
             "Greiferrest; darunter Maßkette und Lineal. Strg + Mausrad zoomt, mittlere Maustaste verschiebt. Auch "
@@ -13072,6 +13126,80 @@ def kapitel_einstellungen(i):
            "gewechselt, gelten deren aktuelle Werte.")
 
 
+def kapitel_austausch(i):
+    i.kapitel("Austauschordner: gemeinsame Dateien, Aufgaben und Versionen", marke="austausch")
+    i.text("Seite <b>Austausch</b> in der Seitenleiste unter <i>Arbeiten</i>: der gemeinsame Ordner als Datei- und "
+           "Projektverwaltung im Programm. Dateien hochladen, ansehen, einem Kunden, Angebot oder Auftrag zuordnen, "
+           "einem Kollegen zuweisen, kommentieren und alte Fassungen zurückholen, ohne den Windows-Explorer. Es gibt "
+           "<b>keinen Server</b>: die Dateien liegen im gemeinsamen Ordner ([[mehrere_arbeitsplaetze]]) im "
+           "Unterordner <b>Austausch</b>, Zuordnung, Status und Kommentare gehen mit dem normalen Abgleich an alle "
+           "Plätze. Ohne gemeinsamen Ordner zeigt die Seite nur die eigenen Bereiche.", kurz=True)
+    i.liste("<b>Links</b>: Übersicht, <i>Neu für mich</i> (seit dem letzten Ansehen neu oder geändert), "
+            "<i>Meine Aufgaben</i> (mir zugewiesen, nicht fertig), Favoriten, Zuletzt verwendet, <i>Wer arbeitet "
+            "woran</i>; darunter die Bereiche <b>Gemeinsame Dateien</b>, <b>Mein Ordner</b> (persönlich), "
+            "<b>Anfragen</b> (nur lesen), <b>Angebotsablage</b> und <b>PPEASE-Ablage</b>, dazu Archiv, Papierkorb "
+            "und gespeicherte Suchen.",
+            "<b>Oben</b>: Pfad zum Anklicken, Suche über <b>alle</b> Bereiche (Name, Kunde, Nummern, Mitarbeiter, "
+            "Kommentare und Text in TXT/CSV/LST/PDF, Groß-/Kleinschreibung und Umlaute egal), Filter Typ, "
+            "Mitarbeiter, Status, Kunde, Zeitraum, Sortierung, <i>Kacheln</i> (mit Vorschaubildern) oder Liste, "
+            "<i>Suche merken</i> (Rechtsklick auf eine gemerkte Suche: <i>Gespeicherte Suche löschen</i>). "
+            "<i>Neuer Ordner</i> legt im gewählten Ordner einen Unterordner an.",
+            "<b>Rechts</b>: Infobereich der gewählten Datei mit Vorschau, Bauteilinfo (STEP), Zuordnung, "
+            "Verantwortlich, Status (Neu, Ungesehen, In Bearbeitung, Rückfrage erforderlich, Fertiggestellt, "
+            "Archiviert), Priorität, Fällig (Haken <i>fällig am</i> und Datum), Aufgabe, interne Notiz, Kommentare "
+            "mit Verlauf und Versionen. Bei STEP-Dateien übernimmt <i>In Kalkulation</i> die gewählten Dateien in ein "
+            "neues Angebot (Kunde aus der Zuordnung) oder ins geöffnete Angebot.",
+            "<b>Hochladen</b>: Knopf <i>Hochladen …</i> oder Dateien/Ordner in die Liste ziehen; mit Fortschritt und "
+            "Abbrechen. Gibt es den Namen schon, fragt das Programm: <i>Neue Version</i> (die alte Fassung wird "
+            "gesichert), <i>Beide behalten</i> (Name (2)) oder <i>Überspringen</i>. Programme (.exe, .bat …) werden "
+            "nie angenommen. Herausziehen in den Explorer oder in eine Mail geht auch.", kurz=True)
+    i.genauer()
+    i.abschnitt("Zuordnung zu Kunde, Angebot und Auftrag")
+    i.text("Beim Hochladen sucht das Programm im Namen, im Ordner und in der Angebotsablage nach Angebots-, "
+           "Auftrags-, PPEASE-, Anfrage- und Kundennummern. Sichere Treffer (z. B. <i>2026-00042</i> im Namen und "
+           "das Angebot gibt es) werden gleich eingetragen; unsichere stehen gelb als <b>Vorschlag</b> im "
+           "Infobereich: <i>Vorschlag bestätigen</i> oder <i>Verwerfen</i>. Die Kachel <i>Zuordnung bestätigen</i> "
+           "in der Übersicht zeigt alle offenen Vorschläge. Rechtsklick → <i>Zuordnung erkennen</i> prüft die "
+           "gewählten Dateien neu.")
+    i.abschnitt("Aufgaben, Kommentare und Benachrichtigungen")
+    i.liste("Im Infobereich <i>Verantwortlich</i>, Status, Priorität, Fällig und Aufgabe eintragen und "
+            "<i>Speichern</i>; bei mehreren gewählten Dateien gilt es für alle. Rechtsklick → <i>Zuweisen an</i> und "
+            "<i>Status</i> gehen ohne Infobereich.",
+            "Kommentar unten im Infobereich; mit <b>@MK</b> vorne geht er gezielt an den Kollegen MK.",
+            "<b>Benachrichtigungen …</b> oben (Fenster <i>Benachrichtigungen im Austauschordner</i>): wählen, wobei dieser Platz Bescheid bekommt (neue Datei, neue "
+            "Kundenanfrage, Aufgabe, Zuweisung, geänderte eigene Datei, Kommentar, Status, Fertiggestellt). Die "
+            "Meldung kommt unten in der Statusleiste und, wenn das Programm im Hintergrund ist, im Windows-"
+            "Infobereich. Eigene Änderungen werden nie gemeldet, viele neue Dateien kommen als eine Sammelmeldung, "
+            "dieselbe geänderte Datei höchstens alle 30 Minuten.",
+            "Die <b>Übersicht</b> zeigt Kacheln (neue Dateien, meine Aufgaben, fällig, offene Rückfragen, in "
+            "Bearbeitung, fertig, Zuordnung bestätigen) und Listen (kürzlich geändert, wer arbeitet woran, "
+            "Aktivitäten). <i>Anpassen …</i> (Fenster <i>Übersicht anpassen</i>) blendet Kacheln und Listen je Platz "
+            "ein oder aus.")
+    i.abschnitt("Bearbeiten, Versionen, Papierkorb: nichts geht verloren")
+    i.liste("<b>Bearbeiten</b> (Doppelklick öffnet die Vorschau, Rechtsklick → <i>Bearbeiten</i>) öffnet die Datei "
+            "mit dem zugehörigen Programm, sichert vorher die aktuelle Fassung unter <i>Versionen</i> und zeigt den "
+            "Kollegen „in Bearbeitung von …“. Bearbeitet schon jemand die Datei (auch in Excel/Word erkannt), fragt "
+            "das Programm: <i>Nur ansehen</i> oder <i>Trotzdem bearbeiten</i>.",
+            "<b>Versionen</b>: jede ersetzte Fassung liegt im Unterordner <i>_Versionen</i> (Name_V1_Datum_Kürzel). "
+            "<i>Fassung wiederherstellen</i> macht eine ältere wieder aktuell und sichert die jetzige vorher.",
+            "Hat ein Kollege die Datei geändert, während man sie offen hatte, wird nichts still überschrieben: das "
+            "Programm meldet den Konflikt und wer zuletzt gespeichert hat.",
+            "<b>Löschen</b> (Entf) verschiebt in den <b>Papierkorb</b> des Bereichs; dort <i>Wiederherstellen</i>. "
+            "Endgültig löschen und den Papierkorb leeren (älter als 30 Tage) darf nur der Administrator.",
+            "<b>Archivieren</b> verschiebt nach <i>_Archiv</i> (Ansicht Archiv links); <i>Aus dem Archiv holen</i> "
+            "bringt es zurück.")
+    i.abschnitt("Rechte und Schutz")
+    i.text("Wer hochladen, ändern, löschen oder verwalten darf, folgt den Rollen der Benutzerverwaltung (Hauptadmin). "
+           "Der Bereich Anfragen ist nur zum Lesen; PPEASE-Angebotsordner legt das Programm nie an (das macht "
+           "PPEASE). Weil es keinen Server gibt, prüft das Programm die Rechte; wer zusätzlich verhindern will, dass "
+           "jemand im Explorer löscht, stellt die Windows-Freigabe des gemeinsamen Ordners entsprechend ein. Jede "
+           "Aktion steht im Verlauf der Datei (wer, wann, was). Abschalten: Einstellungen → <i>Ablage und Teilen</i> → "
+           "<i>Seite Austausch verwenden</i>.")
+    i.tabelle(["Taste", "Wirkung"], [["F5", "Ordner neu einlesen"], ["F2", "Umbenennen"],
+                                    ["Entf", "In den Papierkorb"], ["Doppelklick", "Ordner öffnen bzw. Vorschau"]],
+              [40 * mm, 120 * mm])
+
+
 def kapitel_mehrere(i):
     i.kapitel("Mehrere Arbeitsplätze: Kürzel, Nummernkreis und gemeinsamer Ordner", marke="mehrere_arbeitsplaetze")
     i.text("Jeder Mitarbeiter hat das Programm auf seinem Rechner, mit eigener Datendatei. Damit trotzdem jeder die "
@@ -16704,6 +16832,9 @@ STECKBRIEFE = {
     "zukauf": ("Zukaufartikel, Lieferanten, Einkaufspreise und Aufschläge verwalten.", "Reiter <i>Zukaufartikel</i>"),
     "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",
                      "Reiter <i>Frachtkosten</i>"),
+    "austausch": ("Gemeinsame Dateien im Programm: hochladen, suchen, Kunde/Angebot/Auftrag zuordnen, Kollegen "
+                  "zuweisen, kommentieren, Versionen und Papierkorb; Übersicht und Benachrichtigungen.",
+                  "Seite <i>Austausch</i> in der Seitenleiste unter Arbeiten; Einstellungen → Ablage und Teilen"),
     "mehrere_arbeitsplaetze": ("Kürzel als Bearbeiter, gemeinsamer Nummernkreis 2026-00001; Angebote und Stammdaten "
                                "mit den Kollegen über einen gemeinsamen Ordner teilen, Angebote übergeben, sehen wer "
                                "woran arbeitet.",
@@ -16735,7 +16866,7 @@ TEILE = [
       kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
-     [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_material, kapitel_zukauf, kapitel_frachtkosten,
+     [kapitel_einstellungen, kapitel_mehrere, kapitel_austausch, kapitel_stammdaten, kapitel_material, kapitel_zukauf, kapitel_frachtkosten,
       kapitel_pflege, kapitel_admin_datenbank, kapitel_lizenz]),
     ("Anhang", "Nachschlagen", "STEP-Messung im Detail, Tastenkürzel, häufige Fragen und die Neuerungen je "
      "Version.",

@@ -7,7 +7,7 @@ größten Arbeitsspeicher (Spitze eines Messprozesses). Der Vergleich zweier Lä
 (JSON der Messung, jede Zahl, jeder Text, jede Liste) – Standard ist Toleranz 0, also bitgleich.
 
 Aufruf:
-    python werkzeuge/step_benchmark.py lauf BAUM ERGEBNIS DATEI_ODER_ORDNER … [--prozesse 0] [--zeitlimit 600]
+    python werkzeuge/step_benchmark.py lauf BAUM ERGEBNIS DATEI_ODER_ORDNER … [--prozesse 0] [--zeitlimit 600] [--wdh 1]
     python werkzeuge/step_benchmark.py vergleich ERGEBNIS_ALT ERGEBNIS_NEU [--toleranz 0] [--bericht DATEI.md]
                                              [--ohne FELD …]   (neue Felder nicht vergleichen)
     python werkzeuge/step_benchmark.py suite ERGEBNIS [--bericht DATEI.md]
@@ -25,6 +25,7 @@ anders ausfallen. Für den Vergleich daher beide Läufe unter gleichen Bedingung
 import argparse
 import json
 import os
+import statistics
 import subprocess
 import sys
 import time
@@ -115,7 +116,7 @@ def _starten(befehl, umgebung, zeitlimit):
     return rc, time.perf_counter() - t0, cpu, ram, "".join(ausgabe)
 
 
-def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600, erwartung=None):
+def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600, erwartung=None, wdh=1):
     baum, ergebnis = Path(baum), Path(ergebnis)
     messen = baum / "programm" / "step_messung" / "step_messen.py"
     if not messen.exists():
@@ -131,18 +132,46 @@ def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600, erwa
         netze.mkdir(exist_ok=True)
         befehl = [sys.executable, str(messen), "--ausgabe", str(txt), "--json", str(js), "--netze", str(netze),
                   "--prozesse", str(prozesse), "--zeitlimit", str(zeitlimit), str(p)]
-        rc, dauer, cpu, ram, aus = _starten(befehl, umgebung, gesamt_max)
+        # wdh > 1 (Master-Auftrag 24.11.2026): jede Datei mehrmals, Dauer = Median, dazu 90 %/95 % und längster Lauf;
+        # jede Wiederholung muss dieselben Messwerte liefern (sonst ist die Messung nicht reproduzierbar)
+        laeufe, abdruck = [], None
+        for i in range(max(1, wdh)):
+            laeufe.append(_starten(befehl, umgebung, gesamt_max))
+            if wdh > 1 and js.exists():
+                d = _lade(js)
+                for f in FLUECHTIG:
+                    d.pop(f, None)
+                jetzt = json.dumps(d, sort_keys=True, ensure_ascii=False)
+                if abdruck is not None and jetzt != abdruck:
+                    print(f"NICHT REPRODUZIERBAR: {n} Lauf {i + 1}", flush=True)
+                abdruck = jetzt
+        dauern = sorted(x[1] for x in laeufe)
+        rc, _, cpu, ram, aus = laeufe[-1]
+        dauer = statistics.median(dauern)
+        cpu = statistics.median(x[2] for x in laeufe)
+        ram = max(x[3] for x in laeufe)
         zeiten = next((json.loads(z[7:]) for z in reversed(aus.splitlines()) if z.startswith("ZEITEN ")), {})
         teil = (zeiten.get("dateien") or {}).get(p.name) or {}
         werte[n] = dict(datei=str(p), rc=rc, dauer_s=round(dauer, 3), cpu_s=round(cpu, 3),
                         cpu_auslastung=round(cpu / dauer, 2) if dauer > 0 else 0, ram_mb=round(ram, 1),
                         lesen_s=teil.get("lesen"), abschluss_s=teil.get("abschluss"),
                         koerper_s=zeiten.get("koerper_s"), koerper=zeiten.get("koerper_n"),
-                        schritte=teil.get("schritte") or {}, **kategorie(p),
+                        schritte=teil.get("schritte") or {}, **kategorie(p), **_perzentile(dauern),
                         **kennzahlen(js, (erwartung or {}).get(p.name)))
         print(f"{dauer:8.1f} s  CPU {cpu:8.1f} s  RAM {ram:7.0f} MB  rc {rc}  {n}", flush=True)
     (ergebnis / "benchmark.json").write_text(json.dumps(werte, indent=1, ensure_ascii=False), encoding="utf-8")
     return werte
+
+
+def _perzentile(dauern):
+    """Läufe, 90 %/95 % (linear wie rohrlaser.leistung.perzentil) und längster Lauf einer Datei."""
+    w = sorted(dauern)
+
+    def p(q):
+        r = (len(w) - 1) * q / 100.0
+        i = int(r)
+        return w[-1] if i >= len(w) - 1 else w[i] + (w[i + 1] - w[i]) * (r - i)
+    return dict(laeufe=len(w), p90_s=round(p(90), 3), p95_s=round(p(95), 3), max_s=round(w[-1], 3))
 
 
 def unterschiede(a, b, toleranz=0.0, pfad="", ohne=()):
@@ -273,6 +302,7 @@ def main(argv=None):
     a.add_argument("--prozesse", type=int, default=0)
     a.add_argument("--zeitlimit", type=int, default=600)
     a.add_argument("--erwartung", help="JSON {Dateiname: {Körpernummer: Art}} für die Trefferquote der Erkennung")
+    a.add_argument("--wdh", type=int, default=1, help="Läufe je Datei (Median, 95 %%, längster Lauf)")
     s = sub.add_parser("suite")
     s.add_argument("ergebnis")
     s.add_argument("--bericht")
@@ -286,7 +316,7 @@ def main(argv=None):
     x = ap.parse_args(argv)
     if x.befehl == "lauf":
         erw = json.loads(Path(x.erwartung).read_text(encoding="utf-8")) if x.erwartung else None
-        lauf(x.baum, x.ergebnis, x.pfade, x.prozesse, x.zeitlimit, erwartung=erw)
+        lauf(x.baum, x.ergebnis, x.pfade, x.prozesse, x.zeitlimit, erwartung=erw, wdh=x.wdh)
         return 0
     if x.befehl == "suite":
         print(suite(x.ergebnis, x.bericht))
