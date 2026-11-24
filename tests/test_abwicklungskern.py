@@ -187,7 +187,8 @@ class DB:
         return self.werte.get(n)
 
 
-assert "--abwicklungskern" not in step_einstellungen.mess_argumente(DB({}))
+args = step_einstellungen.mess_argumente(DB({}))   # Vorgabe an (Patrick 24.11.2026)
+assert args[args.index("--abwicklungskern") + 1] == "an"
 assert "--abwicklungskern" not in step_einstellungen.mess_argumente(DB({"step_abwicklungskern": "aus"}))
 args = step_einstellungen.mess_argumente(DB({"step_abwicklungskern": "an"}))
 assert args[args.index("--abwicklungskern") + 1] == "an"

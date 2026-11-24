@@ -55,8 +55,8 @@ def mess_argumente(db):
     # Erkennung aus ist: dann bleiben sie Fertigungsteile und brauchen die volle Messung
     if (db.einstellung("step_zukauf_begriffe") or "ja") != "ja":
         args.append("--normteile-voll")
-    # Abwicklungskern (Patrick 24.11.2026): nur mitgeben, wenn nicht aus (sonst Aufruf und Zwischenspeicher wie bisher)
-    modus = db.einstellung("step_abwicklungskern") or "aus"
+    # Abwicklungskern (Patrick 24.11.2026): nur mitgeben, wenn nicht aus (aus = Aufruf und Zwischenspeicher wie bisher)
+    modus = db.einstellung("step_abwicklungskern") or "an"   # Vorgabe an (Patrick 24.11.2026)
     if modus in ("vergleich", "an"):
         args += ["--abwicklungskern", modus]
     if (db.einstellung("step_cache") or "ja") == "ja":

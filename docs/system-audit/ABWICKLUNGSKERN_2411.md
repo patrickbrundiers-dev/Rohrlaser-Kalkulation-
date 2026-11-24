@@ -20,8 +20,9 @@ beschleunigen“). Technischer Untersuchungsbericht und Umsetzung. Programmstand
   Fehlerbehebung (radiale Bohrung im Rundrohr galt als 0,72° schräg).
 - **Hybrid und Rückfall:** 170 von 211 Profilmessungen laufen über den neuen Weg, 41 automatisch über den bisherigen
   (Freiform, Platten/Flachstahl, Anbauteile, lange Fenster, keine freie Stelle).
-- **Vorgabe bleibt „aus“**, bis Patrick umschaltet (Einstellung *Messung: Abwicklungskern*). Grund: die Werte sind
-  innerhalb der Toleranz gleich, aber nicht in jeder letzten Stelle bitgleich (Entscheidung 21.11.: nur bitgleich).
+- **Vorgabe „an“** (Patrick-Entscheidung 24.11.2026 21:47 UTC, Einstellung *Messung: Abwicklungskern*). Die Werte
+  sind innerhalb der Toleranz gleich, aber nicht in jeder letzten Stelle bitgleich; Patrick hat das ausdrücklich
+  freigegeben (Ausnahme zur Regel vom 21.11. „nur bitgleich“). „aus“ bleibt als Schalter für die bisherige Rechnung.
 
 ## 2. Ist-Zustand der Importarchitektur
 

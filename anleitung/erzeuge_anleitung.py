@@ -5369,9 +5369,10 @@ def kapitel_step(i):
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "
            "Grenzen liegen, steht im Anhang ([[step_messung]]).")
     i.abschnitt("Abwicklungskern (schnellere Rohrmessung)", marke="abwicklungskern")
-    i.text("Seit dieser Version kann die STEP-Messung Rohre und Profile schneller messen. Einschalten unter <i>Einstellungen "
-           "→ STEP-Import → Toleranzen (Experte) → Messung: Abwicklungskern</i>. Vorgabe ist <b>aus</b> (wie bisher). "
-           "<b>an</b> nutzt den neuen Weg, wo er sicher geht, und rechnet sonst automatisch wie bisher. "
+    i.text("Seit dieser Version misst die STEP-Messung Rohre und Profile schneller. Einstellung unter <i>Einstellungen "
+           "→ STEP-Import → Toleranzen (Experte) → Messung: Abwicklungskern</i>. Vorgabe ist <b>an</b>: "
+           "der neue Weg wird genutzt, wo er sicher geht, sonst rechnet das Programm automatisch wie bisher. "
+           "<b>aus</b> rechnet nur wie bisher. "
            "<b>vergleich</b> rechnet beide Wege, übernimmt den bisherigen und schreibt die Zeiten und Unterschiede "
            "ins Tempo-Protokoll (Support-Paket).", kurz=True)
     i.genauer()
@@ -12894,7 +12895,8 @@ def kapitel_einstellungen(i):
          "Prozesse entlasten einen langsamen Arbeitsplatz. Gilt nur für diesen Arbeitsplatz."],
         ["STEP-Import", "Messung: Abwicklungskern (schnelle Rohrmessung; aus = bisher, vergleich = beide rechnen "
                         "und protokollieren, an = neu mit automatischem Rückfall)",
-         "Vorgabe aus. an: Rohre und Profile schneller messen, wo es sicher geht, sonst wie bisher; vergleich: "
+         "Vorgabe an: Rohre und Profile schneller messen, wo es sicher geht, sonst wie bisher. aus: nur bisherige "
+         "Rechnung; vergleich: "
          "beide Wege rechnen, Zeiten und Unterschiede ins Tempo-Protokoll ([[abwicklungskern]])."],
         ["STEP-Import", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper vereinfacht gemessen)",
          "Braucht ein einzelner Körper länger (Vorgabe 600 s; wer noch die alte Vorgabe 120 s hatte, bekommt mit "
