@@ -10761,6 +10761,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         neue_profile, erneut, pdf_danach = True, False, False   # ohne Dialog: Profile anlegen, Doppelte überspringen
         fertig_danach = False
         gelernt = None
+        nicht_gemessen = []
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
             # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)
@@ -10791,6 +10792,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             if nach is not None and nach.ok():          # N4: endgültiges Messergebnis ablegen
                 json_ablage = self._messung_ablegen(nach.ergebnis_json)
             kopieren = dlg.kopieren_haken.isChecked()
+            nicht_gemessen = list(getattr(dlg, "nicht_gemessen", None) or ())     # 24.11.2026: nie halbfertig
             with tempo.abschnitt("STEP: Vorprüfung nach dem Prüfdialog"):
                 fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
             neue_profile, erneut, pdf_danach = dlg.neue_profile_anlegen(), dlg.doppelte_eintragen(), dlg.pdf_danach
@@ -10960,6 +10962,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             with tempo.abschnitt("STEP: Dateien in den Angebotsordner kopieren"):
                 erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
+        if nicht_gemessen:
+            weg = (f"{len(nicht_gemessen)} Teil(e) nicht übernommen, Messung nicht fertig (Bohrungen/Konturen fehlten): "
+                   + ", ".join(nicht_gemessen[:6]) + (" …" if len(nicht_gemessen) > 6 else "")
+                   + " – STEP erneut einlesen und die Messung abwarten.")
+            text += " " + weg
+            erg["bericht"].append(weg)
         aktion = None
         if len(self.positionen) == len(erg["positionen"]) and (self.db.einstellung("angebot_automatik") or "ja") \
                 == "ja" and (not self.f.stumm or getattr(self.f, "automatik_testen", False)):

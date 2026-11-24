@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QItemSelectionModel, QObject, QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
-                               QLineEdit, QSizePolicy,
+                               QLineEdit, QMessageBox, QSizePolicy,
                                QMenu, QPushButton, QSplitter, QStyledItemDelegate, QTableWidget, QTableWidgetItem,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
@@ -1147,7 +1147,10 @@ class StepPruefDialog(QDialog):
                 it.setIcon(0, QIcon(magenta))
             else:
                 it.setIcon(0, ampel_punkt("rot"))
-            if hat_huelle(m):               # von Hand nachtragen: Profilform, Profil-ID, Knopf
+            if step.noch_in_messung(m):     # 24.11.2026: nie raten, solange die Messung noch läuft
+                it.setToolTip(0, "Das Teil wird noch gemessen (langsames Teil) und rückt von selbst in die Liste. "
+                              "Nachtragen von Hand geht erst, wenn die Messung es nicht messen konnte.")
+            elif hat_huelle(m):             # von Hand nachtragen: Profilform, Profil-ID, Knopf
                 n = QTreeWidgetItem(it, ["Von Hand nachtragen:"])
                 n.setData(1, Qt.UserRole, i)
                 form = QComboBox()
@@ -2529,7 +2532,7 @@ class StepPruefDialog(QDialog):
         """Nicht übernehmbares Teil Nr. index (und alle gleichen der Datei, siehe Hüllmaß) von Hand als Rohr/Profil
         nachtragen; gibt die neue Zeile zurück oder None (keine Profilform gewählt)."""
         from . import step
-        if not form:
+        if not form or step.noch_in_messung(self.messwerte[index]):
             return None
         self.werte_schreiben()
         m = self.messwerte[index]
@@ -2537,7 +2540,8 @@ class StepPruefDialog(QDialog):
         gleiche = [i for g in self.fehler_gruppen.values() for i in (g.child(n).data(1, Qt.UserRole)
                                                                      for n in range(g.childCount()))
                    if self.messwerte[i].get("datei") == m.get("datei") and hat_huelle(self.messwerte[i])
-                   and all(abs(a - b) <= 0.2 for a, b in zip(masse(self.messwerte[i]), masse(m)))]
+                   and all(abs(a - b) <= 0.2 for a, b in zip(masse(self.messwerte[i]), masse(m)))
+                   and not step.noch_in_messung(self.messwerte[i])]
         if not step.von_hand(m, form, profil_id, self.k.profile):
             return None
         for i in gleiche:           # gleiche nicht übernehmbare Körper der Datei (gleiches Hüllmaß) ebenso
@@ -2916,13 +2920,37 @@ class StepPruefDialog(QDialog):
             self._nach_uhr.start(1000)
             self.nachmessung_pruefen()
 
+    def _ohne_langsame_fragen(self, namen):
+        """Warten abgebrochen: True = ohne die langsamen Teile übernehmen (sie fehlen im Angebot), False = zurück
+        zur Liste, die Messung läuft weiter. Tests setzen self.ohne_langsame (True/False) statt der Frage."""
+        if getattr(self, "ohne_langsame", None) is not None:
+            return bool(self.ohne_langsame)
+        liste = "\n".join(f"• {n}" for n in namen[:8]) + ("\n• …" if len(namen) > 8 else "")
+        box = QMessageBox(QMessageBox.Question, "STEP-Import",
+                          f"{len(namen)} Teil(e) sind noch nicht fertig gemessen:\n{liste}\n\nIhre Bohrungen und "
+                          "Konturen fehlen noch. Halbfertig übernimmt das Programm sie nicht.", parent=self)
+        ohne = box.addButton("Ohne diese Teile übernehmen", QMessageBox.DestructiveRole)
+        zurueck = box.addButton("Zurück zur Liste (weiter messen)", QMessageBox.RejectRole)
+        box.setDefaultButton(zurueck)
+        box.setEscapeButton(zurueck)
+        box.exec()
+        return box.clickedButton() is ohne
+
     def accept(self):
+        from . import step
         offen = self._nachmessung_offen() if self.nachmessung is not None else []
         if offen and self.nachmessung.laeuft():          # N4: auf die langsamen Teile warten
-            self.nachmessung.warten(self, len(offen))
+            namen = [str(self.messwerte[i].get("artikel") or "") for i in offen]
+            if not self.nachmessung.warten(self, len(offen), namen) and not self._ohne_langsame_fragen(namen):
+                return          # zurück zur Liste: nichts übernommen, die Messung läuft weiter
         if offen:
             self.nachmessung_pruefen()
+        # Fehler 24.11.2026: nie halbfertige Teile (Platzhalter, auch von Hand nachgetragene) übernehmen
         self.werte_schreiben()
+        self.nicht_gemessen = step.ohne_nachmessung(self.messwerte) if self.nachmessung is not None else []
+        if self.nicht_gemessen:         # Liste neu, sonst setzte die alte Zeile das Häkchen wieder
+            self._baum_fuellen()
+            self.werte_schreiben()
         k = self.korrekturen()
         self.lernen_werte = k if k and self.lernen_haken.isChecked() else None
         from . import art_korrekturen
