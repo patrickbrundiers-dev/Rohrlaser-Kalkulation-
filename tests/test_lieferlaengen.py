@@ -27,6 +27,7 @@ for _feld, _wert in zip(MASCHINE_WERTE, ALTE_MASCHINEN["RL-1"][1]):
 einst = db.einstellungen()
 assert einst["laenge_vergleich"] == "nein"      # Vorgabe: kein Vergleich (Patrick 22.10.2026)
 einst["laenge_vergleich"] = "ja"                # die Tests unten prüfen den Vergleich
+einst["laenge_automatisch"] = "nein"           # hier: nur Empfehlung, Übernahme von Hand (Automatik: test_zuschnitt_12m_2411)
 kopf = dict(maschine="T03", stange=6000)
 
 

@@ -131,8 +131,8 @@ SEITEN = (
            _a("Interner Einkauf", "einkauf_email einkauf_blech_email einkauf_name einkauf_anrede"),
            _a("Online-Preise der Lieferanten", "online_veraltet_tage online_sprung"))),
     Seite("e_lieferlaengen", "Lieferlängen-Regeln", ALLE_PLAETZE,
-          (_a("Lieferlängen vergleichen", "laenge_vergleich laenge_mindest_eur laenge_mindest_anteil "
-                                          "laenge_auto_huellkreis laenge_auto"),
+          (_a("Lieferlängen vergleichen", "laenge_vergleich laenge_automatisch laenge_mindest_eur laenge_mindest_anteil "
+                                          "laenge_handling_eur laenge_handling_ab laenge_auto_huellkreis laenge_auto"),
            _a("Schnittplan vereinfachen", "muster_mehrverschnitt stangenplan_stabil"),
            _a("Verschachtelung (Nesting-Arbeitsplatz)", "nesting_strategie nesting_eur_belegung"),
            _a("Zuschnitt beim Lieferanten", "zuschnitt_verlust zuschnitt_puffer zuschnitt_kosten"),
