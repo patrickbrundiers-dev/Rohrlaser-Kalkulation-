@@ -124,7 +124,7 @@ class Nesting3D(QWidget):
             if bis - von <= 0:
                 continue
             if art == "teil":
-                farbe = QColor(self.farben.get(t.get("ref"), stil.TEIL_FARBEN[0])) if t else QColor("#4E79A7")
+                farbe = QColor(self.farben.get(t.get("ref"), stil.TEIL_FARBEN[0])) if t else QColor(stil.farbe("#4E79A7"))
                 if self.auswahl == n_teil:
                     farbe = stil.farbe("#FF7F0E")
                 platz = n_teil
@@ -150,10 +150,10 @@ class Nesting3D(QWidget):
         for x in (0.0, laenge):
             pts = [proj(x, y, z) for y, z in quer]
             flaechen.append((sum(e[1] for e in pts) / len(pts) - 1e-3, QPolygonF([e[0] for e in pts]),
-                             stil.farbe("#D9DEE4"), None))
+                             stil.farbe("#D9DDE2"), None))
         flaechen.sort(key=lambda f: -f[0])
         self._flaechen = []
-        rand = QPen(stil.farbe("#30363D"), 0.6)
+        rand = QPen(stil.farbe("#3C4650"), 0.6)
         for _, poly, f, platz in flaechen:
             p.setPen(rand)
             p.setBrush(f)
