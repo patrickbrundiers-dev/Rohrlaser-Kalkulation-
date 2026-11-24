@@ -18,7 +18,11 @@ Zeit der Kalkulation; so ändert sich nur, was der Vorschub bestimmt.
 
 Verwalten (L5): Freigeben (mit Begründung, Preiswirkung wird angezeigt; über PREIS_GRENZE % oder Faktor außerhalb
 FAKTOR_BEREICH nur mit ausdrücklicher Bestätigung), Ablehnen (Vorschlag ruht, bis sich der Faktor um mehr als
-RUHE_FAKTOR ändert oder RUHE_TEILE neue Teile dazukommen), Zurücksetzen (Kennwerte-Historie) und Protokoll."""
+RUHE_FAKTOR ändert oder RUHE_TEILE neue Teile dazukommen), Zurücksetzen (Kennwerte-Historie) und Protokoll.
+
+Gegenprobe (Produktionsdaten-Intelligenz, Patrick 24.11.2026): jeder Vorschlag wird vor der Freigabe an den
+Referenzdaten geprüft (validieren: je Programm aus den übrigen gelernt). Sagt der Faktor die Teile nicht besser voraus
+als die bisherige Rechnung, geht die Freigabe nur mit ausdrücklicher Bestätigung."""
 import datetime
 import json
 import statistics
@@ -182,6 +186,34 @@ def auswerten(eintraege, mindest_teile=MINDEST_TEILE, mindest_programme=MINDEST_
                 faelle=[e[2] for e in drin], status="ok" if ok else "zu wenig Daten", warnung=warnung)
 
 
+def validieren(eintraege):
+    """Gegenprobe mit Referenzdaten (Produktionsdaten-Intelligenz 24.11.2026, Schritt 9 „mit Referenzdaten testen“):
+    je Programm den Faktor nur aus den ANDEREN Programmen lernen und damit die Teile dieses Programms vorhersagen.
+    Ergebnis dict(programme, teile, fehler_vorher (Median |Ist ÷ Soll − 1| in %), fehler_nachher (mit dem gelernten
+    Faktor), besser (nachher kleiner), text); mit weniger als 2 Programmen: programme < 2, besser None."""
+    progs = sorted({f["programm"] for f, soll, ist in eintraege if soll and ist})
+    leer = dict(programme=len(progs), teile=0, fehler_vorher=None, fehler_nachher=None, besser=None,
+                text="Gegenprobe braucht Teile aus mindestens 2 Programmen")
+    if len(progs) < 2:
+        return leer
+    vorher, nachher = [], []
+    for p in progs:
+        lern = [e for e in eintraege if e[0]["programm"] != p]
+        fk = auswerten(lern, mindest_teile=1, mindest_programme=1)["faktor"]
+        if not fk:
+            continue
+        for f, soll, ist in eintraege:
+            if f["programm"] == p and soll and ist and soll > 0 and ist > 0:
+                vorher.append(abs(ist / soll - 1.0))
+                nachher.append(abs(ist / (soll * fk) - 1.0))
+    if not vorher:
+        return leer
+    a, b = 100 * statistics.median(vorher), 100 * statistics.median(nachher)
+    return dict(programme=len(progs), teile=len(vorher), fehler_vorher=round(a, 1), fehler_nachher=round(b, 1),
+                besser=b < a, text=f"Gegenprobe an {len(vorher)} Teilen aus {len(progs)} Programmen: Abweichung "
+                                   f"{a:.1f} % → {b:.1f} %".replace(".", ","))
+
+
 def preiswirkung(v):
     """Mittlere Wirkung auf den Teilepreis [%] der Fälle eines Vorschlags (Laserkosten × (Faktor − 1) × Anteil)."""
     w = []
@@ -208,6 +240,7 @@ def vorschlaege(db, zeilen=None, heute=None, mit_ruhenden=False):
         v = dict(quelle=quelle, titel=EBENE_TEXT[quelle], schluessel=schl, **auswerten(e))
         v["anwendbar"] = quelle in (Q_MASCHINE, Q_BEREICH) and kennwerte.QUELLEN.get(quelle, (0, 0, None))[2] is not None
         v["preiswirkung"] = preiswirkung(v) if v["faktor"] else None
+        v["validierung"] = validieren(e) if v["faktor"] else None
         a = ab.get((quelle, json.dumps(list(schl), ensure_ascii=False)))
         v["ruht"] = bool(a) and v["faktor"] is not None and abs(v["faktor"] - (a.get("faktor") or 0)) <= RUHE_FAKTOR \
             and v["n"] < (a.get("n") or 0) + RUHE_TEILE
@@ -230,13 +263,18 @@ def freigeben(db, v, version, begruendung="", bestaetigt=False):
     if not v.get("anwendbar"):
         raise ValueError("Diese Ebene ist nur ein Hinweis; es gibt keinen Stammdatenwert dafür.")
     pw = v.get("preiswirkung")
+    val = v.get("validierung") or {}
+    if not bestaetigt and val.get("besser") is False:
+        raise BestaetigungNoetig(f"{val.get('text')}: der gelernte Faktor sagt die Referenzteile nicht besser voraus "
+                                 "als die bisherige Kalkulation. Bitte ausdrücklich bestätigen.")
     if not bestaetigt and ((pw is not None and abs(pw) > PREIS_GRENZE) or v.get("warnung")):
         raise BestaetigungNoetig(
             (f"Preiswirkung {pw:+.1f} % liegt über {PREIS_GRENZE:.0f} %. " if pw is not None and abs(pw) > PREIS_GRENZE
              else "") + (v.get("warnung") or "") + " Bitte ausdrücklich bestätigen.")
     text = (begruendung or "").strip() or (
         f"Lernsystem LST: {v['n']} Teile aus {v['programme']} Programmen, Faktor {v['faktor']:.3f} (Streuung "
-        f"{v['streuung']:.3f})" + (f", Preiswirkung {pw:+.1f} %" if pw is not None else ""))
+        f"{v['streuung']:.3f})" + (f", Preiswirkung {pw:+.1f} %" if pw is not None else "")
+        + (f"; {val['text']}" if val.get("text") and val.get("besser") is not None else ""))
     return kennwerte.freigeben(db, dict(v, faktor=v["faktor"]), text, version)
 
 
