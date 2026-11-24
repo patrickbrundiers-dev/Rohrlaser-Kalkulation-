@@ -3,6 +3,7 @@ lange laufen (step_messen --zwischenstand), öffnet der Prüfdialog mit dem Zwis
 „Messung läuft noch“ und rücken nach, sobald die Messung fertig ist; OK wartet nötigenfalls auf sie.
 """
 import shutil
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QEventLoop, QProcess, Qt, QTimer
@@ -35,19 +36,31 @@ class Nachmessung:
                                                       self.ergebnis_json)
         return self._messwerte
 
-    def warten(self, parent, offen):
-        """Auf das Ende der Messung warten (Fortschrittsfenster, „Ohne sie übernehmen“ bricht ab). True = fertig."""
+    def warten(self, parent, offen, namen=()):
+        """Auf das Ende der Messung warten (Fortschrittsfenster mit Teilen und Wartezeit; „Nicht mehr warten“ bricht
+        das Warten ab, was dann geschieht, entscheidet der Aufrufer). True = fertig."""
         if not self.laeuft():
             return True
-        f = QProgressDialog(f"{offen} langsame(s) Teil(e) werden noch gemessen …", "Ohne sie übernehmen", 0, 0, parent)
+        liste = ", ".join(str(n) for n in list(namen)[:4]) + (" …" if len(namen) > 4 else "")
+        kopf = f"{offen} langsame(s) Teil(e) werden noch gemessen" + (f" ({liste})" if liste else "")
+        f = QProgressDialog(kopf + " …", "Nicht mehr warten …", 0, 0, parent)
         f.setWindowTitle("STEP-Import")
         f.setWindowModality(Qt.WindowModal)
         f.setMinimumDuration(0)
         schleife = QEventLoop()
         self.proz.finished.connect(schleife.quit)
         f.canceled.connect(schleife.quit)
+        start = time.monotonic()
+
+        def tick():
+            if not self.laeuft():
+                schleife.quit()
+                return
+            s = int(time.monotonic() - start)
+            f.setLabelText(f"{kopf} …\nWartezeit {s // 60}:{s % 60:02d} min – Bohrungen und Konturen dieser Teile "
+                           "kommen erst mit der Messung.")
         uhr = QTimer()
-        uhr.timeout.connect(lambda: schleife.quit() if not self.laeuft() else None)
+        uhr.timeout.connect(tick)
         uhr.start(500)
         if self.laeuft():
             schleife.exec()
@@ -78,8 +91,11 @@ def einsetzen(messwerte, neue):
         if n is None or step.noch_in_messung(n):
             continue
         neu = dict(n)
+        # von Hand nachgetragener Platzhalter (Länge aus dem Hüllmaß, ohne Konturen): die Messung ersetzt den
+        # Nachtrag ganz, sonst bliebe das geratene Profil bzw. „zurücknehmen“ führte zum Platzhalter (24.11.2026)
+        nachtrag = ("_original", "_profil", "_uebernehmen") if m.get("_original") else ()
         for k, v in m.items():
-            if k.startswith("_") and k not in ("_netz", "_struktur", "_nahtkandidaten"):
+            if k.startswith("_") and k not in ("_netz", "_struktur", "_nahtkandidaten") + nachtrag:
                 neu[k] = v
         neu["artikel"], neu["bauteil"] = m.get("artikel"), m.get("bauteil") or n.get("bauteil")
         b = (drehfraes.daten(neu) or {}).get("normteil")

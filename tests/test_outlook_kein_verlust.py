@@ -14,6 +14,9 @@ Testmails:
      eine weitere Weiterleitung mit gleichem Betreff wird nicht über die eigene Domain als „Antwort“ angehängt.
   K8 Kein eigener Ordner „Neu“ (Patrick 18.11.2026): neue Mails bleiben im Eingang, werden nie doppelt Akte; Mails
      im früher angelegten Unterordner „Neu“ wandern zurück in den Eingang; den Eingang als Neu wählen = leer.
+  K9 Fehler 24.11.2026 „Im Outlook werden die E-Mails nicht verschoben“: dieselbe Mail ein zweites Mal in Outlook
+     (gleicher Inhalt, schon in der Anfrage) gehörte keiner Akte, blieb im Eingang und wurde jede Minute neu geholt.
+     Jetzt gehört sie zur Akte und wandert mit ihr.
 
 Aufruf: python tests/test_outlook_kein_verlust.py
 """
@@ -163,4 +166,27 @@ s8 = ol.ABRUF_PS
 assert "$unter[$n] = $a; continue" in s8 and "if ($hier -and $bek.ContainsKey($k)) { continue }" in s8
 assert "$m.Move($a)" in s8 and "Folders.Add($d.unter[0])" not in s8
 ok("K8 kein Ordner Neu: neue Mails bleiben im Eingang, nie doppelt, alter Ordner Neu wird in den Eingang geleert")
+# ------------------------------------------------------------------ K9 gleiche Mail zweimal: wandert mit
+import mail_testdateien  # noqa: E402
+
+abl9 = ak.OrdnerAblage(tmp / "akten9", "PB", platz="BUERO1")
+ou9 = Outlook()
+roh = mail_testdateien.msg("Anfrage Gestell", "Bitte 2 Gestelle.", "Kauf", "kauf@kunde.example",
+                           datetime.datetime(2026, 11, 13, 7, 30), [])
+ou9.mail("<d1@kunde.example>", "", "", "kauf@kunde.example", roh=roh)
+ol.abrufen(abl9, "Anfragen", ausfuehren=ou9, jetzt=JETZT)
+ou9.mail("<d2@kunde.example>", "", "", "kauf@kunde.example", roh=roh)          # dieselbe Mail noch einmal
+erg = ol.abrufen(abl9, "Anfragen", ausfuehren=ou9, jetzt=JETZT)
+d = abl9.alle()[0]
+assert len(abl9.alle()) == 1 and erg["doppelt"] and "<d2@kunde.example>" in d.stand["mids"], d.stand["mids"]
+assert "Outlook-Mail zugeordnet" in ak.verlauf_text(d.verlauf[-1])
+erg = ol.abrufen(abl9, "Anfragen", ausfuehren=ou9, jetzt=JETZT)
+assert not erg["neu"] and "<d2@kunde.example>" not in ou9.aufrufe[-1]["nachholen"]       # nicht jede Minute neu
+abl9.uebernehmen(abl9.neu_lesen(d), jetzt=JETZT)
+ol.abrufen(abl9, "Anfragen", ausfuehren=ou9, jetzt=JETZT)
+assert ou9.wo("<d1@kunde.example>") == ou9.wo("<d2@kunde.example>") == "In Bearbeitung"
+abl9.erledigen(abl9.neu_lesen(d), jetzt=JETZT)
+ol.abrufen(abl9, "Anfragen", ausfuehren=ou9, jetzt=JETZT)
+assert ou9.wo("<d1@kunde.example>") == ou9.wo("<d2@kunde.example>") == "Erledigt"
+ok("K9 dieselbe Mail zweimal in Outlook: gehört zur Anfrage, wird nicht neu geholt, wandert mit nach Bearbeitung/Erledigt")
 print("Alle Tests bestanden.")

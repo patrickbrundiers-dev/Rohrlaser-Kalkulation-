@@ -47,6 +47,7 @@ def weiterreichen(feld, ereignis):
 
 def einrichten(app):
     """Einmal nach dem Anlegen der QApplication aufrufen."""
+    from . import ereignis_verteiler
     app._mausrad = Mausrad(app)
-    app.installEventFilter(app._mausrad)
+    ereignis_verteiler.anmelden(app._mausrad, (QEvent.Wheel, QEvent.Polish), app)
     return app._mausrad
