@@ -18,7 +18,7 @@ db = Datenbank(tmp / "rohrlaser.db")
 _t03 = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "T03")
 for _feld, _wert in zip(MASCHINE_WERTE, ALTE_MASCHINEN["RL-1"][1]):
     db.aendern("maschinen", _t03["id"], _feld, _wert)
-einst = dict(db.einstellungen(), laenge_vergleich="ja")
+einst = dict(db.einstellungen(), laenge_vergleich="ja", laenge_automatisch="nein")  # nur Empfehlung
 kopf = dict(maschine="T03", stange=6000)
 QR, ST = "QR 40x40x3", "S235-10219"
 db.neu("lieferlaengen", dict(profil_id=QR, werkstoff_id=ST, laenge=12000))

@@ -1372,7 +1372,13 @@ def laenge_waehlen(vg, plaene, kopf, positionen, k, tabellen, einst, auto=False)
     gew_ok = gew is not None and gew in plaene and gew != vg["stange"] and not plaene[gew]["fehler"]
     if gew_ok and not auto and vg.get("zu_kurz"):    # Teil zu lang für die Stangenlänge: übernommene Länge gilt
         return gew
-    if auto or not vg["basis_lieferbar"]:
+    if gew_ok and not auto:                         # von Hand gewählt: gilt vor der Automatik (Übersteuerung)
+        return gew
+    if gew is not None and gew == vg["stange"] and not auto and vg["basis_lieferbar"]:
+        return None                                 # von Hand: bei der Stangenlänge des Angebots bleiben
+    # Patrick 24.11.2026: die Lieferlänge selbst wählen – im Angebot und in jeder Staffel gleich, eine andere Länge
+    # (z. B. 12 m mit Zuschnitt) nur bei echtem Gesamtkostenvorteil (laengen_bewerten)
+    if auto or laenge_automatisch(einst) or not vg["basis_lieferbar"]:
         b = laengen_bewerten(vg, kopf, positionen, k, tabellen, einst)
         if b["empfehlung"] in (LAENGE_ALTERNATIVE, LAENGE_NUR_ALTERNATIVE) or not vg["basis_lieferbar"]:
             return b["beste"] if b["beste"] != vg["stange"] else None
@@ -1506,6 +1512,7 @@ def nesting_daten(g, info, kopf, positionen, k, tabellen, einst, m):
             zuschnitt.append(nesting.Laenge(laenge, None if fehlt else preis, mindest=mindest.get(laenge, 0)))
     je_zs = _n(einstellung_wert(einst, "zuschnitt_kosten")) if neue_preisregeln(einst) else 0.0
     return dict(laengen=laengen, reste=reste, je_beladung=je_ws, zuschnitt=zuschnitt, je_zuschnitt=je_zs,
+                par=laenge_parameter(kopf, k, tabellen, einst, naht=any(t.drehung == opt.FEST for t in g.teile)),
                 min_rest=einstellung_wert(einst, "rest_min_laenge"),
                 min_nutz=einstellung_wert(einst, "rest_min_nutz"),
                 mehrverschnitt=einstellung_wert(einst, "muster_mehrverschnitt") or 0.02,
@@ -1586,7 +1593,9 @@ def nesting_zuschnitt(g, plan, wahl, daten, m, saege, puffer=0.0):
     einen Plan der Strategie B auf den ladbaren Längen ersetzt werden. Bewertet wie die Strategie: A Millimeter
     (ganze Lieferstange), B/E Einkauf + Beladungen + Zuschnitte, D Beladungen; C und Belegung von Hand nie.
     Ergebnis: None (Plan bleibt) oder dict(laenge, v=Variante mit den verbleibenden Lieferstangen, plan=Restplan
-    oder None, werte=dict(einkauf, gekauft_mm, beladungen, zuschnitte, gesamt))."""
+    oder None, werte=dict(einkauf, gekauft_mm, beladungen, zuschnitte, gesamt), vorteil=laenge_vorteil).
+    Gibt es einen Plan auf ladbaren Längen, gilt der Zuschnitt in JEDER Strategie nur mit echtem Gesamtkostenvorteil
+    (laenge_vorteil, dieselbe Entscheidung wie im Lieferlängen-Vergleich; Patrick 24.11.2026)."""
     from . import nesting
     if wahl not in (nesting.A, nesting.B, nesting.D, nesting.E) or not daten.get("zuschnitt"):
         return None
@@ -1598,13 +1607,15 @@ def nesting_zuschnitt(g, plan, wahl, daten, m, saege, puffer=0.0):
             return (w["beladungen"], w["gekauft_mm"])
         return (w["gesamt"] if w["gesamt"] is not None else math.inf, w["gekauft_mm"])
     je_ws, je_zs = daten["je_beladung"], daten["je_zuschnitt"]
+    par = daten.get("par") or dict(handling=0.0, handling_ab=0.0, min_eur=0.0, min_anteil=0.0)
 
     def plan_werte(p):
         if p is None:
             return dict(einkauf=0.0, gekauft_mm=0.0, beladungen=0, zuschnitte=0, gesamt=0.0)
         w = p.werte
+        hd = par["handling"] * lange_stangen([laenge for laenge, _, r in p.stangen if not r], par)
         return dict(einkauf=w["einkauf"], gekauft_mm=w["gekauft_mm"], beladungen=w["beladungen"], zuschnitte=0,
-                    gesamt=None if w["einkauf"] is None else w["einkauf"] + je_ws * w["beladungen"])
+                    gesamt=None if w["einkauf"] is None else w["einkauf"] + je_ws * w["beladungen"] + hd)
     beste = (bewertung(plan_werte(plan)) if plan is not None else (math.inf,), None)
     for x in daten["zuschnitt"]:
         v = variante_planen(g, x.laenge, m, saege, puffer)
@@ -1625,13 +1636,22 @@ def nesting_zuschnitt(g, plan, wahl, daten, m, saege, puffer=0.0):
             kz = variante_kennzahlen(g, vk, saege)
             rw = plan_werte(rest_p)
             einkauf = None if x.preis is None or rw["einkauf"] is None else x.preis * len(behalten) + rw["einkauf"]
+            hd = par["handling"] * lange_stangen([x.laenge] * len(behalten), par)
             w = dict(einkauf=einkauf, gekauft_mm=x.laenge * len(behalten) + rw["gekauft_mm"],
                      beladungen=kz["werkstuecke"] + rw["beladungen"], zuschnitte=kz["zuschnitte"],
-                     gesamt=None if einkauf is None else einkauf + je_ws * (kz["werkstuecke"] + rw["beladungen"])
-                     + je_zs * kz["zuschnitte"])
+                     gesamt=None if einkauf is None or rw["gesamt"] is None else
+                     einkauf + je_ws * kz["werkstuecke"] + je_zs * kz["zuschnitte"] + hd + rw["gesamt"]
+                     - (rw["einkauf"] or 0.0))
             b = bewertung(w)
             if b < beste[0]:
                 beste = (b, dict(laenge=x.laenge, v=vk, plan=rest_p, werte=w))
+    if beste[1] is None:
+        return None
+    if plan is not None:            # 12 m nur mit echtem Gesamtkostenvorteil, in jeder Strategie
+        vt = laenge_vorteil(plan_werte(plan)["gesamt"], beste[1]["werte"]["gesamt"], par)
+        if not vt["lohnt"]:
+            return None
+        beste[1]["vorteil"] = vt
     return beste[1]
 
 
@@ -2468,6 +2488,14 @@ def laengen_der_gruppe(g, k, tabellen, einst=None):
                 basis_lieferbar=basis)
 
 
+def laenge_automatisch(einst):
+    """Einstellung 'laenge_automatisch': die empfohlene Lieferlänge beim Optimieren selbst wählen (Vorgabe ja). Ohne
+    Einstellungen (Tests, ältere Aufrufe) wie bisher nein. Wirkt nur mit Vergleich der Lieferlängen."""
+    if einst is None:
+        return False
+    return (einst.get("laenge_automatisch") or "ja") == "ja"
+
+
 def laengen_vergleichen(einst):
     """Einstellung 'laenge_vergleich': andere Lieferlängen beim Optimieren vergleichen (Vorgabe nein). Ohne
     Einstellungen (Tests, ältere Aufrufe ohne einst) wie bisher ja."""
@@ -2594,7 +2622,15 @@ def variante_kennzahlen(g, v, saege):
     folgen = [f for s in v["stangen"] for _, f in s]
     zuschnitte = sum(len(s) - 1 + (1 if v["laenge"] - opt.zuschnitt_belegt([l for l, _ in s], saege) > saege + EPS
                                    else 0) for s in v["stangen"]) if v["zuschnitt"] else 0
-    return dict(laenge=v["laenge"], zuschnitt=v["zuschnitt"], fehler=v["fehler"], lieferstangen=n,
+    reste = []                  # was je Werkstück hinter dem letzten Schnitt bleibt (+ ungenutztes Zuschnittstück)
+    for st in v["stangen"]:
+        for laenge, f in st:
+            reste.append(round(laenge - opt.verbrauch(opt.replace(g, stange=laenge, teile=[]), f), 1))
+        if v["zuschnitt"]:
+            frei = v["laenge"] - opt.zuschnitt_belegt([laenge for laenge, _ in st], saege) - saege
+            if frei > EPS:
+                reste.append(round(frei, 1))
+    return dict(laenge=v["laenge"], zuschnitt=v["zuschnitt"], fehler=v["fehler"], lieferstangen=n, reste_mm=reste,
                 werkstuecke=len(folgen), zuschnitte=zuschnitte, material_mm=n * v["laenge"], nutz_mm=nutz,
                 verschnitt_mm=n * v["laenge"] - nutz if n else 0, gemeinsam=sum(opt.gemeinsame_schnitte(f) for f in folgen),
                 werkstueck_laengen=sorted({l for s in v["stangen"] for l, _ in s}, reverse=True) if v["zuschnitt"]
@@ -2636,7 +2672,8 @@ def laengen_vergleich_gruppe(g, k, tabellen, m, saege, basis_plan=None, einst=No
                 naht=any(t.drehung == opt.FEST for t in g.teile),
                 automatisch=bool(info["zeilen"]) and all(z.get("automatisch") for z in info["zeilen"]),
                 max_werkstueck=(m or {}).get("max_stange"), saege=saege,
-                varianten=kennzahlen), plaene
+                spann=dict(endbeschnitt=g.endbeschnitt, greiferrest=g.greiferrest, kerf=g.kerf),
+                teile=len(g.teile), varianten=kennzahlen), plaene
 
 
 def je_werkstueck_kosten(kopf, k, tabellen, sn=False):
@@ -2653,6 +2690,58 @@ def je_werkstueck_kosten(kopf, k, tabellen, sn=False):
     return eur, None if wechsel is not None else "Stangenwechsel der Maschine fehlt"
 
 
+def laenge_parameter(kopf, k, tabellen, einst, naht=False):
+    """Kostensätze der zentralen Lieferlängen-Entscheidung (Patrick 24.11.2026: 12 m nur bei echtem
+    Gesamtkostenvorteil, eine Logik für das ganze Programm): je Beladung der Maschine (Stangenwechsel, Arbeitsschritte
+    je Stange), je Zuschnitt beim Lieferanten, Handhabung/Transport je langer Lieferstange (über laenge_handling_ab),
+    Mindestersparnis (€ und %), Reststückwert nur mit Lager und Reststücken."""
+    je_ws, fehlt_ws = je_werkstueck_kosten(kopf, k, tabellen, sn=naht) if tabellen else (0.0, None)
+    return dict(je_ws=je_ws, fehlt_ws=fehlt_ws, je_zs=_n(einstellung_wert(einst, "zuschnitt_kosten")),
+                handling=_n(einstellung_wert(einst, "laenge_handling_eur")),
+                handling_ab=_n(einstellung_wert(einst, "laenge_handling_ab")),
+                min_eur=_n(einstellung_wert(einst, "laenge_mindest_eur")),
+                min_anteil=_n(einstellung_wert(einst, "laenge_mindest_anteil")),
+                reste=reste_an(einst), restwert=_n(einstellung_wert(einst, "restwert_anteil")),
+                min_rest=_n(einstellung_wert(einst, "rest_min_laenge")),
+                min_nutz=_n(einstellung_wert(einst, "rest_min_nutz")))
+
+
+def lange_stangen(laengen, par):
+    """Anzahl Lieferstangen, die als lang gelten (Handhabung/Transport, laenge_handling_ab; 0 = keine)."""
+    ab = par.get("handling_ab") or 0
+    return sum(1 for x in laengen if ab and x > ab + EPS)
+
+
+def laenge_vorteil(basis_gesamt, kand_gesamt, par):
+    """Zentrale Entscheidung: lohnt die andere Lieferlänge (z. B. 12 m mit Zuschnitt) gegenüber der Basis? Nur, wenn
+    die Gesamtkosten (Material + Beladungen + Zuschnitt + Handhabung − Reststückwert) um mindestens min_eur UND
+    min_anteil sinken. Ergebnis dict(lohnt, ersparnis, anteil, warum)."""
+    if basis_gesamt is None or kand_gesamt is None:
+        return dict(lohnt=False, ersparnis=None, anteil=None, warum="Preis fehlt")
+    ersparnis = basis_gesamt - kand_gesamt
+    anteil = ersparnis / basis_gesamt if basis_gesamt > 0 else 0.0
+    grenzen = f"Grenzen {zahl(par['min_eur'])} € und {zahl(100 * par['min_anteil'], 1)} %"
+    if ersparnis > EPS and ersparnis + EPS >= par["min_eur"] and anteil + 1e-9 >= par["min_anteil"]:
+        return dict(lohnt=True, ersparnis=ersparnis, anteil=anteil, warum=f"{grenzen} erreicht")
+    if ersparnis > EPS:
+        warum = f"Ersparnis {zahl(ersparnis)} € ({zahl(100 * anteil, 1)} %) unter den {grenzen}"
+    elif ersparnis < -EPS:
+        warum = f"{zahl(-ersparnis)} € teurer"
+    else:
+        warum = "gleiche Gesamtkosten"
+    return dict(lohnt=False, ersparnis=ersparnis, anteil=anteil, warum=warum)
+
+
+def reste_wert(g, reste_mm, preis_je_mm, par):
+    """Wert der wirtschaftlich verwertbaren Reststücke (nur mit Lager und Reststücken, sonst 0): verwertbar wie im
+    Lager (nesting.verwertbar: Mindestlänge, Spannbereich, Schnitt), bewertet mit Meterpreis × Restwert-Anteil."""
+    from . import nesting
+    if not par.get("reste") or not preis_je_mm:
+        return 0.0, 0.0
+    mm = sum(r for r in reste_mm or () if nesting.verwertbar(g, r, par["min_rest"], par["min_nutz"] or 0.0))
+    return mm * preis_je_mm * par["restwert"], mm
+
+
 def laengen_bewerten(vg, kopf, positionen, k, tabellen, einst):
     """Kosten je Variante und Empfehlung für eine Gruppe aus laengen_vergleich_gruppe. Gesamtkosten = Material
     (Lieferstangen × Preis der Lieferlänge) + je Werkstück (Stangenwechsel, Arbeitsschritte je Stange) + Zuschnitt
@@ -2660,20 +2749,27 @@ def laengen_bewerten(vg, kopf, positionen, k, tabellen, einst):
     Ein Reststückwert wird nicht angerechnet (keine Reststückverwaltung). Fehlende Angaben werden nie als 0
     bewertet: dann 'Vergleich nicht möglich'. Ergebnis dict(varianten=[Kennzahlen + material, werkstueck_kosten,
     zuschnitt_kosten, gesamt, fehlt], empfehlung, titel, begruendung, beste=Länge der empfohlenen Variante)."""
+    from types import SimpleNamespace
     gr = (vg["profil"], vg["werkstoff"], vg["oberflaeche"], vg["stange"])
     kgm = kg_je_m(vg["profil"], vg["werkstoff"], k)
-    je_ws, fehlt_ws = je_werkstueck_kosten(kopf, k, tabellen, sn=vg.get("naht", False))
-    je_zs = _n(einstellung_wert(einst, "zuschnitt_kosten"))
+    par = laenge_parameter(kopf, k, tabellen, einst, naht=vg.get("naht", False))
+    je_ws, fehlt_ws, je_zs = par["je_ws"], par["fehlt_ws"], par["je_zs"]
+    spann = SimpleNamespace(**(vg.get("spann") or dict(endbeschnitt=0.0, greiferrest=0.0, kerf=0.0)))
     varianten = []
     for v in vg["varianten"]:
         v = dict(v)
         preis, fehlt = lieferstange_preis(gr, v["laenge"], v["laenge"] / 1000 * kgm if kgm is not None else None,
                                           kopf, positionen, k, tabellen, einst)
         v["fehlt"] = [f for f in (fehlt,) if f]
+        v["preis_stange"] = preis
         v["material"] = preis * v["lieferstangen"]
         v["werkstueck_kosten"] = je_ws * v["werkstuecke"]
         v["zuschnitt_kosten"] = je_zs * v["zuschnitte"]
-        v["gesamt"] = v["material"] + v["werkstueck_kosten"] + v["zuschnitt_kosten"]
+        v["handling_kosten"] = par["handling"] * lange_stangen([v["laenge"]] * v["lieferstangen"], par)
+        v["rest_wert"], v["rest_verwertbar_mm"] = reste_wert(spann, v.get("reste_mm"),
+                                                             preis / v["laenge"] if v["laenge"] else 0.0, par)
+        v["gesamt"] = v["material"] + v["werkstueck_kosten"] + v["zuschnitt_kosten"] + v["handling_kosten"] \
+            - v["rest_wert"]
         v["verschnitt_anteil"] = v["verschnitt_mm"] / v["material_mm"] if v["material_mm"] else 0
         if v.get("mischung"):
             mi = v["mischung"] = dict(v["mischung"])
@@ -2683,7 +2779,9 @@ def laengen_bewerten(vg, kopf, positionen, k, tabellen, einst):
             mi["material"] = preis * mi["lang"] + pb * mi["basis"]
             mi["werkstueck_kosten"] = je_ws * mi["werkstuecke"]
             mi["zuschnitt_kosten"] = je_zs * mi["zuschnitte"]
-            mi["gesamt"] = mi["material"] + mi["werkstueck_kosten"] + mi["zuschnitt_kosten"]
+            mi["handling_kosten"] = par["handling"] * lange_stangen([v["laenge"]] * mi["lang"]
+                                                                    + [vg["stange"]] * mi["basis"], par)
+            mi["gesamt"] = mi["material"] + mi["werkstueck_kosten"] + mi["zuschnitt_kosten"] + mi["handling_kosten"]
             if mi["gesamt"] >= v["gesamt"] - EPS:       # Mischen nicht günstiger: kein Vorschlag
                 del v["mischung"]
         varianten.append(v)
@@ -2732,28 +2830,39 @@ def laengen_bewerten(vg, kopf, positionen, k, tabellen, einst):
         return dict(out, empfehlung=LAENGE_ANGABEN_FEHLEN, titel="Vergleich nicht möglich – Angaben fehlen",
                     beste=vg["stange"], begruendung="; ".join(fehlt) + ". Ohne diese Angaben ist kein belastbarer "
                                                                        "Kostenvergleich möglich.")
-    ersparnis = basis["gesamt"] - beste["gesamt"]
-    anteil = ersparnis / basis["gesamt"] if basis["gesamt"] > 0 else 0
-    min_eur = _n(einstellung_wert(einst, "laenge_mindest_eur"))
-    min_anteil = _n(einstellung_wert(einst, "laenge_mindest_anteil"))
     lb = m_text(beste["laenge"])
+    vt = laenge_vorteil(basis["gesamt"], beste["gesamt"], par)
+    out["vergleich"] = laenge_kennzahlen(vg, basis, beste, vt)
     zahlen = (f"{lb} m: {zahl(beste['gesamt'])} € statt {zahl(basis['gesamt'])} € "
               f"({beste['lieferstangen']} statt {basis['lieferstangen']} Stangen, {beste['werkstuecke']} statt "
               f"{basis['werkstuecke']} Beladungen"
-              + (f", {beste['zuschnitte']} Zuschnitte beim Lieferanten" if beste["zuschnitte"] else "") + ")")
-    grenzen = f"Grenzen {zahl(min_eur)} € und {zahl(100 * min_anteil, 1)} %"
-    if ersparnis > EPS and ersparnis + EPS >= min_eur and anteil + 1e-9 >= min_anteil:
+              + (f", {beste['zuschnitte']} Zuschnitte beim Lieferanten" if beste["zuschnitte"] else "")
+              + (f", Handhabung {zahl(beste['handling_kosten'])} €" if beste["handling_kosten"] else "")
+              + (f", Reststücke {zahl(beste['rest_wert'])} € statt {zahl(basis['rest_wert'])} € angerechnet"
+                 if beste["rest_wert"] or basis["rest_wert"] else "") + ")")
+    if vt["lohnt"]:
         return dict(out, empfehlung=LAENGE_ALTERNATIVE, titel=f"{lb}-m-Stangen wirtschaftlich sinnvoll",
-                    beste=beste["laenge"], begruendung=f"{zahlen}; Ersparnis {zahl(ersparnis)} € "
-                                                       f"({zahl(100 * anteil, 1)} %), {grenzen} erreicht.")
-    if ersparnis > EPS:
-        warum = f"Ersparnis {zahl(ersparnis)} € ({zahl(100 * anteil, 1)} %) unter den {grenzen}"
-    elif ersparnis < -EPS:
-        warum = f"{lb} m ist {zahl(-ersparnis)} € teurer"
-    else:
-        warum = "gleiche Gesamtkosten"
+                    beste=beste["laenge"], begruendung=f"{zahlen}; Ersparnis {zahl(vt['ersparnis'])} € "
+                                                       f"({zahl(100 * vt['anteil'], 1)} %), {vt['warum']}.")
+    warum = vt["warum"] if not vt["warum"].endswith("teurer") else f"{lb} m ist {vt['warum']}"
+    if beste["material"] < basis["material"] - EPS and vt["ersparnis"] is not None and not vt["lohnt"]:
+        warum += (f" – weniger Material ({zahl(basis['material'] - beste['material'])} €), aber Beladungen, Zuschnitt "
+                  f"oder Handhabung fressen den Vorteil auf")
     return dict(out, empfehlung=LAENGE_KEIN_VORTEIL, titel=f"Kein ausreichender Kostenvorteil für {lb} m",
                 beste=vg["stange"], begruendung=f"{zahlen}; {warum}.")
+
+
+def laenge_kennzahlen(vg, basis, beste, vt):
+    """Kurzvergleich für die Anzeige (Patrick 24.11.2026: „6-Meter-Material: 4 Rohre, 12-Meter-Material: 2 Rohre,
+    Materialeinsparung, Verschnitteinsparung, Gesamtkosteneinsparung“)."""
+    teile = vg.get("teile") or 0
+    return dict(basis_laenge=basis["laenge"], basis_rohre=basis["lieferstangen"], laenge=beste["laenge"],
+                rohre=beste["lieferstangen"], zuschnitt=beste["zuschnitt"],
+                material_ersparnis=basis["material"] - beste["material"],
+                verschnitt_ersparnis=basis["verschnitt_anteil"] - beste["verschnitt_anteil"],
+                gesamt_ersparnis=vt["ersparnis"], anteil=vt["anteil"],
+                je_teil=(vt["ersparnis"] / teile) if teile and vt["ersparnis"] is not None else None,
+                lohnt=vt["lohnt"])
 
 
 def mischung_vorschlag(vg, varianten):

@@ -223,7 +223,9 @@ TIPPS.update({
     "fracht": "Fester Frachtbetrag für die ganze Stufe; leer = Fracht wie im Angebot (berechnet für die Mengen der Stufe)",
     "skonto": "Skonto der Stufe in %; leer = Skonto des Angebots",
     "laenge_auto": "ja = für diese Stufe die empfohlene Lieferlänge je Profil wählen (z. B. 12 m erst bei großen "
-                   "Mengen); leer = Lieferlängen wie im Angebot",
+                   "Mengen), auch gegen eine von Hand gewählte Länge; leer = Lieferlängen wie im Angebot (mit "
+                   "der Einstellung 'empfohlene Lieferlänge automatisch wählen' dort ebenfalls je Menge nach "
+                   "Gesamtkosten)",
 })
 
 
