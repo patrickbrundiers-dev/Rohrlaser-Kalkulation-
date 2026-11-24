@@ -40,7 +40,7 @@ assert set(vorher) == {6000} and not any(x.get("nesting") for x in s.ergebnis["s
 v = s.nesting_vergleich()
 assert len(v) == 1
 namen = [z["strategie"] for z in v[0]["zeilen"]]
-assert namen[0] == nv.BISHER and set(namen[1:]) == {ne.A, ne.B, ne.D, ne.E}, namen
+assert namen[0] == nv.BISHER and set(namen[1:]) == {ne.A, ne.B, ne.D, ne.E, ne.F, ne.G, ne.H}, namen
 a = next(z for z in v[0]["zeilen"] if z["strategie"] == ne.A)
 b = next(z for z in v[0]["zeilen"] if z["strategie"] == nv.BISHER)
 assert a["gekauft_m"] < b["gekauft_m"], (a, b)

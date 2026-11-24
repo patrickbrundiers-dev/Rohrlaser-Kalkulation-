@@ -1537,13 +1537,21 @@ def hand_planen(g, hand, daten, positionen):
     fest, aufgeloest, gesehen = [], 0, set()
     for st in hand or ():
         laenge, rest = _n(st.get("laenge")), str(st.get("rest") or "")
-        teile = []
-        for ref, ln in st.get("teile") or ():
+        teile, dreh = [], []
+        for x in st.get("teile") or ():
+            ref, ln = x[0], x[1]
             liste = vorrat.get((ref, round(_n(ln), 2)))
             if liste:
                 teile.append(liste.pop(0))
+                dreh.append(x[2] if len(x) > 2 else 0)
         ok = bool(teile) and (rest in reste and abs(reste[rest].laenge - laenge) < EPS and rest not in gesehen
-                              if rest else laenge in laengen) and nesting.passt_auf(g, laenge, teile)
+                              if rest else laenge in laengen)
+        folge = None
+        if ok and st.get("fest"):       # Teile frei verschoben (Nesting-Arbeitsplatz 2.0): Reihenfolge bleibt
+            folge, _ = nesting.folge_fest(g, laenge, teile, dreh)
+            ok = folge is not None
+        elif ok:
+            ok = nesting.passt_auf(g, laenge, teile)
         if not ok:
             aufgeloest += 1
             for t in teile:
@@ -1551,7 +1559,7 @@ def hand_planen(g, hand, daten, positionen):
             continue
         if rest:
             gesehen.add(rest)
-        fest.append((laenge, nesting._folge(g, laenge, teile), rest))
+        fest.append((laenge, folge if folge is not None else nesting._folge(g, laenge, teile), rest))
     uebrig_t = [t for liste in vorrat.values() for t in liste]
     neu, uebrig = [], []
     if uebrig_t:

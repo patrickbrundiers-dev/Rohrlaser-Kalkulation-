@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QEvent, QEventLoop, QItemSelectionModel, QModelIndex, QPointF, QProcess, QRect, QRectF, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QKeySequence, QPainter, QPen, QPolygonF, QShortcut
+from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFrame,
     QFormLayout, QInputDialog, QMenu, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
@@ -1761,8 +1761,10 @@ class Stangenbild(QWidget):
     """Je Stangenmuster ein maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Pos. und Länge,
     dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot. Schweißnaht als roter Strich auf jedem Teil, im Kopf je
     Stange Querschnitt mit Nahtlage (roter Punkt) und gedrehte Teile; Gehrungen ineinander: grüne Schnittkanten,
-    Ersparnis einmal je Stange."""
-    ZEILE = 74
+    Ersparnis einmal je Stange. Seit 24.11.2026 (Nesting-Arbeitsplatz 2.0) mit der gemeinsamen Zeichnung
+    stangen_ansicht.stange_zeichnen: gemeinsamer Schnitt als blaues Dreieck, Schnittfugen, Rest grün (verwertbar) bzw.
+    rot schraffiert (rest_regel), Maßkette und Lineal unter jeder Stange; Strg + Mausrad zoomt."""
+    ZEILE = 104
     LEGENDE = 20
     GRUEN = "#1E7B34"
     doppelklick = Signal(str)       # Bezug (ref) des Teils unter der Maus
@@ -1772,6 +1774,8 @@ class Stangenbild(QWidget):
         super().__init__()
         self.muster, self.farben, self.flaechen = [], {}, []
         self.markiert = None        # Bezug (ref) der hervorgehobenen Teile
+        self.rest_regel = None      # rest_regel(Stange) -> True verwertbar / False Verschnitt / None unbekannt
+        self.zoom = 1.0
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setToolTip("Doppelklick auf ein Teil: zur Position")
 
@@ -1798,6 +1802,16 @@ class Stangenbild(QWidget):
         """Teile mit dem Bezug ref hervorheben (None = keins)."""
         self.markiert = ref
         self.update()
+
+    def wheelEvent(self, ereignis):
+        """Strg + Mausrad: waagerecht zoomen (Breite wächst, der Rollbereich verschiebt), sonst blättern."""
+        if not ereignis.modifiers() & Qt.ControlModifier:
+            return super().wheelEvent(ereignis)
+        self.zoom = max(1.0, min(20.0, self.zoom * (1.25 if ereignis.angleDelta().y() > 0 else 0.8)))
+        basis = self.parentWidget().width() if self.parentWidget() is not None else self.width()
+        self.setMinimumWidth(int(basis * self.zoom) if self.zoom > 1.0 else 0)
+        self.update()
+        ereignis.accept()
 
     def muster_y(self, i):
         """Obere Kante des i-ten Stangenmusters [px] (zum Hinscrollen)."""
@@ -1910,63 +1924,12 @@ class Stangenbild(QWidget):
                            f"Gehrungen ineinander: {_z(gespart, 1)} mm gespart ·")
             m = breite / s["stange"]
             yb, hb = y + 20, 34
-            oben = 270 if any(t.get("ansicht") == "von oben" for t in s["teile"]) else 0
-
-            def rechteck(von, bis, farbe, rand=stil.farbe("#5F6B7A")):
-                r = QRectF(x0 + von * m, yb, max(1.0, (bis - von) * m), hb)
-                p.fillRect(r, farbe)
-                p.setPen(QPen(rand, 1))
-                p.drawRect(r)
-                return r
-            rechteck(0, s["stange"], stil.farbe("#EDEDED"))                         # Rest
-            rechteck(0, s["end"], stil.farbe("#A6A6A6"))                             # Endbeschnitt
-            rechteck(s["stange"] - s["greif"], s["stange"], stil.farbe("#E06666"))   # Greiferrest
-            if s.get("greif_3d"):           # 3D-Bearbeitung am letzten Teil: 3D-Greifmaß statt Greiferrest
-                p.setPen(stil.farbe("#FFFFFF"))
-                p.drawText(QRectF(x0 + (s["stange"] - s["greif"]) * m, yb, s["greif"] * m, hb), Qt.AlignCenter, "3D")
-            vorher = None
-            for t in s["teile"]:
-                ineinander = bool(t.get("material_gespart")) and vorher is not None
-                if t.get("kante_a") or t.get("kante_b"):        # schräge Enden: Umriss mit Schnittkanten
-                    ol, or_, ur, ul = rechnen.umriss(t)
-                    form = QPolygonF([QPointF(x0 + ol * m, yb), QPointF(x0 + or_ * m, yb),
-                                      QPointF(x0 + ur * m, yb + hb), QPointF(x0 + ul * m, yb + hb)])
-                    p.setPen(QPen(stil.farbe("#202020"), 2))
-                    p.setBrush(self.farben.get(t["ref"], stil.farbe("#4E79A7")))
-                    p.drawPolygon(form)
-                    p.setBrush(Qt.NoBrush)
-                    r = QRectF(x0 + max(ol, ul) * m, yb, max(1.0, (min(or_, ur) - max(ol, ul)) * m), hb)
-                else:
-                    r = rechteck(t["von"], t["bis"], self.farben.get(t["ref"], stil.farbe("#4E79A7")))
-                    p.setPen(QPen(stil.farbe("#202020"), 2))
-                    p.drawLine(r.topLeft(), r.bottomLeft())
-                    p.drawLine(r.topRight(), r.bottomRight())
-                if ineinander:      # Stoß der ineinandergelegten Gehrungen: beide Schnittkanten grün
-                    p.setRenderHint(QPainter.Antialiasing, True)
-                    p.setPen(QPen(QColor(self.GRUEN), 3))
-                    for u, a, b in ((vorher, 1, 2), (t, 0, 3)):
-                        x = rechnen.umriss(u)
-                        p.drawLine(QPointF(x0 + x[a] * m, yb), QPointF(x0 + x[b] * m, yb + hb))
-                    p.setRenderHint(QPainter.Antialiasing, False)
-                strich = rechnen.naht_strich(t, oben)
-                if strich and r.width() > 6:       # Schweißnaht als roter Strich über die Länge des Teils
-                    hy = yb + hb / 2 - strich[0] * (hb / 2 - 3)
-                    stift = QPen(stil.farbe("#D0021B"), 3)
-                    if not strich[1]:
-                        stift.setStyle(Qt.DashLine)
-                    p.setPen(stift)
-                    p.drawLine(QPointF(r.left() + 3, hy), QPointF(r.right() - 3, hy))
-                if self.markiert is not None and t["ref"] == self.markiert:
-                    p.setPen(QPen(stil.farbe(stil.ORANGE), 3))
-                    p.setBrush(Qt.NoBrush)
-                    p.drawRect(r.adjusted(-1, -1, 1, 1))
+            # gemeinsame Zeichnung mit dem Nesting-Arbeitsplatz (Patrick 24.11.2026): Gehrungen, ineinander,
+            # gemeinsame Schnitte, Schnittfugen, Naht, Rest/Verschnitt, Maßkette und Lineal
+            from .stangen_ansicht import stange_zeichnen
+            regel = self.rest_regel(s) if self.rest_regel is not None else None
+            for r, t, _ in stange_zeichnen(p, s, x0, yb, hb, m, self.farben, self.markiert, regel, schrift=self.font()):
                 self.flaechen.append((QRectF(r), t))
-                text = f"{t['pos'] if t['pos'] is not None else t['artikel']}\n{_z(t['laenge'], 1)}"
-                if r.width() > 28:
-                    p.setPen(stil.schrift_auf(self.farben.get(t["ref"], stil.farbe("#4E79A7"))))   # lesbar auf der Teilfarbe
-                    p.setFont(klein)
-                    p.drawText(r, Qt.AlignCenter, text if r.width() > 46 else str(t["pos"] or ""))
-                vorher = t
             y += self.ZEILE
         p.end()
 
@@ -2822,6 +2785,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                                           lambda: self.db.einstellung("stangenbild_popup"))
         self.stangen_seite.doppelklick.connect(self.zur_position)
         self.bild = self.stangen_seite.bild
+        from .stangen_ansicht import rest_regel
+        self.bild.rest_regel = rest_regel(lambda: self.einst)      # Rest grün/rot wie im Nesting-Arbeitsplatz
         teile_ansicht.setToolTip("Doppelklick auf ein Teil: zur Position")
         teile_ansicht.doubleClicked.connect(
             lambda i: self.zur_position(self.teile.zeilen[i.row()].get("ref")) if i.row() < len(self.teile.zeilen) else None)

@@ -100,6 +100,35 @@ def _folge(g, laenge, teile):
     return opt.anordnen(list(teile), _h(g, laenge, []))
 
 
+def folge_fest(g, laenge, teile, drehungen=None):
+    """Folge in genau dieser Reihenfolge (Teile von Hand verschoben, Nesting-Arbeitsplatz 2.0): Drehungen wie
+    angegeben (drehungen) oder die besten für die Reihenfolge (optimierung._drehen). Ergebnis (Folge, '') oder
+    (None, Grund), geprüft mit denselben Regeln wie jeder Schnittplan (optimierung.pruefe: Überbelegung mit
+    Greiferrest/3D-Greifmaß, Drehung und Naht, Gehrungsabstand)."""
+    teile = list(teile)
+    if not teile:
+        return [], ""
+    h = _h(g, laenge, teile)
+    if not opt.vertraeglich(h, teile):
+        return None, "feste Naht auf Breit- und Schmalseite auf einer Stange"
+    kands = []
+    if drehungen is not None and len(drehungen) == len(teile):
+        kands.append(list(zip(teile, drehungen)))
+    kands.append(opt._drehen(h, teile))
+    grund = ""
+    for folge in kands:
+        try:
+            opt.pruefe([h], [[folge]])
+            return folge, ""
+        except AssertionError as e:
+            grund = str(e).split(": ", 1)[-1]
+    if "überbelegt" in grund:
+        f = kands[-1]
+        zu = opt.verbrauch(h, f) + opt.hinten(h, f) - laenge
+        grund = f"Stange überbelegt um {zu:.0f} mm (mit Greiferrest bzw. 3D-Greifmaß)".replace(".", ",")
+    return None, grund
+
+
 def frei(g, laenge, folge):
     """Platz, der auf der Stange noch für Teile bleibt (nutzbar bis Greiferrest minus Belegung)."""
     h = _h(g, laenge, [])
