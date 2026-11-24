@@ -118,6 +118,26 @@ a = gz["teile"][0]["umriss"][: len(gz["teile"][0]["umriss"]) // 2]
 assert max(x for x, _ in a) - min(x for x, _ in a) > 30            # Gehrung 45° an QR 40: Schnittkante schräg
 ok("Bohrung, Langloch, Gravur, Gehrung: Kontur auf der Stange = Teil + von bzw. + Drehung am Umfang")
 
+# ------------------------------------------------------------------ Verschnitt zwischen den Teilen (2D und 3D)
+s2 = stange_aus(pos, [(2, 400), (2, 400)], fuge=2.0)          # gerade Enden: nur die Schnittfuge
+d2 = na.stange(s2, pos, lambda p: prof, {})
+fugen = [z for z in d2["zwischen"] if z["von_teil"] == 0 and z["bis_teil"] == 1]
+assert len(fugen) == 1 and abs(fugen[0]["mm"] - 2.0) < 0.05, fugen
+s3 = stange_aus(pos, [(1, 800), (1, 800)], fuge=2.0)          # Gehrung 45° an Ende A: Dreieck dazu
+d3 = na.stange(s3, pos, lambda p: prof, {})
+g = [z for z in d3["zwischen"] if z["von_teil"] == 0 and z["bis_teil"] == 1][0]
+assert g["mm"] > 2.0 + 10, g["mm"]
+assert abs(g["flaeche"] - g["mm"] * d3["umfang"]) < 1e-6
+k3 = na.kennzahlen(d3, s3)
+assert abs(k3["zwischen_mm"] - sum(z["mm"] for z in d3["zwischen"])) < 1e-9
+vs = na.zwischen_netz(qs, m, d3["zwischen"])
+assert vs and len(vs["t"]["VS"]) % 3 == 0 and vs["t"]["VS"]
+zs = vs["p"][2::3]
+assert min(zs) >= g["x0"] - 1e-6 or min(zs) >= 0
+netz3, _ = na.netz_stange(s3, pos, lambda p: prof, None, {})
+assert "VS" in netz3["t"] and netz3["t"]["VS"]
+ok("Verschnitt zwischen den Teilen: Fuge 2 mm bei geraden Enden, Gehrung als Dreieck, Kennzahl, 3D-Netz (Art VS)")
+
 # ------------------------------------------------------------------ gewendet
 d = na.stange(stange_aus(pos, [(3, 600)]), pos, lambda p: prof, {})
 t = d["teile"][0]
@@ -195,6 +215,7 @@ k = ui.InfoKarte("Stange")
 k.setzen("Stange 1", [("Profil", "QR 40×40×3"), ("Länge", "6000 mm")], 0.9, "")
 k.setzen("Stange 2", [("Profil", "QR 40×40×3")])
 assert "Stange 2" in k.text() and "6000" not in k.text() and not k.balken.isVisibleTo(k)
+assert "QR 40×40×3" in k.inhalt.text()
 a.hover = 0
 a.punkt_markiert = (260, 20)
 assert not a.grab().isNull() and "Pos. 10" in a.teil_text(0)

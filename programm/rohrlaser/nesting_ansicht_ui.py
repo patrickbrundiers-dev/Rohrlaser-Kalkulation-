@@ -3,7 +3,7 @@ Patrick 24.11.2026, Pakete M1/M5/M6): Werkzeugknöpfe mit Symbol, Segmentschalte
 Belegungsbalken, Infokarten für Stange und Teil. Nur Oberfläche: alle Werte kommen aus dem Nesting-Ergebnis."""
 from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QPainter, QPen
-from PySide6.QtWidgets import (QFrame, QGridLayout, QLabel, QSizePolicy, QStyle, QStyledItemDelegate, QToolButton,
+from PySide6.QtWidgets import (QFrame, QLabel, QSizePolicy, QStyle, QStyledItemDelegate, QToolButton,
                                QVBoxLayout, QWidget)
 
 from . import design, rechnen, stil
@@ -131,39 +131,27 @@ class InfoKarte(QFrame):
         self.lay.addWidget(self.titel)
         self.balken = AnteilBalken()
         self.lay.addWidget(self.balken)
-        self.raster = QGridLayout()
-        self.raster.setHorizontalSpacing(10)
-        self.raster.setVerticalSpacing(3)
-        self.lay.addLayout(self.raster)
-        self.zusatz = QWidget()
-        self.zusatz.setVisible(False)
-        self.lay.addWidget(self.zusatz)
+        self.inhalt = QLabel("")         # eine Tabelle als Rich-Text: bricht sauber um, Höhe passt immer
+        self.inhalt.setTextFormat(Qt.RichText)
+        self.inhalt.setWordWrap(True)
+        self.inhalt.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.inhalt.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Minimum)
+        self.lay.addWidget(self.inhalt)
         self._zeilen = []
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
 
     def setzen(self, titel, zeilen, anteil=None, anteil_text=""):
+        from html import escape
         self.titel.setText(titel)
         self.balken.setzen(anteil, anteil_text)
-        for w in self._zeilen:
-            self.raster.removeWidget(w)
-            w.setParent(None)
-            w.deleteLater()
-        self._zeilen = []
-        for r, (name, wert) in enumerate(zeilen):
-            a, b = QLabel(name), QLabel(str(wert))
-            a.setStyleSheet(f"color: {stil.TEXT_GRAU};")
-            b.setWordWrap(True)
-            b.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-            b.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            a.setMinimumHeight(a.fontMetrics().height() + 2)
-            b.setMinimumHeight(b.fontMetrics().height() + 2)
-            self.raster.addWidget(a, r, 0, Qt.AlignTop)
-            self.raster.addWidget(b, r, 1)
-            self._zeilen += [a, b]
-        self.raster.setColumnStretch(1, 1)
+        self._zeilen = [(str(a), str(b)) for a, b in zeilen]
+        grau = stil.umsetzen(stil.TEXT_GRAU)
+        self.inhalt.setText("<table cellspacing='0' cellpadding='1'>" + "".join(
+            f"<tr><td style='color:{grau}; padding-right:10px' valign='top'>{escape(a)}</td><td>{escape(b)}</td></tr>"
+            for a, b in self._zeilen) + "</table>")
 
     def text(self):
-        return " ".join(w.text() for w in [self.titel] + self._zeilen)
+        return " ".join([self.titel.text()] + [f"{a} {b}" for a, b in self._zeilen])
 
 
 class AnteilBalken(QWidget):

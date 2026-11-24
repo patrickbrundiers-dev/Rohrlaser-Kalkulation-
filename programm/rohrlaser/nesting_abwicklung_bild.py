@@ -20,7 +20,7 @@ from PySide6.QtWidgets import QMenu, QSizePolicy, QToolTip, QWidget
 from . import rechnen, stil, stangen_abwicklung as sa
 
 EBENEN = (("bemassung", "Bemaßung"), ("schnitte", "Schnittpositionen"), ("konturen", "Konturen"),
-          ("reste", "Reste markieren"), ("raster", "Seiten/Winkel"))
+          ("reste", "Reste markieren"), ("verschnitt", "Verschnitt zwischen Teilen"), ("raster", "Seiten/Winkel"))
 
 
 def _z(v, n=1):
@@ -35,7 +35,7 @@ def ruhig(farbe, anteil=0.55):
 
 
 LEGENDE = (("Teil", "#A9BCD3", None), ("Kontur", "#FDE3E1", "#B42318"), ("Gravur", None, "#2E7D32"),
-           ("Schnittfuge", "#30363D", None), ("Rest verwertbar", "#A5D6A7", None), ("Verschnitt", "#F6D5D5", "#E15759"),
+           ("Schnittfuge", "#30363D", None), ("Verschnitt zw. Teilen", "#F4B6B6", "#C62828"), ("Rest verwertbar", "#A5D6A7", None), ("Verschnitt", "#F6D5D5", "#E15759"),
            ("Endbeschnitt", "#A6A6A6", None), ("Greiferrest", "#E06666", None))
 
 
@@ -66,7 +66,7 @@ class AbwicklungAnsicht(QWidget):
         self.senkrecht, self.eins_zu_eins = False, False
         self.zoom, self.versatz = 1.0, 0.0
         self.messen, self.messpunkte = False, []
-        self._ziehen, self._flaechen, self._bereiche = None, [], []
+        self._ziehen, self._flaechen, self._bereiche, self._zwischen = None, [], [], []
         self.setMinimumHeight(260)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setMouseTracking(True)
@@ -184,7 +184,7 @@ class AbwicklungAnsicht(QWidget):
         p.save()
         p.setClipRect(QRectF(self.rect()))
         p.fillRect(band, stil.farbe("#E9EDF1"))
-        self._flaechen, self._bereiche = [], []
+        self._flaechen, self._bereiche, self._zwischen = [], [], []
         # Bereiche längs aus dem Schnittplan
         for art, von, bis in d["bereiche"]:
             r = self._rechteck(von, bis, 0, U)
@@ -202,6 +202,19 @@ class AbwicklungAnsicht(QWidget):
                 else:
                     p.fillRect(r, stil.farbe("#F6D5D5"))
                     p.fillRect(r, QBrush(stil.farbe("#E15759"), Qt.BDiagPattern))
+        # Verschnitt zwischen den Teilen: Fläche zwischen den Schnittkanten (Gehrungsdreiecke, Fugen)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        for z in d.get("zwischen") or ():
+            poly = QPolygonF([self.pkt(x, t_) for x, t_ in z["poly"]])
+            self._zwischen.append((poly, z))
+            if not self.ebenen.get("verschnitt", True):
+                continue
+            p.setPen(QPen(stil.farbe("#C62828"), 0.9))
+            p.setBrush(stil.farbe("#F4B6B6"))
+            p.drawPolygon(poly)
+            p.setBrush(QBrush(stil.farbe("#C62828"), Qt.FDiagPattern))
+            p.drawPolygon(poly)
+        p.setBrush(Qt.NoBrush)
         # Teile
         p.setRenderHint(QPainter.Antialiasing, True)
         for i, t in enumerate(d["teile"]):
@@ -425,6 +438,16 @@ class AbwicklungAnsicht(QWidget):
     def bereich_bei(self, punkt):
         return next(((art, von, bis) for r, art, von, bis in self._bereiche if r.contains(punkt)), None)
 
+    def zwischen_bei(self, punkt):
+        return next((z for poly, z in self._zwischen if poly.containsPoint(punkt, Qt.OddEvenFill)), None)
+
+    def zwischen_text(self, z):
+        teile = self.daten["teile"]
+        name = lambda i: f"Pos. {teile[i].get('pos')}" if i is not None else None  # noqa: E731
+        zw = " und ".join(x for x in (name(z["von_teil"]), name(z["bis_teil"])) if x) or "Stangenende"
+        return (f"Verschnitt zwischen {zw}: {_z(z['flaeche'] / 100, 1)} cm² Mantelfläche = "
+                f"{_z(z['mm'], 1)} mm Rohrlänge (x {_z(z['x0'], 1)} bis {_z(z['x1'], 1)} mm)")
+
     def bereich_text(self, art, von, bis):
         name = {"end": "Endbeschnitt", "schnitt": "Schnittfuge", "rest": "Rest" + (" (verwertbar)" if self.rest_ok else
                                                                               " (Verschnitt)"),
@@ -454,6 +477,11 @@ class AbwicklungAnsicht(QWidget):
             self.teil_gewaehlt.emit(i)
             self.update()
             return
+        z = self.zwischen_bei(punkt)
+        if z is not None:
+            self.bereich_gewaehlt.emit(self.zwischen_text(z))
+            self._ziehen = (punkt, self.versatz)
+            return
         b = self.bereich_bei(punkt)
         if b is not None:
             self.bereich_gewaehlt.emit(self.bereich_text(*b))
@@ -480,6 +508,10 @@ class AbwicklungAnsicht(QWidget):
                     QToolTip.hideText()
                 else:
                     QToolTip.showText(e.globalPosition().toPoint(), self.teil_text(i), self)
+            if i is None and self.ebenen.get("verschnitt", True):
+                z = self.zwischen_bei(QPointF(e.position()))
+                if z is not None:
+                    QToolTip.showText(e.globalPosition().toPoint(), self.zwischen_text(z), self)
         if self._ziehen is not None and e.buttons() & (Qt.LeftButton | Qt.MiddleButton):
             start, alt = self._ziehen
             d = QPointF(e.position()) - start

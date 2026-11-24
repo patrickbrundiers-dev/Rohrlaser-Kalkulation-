@@ -111,6 +111,7 @@ def teil_auf_stange(m, t, form):
         konturen.append(dict(k, punkte=pts, x=mx, t=mt, winkel=winkel_von_t(m, mt), seite=seite_von_t(m, mt)))
     return dict(ref=t.get("ref"), pos=t.get("pos"), artikel=t.get("artikel"), von=von, bis=float(t["bis"]),
                 laenge=float(t["laenge"]), drehung=float(t.get("drehung") or 0), dt=dt, umriss=oben + unten,
+                kante_a=oben, kante_b=list(reversed(unten)),
                 konturen=konturen, index=t.get("index"))
 
 
@@ -151,11 +152,91 @@ def stange(s, positionen, profil_von, merker=None):
         return None
     lage = rechnen.stange_zeichen(s)[0]
     naht = sk.naht_s(qs, lage) if lage is not None else None
-    return dict(laenge=float(s["stange"]), end=float(s.get("end") or 0), greif=float(s.get("greif") or 0),
+    zwischen = zwischenflaechen(teile, m.umfang, float(s.get("end") or 0),
+                                _rest_anfang(s, bereiche(s)))
+    return dict(zwischen=zwischen, laenge=float(s["stange"]), end=float(s.get("end") or 0),
+                greif=float(s.get("greif") or 0),
                 umfang=m.umfang, umfang_scharf=qs.umfang, streifen=m.streifen(), kanten=m.radius_linien(),
                 naht=m.t(naht) if naht is not None else None, form=getattr(qs, "form", ""),
                 bereiche=[(a, v, b) for a, v, b, _ in bereiche(s)], teile=teile, fehlt=fehlt, profil=profil0,
                 radius=m.r, rest=s.get("rest") or "")
+
+
+def _rest_anfang(s, b):
+    """x, ab dem nach dem letzten Teil (und seinem Schnitt) Rest bzw. Greiferrest beginnt."""
+    teile_ende = max((bis for a, v, bis, _ in b if a in ("teil", "schnitt")), default=float(s.get("end") or 0))
+    return teile_ende
+
+
+def _flaeche(poly):
+    return abs(sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1]))) / 2
+
+
+def zwischenflaechen(teile, umfang, anfang, ende):
+    """Verschnitt zwischen den Teilen (Patrick 24.11.2026): die Mantelfläche zwischen der Schnittkante B eines Teils
+    und der Schnittkante A des nächsten (bei Gehrungen/Schrägschnitten die Dreiecke, sonst die Schnittfuge), dazu vor
+    dem ersten Teil bis zum Endbeschnitt und nach dem letzten bis zum Rest. Ergebnis: [dict(von_teil, bis_teil,
+    poly [(x, t)], flaeche [mm²], mm = Fläche / Umfang (gleichwertige Länge), x0, x1)], nur Flächen > 0,5 mm²."""
+    out = []
+    if not teile or umfang <= 0:
+        return out
+    seq = sorted(range(len(teile)), key=lambda i: teile[i]["von"])
+    kanten = [([(anfang, 0.0), (anfang, umfang)], None)]
+    for i in seq:
+        kanten.append((teile[i]["kante_a"], i))
+        kanten.append((teile[i]["kante_b"], i))
+    kanten.append(([(ende, 0.0), (ende, umfang)], None))
+    for k in range(0, len(kanten), 2):
+        (links, li), (rechts, ri) = kanten[k], kanten[k + 1]
+        poly = list(links) + list(reversed(rechts))
+        f = _flaeche(poly)
+        if f <= 0.5:
+            continue
+        xs = [x for x, _ in poly]
+        out.append(dict(von_teil=li, bis_teil=ri, poly=poly, flaeche=f, mm=f / umfang, x0=min(xs), x1=max(xs)))
+    return out
+
+
+def zwischen_netz(qs, mantel, zwischen, punkte=PUNKTE):
+    """3D-Netz der Verschnittflächen zwischen den Teilen (Patrick 24.11.2026 „In 3D auch“): je Fläche das Stück
+    Rohrwand zwischen den beiden Schnittkanten, außen auf der echten Außenhaut (Eckradien), innen um die Wanddicke
+    nach innen, mit den Schnittflächen an beiden Kanten. Koordinaten wie die Teile auf der Stange (z längs ab
+    Materialanfang, Y oben, X = −u, d. h. vorne = −X). Ergebnis dict(p, t={'VS': Dreiecke}) oder None."""
+    U = mantel.umfang
+    wand = float(getattr(qs, "wand", 0) or getattr(qs, "dicke", 0) or 0) or 1.0
+    pk, tri = [], []
+
+    def ort(t):
+        u, v = qs.s_zu_uv(mantel.s(t % U))[0]
+        n = qs.s_zu_uv(mantel.s(t % U))[1]
+        ru, rv, rn = sk.rund_ort(qs, u, v)
+        nu, nv = rn if rn is not None else n
+        return (-ru, rv), (-(ru - wand * nu), rv - wand * nv)
+
+    def punkt(x, uv):
+        pk.extend((uv[0], uv[1], x))
+        return len(pk) // 3 - 1
+    for z in zwischen:
+        n_l = len(z["poly"]) // 2
+        links, rechts = z["poly"][:n_l], list(reversed(z["poly"][n_l:]))
+        stellen = sorted({U * i / punkte for i in range(punkte + 1)} | {q for _, q in links} | {q for _, q in rechts})
+        reihe = []
+        for t in stellen:
+            xa, xb = _linie_bei(links, t, U), _linie_bei(rechts, t, U)
+            if xb < xa:
+                xa = xb = (xa + xb) / 2
+            aus, inn = ort(t)
+            reihe.append((punkt(xa, aus), punkt(xb, aus), punkt(xa, inn), punkt(xb, inn), xb - xa > 1e-6))
+        for (a0, b0, c0, d0, f0), (a1, b1, c1, d1, f1) in zip(reihe, reihe[1:]):
+            if not (f0 or f1):
+                continue
+            tri += [a0, b0, b1, a0, b1, a1,         # außen
+                    c0, d1, d0, c0, c1, d1,         # innen
+                    a0, a1, c1, a0, c1, c0,         # Schnittfläche links
+                    b0, d0, d1, b0, d1, b1]         # Schnittfläche rechts
+    if not tri:
+        return None
+    return dict(p=pk, t={"VS": tri})
 
 
 def kennzahlen(d, s):
@@ -167,7 +248,10 @@ def kennzahlen(d, s):
         return sum(bis - v for a, v, bis in b if a == art)
     teile = summe("teil")
     laenge = float(s["stange"])
-    return dict(teile=len(s["teile"]), teile_mm=teile, schnitt_mm=summe("schnitt"), end_mm=summe("end"),
+    zw = d.get("zwischen") if d else None
+    return dict(zwischen_mm=sum(z["mm"] for z in zw) if zw is not None else None,
+                zwischen_flaeche=sum(z["flaeche"] for z in zw) if zw is not None else None,
+                teile=len(s["teile"]), teile_mm=teile, schnitt_mm=summe("schnitt"), end_mm=summe("end"),
                 rest_mm=summe("rest"), greif_mm=summe("greif"), ausnutzung=teile / laenge if laenge else 0.0,
                 laenge=laenge)
 
@@ -309,6 +393,17 @@ def netz_stange(s, positionen, profil_von, netz_von=None, merker=None, farbe_ref
     netz, _ = baugruppe(netze, farben=farben, normteile=tuple(reste))
     if netz and "NT" in netz.get("t", {}):
         netz["t"]["RS"] = netz["t"].pop("NT")         # Reststücke/Endbeschnitt/Greiferrest eigene Farbe
+    if netz and profil0:                            # Verschnitt zwischen den Teilen als eigene Art (rot)
+        try:
+            d = stange(s, positionen, profil_von, merker)
+            qs = sk.Querschnitt(profil0)
+            vs = zwischen_netz(qs, aw.Mantel(qs), d["zwischen"]) if d and d.get("zwischen") else None
+        except (ValueError, TypeError, KeyError, ZeroDivisionError, AttributeError, IndexError):
+            vs = None
+        if vs:
+            basis = len(netz["p"]) // 3
+            netz["p"] = list(netz["p"]) + vs["p"]
+            netz["t"]["VS"] = [basis + i for i in vs["t"]["VS"]]
     return netz, info
 
 

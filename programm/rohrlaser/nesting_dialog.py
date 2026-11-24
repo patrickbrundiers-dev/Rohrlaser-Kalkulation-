@@ -961,7 +961,7 @@ class NestingDialog(QDialog):
             self.karte_teil.setVisible(False)
             return
         g, z = v["gruppe"], rechnen.zahl
-        k = na.kennzahlen(None, s)
+        k = na.kennzahlen(self.stange_daten(i)[0], s)
         prof = (v.get("profil_werte") or (None, None))[0] or {}
         wand = (prof.get("wand") or prof.get("s") or prof.get("wandstaerke")) if isinstance(prof, dict) else None
         kgm = (v.get("profil_werte") or (None, None))[1]
@@ -974,6 +974,9 @@ class NestingDialog(QDialog):
                   ("Länge", f"{z(s['stange'], 0)} mm" + (f" · {z(kgm * s['stange'] / 1000, 1)} kg" if kgm else "")),
                   ("Teile", f"{k['teile']} · Verbrauch {z(k['teile_mm'], 0)} mm"),
                   ("Schnittfugen", f"{z(k['schnitt_mm'], 1)} mm"),
+                  ("Verschnitt zwischen Teilen", f"{z(k['zwischen_mm'], 1)} mm Rohrlänge "
+                   f"({z(k['zwischen_flaeche'] / 100, 0)} cm², inkl. Fugen und Gehrungsdreiecke)"
+                   if k.get("zwischen_mm") is not None else "—"),
                   ("Endbeschnitt", f"{z(k['end_mm'], 0)} mm"),
                   ("Rest", f"{z(k['rest_mm'], 0)} mm" + (" (verwertbar)" if self._rest_ok(s) else
                                                          " (Verschnitt)" if k["rest_mm"] > 0 else "")),
