@@ -58,6 +58,7 @@ TESTS = [
     ("test_step_gravur_tempo.py", {}),
     ("test_tempo_1811.py", {}),
     ("test_support_1911.py", QT),
+    ("test_support_2411.py", QT),
     ("test_erkennung_schlitz_naht.py", {}),
     ("test_kerbbiegen.py", {}),
     ("test_offenes_rohr.py", QT),

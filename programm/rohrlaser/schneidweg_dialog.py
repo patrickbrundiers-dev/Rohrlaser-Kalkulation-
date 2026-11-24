@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QComplet
                                QMessageBox, QPushButton, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
-from . import einblendung, funktionen, stil
+from . import einblendung, funktionen, stil, tempo
 from . import (biegerohr, dfm, dreid, durchdringung as dd, hilfe, knickrahmen, naht, profil_neu, rechnen,
                schneidweg as sw, skizze as sk, tabellen_eingabe, virtuell)
 from .muster_haken import MusterHaken
@@ -117,6 +117,7 @@ class SchneidwegDialog(QDialog):
     Konturgrenzen, Schneiddaten), db: Datenbank für Vorlagen, positionen: Positionen des Angebots zum Kopieren von
     Konturen. Nach OK: self.eingaben (dict) und self.ergebnis (schneidweg.rechnen)."""
 
+    @tempo.gemessen("Schneidweg: Fenster aufbauen")
     def __init__(self, parent, p, profil, kopf, k, tabellen, db=None, positionen=None, step_lesen=None, neu=False):
         super().__init__(parent)
         self.neu = neu                  # neue Position: Kopfzeile mit Artikel, Profil, Werkstoff, Länge, Stückzahl
@@ -1463,6 +1464,7 @@ class SchneidwegDialog(QDialog):
                     it.setToolTip(v)        # schmale Spalte: ganzer Text beim Zeigen
                 t.setItem(r, c, it)
 
+    @tempo.gemessen("Schneidweg: rechnen")
     def _rechnen(self):
         eingaben = self.eingaben()
         erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine, laenge=self._teil_laenge())

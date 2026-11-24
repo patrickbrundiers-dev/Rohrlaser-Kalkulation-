@@ -21,6 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.465", "<b>Keine Hänger mehr nach dem ERP-Einkauf</b> ([[erp_preise]]): Mit vielen eingelesenen Käufen "
+                "hat das Programm bei jedem Klick auf <i>Optimieren</i>, <i>Material …</i>, <i>Übernehmen</i>, auf "
+                "der Seite Material und im STEP-Import alle EK-Artikel neu erkannt (rund 9 Sekunden je Klick, beim "
+                "Einlesen der EK-CSV über eine Minute und beim Anlegen aus dem EK über zwei Minuten). Jetzt wird jede "
+                "EK-Bezeichnung nur einmal je Stammdaten-Stand erkannt und die Suche nach dem Profil ist schneller; "
+                "das Ergebnis ist genau dasselbe. Die Prüfliste ERP-Artikel zeigt Profil, Werkstoff und Oberfläche "
+                "als Text, die Auswahlfelder erscheinen beim Klick auf die Zeile. Gemessen mit 30.000 Käufen und "
+                "1.700 Profilen: Erkennung 87 s → 0,8 s, danach 0,05 s; Prüfliste öffnen 1 s. <b>Programmstart</b>: "
+                "die Prüfspalte der Stammdaten baute je Zeile alle Auswahllisten neu (mit vielen Profilen viele "
+                "Sekunden; Nachbau 17 s → 4,7 s für den Fensteraufbau), die Seite Material liest die Käufe nur "
+                "noch einmal. <b>Schweißbaugruppen-Editor</b>: das 3D-Modell mit Kanten wird beim Öffnen nur noch "
+                "einmal gebaut statt zweimal. Für das Fenster <i>Schneidweg berechnen</i> und das 3D-Bild stehen "
+                "neue Messabschnitte im Zeitwächter (Supportpaket zeigt die Ursache).",
+     "Hänger behoben: Optimieren/Material nach ERP-Import (87 s → unter 1 s), Programmstart, BG-Editor öffnen"],
     ["0.9.464", "<b>BLM-Programme einlesen: ARTUBE und BPF</b> ([[blm_programm]]): ArTube-Projekte (.artube) und "
                 "Teileprogramme für BLM/Adige-Rohrlaser (.bpf, z. B. LT7/LT8) gehen wie eine STEP-Datei durch den "
                 "STEP-Import – <i>Neue Position → Aus BLM-Programm</i>, Ziehen, Ablagefeld, Ordner, ZIP und Anfragen. "
