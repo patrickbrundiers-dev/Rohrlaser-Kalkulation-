@@ -71,7 +71,7 @@ def datei_vergleich(pfad, wdh=1, basis=None, soll=None):
     if len(alt) != len(neu):
         unterschiede.append(["teile", len(alt), len(neu)])
     for a, b in zip(alt, neu):
-        unterschiede += [[f"K{a.koerper}.{n}", repr(x)[:160], repr(y)[:160]] for n, x, y in ak.vergleichen(a, b)]
+        unterschiede += [[f"K{b.koerper}.{n}", repr(x)[:160], repr(y)[:160]] for n, x, y in ak.vergleichen(a, b)]
     methoden = [dict(koerper=e["koerper"], quer=e["quer"], methode=e["methode"], grund=e.get("grund", ""),
                      vertrauen=e.get("vertrauen")) for e in prot]
     return dict(datei=name, alt_s=round(t_alt, 3), neu_s=round(t_neu, 3), teile=len(alt), gleich=not unterschiede,

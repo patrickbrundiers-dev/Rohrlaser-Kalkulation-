@@ -36,7 +36,8 @@ from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.Bnd import Bnd_Box
 from OCP.BRepBndLib import BRepBndLib
 from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane
-from OCP.TopAbs import TopAbs_FACE
+from OCP.BRep import BRep_Tool
+from OCP.TopAbs import TopAbs_FACE, TopAbs_VERTEX
 from OCP.TopoDS import TopoDS
 from OCP.gp import gp_Ax3, gp_Dir, gp_Pnt, gp_Vec
 
@@ -117,7 +118,10 @@ def _laengs(typ, d, achse):
     return False
 
 
-def achse(fl):
+LAENGER = 1.5           # Flachstahl: die Längsrichtung ist so viel länger als jede andere fast gleich gute Richtung
+
+
+def achse(fl, solid=None, mit_art=False):
     """Rohrachse aus den Flächen (gp_Dir) und Anteil der Längsflächen an der Oberfläche, oder (None, Anteil).
     Kandidaten: Achsen der Zylinder und Kreuzprodukte der Normalen der größten Ebenen; gewählt wird die mit der
     größten Längsfläche."""
@@ -142,14 +146,29 @@ def achse(fl):
         wertung.append((sum(a for _, typ, a, n in fl if n is not None and _laengs(typ, n, d)) / gesamt, d))
     wertung.sort(key=lambda w: -w[0])
     if not wertung or wertung[0][0] < LAENGS_ANTEIL:
-        return None, wertung[0][0] if wertung else 0.0
+        a0 = wertung[0][0] if wertung else 0.0
+        return (None, a0, "") if mit_art else (None, a0)
     anteil, beste = wertung[0]
+    art = "flaechen"
     if len(wertung) > 1 and wertung[1][0] > anteil - EINDEUTIG:
-        return None, -anteil        # zwei Richtungen fast gleich gut (Platte, Flachstahl): nicht eindeutig
+        # zwei Richtungen fast gleich gut (Flachstahl, Platte): eindeutig nur über die Länge (Plan 2.0, N3)
+        nah = [w for w in wertung if w[0] > anteil - EINDEUTIG]
+        if solid is None:
+            return None, -anteil
+        pts = [BRep_Tool.Pnt_s(TopoDS.Vertex(v)) for v in g._liste(solid, TopAbs_VERTEX)]
+
+        def ausdehnung(d):
+            s = [p.X() * d.X() + p.Y() * d.Y() + p.Z() * d.Z() for p in pts]
+            return max(s) - min(s) if s else 0.0
+        lang = sorted(((ausdehnung(d), a, d) for a, d in nah), key=lambda x: -x[0])
+        if len(lang) < 2 or lang[0][0] < LAENGER * lang[1][0]:
+            return (None, -anteil, "") if mit_art else (None, -anteil)    # keine klar längste Richtung (Platte)
+        _, anteil, beste = lang[0]
+        art = "laenge"
     k = max((beste.X(), beste.Y(), beste.Z()), key=abs)       # wie _achse_grob: größter Anteil positiv
     if k < 0:
         beste = beste.Reversed()
-    return beste, anteil
+    return (beste, anteil, art) if mit_art else (beste, anteil)
 
 
 def freie_bereiche(lok_fl, zmin, zmax):
@@ -190,6 +209,25 @@ def freie_bereiche(lok_fl, zmin, zmax):
     return sorted((f for f in frei if f[1] - f[0] >= FREI_MIN), key=lambda f: -(f[1] - f[0]))
 
 
+def _stufe(lok_fl, zmin, zmax):
+    """Gibt es eine Längsfläche, die weder von Ende zu Ende reicht noch kurz an einem Ende liegt (Tasche, Stufe)?"""
+    kurz = KURZ * (zmax - zmin)
+    for f, laengs in lok_fl:
+        if not laengs:
+            continue
+        b = Bnd_Box()
+        BRepBndLib.Add_s(f, b, False)
+        if b.IsVoid():
+            continue
+        z0, z1 = b.CornerMin().Z(), b.CornerMax().Z()
+        if z0 <= zmin + ENDE + RAND and z1 >= zmax - ENDE - RAND:
+            continue
+        if z1 - z0 < kurz and (z0 <= zmin + ENDE + RAND or z1 >= zmax - ENDE - RAND):
+            continue
+        return True
+    return False
+
+
 def _lagen(frei, n=LAGEN):
     """n Schnittlagen in den freien Bereichen: je Bereich (größte zuerst) die Mitte, reichen die Bereiche nicht, im
     größten auch bei 25 % und 75 % (krumme Anteile, damit kein Schnitt genau auf einer Kante liegt)."""
@@ -208,7 +246,7 @@ def lage(solid):
     (die Lage von best zuerst), z im System ax3."""
     uhr = time.perf_counter()
     fl = flaechen(solid)
-    d, anteil = achse(fl)
+    d, anteil, art = achse(fl, solid, mit_art=True)
     if d is None:
         return None, ("zwei Längsrichtungen fast gleich (Platte, Flachstahl)" if anteil < 0 else
                       f"keine Längsrichtung (Längsflächen {anteil:.0%}, z. B. Freiform)")
@@ -222,6 +260,10 @@ def lage(solid):
     z_ = gp_Dir(0, 0, 1)        # im lokalen System ist die Rohrachse Z
     lok_fl = [(f, n is not None and _laengs(typ, n, z_)) for f, typ, _, n in flaechen(lok)]
     frei = freie_bereiche(lok_fl, zmin, zmax)
+    if art == "laenge" and _stufe(lok_fl, zmin, zmax):
+        # Flachstahl über die Länge bestimmt: Taschen, Stufen oder Absätze (Längsflächen nicht von Ende zu Ende)
+        # machen den Querschnitt mehrdeutig (B08 Platte mit Tasche): bisherige Rechnung
+        return None, "Platte mit Tasche oder Stufe (Längsfläche nicht von Ende zu Ende)"
     if not frei:
         return None, "kein merkmalsfreier Bereich (Querschnitt überall von Merkmalen belegt)"
     zs = _lagen(frei)
@@ -323,7 +365,8 @@ def gegenproben(t, info, ax3, quer=False):
     """Gegenproben einer Messung über den Kern, unabhängig von den Schnitten: (Vertrauen 0–100, Befunde
     [(Probe, bestanden, Text)]). Nicht bestanden = Rückfall auf die bisherige Rechnung (step_geometrie._profil_messen).
     Proben: Werte endlich und nicht negativ; Querschnitt und Länge wie die Merkmalskarte; Rundrohr Ø und Innen-Ø als
-    Radien achsgleicher Zylinder; Rechteck-/Quadratrohr Außen- und Innenmaße als Abstände der Wandebenen.
+    Radien achsgleicher Zylinder; Rechteck-/Quadratrohr und Flachstahl Außen- (und Innen-)maße als Abstände der
+    Wandebenen.
     quer: die Lage kommt aus einem anderen Körper (geschlossenes Rohr zu einem offen gezeichneten): Länge nicht
     vergleichbar."""
     befunde = []
@@ -339,7 +382,7 @@ def gegenproben(t, info, ax3, quer=False):
                         f"Länge {t.laenge:.3f} / Merkmalskarte {laenge:.3f} mm"))
     mass = False
     fl = info.get("_fl")
-    if fl and t.profilform in ("Rundrohr", "Quadratrohr", "Rechteckrohr") and laenge:
+    if fl and t.profilform in ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Flachstahl") and laenge:
         ebenen, zylinder = _flaechen_lage(fl, ax3)
         if t.profilform == "Rundrohr":
             radien = [r for r, ab, zl in zylinder if ab <= TOL_PROBE and zl >= LANG * laenge]

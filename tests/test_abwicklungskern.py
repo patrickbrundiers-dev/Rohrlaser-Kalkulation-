@@ -112,7 +112,7 @@ assert not ak.vergleichen(g._profil_messen_kern(geh), g._profil_messen_kern(geh,
 ok("A2 Merkmalskarte: Schnitte nur in freien Bereichen, Gehrung an beiden Enden, Ergebnis wie bisher")
 
 # A3 Rückfall
-platte = BRepPrimAPI_MakeBox(gp_Pnt(0, 0, 0), 300, 200, 8).Shape()
+platte = BRepPrimAPI_MakeBox(gp_Pnt(0, 0, 0), 300, 250, 8).Shape()     # keine klar längste Richtung (< 1,5×)
 assert ak.lage(solid(platte))[0] is None and "Platte" in ak.lage(solid(platte))[1]
 fenster = solid(minus(re_rohr(), BRepPrimAPI_MakeBox(gp_Pnt(-20, 0, 2.5), 40, 40, 595).Shape()))
 erg3, grund3 = ak.lage(fenster)

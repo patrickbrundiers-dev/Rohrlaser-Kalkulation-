@@ -203,3 +203,19 @@ Messung 126 Prüf-STEPs (Modus an, ohne Stichprobe): 170 Kern-Messungen, davon 1
 41 Rückfälle wie bisher. Gegen die Prüfbasis 124 von 124 Dateien gleich. Die Gegenproben fanden an den Prüfteilen
 keinen Fehler. Zuerst schlug REF08 (Quadratrohr mit Fasen) an, weil die Fasen als eigene Wandrichtung galten; das ist
 behoben.
+
+### PR B: Flachstahl über die Länge (N3) und Befund zu N2
+
+- **N2 Befund:** Die bisherigen Maße sind an analytischen Rohren schon auf etwa 1e-10 mm exakt (Ø, Außen-, Innenmaß,
+  Wandstärke an allen 130 Rohren mit Maß-Probe gleich den Zylinderradien bzw. Ebenenabständen). Ein Ersetzen der
+  Werte bringt keine Genauigkeit. N2 wird deshalb nur als Gegenprobe genutzt (PR A).
+- **N3:** Von den 23 Rückfällen „zwei Längsrichtungen fast gleich“ sind 19 Bleche. Für sie ist die Profilmessung nur
+  die Alternative. Neu: Sind zwei Richtungen fast gleich gut, gilt die, die mindestens 1,5-mal länger ist als jede
+  andere (`LAENGER`). Längsflächen, die nicht von Ende zu Ende reichen und nicht kurz an einem Ende liegen (Tasche,
+  Stufe), führen dann zur bisherigen Rechnung (B08 hätte sonst als Alternative „Flachstahl“ statt „offenes
+  Sonderprofil“ bekommen). Flachstahl bekommt die Maß-Probe der Wandebenen (Breite × Dicke).
+- Ergebnis gegen die Prüfbasis: 124 von 124 Dateien gleich, Kernquote 81 % → 86 % (182 von 211), Zeit gleich
+  (91,5 s; die Bleche waren schon schnell). Rückfälle: 7 Platten ohne klar längste Seite, 4 Platten mit
+  Tasche/Stufe, 6 Fenster/Anbau, 6 ohne freien Bereich, 6 Freiform.
+- **Zielwert angepasst:** 95 % Kernquote ist mit Blechen in der Zählung nicht sinnvoll, weil Bleche keine Profile
+  sind. Neues Ziel für PR C bis E: alle Rohre und Profile außer echten Sonderfällen.

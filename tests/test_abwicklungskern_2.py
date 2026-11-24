@@ -5,6 +5,8 @@ A8  Selbstprüfung (N1): Gegenproben aus den Flächen bestehen bei richtigen Mes
     (Vertrauen 0 = Rückfall); Rechteckrohr mit Fasen (eigene Richtung) zählt richtig.
 A9  Dauer-Vergleich (N1): Auswahl nur nach Datei und Körper; Stichprobe rechnet zusätzlich bisher und protokolliert;
     0 = aus; Einstellung über step_geometrie.einstellen.
+A11 Flachstahl (N3): zwei fast gleich gute Längsrichtungen, klar längste gewinnt (1,5×); Tasche/Stufe und kurze
+    Platte bleiben bei der bisherigen Rechnung.
 A10 Prüfbasis (N7): Sollwerte JSON hin und zurück gleich; Auswahl von Prüf-STEPs gegen tests/daten/
     abwicklungskern_soll.json (Modus an) ohne Abweichung.
 
@@ -116,5 +118,20 @@ for name in AUSWAHL:
     e = av.datei_vergleich(HIER / name, basis=HIER, soll=SOLL[name])
     assert e.get("gleich"), (name, e)
 ok(f"A10 Prüfbasis: Sollwerte hin und zurück gleich, {len(AUSWAHL)} Prüf-STEPs gegen die Prüfbasis gleich")
+
+# A11 Flachstahl über die Länge (N3)
+ak.stichprobe_setzen(0)
+ak.modus_setzen("an")
+for name, methode, grund in (("step_profile/P08_FL40x5_L800.step", "abwicklung", ""),
+                             ("step_bleche/B09_FL100x10_L800.step", "abwicklung", ""),
+                             ("step_bleche/B08_Platte_mit_Tasche.step", "bisher", "Platte mit Tasche"),
+                             ("step_regression/R07_FL80x8_L100_Senkungen.step", "bisher", "zwei Längsrichtungen")):
+    del ak.PROTOKOLL[:]
+    g.analysiere_datei(str(HIER / name))
+    e = ak.PROTOKOLL[0]
+    assert e["methode"] == methode and e.get("grund", "").startswith(grund), (name, e)
+    if methode == "abwicklung":
+        assert e["vertrauen"] == 100, (name, e)       # Breite × Dicke gegen die Wandebenen geprüft
+ok("A11 Flachstahl: Längsrichtung über die Länge (P08, B09), Tasche und kurze Platte wie bisher")
 g._profil_messen = _alt
 print("Alle Tests bestanden.")

@@ -5388,8 +5388,10 @@ def kapitel_step(i):
             "<b>Rundrohr-Bohrungen:</b> Mit dem Abwicklungskern ist die Wandrichtung am Rundrohr exakt. Eine radiale "
             "Bohrung galt vorher je nach Lage als bis zu 0,7° schräg und wurde dann mit der 3D-Schnittlänge statt "
             "der 2D-Rundrohr-Regel gerechnet.",
-            "<b>Bisherige Rechnung bleibt</b> bei Freiformflächen (B-Spline), Platten und Flachstahl (zwei "
-            "Längsrichtungen), Anbauteilen, langen Fenstern und Rohren ohne merkmalsfreie Stelle.",
+            "<b>Flachstahl:</b> Hier sind zwei Richtungen fast gleich gut. Der Kern nimmt die Richtung, die "
+            "mindestens 1,5-mal länger ist als die andere. Platten mit Tasche oder Stufe rechnet er wie bisher.",
+            "<b>Bisherige Rechnung bleibt</b> bei Freiformflächen (B-Spline), Platten ohne klar längste Seite, "
+            "Anbauteilen, langen Fenstern und Rohren ohne merkmalsfreie Stelle.",
             "<b>Selbstprüfung:</b> Jede Messung über den Abwicklungskern wird gegengeprüft, unabhängig von den "
             "Schnitten. Beim Rundrohr müssen Ø und Innen-Ø als Radien der Zylinderflächen in der STEP stehen. Beim "
             "Rechteck- und Quadratrohr müssen Außen- und Innenmaße als Abstände der Wandflächen vorkommen. Dazu "
