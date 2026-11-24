@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.468", "<b>Produktionsdaten-Intelligenz</b> ([[lernsystem]]): Das Fenster <i>Datei → "
+                "Produktionsdaten-Intelligenz …</i> liest jetzt TRUMPF-LST und BLM-BPF (Ordner oder <i>Dateien "
+                "importieren …</i>, im Hintergrund, abbrechbar). Jeder Wert steht mit Einheit, Quelle und Deutung im "
+                "Reiter <i>Maschinendaten</i>, z. B. Laser an je Leistungsstufe, Verfahrzeit, Einstiche, Konturen, "
+                "Positionierungen, Umspannen und Vollkreise; fehlende Werte werden nicht ergänzt. Neu sind die Reiter "
+                "<i>Abgleich</i> (12 Werte Kalkulation gegen Maschine und Ursachen der Zeitabweichung), "
+                "<i>Genauigkeit</i> (sehr gut nur mit mindestens 10 gemessenen Teilen), <i>Lernanalyse</i> "
+                "(Vorschub je Konturklasse groß/mittel/klein aus der Laser-an-Zeit) und <i>Importprotokoll</i>. "
+                "Jeder Lernvorschlag bekommt eine Gegenprobe; ist er nicht besser, geht die Freigabe nur mit "
+                "Bestätigung. Die KI nennt im Angebots-Check und bei Preis erklären die Datenbasis je Position. "
+                "Maschinenprogramme werden nie verändert, ohne Freigabe ändert sich an der Kalkulation nichts.",
+     "Produktionsdaten-Intelligenz: LST + BPF lesen, Abgleich mit Ursachen, Genauigkeit, Zeitmodell je Konturklasse"],
     ["0.9.466", "<b>Update-Paket bauen</b>: Das Werkzeug für das Online-Update brach auf Windows nach dem fertigen "
                 "Paket ab, wenn im Änderungstext ein Sonderzeichen stand, das die Windows-Konsole nicht darstellen "
                 "kann (z. B. ein Pfeil). Jetzt erscheint so ein Zeichen in der Ausgabe als Ersatztext und das "
