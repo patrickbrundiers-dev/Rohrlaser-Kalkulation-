@@ -225,6 +225,31 @@ def kinder():
     return (len(leiste.findChildren(QMenu)), len(leiste.findChildren(QAction)), len(leiste.findChildren(QLabel)))
 
 
+# Paket 2: Einstellungsseiten erst bei Bedarf bauen
+seiten = f.einstellungen.seiten
+assert not any(s.gebaut for s in seiten), [s.titel for s in seiten if s.gebaut]
+s0, s1, s2 = seiten[0], seiten[1], seiten[2]
+assert s0.liste and not s0.gebaut                         # Suche kennt die Einstellungen ohne Bau
+e1 = s1.liste[0]
+assert f.einstellungen.seite_von(e1.name) is s1 and not s1.gebaut
+feld = s1.felder[e1.name]                                 # Zugriff baut die Seite
+assert s1.gebaut and feld is s1.felder[e1.name]
+e2 = s2.liste[-1]
+s2.filtern(e2.titel)                                      # Suche vor dem Bau gilt beim Bau
+f.show()
+f.bereich.zeigen(s2)
+f.zeigen(f.bereich)
+QApplication.processEvents()
+assert s2.gebaut and s2.widget().isVisible()
+sichtbar = [e.name for e, form, zeile, box in s2.zeilen if form.isRowVisible(zeile) and box.isVisible()]
+assert e2.name in sichtbar, sichtbar
+s2.filtern("")
+f.bereich.schutz_anwenden()                               # Schutz/Admin auf gebaute und ungebaute Seiten
+assert not s0.gebaut or s0 is f.bereich.unter.currentWidget()
+assert set(f.einstellungen.felder) == {e.name for e in f.einstellungen.liste}
+assert all(s.gebaut for s in seiten)
+ok(f"Einstellungen: {len(seiten)} Seiten erst bei Bedarf gebaut (Zugriff, Zeigen, Suche vorher, alle Felder)")
+
 leiste.neu_bauen()
 vorher = kinder()
 for _ in range(5):
