@@ -153,8 +153,14 @@ ausgenommen, alle übrigen Messwerte werden Zeichen für Zeichen verglichen).
 | 21cf4d1e | mittel | 16,1 | 16,4 | 309 / 309 | gleich, **+1 Hinweis „deckungsgleich doppelt“** |
 | 84f9a0c9 | mittel | 29,7 | 32,7 | 308 / 296 | gleich |
 | 462679ba | mittel | 58,4 | 68,6 | 305 / 296 | **1 Rohr vorher „nicht messbar“, jetzt gemessen** (siehe 7) |
-| 3859869a Trailer | 218 | 1348,9 | 1380,6 | 687 / 596 | gleich bis auf Rundungsrauschen 1e-16 (siehe unten) |
-| 93ce4136 | groß | 1744,4 | 1850,2 | 3045 / 2794 | siehe unten |
+| 3859869a Trailer | 218 | 1367,6 | 1380,6 | 597 / 596 | gleich (bitgleich gegen main 497fa66) |
+| 93ce4136 | groß | 1868,2 | 1850,2 | 2914 / 2794 | gleiche Messwerte, **+1 Hinweis „deckungsgleich doppelt“** (siehe unten) |
+
+Trailer und 93ce4136 wurden zur Gegenprobe ein zweites Mal mit dem Ausgangsstand (main 497fa66) gemessen; die
+Tabelle zeigt diesen Lauf. Bei 93ce4136 unterscheiden sich außer dem neuen Hinweis nur (a) die Achsrichtung einiger
+Drehteile in der 16. Nachkommastelle (1e-16; dieses Rauschen gibt es auch zwischen zwei Läufen des Ausgangsstands, 24
+Stellen) und (b) die Reihenfolge der Messstellen der Wandstärke bei 3 Rohren (gleiche Werte, nur andere Reihenfolge der
+z-Positionen). Kein Maß, keine Kontur, kein Profil, keine Art hat sich geändert.
 
 Die Zeiten der großen Dateien schwanken auf der Cloud-Maschine um ±5 %; die reine Prüfzeit steht im Tempo-Protokoll
 (`pruefen_s`) und liegt bei den Testdateien bei rund 1,3 s gesamt.
