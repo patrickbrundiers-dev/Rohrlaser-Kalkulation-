@@ -196,6 +196,7 @@ class ErpPreiseDialog(QDialog):
         seite_a = QWidget()
         la = QVBoxLayout(seite_a)
         self.artikel_tab = _tabelle(self.ARTIKEL, (60, 110, 300, 50, 70, 150, 140, 120))
+        self.artikel_tab.currentCellChanged.connect(self._zeile_gewaehlt)
         la.addWidget(self.artikel_tab, 1)
         leiste = QHBoxLayout()
         self.anlegen_knopf = QPushButton("Profil anlegen …")
@@ -242,34 +243,54 @@ class ErpPreiseDialog(QDialog):
         self._preise_zeigen()
 
     def _artikel_zeigen(self):
+        """Prüfliste füllen. Profil, Werkstoff und Oberfläche stehen als Text da; die Auswahlfelder entstehen erst,
+        wenn eine Zeile gewählt wird (_boxen). Supportpaket 24.11.2026: je Zeile drei Auswahlfelder mit allen
+        Profilen kosteten bei 3.900 EK-Artikeln über eine Minute und 1 GB Speicher beim Öffnen und nach jeder Wahl."""
         t = self.artikel_tab
         t.setRowCount(0)
-        _fuellen(t, [(a["ampel"], a["artikelnr"], a["bezeichnung"], a["kaeufe"], _t(a["meter"], 1), "", "", "",
-                      a["hinweis"]) for a in self.artikel], rechts=(3, 4))
-        profile = [""] + sorted(self.k.profile, key=str.lower)
-        werkstoffe = [""] + sorted(self.k.werkstoffe, key=str.lower)
-        oberflaechen = [ROH] + sorted(o for o in self.k.oberflaechen if o.lower() != ROH)
+        _fuellen(t, [(a["ampel"], a["artikelnr"], a["bezeichnung"], a["kaeufe"], _t(a["meter"], 1),
+                      WEG if a.get("ignorieren") else (a["profil_id"] or ""), a["werkstoff_id"] or "",
+                      a["oberflaeche"] or ROH, a["hinweis"]) for a in self.artikel], rechts=(3, 4))
+        self._listen = None
         for r, a in enumerate(self.artikel):
             for c in range(len(self.ARTIKEL)):
                 t.item(r, c).setBackground(QBrush(stil.farbe(AMPEL[a["ampel"]])))
-            pc = QComboBox()
-            pc.addItems(profile + [WEG])
-            pc.setCurrentText(WEG if a.get("ignorieren") else (a["profil_id"] or ""))
-            pc.setToolTip("Profil aus den Stammdaten; „– überspringen –“ = Artikel nie auswerten (z. B. kein Rohr)")
-            wc = QComboBox()
-            wc.addItems(werkstoffe)
-            wc.setCurrentText(a["werkstoff_id"] or "")
-            if a.get("kandidaten") and not a["werkstoff_id"]:
-                wc.setToolTip("Passend: " + ", ".join(a["kandidaten"]))
-            oc = QComboBox()
-            oc.addItems(oberflaechen + ([a["oberflaeche"]] if a["oberflaeche"] and a["oberflaeche"] not in
-                                        oberflaechen else []))
-            oc.setCurrentText(a["oberflaeche"] or ROH)
-            for c, box in ((5, pc), (6, wc), (7, oc)):
-                box.currentTextChanged.connect(lambda _t, r=r: self.zuordnung_geaendert(r))
-                t.setCellWidget(r, c, box)
+            for c in (5, 6, 7):
+                t.item(r, c).setToolTip("Klick: auswählen")
         t.horizontalHeader().setSectionResizeMode(2, QHeaderView.Interactive)
         self._artikel_filtern()
+
+    def _zeile_gewaehlt(self, r, _c=None, _r0=None, _c0=None):
+        if 0 <= r < len(self.artikel):
+            self._boxen(r)
+
+    def _boxen(self, r):
+        """Auswahlfelder Profil, Werkstoff, Oberfläche der Zeile r (einmal je Zeile angelegt)."""
+        t = self.artikel_tab
+        if t.cellWidget(r, 5) is not None:
+            return
+        if self._listen is None:
+            self._listen = ([""] + sorted(self.k.profile, key=str.lower) + [WEG],
+                            [""] + sorted(self.k.werkstoffe, key=str.lower),
+                            [ROH] + sorted(o for o in self.k.oberflaechen if o.lower() != ROH))
+        profile, werkstoffe, oberflaechen = self._listen
+        a = self.artikel[r]
+        pc = QComboBox()
+        pc.addItems(profile)
+        pc.setCurrentText(WEG if a.get("ignorieren") else (a["profil_id"] or ""))
+        pc.setToolTip("Profil aus den Stammdaten; „– überspringen –“ = Artikel nie auswerten (z. B. kein Rohr)")
+        wc = QComboBox()
+        wc.addItems(werkstoffe)
+        wc.setCurrentText(a["werkstoff_id"] or "")
+        if a.get("kandidaten") and not a["werkstoff_id"]:
+            wc.setToolTip("Passend: " + ", ".join(a["kandidaten"]))
+        oc = QComboBox()
+        oc.addItems(oberflaechen + ([a["oberflaeche"]] if a["oberflaeche"] and a["oberflaeche"] not in
+                                    oberflaechen else []))
+        oc.setCurrentText(a["oberflaeche"] or ROH)
+        for c, box in ((5, pc), (6, wc), (7, oc)):
+            box.currentTextChanged.connect(lambda _t, r=r: self.zuordnung_geaendert(r))
+            t.setCellWidget(r, c, box)
 
     def _artikel_filtern(self):
         for r, a in enumerate(self.artikel):
@@ -305,6 +326,7 @@ class ErpPreiseDialog(QDialog):
     def zuordnung_geaendert(self, r):
         a = self.artikel[r]
         t = self.artikel_tab
+        self._boxen(r)
         profil, werkstoff, ober = (t.cellWidget(r, c).currentText() for c in (5, 6, 7))
         if profil == WEG:
             E.zuordnung_merken(self.db, a["schluessel"], a["artikelnr"], a["bezeichnung"], ignorieren=True)
@@ -319,6 +341,7 @@ class ErpPreiseDialog(QDialog):
         """Für Tests: Zelle der Prüfliste wählen wie von Hand."""
         for c, w in ((5, profil), (6, werkstoff), (7, oberflaeche)):
             if w is not None:
+                self._boxen(r)
                 self.artikel_tab.cellWidget(r, c).setCurrentText(w)
 
     def _markiert(self):

@@ -13729,7 +13729,11 @@ def kapitel_stammdaten(i):
             "Bezeichnung, entscheidet sie) oder Oberfläche fehlt in den Stammdaten. Rot = Profil fehlt: <b>Profil "
             "anlegen …</b> öffnet das Fenster Neue Abmessung mit den erkannten Maßen, oder „– überspringen –“ "
             "(z. B. Schrauben). Jede Wahl wird je ERP-Artikel gemerkt, der nächste Import ist grün; "
-            "<b>Zuordnung vergessen</b> nimmt sie zurück. <b>Nur gelbe und rote</b> blendet die fertigen aus.",
+            "<b>Zuordnung vergessen</b> nimmt sie zurück. <b>Nur gelbe und rote</b> blendet die fertigen aus. "
+            "Profil, Werkstoff und Oberfläche stehen als Text in der Liste; die Auswahlfelder erscheinen, sobald "
+            "die Zeile angeklickt wird (so öffnet die Liste auch mit Tausenden EK-Artikeln in einer Sekunde). "
+            "Jede EK-Bezeichnung wird nur einmal je Stammdaten-Stand erkannt; Optimieren und das Fenster "
+            "Material je Abmessung warten deshalb auch mit vielen Käufen nicht.",
             "<b>Übersicht</b>: je Profil + Werkstoff + Oberfläche Käufe, Meter, Durchschnitt nach Menge (120 m zu "
             "3,10 € zählen mehr als 6 m zu 4,90 €) über die letzten 12 Monate, letzter Preis, Min – Max und der "
             "heutige Preis aus den Stammdaten (Mauszeiger: Herkunft). Ausreißer (mehr als 25 % vom Median, z. B. "

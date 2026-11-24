@@ -320,20 +320,37 @@ def _gleich(x, y, tol=0.051):
     return x is not None and y is not None and abs(float(x) - float(y)) <= tol
 
 
+_FLACH = {}
+
+
+def _flache_ids(profile):
+    """[(Profil-ID, Vergleichsform ohne Leerzeichen, klein, Punkt statt Komma)] ab 3 Zeichen, einmal je
+    Profil-Tabelle (gleiche Profil-IDs) statt je EK-Artikel neu."""
+    marke = tuple(profile)
+    e = _FLACH.get("p")
+    if e is None or e[0] != marke:
+        liste = []
+        for pid in profile:
+            p = re.sub(r"\s+", "", str(pid)).lower().replace(",", ".")
+            if len(p) >= 3:
+                liste.append((pid, p))
+        e = _FLACH["p"] = (marke, liste)
+    return e[1]
+
+
 def profil_finden(text, profile):
     """Profil-ID aus den Stammdaten: zuerst eine Profil-ID, die wörtlich in der Bezeichnung steht (IPE 200, RP
     0106-35, QR 40x40x3), sonst gleiche Form und Maße (±0,05 mm, Rechteckrohr auch gedreht). Ergebnis (Profil-ID
     oder None, erkannte Maße oder None)."""
     flach = re.sub(r"\s+", "", str(text or "")).lower().replace(",", ".")
-    beste = None
-    for pid in profile:
-        p = re.sub(r"\s+", "", str(pid)).lower().replace(",", ".")
-        if len(p) < 3:
+    beste, beste_n = None, 0
+    for pid, p in _flache_ids(profile):
+        if p not in flach:          # schneller Vorfilter, gleiches Ergebnis (Supportpaket 24.11.2026)
             continue
         for m in re.finditer(re.escape(p), flach):
             if not re.match(r"[\d.]", flach[m.end():m.end() + 1]) and (m.start() == 0 or not flach[m.start() - 1].isdigit()):
-                if beste is None or len(p) > len(re.sub(r"\s+", "", beste)):
-                    beste = pid
+                if beste is None or len(p) > beste_n:
+                    beste, beste_n = pid, len(p)
     mas = masse(text)
     if beste is not None:
         return beste, mas
@@ -412,9 +429,39 @@ def oberflaeche_finden(text, oberflaechen, werkstoff=None):
     return "", False
 
 
+def _merker(k):
+    """Merker der Erkennung je Stammdaten-Kontext (Supportpaket 24.11.2026: jeder Klick „Optimieren“, „Material …“,
+    der ERP-Import und der STEP-Import erkannten alle EK-Artikel neu, bei Patrick 9 s je Klick und 67 s + 157 s beim
+    Import). Der Kontext wird neu gebaut, sobald sich Stammdaten ändern (Datenbank.kontext); zusätzlich zählen die
+    Tabellen selbst und die eigenen Werkstoffnamen, damit ein von Hand geänderter Kontext nie Altes liefert.
+    Ergebnis: dict {Text: Ergebnis} oder None (Kontext ohne Merker, z. B. in Tests)."""
+    from . import werkstoff_namen
+    marke = tuple((id(d), len(d)) for d in (k.profile, k.werkstoffe, k.oberflaechen)) + \
+        (tuple(werkstoff_namen.eigene_namen()),)
+    m = getattr(k, "_erp_erkennung", None)
+    if m is None or m[0] != marke:
+        m = (marke, {})
+        try:
+            k._erp_erkennung = m
+        except AttributeError:
+            return None
+    return m[1]
+
+
 def zerlegen(text, k):
     """Bezeichnung -> dict(profil_id, vorschlag (neues Profil: form, a, b, wand, profil_id), werkstoff_id,
-    kandidaten, werkstoff_wort, oberflaeche, ober_unbekannt, ampel, hinweis)."""
+    kandidaten, werkstoff_wort, oberflaeche, ober_unbekannt, ampel, hinweis). Gleiche Bezeichnung mit denselben
+    Stammdaten: aus dem Merker (_merker), jede Ausgabe ist eine eigene Kopie."""
+    m = _merker(k)
+    if m is None:
+        return _zerlegen(text, k)
+    e = m.get(text)
+    if e is None:
+        e = m[text] = _zerlegen(text, k)
+    return dict(e, kandidaten=list(e["kandidaten"]), vorschlag=dict(e["vorschlag"]) if e["vorschlag"] else None)
+
+
+def _zerlegen(text, k):
     pid, mas = profil_finden(text, k.profile)
     wid, wort, kand = werkstoff_finden(text, k.werkstoffe)
     ober, unbekannt = oberflaeche_finden(text, k.oberflaechen, k.werkstoffe.get(wid))
