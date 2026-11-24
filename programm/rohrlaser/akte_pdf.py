@@ -27,6 +27,7 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame,
                                 NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 
 from . import angebotsakte as akte_
+from . import leistung
 from .angebotsakte import FEHLER, HINWEIS, OK, WARNUNG
 
 # ------------------------------------------------------------------ Gestaltung (eigene Werte dieses Dokuments)
@@ -1278,6 +1279,7 @@ BAUER = {1: lambda a, e, st: _seite_kunde(a, e, st), 2: lambda a, e, st: _seite_
          7: lambda a, e, st: _seite_gesamt(a, st), 8: lambda a, e, st: _seite_kalkblatt(a, st)}
 
 
+@leistung.gemessen("PDF: Angebotsakte")
 def schreiben(pfad, akte, einst=None, art="gesamt", seiten=None, version=None):
     """PDF der Akte schreiben. art kunde/intern/gesamt, seiten = gewählte Seitennummern (None = alle der Art),
     version = Versionsnummer für den Fuß der internen Seiten. Ergebnis: Liste der gesetzten Seitennummern."""

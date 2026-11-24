@@ -29,6 +29,14 @@ NEUERUNGEN = [
                 "es brauchen: Fenster mit vielen Feldern bauen sich spürbar schneller auf. Alle Rechenergebnisse "
                 "bleiben gleich (Fingerabdruck aller Positionen geprüft).",
      "Generalüberholung 2: Start und Bedienung schneller"],
+    ["0.9.476", "<b>Rechenkern 2.0, Teil 1: schneller bei genau gleichen Ergebnissen</b>: Staffeln rechnen die "
+                "Schnittzeit je Position nur noch einmal für alle Stufen, denn sie hängt nicht von der Stückzahl ab "
+                "(Staffeln etwa 15–20 % schneller). Beim STEP-Import rechnen die Booleschen "
+                "Operationen auf allen Prozessorkernen (U-Profile mit vielen Konturen etwa 1,3× schneller, alle 126 "
+                "Prüf-STEPs zusammen 11 %). Jede Zahl bleibt gleich. Neu in der Diagnose: <b>Leistung je "
+                "Verarbeitungsschritt</b> mit Median, 95-%-Wert, CPU, Arbeitsspeicher und Anzahl je Schritt "
+                "(STEP-Import mit Teilschritten, Optimieren, Kalkulation, Staffeln, PDF …) ([[diagnose]]).",
+     "Staffeln und STEP-Import schneller (bitgleich); Leistung je Schritt in der Diagnose"],
     ["0.9.474", "<b>Nesting: Stangenabwicklung und 3D auf CAD/CAM-Niveau</b> ([[nesting]]): neue Hauptansicht "
                 "<i>Abwicklung</i> je Materialstange, maßstäblich mit echtem Umfang (Eckradien, Seiten bzw. Grad), "
                 "jedes Teil an seinem Platz aus dem Nesting mit Drehung und Wenden, Gehrungen, Bohrungen, Langlöcher "
