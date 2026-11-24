@@ -180,6 +180,9 @@ SEITEN = (
            _a("TRUMPF-Programme (LST/TUBX)", "trumpf_zeit programmzeit_einstiche lst_ordner"),
            _a("Toleranzen", "step_tol_profil step_tol_gleich step_tol_kernloch step_flach_laenge "
                             "step_gekantet_anteil step_zeitlimit", True))),
+    # Schnellimport (24.11.2026): eigene Seite („STEP-Import“ hat schon 25 Einträge), nur mit Funktion Schnellimport
+    Seite("e_step_ablauf", "STEP-Import: Schnellimport", ALLE_PLAETZE,
+          (_a("Importmodus", "step_importmodus step_importmodus_fragen"),)),
     Seite("e_dxf", "DXF-Import", ALLE_PLAETZE,
           (_a("Layer und Splitter", "dxf_weg_layer dxf_splitter dxf_farbe_gewinde dxf_farbe_senkung dxf_farbe_bohren"),
            # von „STEP-Import“ hierher (0.9.468): dort ist mit den TRUMPF-Einstellungen die Höchstzahl je Seite erreicht
