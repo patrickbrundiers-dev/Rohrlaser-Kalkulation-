@@ -52,8 +52,9 @@ class Kontext:
                 except ValueError:
                     d = {}
                 self.auftraege[nr] = dict(kundennr=str(d.get("kundennr") or ""), projekt=d.get("projekt") or "")
-        except Exception:           # noqa: BLE001 – ohne Auftragsverwaltung
-            pass
+        except Exception as fehler:           # noqa: BLE001 – ohne Auftragsverwaltung
+            from . import protokoll
+            protokoll.warnung(f"Austausch: {fehler!r}")
         self.kunden = {}            # Kundennr -> Name
         for kd, name in db.con.execute("SELECT kundennr, name FROM kunden"):
             if kd:
@@ -83,8 +84,9 @@ class Kontext:
                 self.artikel[k] = (art, nr)
             for k in doppelt:
                 self.artikel[k] = (self.artikel[k][0], None)
-        except Exception:           # noqa: BLE001
-            pass
+        except Exception as fehler:           # noqa: BLE001
+            from . import protokoll
+            protokoll.warnung(f"Austausch: {fehler!r}")
 
 
 def erkennen(datei, ktx, akte=None):

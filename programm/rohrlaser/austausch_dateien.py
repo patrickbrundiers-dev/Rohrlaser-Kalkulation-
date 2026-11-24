@@ -169,6 +169,13 @@ class Konflikt(AustauschFehler):
 
 
 # ------------------------------------------------------------------ Hilfen
+def _merken(db, name, wert):
+    """Eigene Ansichtsdaten dieses Platzes speichern (Favoriten, gesehen, Meldestand); im Lesemodus nicht."""
+    if getattr(db, "nur_lesen", False):
+        return
+    db.einstellung_setzen(name, wert)
+
+
 def jetzt():
     return datetime.datetime.now().isoformat(sep=" ", timespec="seconds")
 
@@ -1441,7 +1448,7 @@ def favorit_umschalten(db, datei):
         f.remove(datei)
     else:
         f.insert(0, datei)
-    db.einstellung_setzen(L_FAVORITEN, f)
+    _merken(db, L_FAVORITEN, f)
     return datei in f
 
 
@@ -1451,7 +1458,7 @@ def zuletzt(db):
 
 def benutzt(db, datei):
     z = [d for d in zuletzt(db) if d != datei]
-    db.einstellung_setzen(L_ZULETZT, ([datei] + z)[:ZULETZT_MAX])
+    _merken(db, L_ZULETZT, ([datei] + z)[:ZULETZT_MAX])
 
 
 def gesehen(db):
@@ -1466,7 +1473,7 @@ def gesehen_setzen(db, dateien, stand=None):
         g[d] = t if t is not None else time.time()
     if len(g) > 20000:
         g = dict(sorted(g.items(), key=lambda x: x[1])[-15000:])
-    db.einstellung_setzen(L_GESEHEN, g)
+    _merken(db, L_GESEHEN, g)
 
 
 def stand_zeit(e, m=None):
@@ -1503,11 +1510,11 @@ def suche_speichern(db, name, filter_):
         raise AustauschFehler("Bitte einen Namen für die Suche eingeben.")
     s = [x for x in gespeicherte_suchen(db) if x.get("name") != n]
     s.append(dict(name=n, filter=dict(filter_)))
-    db.einstellung_setzen(L_SUCHEN, s)
+    _merken(db, L_SUCHEN, s)
 
 
 def suche_loeschen(db, name):
-    db.einstellung_setzen(L_SUCHEN, [x for x in gespeicherte_suchen(db) if x.get("name") != name])
+    _merken(db, L_SUCHEN, [x for x in gespeicherte_suchen(db) if x.get("name") != name])
 
 
 # ------------------------------------------------------------------ Suche und Filter
@@ -1742,7 +1749,7 @@ def meldungen_an(db):
 
 
 def meldungen_setzen(db, werte):
-    db.einstellung_setzen(L_MELDUNGEN, {k: bool(v) for k, v in werte.items() if k in MELDUNG_VORGABE})
+    _merken(db, L_MELDUNGEN, {k: bool(v) for k, v in werte.items() if k in MELDUNG_VORGABE})
 
 
 def benachrichtigungen(db, eintraege=None, jetzt_=None, merken=True):
@@ -1810,11 +1817,12 @@ def benachrichtigungen(db, eintraege=None, jetzt_=None, merken=True):
                     out.append(dict(art=M_ANFRAGE, datei="", text=(f"Neue Kundenanfrage: {neu_a[0].betreff}"
                                                                    if len(neu_a) == 1 else
                                                                    f"{len(neu_a)} neue Kundenanfragen")))
-        except Exception:       # noqa: BLE001 – Anfragen sind Zugabe
-            pass
+        except Exception as fehler:       # noqa: BLE001 – Anfragen sind Zugabe
+            from . import protokoll
+            protokoll.warnung(f"Austausch: {fehler!r}")
     if merken:
         heute = jetzt_[:16]
-        db.einstellung_setzen(L_GEMELDET, dict(seit=jetzt_, bis=hoechste,
+        _merken(db, L_GEMELDET, dict(seit=jetzt_, bis=hoechste,
                                                ruhe={d: t for d, t in ruhe.items() if t > heute}))
     return out
 

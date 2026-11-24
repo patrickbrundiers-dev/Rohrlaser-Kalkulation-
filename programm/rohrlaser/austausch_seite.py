@@ -265,7 +265,7 @@ class Uebersicht(QWidget):
         kopf.addStretch(1)
         self.anpassen = QPushButton("Anpassen …")
         self.anpassen.setToolTip("Welche Kacheln und Listen die Übersicht zeigt (nur für diesen Arbeitsplatz)")
-        self.anpassen.clicked.connect(self.anpassen_dialog)
+        self.anpassen.clicked.connect(lambda: self.anpassen_dialog())
         kopf.addWidget(self.anpassen)
         lay.addLayout(kopf)
         self.raster = QGridLayout()
@@ -349,7 +349,7 @@ class Uebersicht(QWidget):
             v = self.seite.db.einstellung(ad.L_ANSICHT) or {}
             v = dict(v) if isinstance(v, dict) else {}
             v["dashboard"] = [k for k, c in haken.items() if c.isChecked()]
-            self.seite.db.einstellung_setzen(ad.L_ANSICHT, v)
+            ad._merken(self.seite.db, ad.L_ANSICHT, v)
             self.seite.neu_laden()
 
 
@@ -599,7 +599,8 @@ class AustauschSeite(QWidget):
         self.suche = QLineEdit()
         self.suche.setObjectName("austausch_suche")
         self.suche.setClearButtonEnabled(True)
-        self.suche.setPlaceholderText("Suchen in allen Bereichen: Name, Kunde, Nummer, Mitarbeiter, Kommentar, Inhalt …")
+        self.suche.setPlaceholderText("Suchen in allen Bereichen …")
+        self.suche.setToolTip("Sucht in Name, Kunde, Nummern, Mitarbeiter, Kommentaren und Dateiinhalt (TXT, CSV, LST, PDF)")
         self.suche.textChanged.connect(lambda _: self._suche_timer.start(250))
         self._suche_timer = QTimer(self)
         self._suche_timer.setSingleShot(True)
@@ -702,7 +703,7 @@ class AustauschSeite(QWidget):
         t = self.db.einstellung("austausch_erststart")
         if not t:
             t = time.time()
-            self.db.einstellung_setzen("austausch_erststart", t)
+            ad._merken(self.db, "austausch_erststart", t)
         return float(t)
 
     def einlesen(self, sofort=None):
@@ -1029,7 +1030,7 @@ class AustauschSeite(QWidget):
         v = self.db.einstellung(ad.L_ANSICHT) or {}
         v = dict(v) if isinstance(v, dict) else {}
         v["kacheln"] = bool(an)
-        self.db.einstellung_setzen(ad.L_ANSICHT, v)
+        ad._merken(self.db, ad.L_ANSICHT, v)
         if self.ansicht[0] not in (UEBERSICHT, PAPIERKORB):
             self.stapel.setCurrentWidget(self.kachel if an else self.liste)
             self.modell.layoutChanged.emit()
@@ -1570,8 +1571,9 @@ class AustauschSeite(QWidget):
         if hasattr(self.f, "anfragen_seite"):
             try:
                 self.f.anfragen_seite.neu_laden()
-            except Exception:       # noqa: BLE001
-                pass
+            except Exception as fehler:       # noqa: BLE001
+                from . import protokoll
+                protokoll.warnung(f"Austausch: {fehler!r}")
         return out
 
     def zuordnung_erkennen(self):
@@ -1802,8 +1804,9 @@ class AustauschSeite(QWidget):
         try:
             from . import teilen_fenster
             teilen_fenster.windows_meldung(self.f, "Austauschordner", texte)
-        except Exception:           # noqa: BLE001
-            pass
+        except Exception as fehler:           # noqa: BLE001
+            from . import protokoll
+            protokoll.warnung(f"Austausch: {fehler!r}")
         self._nav_fuellen()
         return liste
 
@@ -1821,8 +1824,9 @@ class AustauschSeite(QWidget):
         try:
             from . import teilen_fenster
             teilen_fenster.puls(self.f)
-        except Exception:           # noqa: BLE001
-            pass
+        except Exception as fehler:           # noqa: BLE001
+            from . import protokoll
+            protokoll.warnung(f"Austausch: {fehler!r}")
 
     def keyPressEvent(self, ereignis):
         if ereignis.key() == Qt.Key_F5:
