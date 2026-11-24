@@ -592,7 +592,7 @@ if step.messprogramm(HIER.parent / "programm") is not None:
 from rohrlaser import neue_position as np_  # noqa: E402
 td = np_.TypDialog(s)
 assert list(np_.TYPEN) == ["Rohr / Profil", "Blech / Kantteil", "Aus DXF (Blech oder Rohr)",
-                          "Aus TRUMPF-Programm (LST/TUBX)", "Aus PDF-Zeichnung (Test)", "Zukaufteil", "Schweißbaugruppe",
+                          "Aus TRUMPF-Programm (LST/TUBX)", "Aus BLM-Programm (ARTUBE/BPF)", "Aus PDF-Zeichnung (Test)", "Zukaufteil", "Schweißbaugruppe",
                           "Rahmen-Assistent", "Rohrzug aus Punkten", "Bauteil aus Text", "Aus anderem Angebot", "Aus Vorlage",
                           "Leere Zeile"]
 td.waehlen(np_.BLECH)

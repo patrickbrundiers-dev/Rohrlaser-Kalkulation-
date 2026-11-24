@@ -28,7 +28,7 @@ RUHE_S = 15                 # Sekunden: jüngere Dateien werden evtl. noch gesch
 SPERRE = ".in_bearbeitung"  # Datei im Unterordner: Kürzel und Zeit des Bearbeiters
 SPERRE_STUNDEN = 12         # ältere Sperren gelten als vergessen (Programm abgestürzt)
 ZUGEWIESEN = ".zugewiesen"  # Datei im Unterordner: Kürzel des Kollegen, Absender, Zeit, Notiz
-STEP = {".step", ".stp", ".igs", ".iges", ".tubx"}     # mit IGES (05.11.2026) und TRUMPF-TUBX (20.11.2026)
+STEP = {".step", ".stp", ".igs", ".iges", ".tubx", ".artube", ".bpf"}     # mit IGES (05.11.2026) und TRUMPF-TUBX (20.11.2026)
 FORMULAR = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff",     # Anfrageformulare (gelesen ab W6b/W6c)
             ".csv", ".xlsx",        # Kunden-Stückliste (Roadmap Phase 1, ERP-001, stueckliste.py)
             ".docx", ".docm", ".odt", ".ods", ".xlsm"}      # Word/LibreOffice-Formular (formular_office.py, 17.11.2026)

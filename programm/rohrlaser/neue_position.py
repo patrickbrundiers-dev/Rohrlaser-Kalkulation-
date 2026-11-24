@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QPushButton, QV
 ROHR, BLECH, ZUKAUF, LEER = "Rohr / Profil", "Blech / Kantteil", "Zukaufteil", "Leere Zeile"
 DXF = "Aus DXF (Blech oder Rohr)"
 TRUMPF = "Aus TRUMPF-Programm (LST/TUBX)"     # trumpf_programm.py, Patrick 20.11.2026
+BLM = "Aus BLM-Programm (ARTUBE/BPF)"       # step_messung/step_blm.py, Patrick 24.11.2026
 SCHWEISS = "Schweißbaugruppe"
 RAHMEN = "Rahmen-Assistent"
 ROHRZUG = "Rohrzug aus Punkten"         # Plan Paket K4 (rohrzug.py)
@@ -28,6 +29,8 @@ TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und St
          TRUMPF: "TRUMPF-Rohrprogramme einlesen: LST aus TruTops/Programming Tube (auch Job-Listen) wird je Teil "
                  "eine Position mit Profil, Länge, Stückzahl, Schneidweg, Einstichen und TRUMPF-Zeit; TUBX aus "
                  "TubeCAM wird wie eine STEP-Datei gemessen (3D, Bohrungen, Konturen).",
+         BLM: "BLM/Adige-Rohrprogramme einlesen: ArTube-Projekte (ARTUBE) und Teileprogramme (BPF, z. B. LT7/LT8) "
+              "werden wie eine STEP-Datei gemessen: Profil exakt, Länge, Konturen, Bohrungen, 3D und Prüfdialog.",
          PDF: "Rohrteil aus einer PDF-Zeichnung (auch Scan oder Foto): Profil, Länge, Werkstoff, Artikel und "
               "Stückzahl aus dem Schriftfeld, der Rohr-Editor öffnet damit. Enden und Konturen von Hand ergänzen.",
          ZUKAUF: "Anderes Zukaufteil (Normteil, Schrauben, Handelsware …): Bezeichnung, Kategorie, Lieferant, "
