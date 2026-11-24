@@ -2197,9 +2197,10 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
 
     TOL_Z = 0.01
     enden = {"EA": [[], 0.0, []], "EB": [[], 0.0, []]}     # Flächen, Schnittlänge, Kanten je Ende
-    liste, bohrungen = [], {}
+    liste, bohrungen = _KonturListe(), {}
     for m in merkmale.values():
         kanten = m["kanten"]
+        liste.aktuell = kanten
         if not kanten:
             continue
         laenge = sum(_kantenlaenge(e) for e in kanten)
@@ -2325,7 +2326,8 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
             for f in m["faces"]:
                 art_flaeche[f] = m.get("art", "K")
         t.netz = dreiecksnetz(lok, faces, art_flaeche, [(m.get("art", "K"), m["kanten"]) for m in merkmale.values()],
-                              zmin, max(t.abm_a, t.abm_b))
+                              zmin, max(t.abm_a, t.abm_b), kennung=linien_kennung(t.konturen_liste, liste, enden))
+        t._lk_liste = list(t.konturen_liste)     # Bezug der Nummern in netz['lk'] (step_messen.kontur_kennung)
     return t
 
 
@@ -2604,7 +2606,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
     hx, hy = bx / 2, by / 2
     enden = {"EA": [[], 0.0, []], "EB": [[], 0.0, []]}     # Flächen, Schnittlänge und Kanten je Ende
     fasen = {}              # Ende ('A'/'B') mit Fase -> Außenkontur gerade (senkrecht zur Achse)
-    liste = []
+    liste = _KonturListe()
 
     def lage_auf_rohr(zug):
         """Abgewickelte Kontur -> Form, Maße, Mitte (z ab Ende A, Winkel, Seite), Normale der Wand dort."""
@@ -2743,6 +2745,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
 
     for m in merkmale.values():
         kanten = m["kanten"]
+        liste.aktuell = kanten
         if not kanten:
             liste.append(dict(art="Innenmerkmal", durchgehend=False, z=None, winkel=None, u=None, seite=None,
                               schnittlaenge=0.0, hinweis="nur auf der Innenseite, von außen nicht sichtbar"))
@@ -2759,6 +2762,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
             if sack and tief <= GRAVUR_TIEFE:      # flache runde Prägung: Gravur, keine Sackbohrung
                 sack = None
             for zug in konturzuege(kanten):
+                liste.aktuell = zug
                 form, lage, d, normale = lage_auf_rohr(zug)
                 if sack:
                     d.update(art="Sackbohrung", durchgehend=False, durchmesser=sack[1], schraeg=schraeg(sack[0], normale),
@@ -2809,6 +2813,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
                 d = rund[1]
                 bohrungen[d] = bohrungen.get(d, 0) + n
             for zug in konturzuege(kanten):
+                liste.aktuell = zug
                 form, lage, d, normale = lage_auf_rohr(zug)
                 # Hüllmaß für die Konturklasse: Bohrung = Ø, sonst größte Seite des kleinsten (gedrehten) Rechtecks
                 # um die abgewickelte Kontur. So zählen schräge Langlöcher und Schlitze um ein Rundrohr mit ihrer
@@ -2913,7 +2918,8 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
             for f in m["faces"]:
                 art_flaeche[f] = m.get("art", "K")
         t.netz = dreiecksnetz(lok, faces, art_flaeche, [(m.get("art", "K"), m["kanten"]) for m in merkmale.values()],
-                              zmin, max(t.abm_a, t.abm_b))
+                              zmin, max(t.abm_a, t.abm_b), kennung=linien_kennung(t.konturen_liste, liste, enden))
+        t._lk_liste = list(t.konturen_liste)     # Bezug der Nummern in netz['lk'] (step_messen.kontur_kennung)
     t.bezug = ref
     return t
 
@@ -5449,14 +5455,50 @@ def flaechen_eintrag(face):
         return dict(a="Freiform")
 
 
-def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse):
+class _KonturListe(list):
+    """Liste der Konturen eines Teils, die sich merkt, aus welchen Kanten jede Kontur stammt (STEP-Viewer 24.11.2026):
+    daraus bekommt jeder Linienzug im Netz die Nummer seiner Kontur in konturen_liste (netz['lk']). Nur für die
+    Anzeige; die Messwerte ändern sich dadurch nicht."""
+
+    def __init__(self):
+        super().__init__()
+        self.aktuell = ()
+        self.kanten = {}
+
+    def append(self, d):
+        super().append(d)
+        self.kanten[id(d)] = list(self.aktuell or ())
+
+
+def linien_kennung(konturen_liste, liste, enden):
+    """Kennung je Kante: Nummer der Kontur in konturen_liste (Ende A = 0, Ende B = 1, danach wie sortiert). Ergebnis:
+    Funktion Kante -> Nummer oder None (Kante gehört zu keiner Kontur)."""
+    tabelle = {}
+    for nr, d in enumerate(konturen_liste):
+        if nr < 2 and d.get("art") in ("Ende A", "Ende B"):
+            kanten = enden["EA" if d["art"] == "Ende A" else "EB"][2]
+        else:
+            kanten = getattr(liste, "kanten", {}).get(id(d)) or ()
+        for e in kanten:
+            tabelle.setdefault(hash(e), []).append((e, nr))
+
+    def kennung(e):
+        return next((nr for k, nr in tabelle.get(hash(e), ()) if k.IsSame(e)), None)
+    return kennung
+
+
+def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse, kennung=None):
     """Dreiecksnetz des Teils (lokal, Rohrachse = Z, Z ab 0) mit der Art je Fläche und den Schnittkonturen auf der
-    Außenhaut als Linienzüge. Koordinaten auf 0,01 mm gerundet."""
+    Außenhaut als Linienzüge. Koordinaten auf 0,01 mm gerundet. kennung(Kante) -> Nummer der Kontur in
+    konturen_liste: dazu lk = {Art: [Nummer je Linienzug, -1 = keine]} (STEP-Viewer)."""
     from OCP.BRepMesh import BRepMesh_IncrementalMesh
     from OCP.TopLoc import TopLoc_Location
     from OCP.TopAbs import TopAbs_REVERSED
     abw = min(0.5, max(0.02, (groesse or 40) / 250))
-    BRepMesh_IncrementalMesh(lok, abw, False, 0.35, True)
+    winkel = 0.35
+    if NETZ_FEIN:           # Analysestufe Experte: nur die Anzeige wird feiner
+        abw, winkel = abw / NETZ_FEIN_TEILER, NETZ_FEIN_WINKEL
+    BRepMesh_IncrementalMesh(lok, abw, False, winkel, True)
     punkte, dreiecke, katalog, zu_flaeche = [], {}, [], {}
     for i in range(1, faces.Extent() + 1):
         f = TopoDS.Face(faces.FindKey(i))
@@ -5479,9 +5521,12 @@ def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse):
             a, b, c = tri.Triangle(j).Get()
             liste += [basis + a - 1, basis + c - 1, basis + b - 1] if umdrehen else \
                 [basis + a - 1, basis + b - 1, basis + c - 1]
-    linien = {}
+    linien, lk = {}, {}
     for art_, kanten in konturen:
         for e in kanten:
+            if kennung is not None:     # Kontur je Linienzug (STEP-Viewer): Nummer in konturen_liste oder -1
+                nr = kennung(e)
+                lk.setdefault(art_, []).append(-1 if nr is None else nr)
             c = BRepAdaptor_Curve(TopoDS.Edge(e))
             u0, u1 = c.FirstParameter(), c.LastParameter()
             n = max(2, min(120, int(_kantenlaenge(e) / max(abw * 4, 0.5)) + 1))
@@ -5490,7 +5535,10 @@ def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse):
                 q = c.Value(u0 + (u1 - u0) * k / n)
                 zug += [round(q.X(), 2), round(q.Y(), 2), round(q.Z() - zmin, 2)]
             linien.setdefault(art_, []).append(zug)
-    return dict(p=punkte, t=dreiecke, l=linien, tf=zu_flaeche, fk=katalog)
+    out = dict(p=punkte, t=dreiecke, l=linien, tf=zu_flaeche, fk=katalog)
+    if kennung is not None:
+        out["lk"] = lk
+    return out
 
 
 def gewinde_vorschlag(bohrungen, tabelle=None, tol=0.05):
@@ -5605,14 +5653,19 @@ EINSTELLBAR = {"flach_laenge": "FLACHSTAHL_LAENGE", "gekantet_anteil": "GEKANTET
 NORMTEILE_VOLL = False      # True: auch Normteile laut Name voll messen (--normteile-voll: eingebaute Erkennung aus)
 STEGE = None    # größeres Profil gleicher Form („Form|A|B|Wand“): Winkel/U als virtuelles Bauteil (step_schenkel)
 VIRTUELL = None     # Ordner für die virtuellen Bauteile als STEP (virtuell_ablegen) oder None
+# Analysestufe Experte (STEP-Viewer 24.11.2026, --netze-fein): Anzeigenetz und Linienzüge feiner (Abweichung /4,
+# Winkel 0,2 statt 0,35 rad). Nur das Netz der 3D-Ansicht; alle Messwerte bleiben gleich.
+NETZ_FEIN = False
+NETZ_FEIN_TEILER, NETZ_FEIN_WINKEL = 4.0, 0.2
 
 
 def einstellen(werte):
     """Grenzwerte der Erkennung aus den Einstellungen setzen ({Name aus EINSTELLBAR: Wert}, None = Vorgabe), das
     größere Profil für Winkel/U mit Stegen (Schlüssel stege, step_schenkel) und den Ordner für die virtuellen Bauteile
     als STEP (Schlüssel virtuell, virtuell_ablegen)."""
-    global STEGE, VIRTUELL, NORMTEILE_VOLL
+    global STEGE, VIRTUELL, NORMTEILE_VOLL, NETZ_FEIN
     STEGE = (werte or {}).get("stege") or None
+    NETZ_FEIN = bool((werte or {}).get("netz_fein"))
     NORMTEILE_VOLL = bool((werte or {}).get("normteile_voll"))
     VIRTUELL = (werte or {}).get("virtuell") or None
     vorgabe = {"flach_laenge": 3.0, "gekantet_anteil": 0.85, "naht_spalt": 3.0}

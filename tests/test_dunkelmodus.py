@@ -62,7 +62,9 @@ ERLAUBT = {"#D0021B", "#E00000",                      # kräftige Rotlinien: auf
            # Hintergrund
            "#141A20", "#111111", "#1F3F73", "#1E5B35", "#7A1F1F",
            # Normteile/Zukaufteile in der Baugruppen-Ansicht (21.11.2026): Körperfarbe, dunkelgrau auf dem Verlauf
-           "#3F4650"}
+           "#3F4650",
+           # STEP-Viewer 24.11.2026: Hintergrund „Dunkel (CAD)“ ist selbst dunkel (gilt in beiden Themes)
+           "#2E353D", "#15191E"}
 offen, fest = [], []
 for datei in sorted((WURZEL / "programm" / "rohrlaser").glob("*.py")):
     if datei.name in NUR_DRUCK:
