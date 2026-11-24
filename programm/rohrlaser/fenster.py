@@ -2038,7 +2038,7 @@ class EinstellungenSeite(QScrollArea):
                                "csv_ordner": "Ordner für den CSV-Export wählen",
                                "anfrage_ordner": "Anfrage-Ordner wählen",
                                "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen",
-                               "lst_ordner": "Ordner der gefertigten LST-Dateien wählen"}.get(e.name, "Standardordner wählen"),
+                               "lst_ordner": "Ordner der gefertigten LST- und BPF-Dateien wählen"}.get(e.name, "Standardordner wählen"),
                               e.titel)
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
@@ -3715,7 +3715,7 @@ class Hauptfenster(QMainWindow):
                                   ("Lernzentrale …", self.lernzentrale, None),
                                   ("KI-Zentrale …", lambda: self.ki_zentrale(), None),
                                   ("KI-Assistent …", lambda: self.ki_assistent(), "Ctrl+Alt+K"),
-                                  ("Produktionsdaten & Lernsystem …", lambda: self.lernsystem(), None),
+                                  ("Produktionsdaten-Intelligenz …", lambda: self.lernsystem(), None),
                                   ("Monatsbericht …", self.monatsbericht, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
                                   ("Reklamationen …", self.reklamationen, None),

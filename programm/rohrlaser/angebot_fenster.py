@@ -5080,6 +5080,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return self.material_anfragen()
         if art == "ki":                 # lokale KI-Plattform: Angebotsprüfung aller Fach-Agenten
             return self.ki_pruefung()
+        if art == "lernsystem" and hasattr(self.f, "lernsystem"):     # Produktionsdaten-Intelligenz
+            return self.f.lernsystem()
         if art == "normteile" and getattr(self.f, "zukauf", None) is not None:      # M6
             self.f.reiter.setCurrentWidget(self.f.zukauf)
             return self.f.zukauf.normteile_zeigen()

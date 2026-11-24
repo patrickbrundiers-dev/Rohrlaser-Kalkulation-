@@ -294,7 +294,7 @@ def vergleich(db, teile=None, heute=None):
         kz = s["kalk_zeile"]
         zeile.update(soll_s=s["vergleich_s"], schluessel=s["schluessel"], bausteine=s.get("bausteine"),
                      f_laser=s.get("f_laser", 1.0), faktoren=s.get("faktoren"), soll_voll_s=s["soll_s"], maschine=s["maschine"], preis_teil=kz.get("preis_teil"),
-                     laser_teil=kz.get("laser_schneiden_teil"))
+                     laser_teil=kz.get("laser_schneiden_teil"), kalk=kz)
         zeile["geometrie"] = geometrie(t, pos_von.get(z["position_id"]) or {})
         vgl = zeile["ist_s"] if zeile["ist_s"] is not None else zeile["lst_s"]
         if vgl is not None and s["vergleich_s"]:
