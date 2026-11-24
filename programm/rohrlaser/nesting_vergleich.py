@@ -101,9 +101,15 @@ def aktueller_plan(g, ergebnis, positionen):
     return out
 
 
-def _machbarkeit(g, plan, m, k, reste):
+def profil_werte(g, k):
+    """(Profilzeile oder None, kg/m oder None) der Gruppe für die Machbarkeit."""
     prof = (k.profile.get(g.profil) if k is not None else None) or None
     kgm = rechnen.kg_je_m(g.profil, g.werkstoff, k) if k is not None else None
+    return prof, kgm
+
+
+def _machbarkeit(g, plan, m, k, reste):
+    prof, kgm = profil_werte(g, k)
     return nm.pruefen(g, plan.stangen, m, prof, kgm, plan.uebrig, reste)
 
 
@@ -143,7 +149,10 @@ def vergleich(kopf, positionen, k, tabellen, einst, abbruch=None, fortschritt=No
                                      "so wie das Programm bisher rechnet (Stangenlänge des Angebots)")
             zeiten[BISHER] = time.perf_counter() - t
         akt = aktueller_plan(g, ergebnis, positionen)
+        nummern = None
         if akt is not None:
+            schl_g = rechnen.gruppe_schluessel(g)
+            nummern = [i + 1 for i, x in enumerate(ergebnis["stangen"]) if rechnen.gruppe_der_stange(x) == schl_g]
             plaene[AKTUELL] = ne.Plan(AKTUELL, akt, [], ne.kennzahlen(g, akt, [], laengen or [ne.Laenge(g.stange)],
                                                                       daten["reste"], daten["je_beladung"],
                                                                       daten["min_rest"], daten["min_nutz"]),
@@ -206,7 +215,7 @@ def vergleich(kopf, positionen, k, tabellen, einst, abbruch=None, fortschritt=No
                         zeilen=zeilen, empfehlung=emp, gewaehlt=gew, befunde=befunde, zeiten=zeiten,
                         maschine=mg or m, untergrenze=opt.untergrenze(g) if g.teile else 0,
                         schranke=g.schranke, bewiesen=bool(g.bewiesen and bisher_f is not None),
-                        veraltet=vt))
+                        veraltet=vt, aktuell_nummern=nummern, profil_werte=profil_werte(g, k)))
     if fortschritt:
         fortschritt(schritte, schritte, "fertig")
     return out

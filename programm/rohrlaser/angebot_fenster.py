@@ -1769,12 +1769,14 @@ class Stangenbild(QWidget):
     GRUEN = "#1E7B34"
     doppelklick = Signal(str)       # Bezug (ref) des Teils unter der Maus
     klick = Signal(str)             # Bezug (ref) des angeklickten Teils (Abmessungs-Fenster: Zeile der Teileliste)
+    nesting = Signal(int)           # Stangennummer: im Nesting-Arbeitsplatz öffnen (Rechtsklick, Nesting 2.0)
 
     def __init__(self):
         super().__init__()
         self.muster, self.farben, self.flaechen = [], {}, []
         self.markiert = None        # Bezug (ref) der hervorgehobenen Teile
         self.rest_regel = None      # rest_regel(Stange) -> True verwertbar / False Verschnitt / None unbekannt
+        self.nesting_an = False     # Rechtsklick-Menü „im Nesting-Arbeitsplatz bearbeiten“ (nur im Angebot)
         self.zoom = 1.0
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setToolTip("Doppelklick auf ein Teil: zur Position")
@@ -1797,6 +1799,24 @@ class Stangenbild(QWidget):
         if ref:
             self.klick.emit(ref)
         super().mousePressEvent(ereignis)
+
+    def muster_bei(self, y):
+        """Index des Stangenmusters an der Höhe y [px] oder None."""
+        y0 = self.muster_y(0)
+        i = int((y - y0) // self.ZEILE) if y >= y0 else -1
+        return i if 0 <= i < len(self.muster) else None
+
+    def contextMenuEvent(self, ereignis):
+        """Rechtsklick auf eine Stange: „Im Nesting-Arbeitsplatz bearbeiten“ (Teile ziehen, von Hand verschachteln)."""
+        from PySide6.QtWidgets import QMenu
+        i = self.muster_bei(ereignis.pos().y())
+        if i is None or not self.nesting_an:
+            return
+        nr = self.muster[i][1][0]
+        menue = QMenu(self)
+        aktion = menue.addAction(f"Stange {nr} im Nesting-Arbeitsplatz bearbeiten …")
+        if menue.exec(ereignis.globalPos()) is aktion:
+            self.nesting.emit(nr)
 
     def markieren(self, ref):
         """Teile mit dem Bezug ref hervorheben (None = keins)."""
@@ -2807,6 +2827,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.bild = self.stangen_seite.bild
         from .stangen_ansicht import rest_regel
         self.bild.rest_regel = rest_regel(lambda: self.einst)      # Rest grün/rot wie im Nesting-Arbeitsplatz
+        self.bild.nesting.connect(self.nesting_von_stange)
+        self.bild.nesting_an = True
         teile_ansicht.setToolTip("Doppelklick auf ein Teil: zur Position")
         teile_ansicht.doubleClicked.connect(
             lambda i: self.zur_position(self.teile.zeilen[i.row()].get("ref")) if i.row() < len(self.teile.zeilen) else None)
@@ -10102,28 +10124,46 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             reste = []
         return dict(self.tabellen, lager_reste=reste) if reste else self.tabellen
 
-    def nesting_vergleich(self, fortschritt=None, abbruch=None):
-        """Strategievergleich je Abmessung (nesting_vergleich.vergleich) mit denselben Daten wie das Optimieren."""
+    def nesting_vergleich(self, fortschritt=None, abbruch=None, status=None):
+        """Strategievergleich je Abmessung (nesting_vergleich.vergleich) mit denselben Daten wie das Optimieren;
+        mit dem gespeicherten Schnittplan als Zeile „aktuell“ (Nesting-Arbeitsplatz 2.0) und Live-Status."""
         from . import nesting_vergleich
         return nesting_vergleich.vergleich(self.kopf, self.positionen, self.k, self.nesting_tabellen(), self.einst,
-                                           abbruch, fortschritt)
+                                           abbruch, fortschritt, ergebnis=self.ergebnis, status=status)
 
-    def nesting_arbeitsplatz(self, dialog=None):
+    def nesting_start(self, nr):
+        """(Abmessungsschlüssel, nr) der Stange nr (1 …) des gespeicherten Schnittplans oder None."""
+        st = (self.ergebnis or {}).get("stangen") or []
+        if not (1 <= nr <= len(st)):
+            return None
+        return rechnen.laengen_schluessel(rechnen.gruppe_der_stange(st[nr - 1])), nr
+
+    def nesting_von_stange(self, nr, dialog=None):
+        """Sprung aus dem Stangenbild (Rechtsklick): Nesting-Arbeitsplatz bei dieser Abmessung und Stange öffnen."""
+        return self.nesting_arbeitsplatz(dialog=dialog, start=self.nesting_start(nr))
+
+    def nesting_arbeitsplatz(self, dialog=None, start=None):
         """Nesting-Arbeitsplatz (Patrick 23.11.2026): Strategien je Abmessung vergleichen, Stangen ansehen, Teile von
         Hand umsetzen; Übernehmen speichert Strategie bzw. Belegung je Abmessung (angebote.nesting) und optimiert
         neu. Die Rechnung läuft im Hintergrund mit Fortschritt und Abbruch. dialog(d) statt exec (Tests).
+        start = (Abmessungsschlüssel, Stangennummer) öffnet bei dieser Abmessung/Stange (Sprung aus dem Stangenbild).
         Ergebnis: True = übernommen und neu optimiert, False = nichts geändert, None = abgebrochen."""
         from PySide6.QtWidgets import QDialog, QProgressDialog
         from . import diagnose, nesting_dialog
         stand, ende, abbrechen = dict(schritt=0, schritte=1, text="Abmessungen"), {}, threading.Event()
+        live = {}
 
         def fortschritt(schritt, schritte, text):
             stand.update(schritt=schritt, schritte=max(schritte, 1), text=text)
 
+        def status(d):
+            live.clear()
+            live.update(d)
+
         def lauf():
             try:
                 with diagnose.messen("Nesting-Vergleich", (self.kopf, self.positionen, self.einst)):
-                    ende["v"] = self.nesting_vergleich(fortschritt, abbrechen.is_set)
+                    ende["v"] = self.nesting_vergleich(fortschritt, abbrechen.is_set, status)
             except BaseException as e:      # noqa: BLE001 – im Hauptthread weitergeben
                 ende["fehler"] = e
         t = threading.Thread(target=lauf, name="Nesting", daemon=True)
@@ -10138,14 +10178,15 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             if dlg.wasCanceled():
                 abbrechen.set()
             dlg.setValue(int(1000 * stand["schritt"] / stand["schritte"]))
-            dlg.setLabelText(f"Strategien rechnen: {stand['text']}")
+            dlg.setLabelText(f"Strategien rechnen: {stand['text']}" + nesting_dialog.status_text(dict(live)))
             QApplication.processEvents()
         dlg.close()
         if "fehler" in ende:
             raise ende["fehler"]
         if abbrechen.is_set():
             return None
-        d = nesting_dialog.NestingDialog(ende["v"], self.positionen, self, nur_lesen=bool(self.db.nur_lesen))
+        d = nesting_dialog.NestingDialog(ende["v"], self.positionen, self, nur_lesen=bool(self.db.nur_lesen),
+                                         start=start)
         if not (dialog(d) if dialog else d.exec() == QDialog.Accepted):
             return False
         wahl = dict(self.kopf.get("nesting") or {})
