@@ -6294,7 +6294,7 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None,
     ph.update(messen_s=time.monotonic() - uhr, gemessen=len(teile))
     if ak.MODUS != "aus":           # Abwicklungskern: Methode je Profilmessung (Tempo-Protokoll, Support-Paket)
         ph["abwicklungskern"] = ak.zusammenfassen(ak.PROTOKOLL[n_prot:])
-        del ak.PROTOKOLL[n_prot:]
+        del ak.PROTOKOLL[:-ak.PROTOKOLL_MAX]        # langer Lauf: nur die letzten Einträge behalten
     uhr = time.monotonic()
     out = datei_abschliessen(gel, teile, netz, flach_bis, auslassen, melden)
     ph["abschluss_s"] = time.monotonic() - uhr  # Kopien, Anbauteile, Verbund, Nähte

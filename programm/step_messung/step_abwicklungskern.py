@@ -57,6 +57,7 @@ LAGEN = 3               # Schnitte (Gegenprobe: alle gleich)
 KURZ = 0.1              # Anteil der Länge: kürzere Längsflächen an einem Ende gehören zur Zone des Endes
 TOL_VOLUMEN = 1e-6      # relativ: Volumen höchstens Querschnitt × Länge (Merkmale nehmen nur weg)
 
+PROTOKOLL_MAX = 5000    # so viele Einträge bleiben höchstens im Protokoll
 PROTOKOLL = []          # je Körper: dict(methode, grund, zeit_s, …) – step_messen schreibt es in die Diagnose
 
 
