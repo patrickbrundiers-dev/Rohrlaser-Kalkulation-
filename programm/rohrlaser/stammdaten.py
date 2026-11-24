@@ -1530,6 +1530,15 @@ EINSTELLUNGEN = (
     # lieferbaren Länge geplant.
     Einstellung("laenge_vergleich", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
                 "Lieferlängen", "auswahl", "nein", auswahl="janein"),
+    # Patrick 24.11.2026: die wirtschaftlichste Lieferlänge selbst wählen (12 m nur bei echtem Gesamtkostenvorteil),
+    # im Angebot und je Staffelmenge gleich; von Hand gewählte Länge geht vor. Wirkt nur mit laenge_vergleich = ja
+    Einstellung("laenge_automatisch", "Lieferlängen: empfohlene Lieferlänge automatisch wählen (nur bei Kostenvorteil)",
+                "Lieferlängen", "auswahl", "ja", auswahl="janein"),
+    # Mehraufwand für lange Lieferstangen (Kran/Stapler, Transport, Lagerplatz) je Stange über der Länge; 0 = keiner
+    Einstellung("laenge_handling_eur", "Lieferlängen: Handhabung/Transport je langer Lieferstange [€]", "Lieferlängen",
+                "zahl", 0.0, 0, 10000),
+    Einstellung("laenge_handling_ab", "Lieferlängen: als lang gilt eine Lieferstange über [mm]", "Lieferlängen", "ganz",
+                6500, 0, 30000),
     Einstellung("laenge_mindest_eur", "Lieferlängen: Mindestersparnis je Gruppe in €", "Lieferlängen", "zahl", 20.0,
                 0, 100000),
     Einstellung("laenge_mindest_anteil", "Lieferlängen: Mindestersparnis je Gruppe in %", "Lieferlängen", "anteil",

@@ -33,6 +33,15 @@ NEUERUNGEN = [
                 "Bestätigung. Die KI nennt im Angebots-Check und bei Preis erklären die Datenbasis je Position. "
                 "Maschinenprogramme werden nie verändert, ohne Freigabe ändert sich an der Kalkulation nichts.",
      "Produktionsdaten-Intelligenz: LST + BPF lesen, Abgleich mit Ursachen, Genauigkeit, Zeitmodell je Konturklasse"],
+    ["0.9.467", "<b>12 m nur noch mit echtem Kostenvorteil</b> ([[lieferlaengen]]): Eine zentrale Entscheidung "
+                "vergleicht 6 m, andere Lieferlängen und 12 m mit Zuschnitt über die Gesamtkosten (Material, "
+                "Beladungen, Zuschnitt, Handhabung langer Stangen, verwertbare Reste nur mit Lager und Reststücken). "
+                "Neu: das Programm wählt die empfohlene Länge beim Optimieren selbst (abschaltbar), im Angebot und in "
+                "jeder Staffel je Menge gleich; von Hand gewählte Längen gelten vor. Der Vergleich zeigt "
+                "<i>Materialoptimierung</i>: Rohre 6 m / 12 m, Material-, Verschnitt- und Gesamtkosteneinsparung "
+                "(€ und je Teil) mit Empfehlung. Auch der Nesting-Arbeitsplatz nimmt 12-m-Zuschnitte nur noch mit "
+                "diesem Kostenvorteil.",
+     "12-m-Zuschnitt nur bei Gesamtkostenvorteil, automatisch je Angebot und Staffel"],
     ["0.9.466", "<b>Update-Paket bauen</b>: Das Werkzeug für das Online-Update brach auf Windows nach dem fertigen "
                 "Paket ab, wenn im Änderungstext ein Sonderzeichen stand, das die Windows-Konsole nicht darstellen "
                 "kann (z. B. ein Pfeil). Jetzt erscheint so ein Zeichen in der Ausgabe als Ersatztext und das "
