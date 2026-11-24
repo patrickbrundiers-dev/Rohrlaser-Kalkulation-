@@ -143,3 +143,26 @@ Das Hauptfenster baute beim Start alle 29 Einstellungsseiten mit über 400 Felde
 bei jeder Größenänderung, obwohl meist keine geöffnet wird. Jetzt entsteht eine Seite erst beim ersten Zeigen oder
 beim ersten Zugriff auf ihre Felder. Suche, Admin-Schutz und Neuladen merken sich ihren Zustand und wenden ihn beim
 Bau an. Hauptfenster aufbauen (zweiter Aufbau, gleiche Daten): 2,07 s → 1,25 s.
+
+Systemcheck mit 14 STEP-Dateien (`werkzeuge/systemcheck.py`, vorher main 0.9.466, nachher Paket 1 + 2):
+
+| Vorgang | vorher | nachher |
+|---|---|---|
+| Hauptfenster mit Startseite aufbauen | 3,01 s | 1,23 s |
+| Angebot öffnen (kalt) | 0,56 s | 0,37 s |
+| STEP-Import 14 Dateien | 22,4 s | 19,2 s |
+| Datendatei öffnen (erstes Öffnen, legt alles an) | 2,14 s | 2,06 s |
+| Angebots-PDF / Werkstatt-PDF | 0,48 / 0,47 s | 0,47 / 0,46 s |
+
+Rechenergebnisse: Fingerabdruck aller Positionen, Kalkulation und Staffeln gleich; einziger Unterschied sind die drei
+neuen Einstellungen aus #637 (12-m-Zuschnitt), die es vorher noch nicht gab. Der Programmstart (Module laden) ist im
+Vergleich verzerrt (vorher ohne übersetzte .pyc) und zählt nicht.
+
+**B10 (Speicher):** Angebot 16-mal öffnen, Stückzahl ändern, prüfen, schließen: Speicher bleibt bei 298 MB, keine
+übrig bleibenden Fenster oder Widgets, je Runde 7 schwache Verweise (vernachlässigbar). Der frühere Zuwachs von
+1,7 MB je Runde trat nur auf, während parallel die Testreihe lief, und ist so nicht nachzustellen.
+
+**B8 (Software-3D):** Versuch ohne Rekursion beim Teilen und mit Stift/Pinsel nur bei Wechsel: Bild pixelgleich,
+aber nur 2–4 % schneller (die Zeit liegt im Zeichnen der rund 38.000 Stücke je Bild in Qt). Nicht übernommen;
+schneller ginge es nur mit weniger Stücken, und das ändert das Bild. Bleibt als bekannte Einschränkung: ohne
+OpenGL (z. B. Remote-Desktop) braucht ein Standbild eines großen Teils rund 0,8–1,2 s, Drehen selbst bleibt flüssig.
