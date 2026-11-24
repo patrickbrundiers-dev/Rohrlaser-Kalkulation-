@@ -118,6 +118,11 @@ class SchnellKarte(QWidget):
             self.raster.removeWidget(b)
         for n, b in enumerate(knoepfe):
             self.raster.addWidget(b, n // spalten, n % spalten)
+        # Generalüberholung 24.11.2026: Höhe der Karte neu melden. Ändert sich die Spaltenzahl während eines
+        # Layoutdurchgangs (z. B. Startseite verdeckt beim Öffnen eines Angebots), blieb die Karte sonst auf der
+        # alten Höhe stehen und die Knöpfe wurden auf 14 px zusammengedrückt.
+        self.karte.updateGeometry()
+        self.updateGeometry()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
@@ -154,4 +159,6 @@ class SchnellKarte(QWidget):
 
     def showEvent(self, e):
         super().showEvent(e)
+        self._spalten = 0               # Breite kann sich verdeckt geändert haben: Spalten neu bestimmen
+        self.anordnen()
         self.zustand()
