@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.463", "<b>ERP-EK: S355 nicht mehr als Corten</b> ([[erp_preise]]): <i>Profile und Werkstoffe aus dem EK "
+                "anlegen</i> (läuft nach jedem Einlesen) hat seit 0.9.459 EK-Artikel mit „S355“ und „EN 10219“ "
+                "ohne genaue Güte dem Werkstoff <b>S355J2WH wetterfest</b> zugeordnet statt S355 EN 10219. Jetzt "
+                "gilt die Grundgüte; Sondergüten nur, wenn sie in Bezeichnung oder Artikelnummer stehen. Falsch "
+                "gemerkte Zuordnungen werden beim ersten Start einmalig vergessen und neu erkannt; Angebote bleiben "
+                "unverändert. Gemessen: 10.000 EK-Zeilen (Stahl, Edelstahl, Alu) lesen in rund 5 Sekunden ein.",
+     "ERP-EK: S355 EN 10219 nicht mehr als S355J2WH (Corten), falsche Zuordnungen einmalig repariert"],
     ["0.9.462", "<b>Zukaufartikel ohne zentrale Datenbank</b> ([[zukauf_optional]]): Neuer Schalter Einstellungen → "
                 "Funktionen → <b>Zentrale Zukaufartikelverwaltung</b>, Vorgabe aus. Dann gehören Zukaufartikel nur "
                 "zum Angebot: keine Auswahl aus dem Stamm, STEP-Import, Blech-Editor, Schnellanlage und EK eintragen "

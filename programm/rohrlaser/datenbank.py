@@ -457,6 +457,7 @@ class Datenbank:
             self._passwort_umstellen()
             self._preise_merken()
             self._materialstamm_ergaenzen()
+            self._erp_sondergueten_reparieren()
         finally:
             if sperre:
                 self.con.commit()
@@ -794,6 +795,25 @@ class Datenbank:
                 with self.con:
                     for n, w in merker.items():
                         self._einstellung_schreiben(n, w)
+
+    def _erp_sondergueten_reparieren(self):
+        """Einmalig (24.11.2026): von 0.9.459 bis 0.9.462 falsch gemerkte EK-Zuordnungen „S355 EN 10219“ ->
+        S355J2WH (Corten) vergessen, damit sie neu erkannt werden (erp_anlegen.sondergueten_reparieren). Im
+        Lesemodus nicht; ein Fehler bricht das Öffnen nie ab."""
+        from . import erp_anlegen
+        if getattr(self, "nur_lesen", False) or \
+                self.einstellung("erp_sonderguete_stand") == erp_anlegen.SONDERGUETE_STAND:
+            return
+        try:
+            n = erp_anlegen.sondergueten_reparieren(self)
+            self.einstellung_setzen("erp_sonderguete_stand", erp_anlegen.SONDERGUETE_STAND)
+            if n:
+                from . import protokoll
+                protokoll.info(f"ERP-EK: {n} Zuordnungen auf eine Sondergüte (z. B. S355J2WH) vergessen, "
+                               "sie werden neu erkannt")
+        except Exception:       # noqa: BLE001
+            from . import protokoll
+            protokoll.warnung("ERP-EK: Reparatur der Sondergüte-Zuordnungen nicht möglich")
 
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)
