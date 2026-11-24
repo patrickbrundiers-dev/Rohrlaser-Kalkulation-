@@ -191,8 +191,14 @@ def _im_dreieck(p, a, b, c):
     return s(a, b, p) > 1e-9 and s(b, c, p) > 1e-9 and s(c, a, p) > 1e-9
 
 
-def _teilen(poly, o, n, w):
-    """Konvexes Polygon an der Geraden dot(p − o, n) = w teilen: [Teile]."""
+def _teilen(poly, o, n, w, gueltig=False):
+    """Konvexes Polygon an der Geraden dot(p − o, n) = w teilen: [Teile]. gueltig: poly hat schon ≥ 3 Ecken und
+    Fläche > 0 (Ergebnis eines früheren _teilen) – liegt es ganz auf einer Seite, kommt es unverändert zurück
+    (Schnellimport 24.11.2026: gleiche Rechnung, gleiche Zahlen, nur ohne die Fläche jedes Mal neu zu rechnen)."""
+    if gueltig:
+        d = [(a[0] - o[0]) * n[0] + (a[1] - o[1]) * n[1] - w for a in poly]
+        if all(x < -1e-9 for x in d) or all(x > 1e-9 for x in d):
+            return [list(poly)]
     vor, nach = [], []
     for i, a in enumerate(poly):
         b = poly[(i + 1) % len(poly)]
@@ -419,11 +425,13 @@ def netz(e, zs):
     spalten = spalten_fuer(kontur) if loch else []
     teile = _gelocht(kontur, loch, spalten) if loch else [list(t) for t in _ohrschnitt(kontur)]
     loch_hoehen = sorted({q[1] for pk in [kontur] + loch for q in pk})      # Streifengrenzen von _gelocht
+    gueltig = False
     for b in bg:                            # an jeder Biegezone teilen, im Bogen in Schritten
         n_schritt = max(2, math.ceil(math.degrees(abs(b["phi"])) / BOGEN_SCHRITT))
         for i in range(n_schritt + 1):
             w = b["ba"] * i / n_schritt
-            teile = [q for t in teile for q in _teilen(t, b["o"], b["n"], w)]
+            teile = [q for t in teile for q in _teilen(t, b["o"], b["n"], w, gueltig)]
+            gueltig = True                  # alles, was _teilen liefert, hat ≥ 3 Ecken und Fläche
     punkte, dreiecke, linien, normalen = [], [], {}, {}
     cache = {}
 
