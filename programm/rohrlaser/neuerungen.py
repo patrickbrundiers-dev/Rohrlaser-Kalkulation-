@@ -21,13 +21,24 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.473", "<b>STEP-Import: langsame Teile nie halbfertig übernehmen</b> ([[step]]): Ein Teil, das noch gemessen "
+    ["0.9.479", "<b>STEP-Import: langsame Teile nie halbfertig übernehmen</b> ([[step]]): Ein Teil, das noch gemessen "
                 "wird, lässt sich im Prüfdialog nicht mehr <i>von Hand nachtragen</i> (das gab ein Rohr mit Länge aus "
                 "dem Hüllmaß, aber ohne Bohrungen – z. B. 30 Bohrungen und nur 2 s Laserzeit). Beim Warten auf "
                 "langsame Teile zeigt das Fenster Teile und Wartezeit; <i>Nicht mehr warten …</i> fragt <i>Zurück "
                 "zur Liste</i> oder <i>Ohne diese Teile übernehmen</i>. Ohne sie fehlen diese Teile im Angebot und "
                 "stehen in der Meldung, statt mit falschem Schneidweg übernommen zu werden.",
                 "STEP-Import: noch laufende Teile nie halbfertig übernehmen (kein Rohr ohne Bohrungen mehr)"],
+    ["0.9.473", "<b>Eigener STEP-Viewer</b> ([[step_viewer]]): <i>Datei → STEP-Viewer</i> (Strg+Umschalt+O) oder "
+                "Rechtsklick auf eine Position → <i>Im STEP-Viewer öffnen …</i> zeigt eine STEP-Datei ohne Angebot: "
+                "Format (AP203/AP214/AP242), Einheit und Baugruppe sofort, danach alle Bauteile nach Art, 3D mit "
+                "allen Ansichten, Darstellungen und Messwerkzeugen, die Erkennung je Teil (Profil, Wand, Länge, "
+                "Schneidweg, Einstiche, Normteil mit Grund) und <b>jede Kontur farbig nach Art</b>. Eine Kontur in "
+                "der Liste oder im 3D anklicken zeigt ihre Berechnungswerte; die Summe ist genau der Schneidweg, den "
+                "die Position übernimmt, mit Gegenprobe über die 3D-Linien. Art von Hand ändern (auf Wunsch für "
+                "künftige Importe gemerkt), ins Angebot übernehmen, dunkler CAD-Hintergrund, Analysestufe "
+                "<i>Experte</i> mit feinerem 3D-Netz (Messwerte bleiben gleich) und gemessene Ladezeiten. Die "
+                "STEP-Messung liefert dazu je 3D-Linie die Konturnummer; alle Messwerte bleiben bitgleich.",
+     "Eigener STEP-Viewer: Konturen farbig mit Berechnungswerten, Erkennung korrigierbar, Experten-Netz"],
     ["0.9.472", "<b>Generalüberholung, Paket 1: schneller und aufgeräumter</b>: Die Datendatei öffnet schneller "
                 "(beim Start rund 600 Datenbank-Anweisungen weniger, 0,6 → 0,3 s im Test), weil die Trigger des "
                 "Änderungsprotokolls stehen bleiben statt bei jedem Öffnen neu angelegt zu werden. Speichern, "

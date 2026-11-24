@@ -2684,6 +2684,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen(), ""),
                 ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen(), ""),
                 ("STEP-Merkmale prüfen …", lambda: self.step_merkmale_pruefen(), ""),
+                ("Im STEP-Viewer öffnen …", lambda: self.step_viewer_position(), ""),
                 ("Ähnliche Teile und Revisionen …", lambda: self.aehnliche_teile(), ""),
                 ("Zukaufteile bearbeiten …", lambda: self.zukaufteile(), ""),
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
@@ -7184,6 +7185,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                    "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"}, "Material suchen und zuweisen …": {"rohr"},
                    "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"},
                    "STEP-Merkmale prüfen …": {"rohr"}, "Wandstärke ändern …": {"rohr"},
+                   "Im STEP-Viewer öffnen …": {"rohr", "blech", "drehfraes", "zukauf", "baugruppe"},
                    "Ähnliche Teile und Revisionen …": {"rohr"}}
 
     def _markierte_zeilen(self):
@@ -11145,6 +11147,21 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             self.f.meldung("Für diese Position gibt es keinen Teile-Editor (kein Laserteil).", fehler=True)
             return False
         return True
+
+    def step_viewer_position(self, zeile=None):
+        """STEP-Datei der Position im STEP-Viewer öffnen (Master-Auftrag 24.11.2026). Ergebnis: Fenster oder None."""
+        if zeile is None:
+            i = self.pos_ansicht.currentIndex()
+            zeile = i.row() if i.isValid() else None
+        if zeile is None or not 0 <= zeile < len(self.positionen):
+            return None
+        p = self.positionen[zeile]
+        datei = (step.herkunft(p) or {}).get("datei") or virtuell.technik_lesen(p).get("step_datei")
+        if not datei or not Path(datei).is_file():
+            self.f.meldung("STEP-Viewer: Zu dieser Position ist keine STEP-Datei mehr vorhanden (nur Teile aus dem "
+                           "STEP-Import, Datei am alten Ort).", fehler=True)
+            return None
+        return self.f.step_viewer(datei)
 
     def ansicht_3d(self, zeile=None):
         """3D-Ansicht der Positionen: Teile aus dem STEP-Import und (Patrick 12.11.2026) selbst angelegte Teile mit
