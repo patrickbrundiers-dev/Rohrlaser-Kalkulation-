@@ -7,6 +7,7 @@
 - T4 Fehler: keine LST, keine TUBX, beschädigt
 - T5 Angebot: Neue Position „Aus TRUMPF-Programm“ legt je Teil eine Position an (Profil der Stammdaten, Werkstoff,
   Schneidzeit je Teil nach Einstellung trumpf_zeit), unbekanntes Profil mit Hinweis, Rückgängig
+- T6 Laser-an-Zeit aus CONSUMPTION_TIMES: ja = reine Laserzeit (Rest berechnet), ganz = ganze TRUMPF-Zeit von Hand
 Synthetische Dateien im Aufbau der echten (keine Kundendaten im Repo).
 
 Aufruf: python tests/test_trumpf_programm.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
@@ -200,5 +201,23 @@ db.einstellung_setzen("trumpf_zeit", "nein")
 s.aus_trumpf([str(tmp / "TEST_P10_1x.lst")])
 assert db.positionen(a)[-1]["zeit_manuell"] in (None, ""), db.positionen(a)[-1]
 ok("T5 Einstellung trumpf_zeit = nein: Schneidzeit bleibt berechnet")
+
+# ------------------------------------------------------------------ T6 Laser-an-Zeit (Patrick 24.11.2026)
+verbrauch = abschnitt("CONSUMPTION_TIMES", ["ConsumptionGroup", "LaserPower", "OnTime"],
+                      [[1, 0, 50.0], [2, 3000, 40.5], [2, 0, 32.7]])
+(tmp / "TEST_P11.lst").write_text(p10.replace("TEST_P10_1x", "TEST_P11").replace("BEGIN_PROGRAMM", verbrauch +
+                                                                                 "BEGIN_PROGRAMM"), encoding="cp1252")
+(t6,) = tp.lst_lesen(tmp / "TEST_P11.lst")
+assert t6["laser_an_s"] == 40.5 and t6["verfahren_s"] == 32.7, t6
+db.einstellung_setzen("trumpf_zeit", "ja")
+s.aus_trumpf([str(tmp / "TEST_P11.lst")])
+p6 = db.positionen(a)[-1]
+assert p6["zeit_manuell"] in (None, "") and '"laser_an_s": 40.5' in p6["step_merkmale"], p6
+from rohrlaser import rechnen  # noqa: E402
+assert rechnen.programm_laserzeit(p6, {"trumpf_zeit": "ja"}) == (40.5, True, 32.7), p6["step_merkmale"]
+db.einstellung_setzen("trumpf_zeit", "ganz")
+s.aus_trumpf([str(tmp / "TEST_P11.lst")])
+assert db.positionen(a)[-1]["zeit_manuell"] == 73.2, db.positionen(a)[-1]
+ok("T6 Laser-an-Zeit: ja = reine Laserzeit (Programmdaten in der Position, Rest berechnet), ganz = ganze Zeit von Hand")
 
 print("OK: TRUMPF-Programme einlesen")

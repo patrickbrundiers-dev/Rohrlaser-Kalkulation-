@@ -1732,8 +1732,15 @@ EINSTELLUNGEN = (
     Einstellung("werkstoff_gleichnamen", "Werkstoff-Gleichnamen, z. B. 1.4301 = V2A = A2; 1.0038 = RSt37-2 "
                 "(leer = nur die eingebaute Liste)", "STEP-Import", "text", ""),
     # TRUMPF-Rohrprogramme einlesen (trumpf_programm.py, Patrick 20.11.2026)
-    Einstellung("trumpf_zeit", "TRUMPF-Programm: berechnete Zeit je Teil als Schneidzeit übernehmen", "STEP-Import",
-                "auswahl", "ja", auswahl="janein"),
+    # Patrick 24.11.2026: Laser-an-Zeit der LST als reine Laserzeit, Verfahren/Drehen/Nebenzeit wie bisher dazu;
+    # „ganz“ = ganze TRUMPF-Zeit je Teil als Schneidzeit von Hand (wie bis 0.9.466), „nein“ = alles berechnen
+    Einstellung("trumpf_zeit", "TRUMPF-Programm: Laserzeit aus dem Programm (ja = Laser-an-Zeit als reine "
+                "Laserzeit, Rest berechnet; ganz = ganze Programmzeit als Schneidzeit; nein = berechnen)",
+                "STEP-Import", "auswahl", "ja", auswahl="trumpfzeit"),
+    # Patrick 24.11.2026 (Entscheidung): „Laser-an-Zeit enthält alles“ – Einstiche stecken in der Programmzeit
+    Einstellung("programmzeit_einstiche", "TRUMPF-Programm: Einstiche (enthalten = in der Laser-an-Zeit enthalten; "
+                "eigen = eigener Posten, aus der Laser-an-Zeit herausgerechnet)", "STEP-Import",
+                "auswahl", "enthalten", auswahl="programmeinstiche"),
     # Lernsystem L1 (produktion_lst.py): Ordner mit den gelaufenen LST-Programmen (mit Unterordnern)
     Einstellung("lst_ordner", "TRUMPF-Programme: Ordner der gefertigten LST-Dateien fürs Lernen (leer = aus)",
                 "STEP-Import", "ordner", ""),
@@ -2456,7 +2463,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(n for n, z in self.profile.items() if not _archiviert(z)), "janein": ["ja", "nein"], "nesting": list(NESTING_AUSWAHL), "kundentyp": ["Firma", "Privatkunde", "Händler", "Lieferant"], "kundenstatus": ["Aktiv", "Inaktiv", "Gesperrt"], "waehrung": ["EUR", "CHF", "USD", "GBP", "PLN", "CZK"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(n for n, z in self.profile.items() if not _archiviert(z)), "janein": ["ja", "nein"], "trumpfzeit": ["ja", "ganz", "nein"], "programmeinstiche": ["enthalten", "eigen"], "nesting": list(NESTING_AUSWAHL), "kundentyp": ["Firma", "Privatkunde", "Händler", "Lieferant"], "kundenstatus": ["Aktiv", "Inaktiv", "Gesperrt"], "waehrung": ["EUR", "CHF", "USD", "GBP", "PLN", "CZK"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"], "sd_quelle": list(SD_QUELLEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
