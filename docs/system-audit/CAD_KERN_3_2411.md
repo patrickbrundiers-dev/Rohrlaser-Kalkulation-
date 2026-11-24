@@ -60,7 +60,7 @@ Umwandlung steckt seit 06.11.2026 im Schnappschuss der verteilten Messung (groß
 Ohne Lese-Zwischenspeicher hängen die letzten Stellen dort davon ab, welcher Prozess einen Körper misst (der lesende
 Prozess misst die Form im Speicher, die anderen die geladene). Mit Speicher rechnen alle Prozesse mit derselben Form.
 
-Vorgabe bleibt „ja“ (wie bisher, bitgleich). Patrick entscheidet, ob „ja, mit gelesenen Körpern“ Vorgabe wird.
+Entscheidung Patrick 24.11.2026 21:53 UTC: „ja, mit gelesenen Körpern“ ist Vorgabe. Wer „ja“ ausdrücklich gespeichert hat, behält es; „ja“ rechnet bitgleich wie bisher.
 
 ## 4. Benchmark vorher/nachher
 

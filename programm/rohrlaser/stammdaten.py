@@ -1349,7 +1349,7 @@ class Einstellung:
 
 
 # Strategien der Verschachtelung (nesting.STRATEGIEN), erste Stelle = Kennbuchstabe
-STEP_CACHE_WAHL = ("ja", "ja, mit gelesenen Körpern", "nein")     # Einstellung step_cache (CAD-Kern 3.0)
+STEP_CACHE_WAHL = ("ja", "ja, mit gelesenen Körpern", "nein")     # [1] = Vorgabe     # Einstellung step_cache (CAD-Kern 3.0)
 NESTING_AUSWAHL = ("bisher", "A Minimaler Materialverbrauch", "B Geringste Materialkosten",
                    "C Maximale Reststückverwertung", "D Schnellste Fertigung", "E Ausgewogen")
 
@@ -1773,10 +1773,10 @@ EINSTELLUNGEN = (
                 "ganz", 0, 0, 64),
     Einstellung("step_zeitlimit", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper vereinfacht gemessen)",
                 "STEP-Import", "ganz", 600, 0, 3600),
-    # CAD-Kern 3.0 (24.11.2026): dritte Wahl „ja, mit gelesenen Körpern“ (step_lesecache, große Baugruppen lesen beim
-    # zweiten Mal in Sekunden statt Minuten; Werte können in der letzten Stelle abweichen, daher nicht Vorgabe)
+    # CAD-Kern 3.0 (24.11.2026): Wahl „ja, mit gelesenen Körpern“ (step_lesecache, große Baugruppen lesen beim zweiten
+    # Mal in Sekunden statt Minuten, alle Messprozesse rechnen bitgleich); Vorgabe laut Patrick 24.11.2026 21:53 UTC
     Einstellung("step_cache", "Messung: Zwischenspeicher (gleiche Datei nicht neu messen)", "STEP-Import", "auswahl",
-                "ja", auswahl="stepcache"),
+                "ja, mit gelesenen Körpern", auswahl="stepcache"),
     Einstellung("step_cache_mb", "Messung: Zwischenspeicher höchstens [MB]", "STEP-Import", "ganz", 500, 10, 100000),
     # Toleranzen der Erkennung (Vorgaben = bisher feste Werte)
     Einstellung("step_tol_profil", "Toleranz Profil aus den Stammdaten ± [mm]", "STEP-Import", "zahl", 0.15, 0, 5),

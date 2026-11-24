@@ -56,7 +56,7 @@ def mess_argumente(db):
     if (db.einstellung("step_zukauf_begriffe") or "ja") != "ja":
         args.append("--normteile-voll")
     from .stammdaten import STEP_CACHE_WAHL
-    cache = db.einstellung("step_cache") or "ja"
+    cache = db.einstellung("step_cache") or STEP_CACHE_WAHL[1]
     if cache in STEP_CACHE_WAHL[:2]:
         args += ["--cache", str(cache_ordner(db)), "--cache-mb", f"{_zahl(db, 'step_cache_mb', 500):g}",
                  "--kennung", VERSION]

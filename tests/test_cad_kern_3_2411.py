@@ -192,6 +192,26 @@ try:
     pruefe(neu == jeder, f"räumliche Paarsuche: {len(neu)} Paare wie jeder mit jedem, gleiche Reihenfolge "
                          f"({t_alt:.2f} s → {time.perf_counter() - uhr:.3f} s)")
 
+    # 8. Einstellung step_cache: Vorgabe „ja, mit gelesenen Körpern“ (Patrick 24.11.2026) gibt --lesecache weiter
+    sys.path.insert(0, str(HIER.parent / "programm"))
+    from rohrlaser import step_einstellungen
+    from rohrlaser.stammdaten import EINSTELLUNG, STEP_CACHE_WAHL
+
+    class DB:
+        pfad = str(tmp / "x.db")
+
+        def __init__(self, **w):
+            self.w = w
+
+        def einstellung(self, n):
+            return self.w.get(n, EINSTELLUNG[n].vorgabe if n in EINSTELLUNG else None)
+    vorgabe = step_einstellungen.mess_argumente(DB())
+    nur_ja = step_einstellungen.mess_argumente(DB(step_cache="ja"))
+    pruefe(EINSTELLUNG["step_cache"].vorgabe == STEP_CACHE_WAHL[1] and "--lesecache" in vorgabe and "--cache" in vorgabe
+           and "--lesecache" not in nur_ja and "--cache" in nur_ja
+           and "--cache" not in step_einstellungen.mess_argumente(DB(step_cache="nein")),
+           "Einstellung: Vorgabe mit gelesenen Körpern (--lesecache), „ja“ nur Messungen, „nein“ ohne Speicher")
+
     # 5. Schreiben aus zwei Threads
     import step_schreiben as sw
     from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
