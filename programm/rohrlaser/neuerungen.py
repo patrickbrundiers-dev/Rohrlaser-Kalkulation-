@@ -27,6 +27,13 @@ NEUERUNGEN = [
                 "im Arbeitsablauf des Angebots und die gewählte Spaltenansicht (<i>Alle</i>, <i>Erfassen</i> …). Sie "
                 "haben jetzt dunkle Schrift (6,9 bzw. 8,8 : 1). Hell und Hoher Kontrast sind unverändert ([[einstellungen]]).",
      "Generalüberholung 3: Dunkelmodus besser lesbar"],
+    ["0.9.480", "<b>STEP-Import: langsame Teile nie halbfertig übernehmen</b> ([[step]]): Ein Teil, das noch gemessen "
+                "wird, lässt sich im Prüfdialog nicht mehr <i>von Hand nachtragen</i> (das gab ein Rohr mit Länge aus "
+                "dem Hüllmaß, aber ohne Bohrungen – z. B. 30 Bohrungen und nur 2 s Laserzeit). Beim Warten auf "
+                "langsame Teile zeigt das Fenster Teile und Wartezeit; <i>Nicht mehr warten …</i> fragt <i>Zurück "
+                "zur Liste</i> oder <i>Ohne diese Teile übernehmen</i>. Ohne sie fehlen diese Teile im Angebot und "
+                "stehen in der Meldung, statt mit falschem Schneidweg übernommen zu werden.",
+                "STEP-Import: noch laufende Teile nie halbfertig übernehmen (kein Rohr ohne Bohrungen mehr)"],
     ["0.9.479", "<b>Generalüberholung, Paket 2: schnellerer Start und flüssigere Bedienung</b>: Das Hauptfenster "
                 "baut die 29 Seiten der Einstellungen erst, wenn Sie eine davon öffnen ([[einstellungen]]); der "
                 "Aufbau des Hauptfensters dauert im Test 1,25 statt 2,1 s. "
