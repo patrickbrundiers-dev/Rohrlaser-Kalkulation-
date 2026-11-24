@@ -168,7 +168,7 @@ from rohrlaser import funktionen, teilen  # noqa: E402
 assert lv.ZUORDNUNG.name in teilen.GETEILT_NAME and ll.ENTSCHEIDUNGEN.name in teilen.GETEILT_NAME
 from rohrlaser import db_verbindung  # noqa: E402
 assert "uid" in db_verbindung.spalten(db.con, lv.ZUORDNUNG.name), "Kennung für den Abgleich"
-assert funktionen.DATEI_ODER["Produktionsdaten & Lernsystem …"]
+assert funktionen.DATEI_ODER["Produktionsdaten-Intelligenz …"]
 db.einstellung_setzen("lst_ordner", str(ordner))
 gesehen = {}
 
@@ -199,7 +199,8 @@ def bedienen(d):
 
 
 d = f.lernsystem(dialog=bedienen)
-assert gesehen["reiter"] == ["Produktionsdaten", "Vergleich", "Vorschläge", "Protokoll"], gesehen["reiter"]
+from rohrlaser import lst_dashboard  # noqa: E402
+assert gesehen["reiter"] == list(lst_dashboard.REITER), gesehen["reiter"]
 assert gesehen["kacheln"]["step"] == "1" and gesehen["kacheln"]["vorschlaege"] != "0", gesehen["kacheln"]
 assert gesehen["zeilen"][0] == len(pl.teile(db)) - 1 and gesehen["step"] == 1, gesehen
 assert (gesehen["hand"]["art"], gesehen["hand"]["pos"]) == (lv.HAND, 30), gesehen["hand"]

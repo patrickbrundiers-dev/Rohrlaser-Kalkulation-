@@ -1726,7 +1726,7 @@ EINSTELLUNGEN = (
     Einstellung("trumpf_zeit", "TRUMPF-Programm: berechnete Zeit je Teil als Schneidzeit übernehmen", "STEP-Import",
                 "auswahl", "ja", auswahl="janein"),
     # Lernsystem L1 (produktion_lst.py): Ordner mit den gelaufenen LST-Programmen (mit Unterordnern)
-    Einstellung("lst_ordner", "TRUMPF-Programme: Ordner der gefertigten LST-Dateien fürs Lernen (leer = aus)",
+    Einstellung("lst_ordner", "Maschinendaten: Ordner der gefertigten LST- und BPF-Dateien fürs Lernen (leer = aus)",
                 "STEP-Import", "ordner", ""),
     Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
                 "STEP-Import", "auswahl", "S235-10219", auswahl="werkstoff"),
