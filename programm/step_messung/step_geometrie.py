@@ -2375,7 +2375,25 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
     if ak.MODUS == "an" or vorgabe is None:
         t = _profil_messen_kern(solid, datei, koerper, netz, quer, vorgabe) if vorgabe else None
         if t is not None and t.profilform:
+            # Selbstprüfung (Plan 2.0, N1): Gegenproben aus den Flächen, sonst Rückfall
+            vertrauen, befunde = ak.gegenproben(t, vorgabe[1], vorgabe[0], quer is not None)
+            eintrag["vertrauen"] = vertrauen
+            if not vertrauen:
+                grund = "Gegenprobe: " + ", ".join(n for n, ok, _ in befunde if not ok)
+                eintrag["befunde"] = [x for n, ok, x in befunde if not ok]
+                t = None
+        if t is not None and t.profilform:
             eintrag.update(methode="abwicklung", gesamt_s=round(time.perf_counter() - uhr, 4))
+            if ak.stichprobe(datei, koerper):
+                # Dauer-Vergleich (N1): zusätzlich bisher rechnen; bei Abweichung gilt die bisherige Rechnung
+                uhr = time.perf_counter()
+                t_alt = _profil_messen_kern(solid, datei, koerper, netz, quer)
+                eintrag["bisher_s"] = round(time.perf_counter() - uhr, 4)
+                u = ak.vergleichen(t_alt, t)
+                eintrag.update(stichprobe=True, gleich=not u,
+                               unterschiede=[[n, repr(x)[:120], repr(y)[:120]] for n, x, y in u])
+                if u:
+                    t = t_alt
         else:
             eintrag.update(methode="bisher", grund=grund or "Abwicklung ohne Profil",
                            neu_s=round(time.perf_counter() - uhr, 4))
@@ -2387,6 +2405,8 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
     # Vergleich: beide rechnen, das bisherige Ergebnis gilt
     t_neu = ak.neu_rechnen(_profil_messen_kern, solid, datei, koerper, netz, quer, vorgabe)
     eintrag["neu_s"] = round(time.perf_counter() - uhr, 4)
+    if t_neu is not None and t_neu.profilform:
+        eintrag["vertrauen"] = ak.gegenproben(t_neu, vorgabe[1], vorgabe[0], quer is not None)[0]
     uhr = time.perf_counter()
     t = _profil_messen_kern(solid, datei, koerper, netz, quer)
     eintrag["bisher_s"] = round(time.perf_counter() - uhr, 4)
@@ -5747,6 +5767,8 @@ def einstellen(werte):
     VIRTUELL = (werte or {}).get("virtuell") or None
     import step_abwicklungskern
     step_abwicklungskern.modus_setzen((werte or {}).get("abwicklungskern") or step_abwicklungskern.MODUS_START)
+    sp = (werte or {}).get("abwicklungskern_stichprobe")
+    step_abwicklungskern.stichprobe_setzen(step_abwicklungskern.STICHPROBE_START if sp is None else sp)
     vorgabe = {"flach_laenge": 3.0, "gekantet_anteil": 0.85, "naht_spalt": 3.0}
     for name, glob in EINSTELLBAR.items():
         v = (werte or {}).get(name)

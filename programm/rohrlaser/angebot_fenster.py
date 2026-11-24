@@ -424,7 +424,8 @@ def step_messung_protokollieren(dauer, anzahl, stand, befehl, abgebrochen=False)
                     teile.append(f"Abwicklungskern ({ak[0].get('modus', '')}): "
                                  f"{sum(x.get('neu', 0) for x in ak)} neu, "
                                  f"{sum(x.get('rueckfall', 0) for x in ak)} bisherige Rechnung, "
-                                 f"{sum(x.get('ungleich', 0) for x in ak)} ungleich")
+                                 f"{sum(x.get('ungleich', 0) for x in ak)} ungleich, "
+                                 f"{sum(x.get('stichproben', 0) for x in ak)} Stichproben (Dauer-Vergleich)")
                 if any("messen_s" in x for x in sch):     # ganz in einem Prozess gemessene Dateien
                     teile.append(f"Körper messen {summe('messen_s'):.1f} s ({summe('gemessen')} Körper), "
                                  f"Baugruppe auswerten {summe('abschluss_s'):.1f} s")

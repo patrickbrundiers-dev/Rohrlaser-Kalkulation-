@@ -174,3 +174,32 @@ Die Prüfung dort macht der Vergleichsmodus beim Kunden.
 4. **Stufe 4:** Lage auch für `step_offenes_rohr.erkennen`, `step_schenkel` und die Anbauteil-Trennung aus dem Kern
    (dort noch `_lage` mit 21 Schnitten).
 5. **Stufe 5:** Freiform-Mantel (B-Spline-Rohre aus manchen CAD) über die Isoparameter der Fläche statt Rückfall.
+
+## 9. Abwicklungskern 2.0 (Plan vom 24.11.2026, freigegeben „Alles bauen“)
+
+Plan: https://claude.ai/artifact/MeGQKSAn71xSDVx7aCUzP4. Pakete N1–N7 in fünf PRs (A: N7 + N1, B: N2, C: N3 + N4,
+D: N5, E: N6). Abnahme je PR: alle Prüf-STEPs gegen die Prüfbasis gleich oder begründet genauer, nicht langsamer,
+Schalter „aus“ unverändert.
+
+### PR A: Prüfbasis (N7) und Selbstprüfung (N1)
+
+- **Prüfbasis** `tests/daten/abwicklungskern_soll.json`: Sollwerte jedes Teils der 124 lesbaren Prüf-STEPs (alle
+  Vergleichsfelder, Konturen, Hinweise, geschlossenes Rohr, Alternative), geschrieben im Modus an mit
+  `werkzeuge/abwicklungskern_vergleich.py tests --soll-schreiben …`. Abnahme mit `--soll …` misst nur den Kern
+  (89 s statt 185 + 96 s). Ein späterer PR, der eine Messung bewusst ändert, schreibt die Datei neu: der Diff zeigt jede
+  geänderte Messung. Im Test A10 laufen 8 Prüf-STEPs (Rohre, Gehrung, U offen, I10, Platte, Freiform, Laschen) gegen
+  die Prüfbasis.
+- **Gegenproben** `step_abwicklungskern.gegenproben` aus der Flächenparametrisierung, unabhängig von den Schnitten:
+  Werte endlich und ≥ 0; Querschnitt = Merkmalskarte (1e-5); Länge = Merkmalskarte (0,01 mm, nicht bei Lage aus dem
+  geschlossenen Rohr); Rundrohr Ø und Innen-Ø als Radien achsgleicher Zylinder (0,01 mm); Rechteck-/Quadratrohr
+  Außenmaße als äußerste Wandebenen zweier Richtungen und Innenmaße als Ebenenabstand (0,01 mm; Fasen bilden eigene
+  Richtungen). Nicht bestanden → Rückfall mit Grund „Gegenprobe: …“. Vertrauen 100 (mit Maß-Probe), 80 (ohne).
+- **Dauer-Vergleich**: jedes 20. Teil (CRC32 von Dateiname und Körper, also unabhängig von der Reihenfolge) wird im
+  Modus an zusätzlich bisher gerechnet; bei Abweichung gilt die bisherige Rechnung. Protokoll: `stichprobe`, `gleich`,
+  `unterschiede`; Tempo-Protokoll-Zeile zählt die Stichproben. CLI `--abwicklungskern-stichprobe N` (0 = aus). Keine
+  eigene Einstellung: die Seiten STEP-Import und Arbeitsplatz haben schon die Höchstzahl 25 Einträge.
+
+Messung 126 Prüf-STEPs (Modus an, ohne Stichprobe): 170 Kern-Messungen, davon 130 mit Vertrauen 100 und 40 mit 80,
+41 Rückfälle wie bisher. Gegen die Prüfbasis 124 von 124 Dateien gleich. Die Gegenproben fanden an den Prüfteilen
+keinen Fehler. Zuerst schlug REF08 (Quadratrohr mit Fasen) an, weil die Fasen als eigene Wandrichtung galten; das ist
+behoben.

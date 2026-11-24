@@ -5389,10 +5389,22 @@ def kapitel_step(i):
             "Bohrung galt vorher je nach Lage als bis zu 0,7° schräg und wurde dann mit der 3D-Schnittlänge statt "
             "der 2D-Rundrohr-Regel gerechnet.",
             "<b>Bisherige Rechnung bleibt</b> bei Freiformflächen (B-Spline), Platten und Flachstahl (zwei "
-            "Längsrichtungen), Anbauteilen, langen Fenstern und Rohren ohne merkmalsfreie Stelle.")
+            "Längsrichtungen), Anbauteilen, langen Fenstern und Rohren ohne merkmalsfreie Stelle.",
+            "<b>Selbstprüfung:</b> Jede Messung über den Abwicklungskern wird gegengeprüft, unabhängig von den "
+            "Schnitten. Beim Rundrohr müssen Ø und Innen-Ø als Radien der Zylinderflächen in der STEP stehen. Beim "
+            "Rechteck- und Quadratrohr müssen Außen- und Innenmaße als Abstände der Wandflächen vorkommen. Dazu "
+            "kommen Querschnitt, Länge und gültige Werte. Fällt eine Probe durch, rechnet das Programm das Teil "
+            "automatisch wie bisher. Das Tempo-Protokoll nennt dann den Grund. Der Vertrauenswert ist 100 mit "
+            "Maß-Probe (Rohre) und 80 ohne (offene Profile, Sonderprofile).",
+            "<b>Dauer-Vergleich:</b> Jedes 20. Teil wird zusätzlich wie bisher gerechnet. Die Auswahl richtet sich "
+            "nur nach Dateiname und Körper, gleiche Teile werden also immer gleich behandelt. Weicht das Ergebnis "
+            "ab, gilt die bisherige Rechnung. Das Tempo-Protokoll (Support-Paket) zählt die Stichproben, "
+            "Abweichungen stehen dort einzeln.")
     i.text("Prüfen: <i>python werkzeuge/abwicklungskern_vergleich.py tests --bericht bericht.md</i> misst jede Datei "
-           "mit beiden Wegen und vergleicht jedes Teil (Toleranz 0,01 mm). Bericht: "
-           "docs/system-audit/ABWICKLUNGSKERN_2411.md.")
+           "mit beiden Wegen und vergleicht jedes Teil (Toleranz 0,01 mm). Mit <i>--soll "
+           "tests/daten/abwicklungskern_soll.json</i> misst es nur den Abwicklungskern und vergleicht mit der "
+           "Prüfbasis, also den abgenommenen Werten jedes Prüfteils. Der Bericht nennt Kernquote, Rückfall-Gründe "
+           "und Vertrauenswerte. Bericht: docs/system-audit/ABWICKLUNGSKERN_2411.md.")
     i.abschnitt("STEP-Viewer", marke="step_viewer")
     i.text("<i>Datei → STEP-Viewer (Datei ansehen und prüfen) …</i> (Strg+Umschalt+O, auch in <i>Meine "
            "Werkzeugleiste</i>) öffnet eine STEP-, IGES-, TUBX- oder BLM-Datei <b>ohne Angebot</b>. Im Angebot: "

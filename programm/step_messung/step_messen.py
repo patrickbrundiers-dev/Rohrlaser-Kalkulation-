@@ -23,6 +23,8 @@ Aufruf:
 --abwicklungskern aus|vergleich|an: Rohrmessung mit dem Abwicklungskern (step_abwicklungskern.py): Profil-Lage aus den
   Flächen statt vieler Schnitte, Endlinien offener Rohre bereinigt; vergleich = beide rechnen, Ergebnis wie bisher,
   Unterschiede in <ausgabe>.abwicklungskern.json; an = neu, wo sicher möglich, sonst automatisch die bisherige Rechnung.
+--abwicklungskern-stichprobe N: im Modus an jedes N-te Teil zusätzlich bisher rechnen (Dauer-Vergleich, Vorgabe 20,
+  0 = aus); bei Abweichung gilt die bisherige Rechnung, die Abweichung steht im Tempo-Protokoll.
 
 --flach-laenge F, --gekantet-anteil A: Grenzwerte der Erkennung aus den Einstellungen (step_geometrie.einstellen).
 
@@ -833,6 +835,8 @@ def main(argv=None):
     ap.add_argument("--abwicklungskern", choices=("aus", "vergleich", "an"),
                     help="Abwicklungskern (step_abwicklungskern): aus = bisher, vergleich = beide rechnen und "
                          "protokollieren, an = neu mit automatischem Rückfall")
+    ap.add_argument("--abwicklungskern-stichprobe", type=int,
+                    help="Modus an: jedes N-te Teil zusätzlich bisher rechnen (Vorgabe 20, 0 = aus)")
     ap.add_argument("--netze-fein", action="store_true",
                     help="Analysestufe Experte: feineres Netz für die 3D-Ansicht (Messwerte gleich)")
     ap.add_argument("--prozesse", type=int, default=0, help="Messprozesse (0 = automatisch)")
@@ -871,7 +875,8 @@ def main(argv=None):
                                ("stege", a.stege), ("virtuell", a.virtuell),
                                ("normteile_voll", a.normteile_voll or None),
                                ("netz_fein", a.netze_fein or None),
-                               ("abwicklungskern", a.abwicklungskern)) if v is not None}
+                               ("abwicklungskern", a.abwicklungskern),
+                               ("abwicklungskern_stichprobe", a.abwicklungskern_stichprobe)) if v is not None}
     ergebnis = [None] * len(dateien)
     with open(a.ausgabe, "w", encoding="utf-8", newline="\n") as f:      # Teilergebnis wächst je Datei
         f.write("\t".join(SPALTEN) + "\n")

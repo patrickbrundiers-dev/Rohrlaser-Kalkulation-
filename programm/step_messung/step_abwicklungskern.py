@@ -257,7 +257,8 @@ def lage(solid):
     ax3n = gp_Ax3(o, ax3.Direction(), gp_Dir(xr.X(), xr.Y(), xr.Z()))
     info = dict(methode="abwicklung", achse_anteil=round(anteil, 4), frei=[[round(a - zm, 2), round(b - zm, 2)]
                 for a, b in frei[:6]], schnitte=len(schnitte), lage_s=round(time.perf_counter() - uhr, 4),
-                zs=[z - zm for z in zs])
+                zs=[z - zm for z in zs], netto=max(netto), laenge=zmax - zmin)
+    info["_fl"] = fl            # für die Gegenproben (gegenproben), nicht ins Protokoll
     return (ax3n, info), None
 
 
@@ -272,9 +273,138 @@ def profil_vorgabe(solid):
     return erg, None
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# Selbstprüfung (Plan Abwicklungskern 2.0, N1): Gegenproben unabhängig von den Schnitten, Vertrauenswert
+
+def _flaechen_lage(fl, ax3):
+    """Längsflächen relativ zur Rohrachse aus der Flächenparametrisierung: Ebenen [(Richtung, Lage entlang der
+    Normale, Z-Länge)] und achsparallele Zylinder [(Radius, Abstand der Zylinderachse von der Rohrachse, Z-Länge)]."""
+    o, d = ax3.Location(), ax3.Direction()
+    ov = gp_Vec(o.X(), o.Y(), o.Z())
+    ebenen, zylinder = [], []
+    for f, typ, _, n in fl:
+        if n is None or not _laengs(typ, n, d):
+            continue
+        b = Bnd_Box()
+        BRepBndLib.Add_s(f, b, False)
+        if b.IsVoid():
+            continue
+        ecken = [gp_Vec(p.X(), p.Y(), p.Z()).Subtracted(ov).Dot(gp_Vec(d.X(), d.Y(), d.Z()))
+                 for p in (b.CornerMin(), b.CornerMax())]
+        s = BRepAdaptor_Surface(TopoDS.Face(f))
+        if typ == "E":
+            pl = s.Plane()
+            q = pl.Location()
+            nn = pl.Axis().Direction()
+            k = _richtung_key(nn)       # Richtung ohne Vorzeichen: Lage aller Ebenen dieser Richtung vergleichbar
+            kv = gp_Vec(*k)
+            lage_n = gp_Vec(q.X(), q.Y(), q.Z()).Subtracted(ov).Dot(kv) / kv.Magnitude()
+            ebenen.append((k, lage_n, abs(ecken[1] - ecken[0])))
+        else:
+            c = s.Cylinder()
+            q = c.Location()
+            v = gp_Vec(q.X(), q.Y(), q.Z()).Subtracted(ov)
+            abstand = v.Crossed(gp_Vec(d.X(), d.Y(), d.Z())).Magnitude()
+            zylinder.append((c.Radius(), abstand, abs(ecken[1] - ecken[0])))
+    return ebenen, zylinder
+
+
+TOL_PROBE = 0.01        # mm: Gegenprobe Maße (wie TOL_MM)
+LANG = 0.3              # Anteil der Länge: Längsfläche zählt für die Maß-Gegenprobe (Wände, keine Fensterflanken)
+VERTRAUEN_VOLL = 100    # alle Gegenproben bestanden, Maße gegen die Flächen geprüft
+VERTRAUEN_OHNE_MASS = 80  # bestanden, Maße nicht gegen Flächen prüfbar (offene Profile, Sonderprofile)
+
+
+def _enthalten(wert, werte, tol=TOL_PROBE):
+    return any(abs(wert - w) <= tol for w in werte)
+
+
+def gegenproben(t, info, ax3, quer=False):
+    """Gegenproben einer Messung über den Kern, unabhängig von den Schnitten: (Vertrauen 0–100, Befunde
+    [(Probe, bestanden, Text)]). Nicht bestanden = Rückfall auf die bisherige Rechnung (step_geometrie._profil_messen).
+    Proben: Werte endlich und nicht negativ; Querschnitt und Länge wie die Merkmalskarte; Rundrohr Ø und Innen-Ø als
+    Radien achsgleicher Zylinder; Rechteck-/Quadratrohr Außen- und Innenmaße als Abstände der Wandebenen.
+    quer: die Lage kommt aus einem anderen Körper (geschlossenes Rohr zu einem offen gezeichneten): Länge nicht
+    vergleichbar."""
+    befunde = []
+    werte = [getattr(t, n, 0.0) or 0.0 for n in ("abm_a", "abm_b", "wandstaerke", "flaeche", "laenge", "schneidweg",
+                                                  "ende_a", "ende_b", "innen")]
+    befunde.append(("werte", all(math.isfinite(w) and w >= 0 for w in werte), "Werte endlich und nicht negativ"))
+    netto, laenge = info.get("netto"), info.get("laenge")
+    if netto and t.flaeche:
+        befunde.append(("querschnitt", abs(t.flaeche - netto) <= max(TOL_REL * netto, 1e-3),
+                        f"Querschnitt {t.flaeche:.3f} / Merkmalskarte {netto:.3f} mm²"))
+    if laenge and t.laenge and not quer:     # quer: Lage aus dem geschlossenen Rohr, Länge aus dem Teil selbst
+        befunde.append(("laenge", abs(t.laenge - laenge) <= TOL_PROBE,
+                        f"Länge {t.laenge:.3f} / Merkmalskarte {laenge:.3f} mm"))
+    mass = False
+    fl = info.get("_fl")
+    if fl and t.profilform in ("Rundrohr", "Quadratrohr", "Rechteckrohr") and laenge:
+        ebenen, zylinder = _flaechen_lage(fl, ax3)
+        if t.profilform == "Rundrohr":
+            radien = [r for r, ab, zl in zylinder if ab <= TOL_PROBE and zl >= LANG * laenge]
+            if radien:
+                mass = True
+                ok = _enthalten(t.abm_a / 2, radien, TOL_PROBE / 2) and (
+                    not t.innen_a or _enthalten(t.innen_a / 2, radien, TOL_PROBE / 2))
+                befunde.append(("mass_zylinder", ok, f"Ø {t.abm_a:.3f}/{t.innen_a:.3f} gegen Zylinderradien "
+                                f"{sorted(round(2 * r, 3) for r in set(radien))}"))
+        else:
+            gruppen = {}
+            for k, lage_n, zl in ebenen:
+                if zl >= LANG * laenge:
+                    gruppen.setdefault(k, []).append(lage_n)
+            # je Richtung die äußeren Wände; Fasen und Kantenbrüche bilden eigene Richtungen (zählen nicht)
+            gr = [sorted(v) for v in gruppen.values() if len(v) >= 2]
+            if len(gr) >= 2:
+                mass = True
+                aussen = sorted(v[-1] - v[0] for v in gr)
+                abst = [b - a for v in gr for i, a in enumerate(v) for b in v[i + 1:]]
+                soll = (t.abm_a, t.abm_b or t.abm_a)
+                rest = list(aussen)
+                ok = True
+                for s in soll:      # jedes Außenmaß von einer eigenen Richtung
+                    i = next((i for i, x in enumerate(rest) if abs(x - s) <= TOL_PROBE), None)
+                    ok = ok and i is not None
+                    if i is not None:
+                        rest.pop(i)
+                for innen in (t.innen_a, t.innen_b):
+                    if innen:
+                        ok = ok and _enthalten(innen, abst)
+                befunde.append(("mass_ebenen", ok, f"{t.abm_a:.3f}×{t.abm_b:.3f} innen {t.innen_a:.3f}×"
+                                f"{t.innen_b:.3f} gegen Wandebenen außen {[round(x, 3) for x in aussen]}"))
+    if not all(ok for _, ok, _ in befunde):
+        return 0, befunde
+    return (VERTRAUEN_VOLL if mass else VERTRAUEN_OHNE_MASS), befunde
+
+
+# Dauer-Vergleich (N1): jede n-te Kern-Messung zusätzlich mit der bisherigen Rechnung (Modus an). Die Auswahl hängt
+# nur von Datei und Körper ab (gleiches Teil = gleiche Entscheidung, Ergebnis unabhängig von der Reihenfolge).
+STICHPROBE_START = 20
+STICHPROBE = STICHPROBE_START
+
+
+def stichprobe_setzen(n):
+    global STICHPROBE
+    try:
+        STICHPROBE = max(0, int(n))
+    except (TypeError, ValueError):
+        STICHPROBE = STICHPROBE_START
+
+
+def stichprobe(datei, koerper):
+    """Dieses Teil (Datei, Körper) zusätzlich bisher rechnen?"""
+    if not STICHPROBE:
+        return False
+    import zlib
+    name = os.path.basename(str(datei or ""))
+    return zlib.crc32(f"{name}|{koerper}".encode("utf-8")) % STICHPROBE == 0
+
+
 def zusammenfassen(eintraege):
     """Protokoll einer Datei kurz: {modus, neu, rueckfall, gruende {Grund: Anzahl}, ungleich, neu_s, bisher_s}."""
-    out = dict(modus=MODUS, neu=0, rueckfall=0, gruende={}, ungleich=0, neu_s=0.0, bisher_s=0.0)
+    out = dict(modus=MODUS, neu=0, rueckfall=0, gruende={}, ungleich=0, neu_s=0.0, bisher_s=0.0, stichproben=0,
+               vertrauen_min=None)
     for e in eintraege:
         if e.get("methode") in ("abwicklung", "vergleich"):
             out["neu"] += 1
@@ -283,6 +413,10 @@ def zusammenfassen(eintraege):
             gr = e.get("grund") or "?"
             out["gruende"][gr] = out["gruende"].get(gr, 0) + 1
         out["ungleich"] += 1 if e.get("gleich") is False else 0
+        out["stichproben"] += 1 if e.get("stichprobe") else 0
+        if e.get("vertrauen") is not None:
+            v = out["vertrauen_min"]
+            out["vertrauen_min"] = e["vertrauen"] if v is None else min(v, e["vertrauen"])
         out["neu_s"] = round(out["neu_s"] + (e.get("neu_s") or e.get("gesamt_s") or 0.0), 3)
         out["bisher_s"] = round(out["bisher_s"] + (e.get("bisher_s") or 0.0), 3)
     return out
@@ -310,6 +444,7 @@ def _gleich(a, b):
     if isinstance(a, (int, float)) and isinstance(b, (int, float)):
         return abs(a - b) <= max(TOL_MM, TOL_REL * max(abs(a), abs(b)))
     if isinstance(a, dict) and isinstance(b, dict):
+        a, b = _schluessel(a), _schluessel(b)     # Prüfbasis (JSON) hat Text-Schlüssel
         return a.keys() == b.keys() and all(_gleich(a[k], b[k]) for k in a)
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
         return len(a) == len(b) and all(_gleich(x, y) for x, y in zip(a, b))
@@ -335,6 +470,43 @@ def _drehung_quadrat(alt, neu, ka, kb):
     ok = all(abs((y["winkel"] - x["winkel"] - 90 * k + 180) % 360 - 180) <= 0.1 + 1e-9 for x, y in zip(ka, kb)
              if x.get("winkel") is not None and y.get("winkel") is not None)
     return 90 * k if ok and k else None
+
+
+def _json(v):
+    if isinstance(v, dict):
+        return {str(k): _json(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_json(x) for x in v]
+    if isinstance(v, float):
+        return round(v, 6)
+    return v
+
+
+def sollwerte(t):
+    """Vergleichbare Werte einer Messung (Teil) für die Prüfbasis (N7): JSON, wieder einlesbar mit soll_teil."""
+    if t is None:
+        return None
+    d = {n: _json(getattr(t, n, None)) for n in VERGLEICH_FELDER + ("bauteiltyp",)}
+    d["konturen_liste"] = [_json(_kontur_kern(k)) for k in t.konturen_liste or []]
+    d["hinweise"] = sorted(t.hinweise or [])
+    for n in ("geschlossen", "alternative"):
+        d[n] = sollwerte(getattr(t, n, None))
+    return d
+
+
+def soll_teil(d):
+    """Sollwerte (sollwerte) als Objekt für vergleichen."""
+    if d is None:
+        return None
+    from types import SimpleNamespace
+    x = SimpleNamespace(**d)
+    x.geschlossen, x.alternative = soll_teil(d.get("geschlossen")), soll_teil(d.get("alternative"))
+    return x
+
+
+def _schluessel(d):
+    """Dict-Schlüssel aus JSON (str) wie in der Messung (z. B. Bohrungs-Ø als Zahl) vergleichbar machen."""
+    return {str(k): v for k, v in d.items()}
 
 
 def vergleichen(alt, neu, pfad=""):
