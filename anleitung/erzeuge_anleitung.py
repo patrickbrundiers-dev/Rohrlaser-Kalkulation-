@@ -7585,7 +7585,7 @@ def kapitel_optimieren(i):
             "zu sehen und wie gewohnt änderbar; erst <b>OK</b> legt die Position an.")
     i.abschnitt("Rohrteil aus einer PDF-Zeichnung (Test)", marke="pdf_zeichnung")
     i.text("Noch eine <b>Testfunktion</b>: Erst mit der Einstellung <i>Testfunktion PDF-Zeichnungen: Neue Position „Aus PDF-Zeichnung“</i>"
-           " (Einstellungen → STEP-Import, Vorgabe nein) bietet <i>Neue Position</i> den Typ "
+           " (Einstellungen → DXF-Import, Vorgabe nein) bietet <i>Neue Position</i> den Typ "
            "<b>Aus PDF-Zeichnung (Test)</b> an. Das Programm liest den <b>Text</b> der Zeichnung (aus einem PDF mit "
            "Text direkt, Scans und Fotos mit der Texterkennung wie beim Anfrageformular, [[anfragen]]) und öffnet den "
            "Rohr-Editor damit. Ist das PDF direkt aus dem CAD gespeichert (Linien, kein Scan), liest es auch die "
