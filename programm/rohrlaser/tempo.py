@@ -187,8 +187,9 @@ class Waechter:
                 return False
 
         _bedienung_einrichten()
+        from . import ereignis_verteiler
         self._filter = Filter()
-        app.installEventFilter(self._filter)
+        ereignis_verteiler.anmelden(self._filter, _BEDIENUNG, app)
         self._haupt_id = _HAUPT[0] = threading.get_ident()
         self._zuletzt = time.perf_counter()
         self._timer = QTimer()
@@ -207,7 +208,8 @@ class Waechter:
             self._timer.stop()
         app = QApplication.instance()
         if app is not None and self._filter is not None:
-            app.removeEventFilter(self._filter)
+            from . import ereignis_verteiler
+            ereignis_verteiler.abmelden(self._filter, app)
         for h in list(_log.handlers):
             h.close()
         _log.handlers = []
