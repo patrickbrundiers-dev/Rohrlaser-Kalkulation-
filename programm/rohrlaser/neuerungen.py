@@ -21,13 +21,28 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.474", "<b>Anfragen löschen und Zusammenführen ohne Wiederkehr</b> ([[anfragen_sammeln]]): Nach dem "
+    ["0.9.475", "<b>Anfragen löschen und Zusammenführen ohne Wiederkehr</b> ([[anfragen_sammeln]]): Nach dem "
                 "Zusammenführen und Kalkulieren erschienen die übernommenen Anfragen wieder als neu, weil ihre "
                 "Originale im Anfrage-Ordner liegen blieben. Jetzt kommen sie nach .uebernommen und werden nie neu "
                 "angelegt. Neu ist <i>Löschen …</i> mit dem Ordner <i>Gelöscht</i> und <i>Wiederherstellen</i>. Outlook: Kam dieselbe Mail ein "
                 "zweites Mal (Inhalt schon in der Anfrage), gehörte sie keiner Anfrage, blieb im Eingang liegen und "
                 "wurde nie verschoben. Jetzt wandert sie mit der Anfrage nach In Bearbeitung und Erledigt.",
      "Anfragen löschen; zusammengeführte kommen nicht wieder als neu; Outlook verschiebt auch doppelte Mails"],
+    ["0.9.474", "<b>Nesting: Stangenabwicklung und 3D auf CAD/CAM-Niveau</b> ([[nesting]]): neue Hauptansicht "
+                "<i>Abwicklung</i> je Materialstange, maßstäblich mit echtem Umfang (Eckradien, Seiten bzw. Grad), "
+                "jedes Teil an seinem Platz aus dem Nesting mit Drehung und Wenden, Gehrungen, Bohrungen, Langlöcher "
+                "und Gravuren an der richtigen Stelle am Umfang, Endbeschnitt, Schnittfugen, Rest und Greiferrest. "
+                "Zoom, Messen, Ebenen ein/aus, waagerecht/senkrecht, Umfang 1:1. <i>3D</i> zeigt die echten "
+                "STEP-Teile auf der Stange (sonst aus den Eingaben, nie gestreckt), <i>Technisch</i> die Koordinaten "
+                "jedes Schnitts und jeder Kontur. Links die Stangenliste zum Blättern, rechts Infopanel für Stange "
+                "und Teil; die letzte Ansicht bleibt gemerkt. Modern gestaltet: Umschalter mit Symbolen (Strg+1–5), "
+                "Ebenen-Menü, ruhige Teilfarben in allen Ansichten, Hervorhebung mit Tooltip, Raster, Legende, "
+                "Maßpfeile; 3D zoomt auf das gewählte Teil und zeigt Positionsschilder; Koordinatentabelle und Bild "
+                "verbunden, Abwicklung als PDF/DXF; Infokarten mit Teilvorschau; Stangenliste mit Belegungsbalken. "
+                "Verschnitt zwischen den Teilen (Gehrungsdreiecke, Fugen) rot in Abwicklung und 3D, mit Fläche und "
+                "gleichwertiger Länge je Stange. Der 1. Schnitt (Besäumschnitt, Endbeschnitt) ist in Abwicklung, 3D, "
+                "Koordinatentabelle und DXF eingezeichnet.",
+     "Nesting: Abwicklung je Stange, 3D mit echten STEP-Teilen, Technische Ansicht, moderne Ansichten, PDF/DXF."],
     ["0.9.473", "<b>Eigener STEP-Viewer</b> ([[step_viewer]]): <i>Datei → STEP-Viewer</i> (Strg+Umschalt+O) oder "
                 "Rechtsklick auf eine Position → <i>Im STEP-Viewer öffnen …</i> zeigt eine STEP-Datei ohne Angebot: "
                 "Format (AP203/AP214/AP242), Einheit und Baugruppe sofort, danach alle Bauteile nach Art, 3D mit "
