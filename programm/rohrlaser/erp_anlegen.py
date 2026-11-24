@@ -80,6 +80,46 @@ def _norm_von(w):
                                                                                     "angebotstext"))), None)
 
 
+_GRUNDGUETE = re.compile(r"(?i)[SE]\d{3}(JRH?|J0H?|J2H?|JR|H|T|\+C|\+N)?")
+
+
+def _im_text(w, text):
+    """Steht der Werkstoffname (S355J2WH) wörtlich im Text (Leerzeichen egal)?"""
+    name = str(w.get("werkstoff") or "").replace(" ", "").upper()
+    return bool(name) and name in str(text or "").replace(" ", "").upper()
+
+
+def sonderguete(wid, w, g=None, fam=None):
+    """Ist der Werkstoff eine Sondergüte (wetterfest S355J2WH, Feinkorn …) statt der Grundgüte S235JRH/S355J2H? Die
+    Grundgüte der Familie (Werkstoff-ID S355-10219 bzw. Name aus GUETE_NAME) ist nie eine."""
+    name = str(w.get("werkstoff") or "").replace(" ", "")
+    if g and fam and (str(wid) == f"{g[0]}{g[1]}-{fam}" or name.upper() == GUETE_NAME.get((g[1], fam), "").upper()):
+        return False
+    return bool(name) and not _GRUNDGUETE.fullmatch(name)
+
+
+SONDERGUETE_STAND = "2026-11-24"    # Einstellung erp_sonderguete_stand: Reparatur einmalig (sondergueten_reparieren)
+
+
+def sondergueten_reparieren(db):
+    """Einmalig (Fehler 0.9.459 bis 0.9.462): gemerkte EK-Zuordnungen auf eine Sondergüte, die weder in der Bezeichnung
+    noch in der Artikelnummer steht (S355 EN 10219 -> S355J2WH), vergessen; der Artikel wird beim nächsten Einlesen bzw.
+    Öffnen der Prüfliste wieder aus der Bezeichnung erkannt. Ergebnis: Anzahl vergessener Zuordnungen."""
+    k = db.kontext()
+    weg = []
+    for z in erp_preise.zuordnungen(db).values():
+        w = k.werkstoffe.get(z.get("werkstoff_id"))
+        if not w or z.get("ignorieren") or not sonderguete(z["werkstoff_id"], w):
+            continue
+        text = f"{z.get('bezeichnung') or ''} {z.get('artikelnr') or ''}" + \
+            erp_preise.artikelnr_hinweis(z.get("artikelnr"))
+        if not _im_text(w, text) and not re.search(r"(?i)wetterfest|corten", text):
+            weg.append(z["schluessel"])
+    if weg:
+        erp_preise.zuordnung_vergessen(db, weg)
+    return len(weg)
+
+
 def werkstoff_fuer(text, k):
     """(Werkstoff-ID vorhanden oder None, neuer Werkstoff dict oder None, Grund). Sucht einen Werkstoff mit Güte und
     Familie des Textes; fehlt er, wird er von einer Vorlage derselben Güte abgeleitet."""
@@ -96,16 +136,18 @@ def werkstoff_fuer(text, k):
     gleich = [wid for wid, w in k.werkstoffe.items() if re.search(rf"(?i)(?<![\d]){g[0]}{g[1]}", str(wid) + " "
                                                                    + str(w.get("werkstoff") or ""))
               and not w.get("archiviert") == "ja"]
-    passend = [wid for wid in gleich if _norm_von(k.werkstoffe[wid]) == fam]
+    # Grundgüte vor Sondergüten: S355J2WH wetterfest nur, wenn es im Text steht (24.11.2026: vorher entschied bei
+    # gleichem Rang die kürzere ID, „S355 EN 10219“ wurde so S355J2WH statt S355-10219)
+    passend = [wid for wid in gleich if _norm_von(k.werkstoffe[wid]) == fam
+               and not (sonderguete(wid, k.werkstoffe[wid], g, fam) and not _im_text(k.werkstoffe[wid], text))]
     if passend:
-        # Grundgüte vor Sondergüten (S355J2WH wetterfest nur, wenn es im Text steht)
-        passend.sort(key=lambda w: (str(k.werkstoffe[w].get("werkstoff") or "").upper() not in str(text).upper(),
+        passend.sort(key=lambda w: (not _im_text(k.werkstoffe[w], text), sonderguete(w, k.werkstoffe[w], g, fam),
                                     len(str(w))))
         return passend[0], None, "vorhanden"
     vorlagen = [wid for wid in gleich if _norm_von(k.werkstoffe[wid]) in FAMILIEN]
     if not vorlagen:
         return None, None, f"kein Werkstoff {g[0]}{g[1]} als Vorlage"
-    vorlage = sorted(vorlagen, key=len)[0]
+    vorlage = sorted(vorlagen, key=lambda w: (sonderguete(w, k.werkstoffe[w], g, fam), len(str(w))))[0]
     v = dict(k.werkstoffe[vorlage])
     f = FAMILIEN[fam]
     neu_id = f"{g[0]}{g[1]}-{fam}"

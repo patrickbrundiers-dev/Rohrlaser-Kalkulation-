@@ -200,4 +200,37 @@ s.neu_laden(erzwingen=True)
 zz = [x for x in s.alle_zeilen if x["profil_id"] == "QR 55x55x3"]
 assert not zz or any(x.get("erp_letzter") for x in zz)
 ok("Materialseite: „Profile und Werkstoffe aus dem EK anlegen …“ legt an, zweiter Lauf nichts")
+
+# ------------------------------------------------------------------ Grundgüte vor Corten (24.11.2026)
+# Fehler bis 0.9.462: „S355 EN 10219“ ohne J2H im Text wurde beim Anlegen S355J2WH (kürzere ID bei gleichem Rang)
+db4 = Datenbank(tmp / "corten.db")
+k4 = db4.kontext()
+assert "S355J2WH" in k4.werkstoffe and "S355-10219" in k4.werkstoffe
+for t in ("Quadratrohr 40x40x3 kaltgefertigt · EN 10219- S355 HL 6m", "40x40x3 S355 · 6050mm DIN EN 10219",
+          "Rechteckrohr 60x40x3 S355 EN10219 Quadratrohr S355"):
+    assert A.werkstoff_fuer(t, k4)[0] == "S355-10219", (t, A.werkstoff_fuer(t, k4))
+assert A.werkstoff_fuer("Quadratrohr 40x40x3 S355J2WH EN 10219", k4)[0] == "S355J2WH"
+assert A.werkstoff_fuer("Quadratrohr 40x40x3 S235 EN 10219", k4)[0] == "S235-10219"
+assert A.sonderguete("S355J2WH", k4.werkstoffe["S355J2WH"]) and not A.sonderguete("S355-10219", k4.werkstoffe["S355-10219"])
+ks = [kauf(31, "Quadratrohr 40x40x3 kaltgefertigt · EN 10219- S355 HL 6m", 5, 30, 3.0),
+      kauf(32, "Quadratrohr 40x40x3 S355J2WH wetterfest", 5, 30, 6.0)]
+E.speichern(db4, ks)
+p = A.plan(db4)
+assert all(z["werkstoff_id"] != "S355J2WH" or "J2WH" in z["bezeichnung"] for z in p["zuordnungen"]), p["zuordnungen"]
+# einmalige Reparatur: falsch gemerkte Corten-Zuordnung vergessen, gewollte (J2WH im Text) bleibt
+E.zuordnung_merken(db4, ks[0]["schluessel"], "A31", ks[0]["bezeichnung"], "QR 40x40x3", "S355J2WH", "")
+E.zuordnung_merken(db4, ks[1]["schluessel"], "A32", ks[1]["bezeichnung"], "QR 40x40x3", "S355J2WH", "")
+assert A.sondergueten_reparieren(db4) == 1
+zu = E.zuordnungen(db4)
+assert ks[0]["schluessel"] not in zu and zu[ks[1]["schluessel"]]["werkstoff_id"] == "S355J2WH"
+arts = {a["artikelnr"]: a for a in E.artikel(E.gespeicherte(db4), zu, db4.kontext())}
+assert arts["A31"]["werkstoff_id"] == "S355-10219", arts["A31"]
+# beim Öffnen nur einmal (Einstellung erp_sonderguete_stand)
+E.zuordnung_merken(db4, ks[0]["schluessel"], "A31", ks[0]["bezeichnung"], "QR 40x40x3", "S355J2WH", "")
+db4.einstellung_setzen("erp_sonderguete_stand", "")
+db4.con.close() if hasattr(db4.con, "close") else None
+db5 = Datenbank(tmp / "corten.db")
+assert ks[0]["schluessel"] not in E.zuordnungen(db5)
+assert db5.einstellung("erp_sonderguete_stand") == A.SONDERGUETE_STAND
+ok("Grundgüte vor Corten: S355 EN 10219 = S355-10219, S355J2WH nur wenn im Text; falsche Zuordnungen einmalig vergessen")
 print("Alle Tests bestanden")

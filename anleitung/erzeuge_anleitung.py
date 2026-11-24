@@ -14524,7 +14524,8 @@ def kapitel_material(i):
            "einem vorhandenen Werkstoff dieser Güte abgeleitet (Dichte, Tonnenpreis, Lasereigenschaften) und "
            "bekommt Norm, Rohrart und Angebotstext; Bemerkung <i>aus ERP-EK angelegt, bitte prüfen</i>. EN 10219 "
            "kaltgefertigt = geschweißt, EN 10210 warmgefertigt bzw. <i>nahtlos</i>, E-Güten = EN 10305. S235 EN 10210 "
-           "gibt es nicht: solche Käufe gehen auf S235 EN 10219. Flachstahl, Winkel und Träger bekommen nie eine "
+           "gibt es nicht: solche Käufe gehen auf S235 EN 10219. Sondergüten wie <i>S355J2WH wetterfest</i> nur, wenn sie "
+           "in Bezeichnung oder Artikelnummer stehen; sonst gilt die Grundgüte (S355 EN 10219 = S355J2H). Flachstahl, Winkel und Träger bekommen nie eine "
            "Rohrnorm. Vorher wird gesichert; die Zuordnung jedes EK-Artikels wird gemerkt. Was unklar ist (Maß "
            "nicht erkannt, Norm mehrdeutig wie <i>S355</i> ohne Norm), bleibt in der Prüfliste. Ohne Admin-Freigabe "
            "für Werkstoffe werden nur Profile angelegt.",
