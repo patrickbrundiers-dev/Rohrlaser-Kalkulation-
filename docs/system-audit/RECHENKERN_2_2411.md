@@ -223,3 +223,29 @@ lesbaren Prüf-STEPs kein Hinweis (keine Fehlalarme). Test: `tests/test_rechenke
 
 Grenze: Mit Zeitlimit 0 (Einstellung „ohne“) misst `step_messen` ohne Aufsicht; ein Absturz des Lesers beendet dann
 die Messung ohne Ergebnis (das Programm meldet den Fehler des Messprozesses). Vorgabe ist 600 s, also mit Aufsicht.
+
+## 9. Paket 6: Speicher-Dauerlauf (24.11.2026)
+
+Neues Werkzeug `werkzeuge/speicher_dauerlauf.py`: rechnet viele Runden mit je Runde anderen Eingaben (geänderte
+Teilelänge, Stückzahl im Wechsel, Angebot bleibt gleich groß): optimieren, kalkulieren, Staffeln, Maschinenvergleich.
+Gemessen je Runde: Arbeitsspeicher (RSS), Python-Speicherblöcke, Dauer; optional Länge aller Merker auf Modulebene
+(`--behaelter`) und tracemalloc (`--spur`, langsam).
+
+Ergebnis Testangebot M (50 Positionen), 500 Runden, PostgreSQL wie im Programm:
+
+| Stand | RSS nach 250 Runden | RSS nach 500 Runden | Zuwachs je Runde (2. Hälfte) | Dauer Median / 95 % |
+|---|---|---|---|---|
+| 0.9.476 | 149,1 MB | 152,9 MB | 0,015 MB (Messrauschen) | 0,74 / 0,89 s |
+| neu | 135,2 MB | 139,8 MB | 0,019 MB (Messrauschen) | 0,73 / 0,84 s |
+
+Kein Speicherleck: alle Merker sind begrenzt (Kalkulation 32, Maschinenvergleich 16, Schnittpläne 400 Gruppen,
+Schneidfolge 5.000, Konturlagen 4.000) und füllen sich nur bis zur Grenze. Ein erster Lauf, in dem die Stückzahl je
+Runde stieg, wuchs scheinbar um 0,4 MB je Runde: das Testangebot selbst wurde größer, kein Fehler im Programm.
+
+Umgesetzt: Der Merker der Schnittpläne (`optimierung._merker`) hatte als Schlüssel den ganzen Text der Gruppe (alle
+Teile mit allen Feldern); jetzt eine BLAKE2b-Prüfsumme (256 Bit) des Texts samt Länge. Gleiche Gruppe, gleicher
+Schlüssel, gleiche Pläne (Regressionstest 20 Angebote, test_optimierung, test_performance_1011 grün). Spart ~13 MB
+beim Testangebot M, bei großen Gruppen (viele Teile) entsprechend mehr.
+
+Datenbank für 10–25 Benutzer: bereits gemessen mit `werkzeuge/last_messung.py` (Teil A: 1/5/10/25 gleichzeitige
+Benutzer, Teil B: Abgleich über den Ordner mit bis 25 Plätzen < 0,5 s); unverändert, kein Umbau.
