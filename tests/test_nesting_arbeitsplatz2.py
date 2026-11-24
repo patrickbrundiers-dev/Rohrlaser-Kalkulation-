@@ -99,8 +99,50 @@ app.processEvents()
 d.ansicht_setzen(nesting_dialog.DREI_D)
 d.stange_gewaehlt(0)
 app.processEvents()
-assert d.drei_d.stange is not None and d.drei_d.segmente
+assert d.drei_d.ansicht.netz is not None and d.drei_d_info, d.drei_d_info
 d.drei_d.grab().save(str(tmp / "nesting_3d.png"))
+# Abwicklung, Technisch, Stangenliste, Infopanel, Ansicht gemerkt (Patrick 24.11.2026 Stangenabwicklung)
+d.ansicht_setzen(nesting_dialog.ABWICKLUNG)
+app.processEvents()
+assert d.abw.daten is not None and len(d.abw.daten["teile"]) == len(d.bild._anzeige_von(0)["teile"])
+assert [(t["von"], t["bis"]) for t in d.abw.daten["teile"]] == \
+    [(t["von"], t["bis"]) for t in d.bild._anzeige_von(0)["teile"]]
+assert d.stangen_liste.count() == len(st) and d.stangen_liste.item(0).text().startswith("Stange 1 – ")
+assert "Ausnutzung" in d.karte_stange.text() and "Profil" in d.karte_stange.text()
+d.abwicklung_teil(0)
+assert d.karte_teil.isVisible() and "Drehwinkel" in d.karte_teil.text() and "Länge" in d.karte_teil.text()
+d.stangen_liste.setCurrentRow(1)
+app.processEvents()
+assert d.bild.stange_nr == 1 and d.abw.daten["laenge"] == d.bild._anzeige_von(1)["stange"]
+d.ansicht_setzen(nesting_dialog.TECHNISCH)
+app.processEvents()
+assert d.koord.rowCount() >= 2 * len(d.tech.daten["teile"])
+assert s.db.einstellung(nesting_dialog.ANSICHT_EINSTELLUNG) == nesting_dialog.TECHNISCH
+# Plan M1-M7: Stangenwahl, Ebenen-Menü, Tabelle <-> Bild, 3D einpassen/anklicken, PDF/DXF
+assert d.stange_wahl.count() == len(st) and d.stange_wahl.currentIndex() == 1
+d.ebenen_knoepfe["konturen"].setChecked(False)
+assert not d.abw.ebenen["konturen"] and not d.tech.ebenen["konturen"]
+d.ebenen_knoepfe["konturen"].setChecked(True)
+d.koord.selectRow(1)
+app.processEvents()
+assert d.tech.punkt_markiert is not None and d.tech.auswahl == d._koord_zeilen[1][0]
+pdf, dxf_ = d.abwicklung_speichern("pdf", str(tmp / "stange.pdf")), d.abwicklung_speichern("dxf", str(tmp / "s.dxf"))
+assert Path(pdf).stat().st_size > 1000 and Path(dxf_).stat().st_size > 1000
+d.ansicht_setzen(nesting_dialog.DREI_D)
+app.processEvents()
+assert d.drei_d.ansicht.schilder and len([x for x in d.drei_d.ansicht.schilder if not x[1].startswith("1. Schnitt")]) == len(d.drei_d_info)
+assert any(x[1].startswith("1. Schnitt") for x in d.drei_d.ansicht.schilder)      # Besäumschnitt im 3D
+t1 = d.abw.daten["teile"][-1]
+d._drei_d_klick({"punkt": (0.0, 0.0, (t1["von"] + t1["bis"]) / 2)})
+assert d.abw.auswahl == len(d.abw.daten["teile"]) - 1 and d.karte_teil.isVisible()
+z_teil = d.drei_d.ansicht.zoom
+d.k_ganz.setChecked(True)
+assert d.drei_d.ansicht.zoom < z_teil
+d.k_ganz.setChecked(False)
+d.ansicht_setzen(nesting_dialog.TECHNISCH)
+d2 = nesting_dialog.NestingDialog(v, s.positionen, s)
+assert d2.ansicht == nesting_dialog.TECHNISCH
+d2.close()
 d.ansicht_setzen(nesting_dialog.BEARBEITEN)
 app.processEvents()
 d.grab().save(str(tmp / "nesting_arbeitsplatz2.png"))
