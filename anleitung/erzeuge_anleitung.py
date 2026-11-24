@@ -5314,6 +5314,30 @@ def kapitel_step(i):
             "--json ergebnis.json Ordner</i>.")
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "
            "Grenzen liegen, steht im Anhang ([[step_messung]]).")
+    i.abschnitt("Abwicklungskern (schnellere Rohrmessung)", marke="abwicklungskern")
+    i.text("Seit dieser Version kann die STEP-Messung Rohre und Profile schneller messen. Einschalten unter <i>Einstellungen "
+           "→ STEP-Import → Toleranzen (Experte) → Messung: Abwicklungskern</i>. Vorgabe ist <b>aus</b> (wie bisher). "
+           "<b>an</b> nutzt den neuen Weg, wo er sicher geht, und rechnet sonst automatisch wie bisher. "
+           "<b>vergleich</b> rechnet beide Wege, übernimmt den bisherigen und schreibt die Zeiten und Unterschiede "
+           "ins Tempo-Protokoll (Support-Paket).", kurz=True)
+    i.genauer()
+    i.liste("<b>Lage aus den Flächen:</b> Die Rohrachse kommt direkt aus den Ebenen und Zylindern der STEP. Wo "
+            "Bohrungen, Ausschnitte und Enden liegen, zeigt eine Karte über die Länge. Der Querschnitt wird nur an "
+            "drei freien Stellen geschnitten, statt an bis zu 50 Stellen zu suchen. Die drei Schnitte müssen gleich "
+            "sein, und das Volumen darf nicht größer sein als Querschnitt × Länge, sonst gilt die bisherige Rechnung.",
+            "<b>Schneidweg wie bisher:</b> Konturen, Enden und Schnittlängen kommen weiter aus den Kanten der STEP. "
+            "Es wird nichts nachgebaut oder verschoben.",
+            "<b>Offen gezeichnete Rohre:</b> Bei der Variante „aus dem Rohr gelasert“ werden die Endlinien der Ringe "
+            "und Wände vorher in der Abwicklung bereinigt (Punkte auf einer Geraden fallen weg). Die Linie bleibt "
+            "gleich, der 3D-Körper hat aber viel weniger Flächen. U-Profile messen so 5- bis 13-mal schneller.",
+            "<b>Rundrohr-Bohrungen:</b> Mit dem Abwicklungskern ist die Wandrichtung am Rundrohr exakt. Eine radiale "
+            "Bohrung galt vorher je nach Lage als bis zu 0,7° schräg und wurde dann mit der 3D-Schnittlänge statt "
+            "der 2D-Rundrohr-Regel gerechnet.",
+            "<b>Bisherige Rechnung bleibt</b> bei Freiformflächen (B-Spline), Platten und Flachstahl (zwei "
+            "Längsrichtungen), Anbauteilen, langen Fenstern und Rohren ohne merkmalsfreie Stelle.")
+    i.text("Prüfen: <i>python werkzeuge/abwicklungskern_vergleich.py tests --bericht bericht.md</i> misst jede Datei "
+           "mit beiden Wegen und vergleicht jedes Teil (Toleranz 0,01 mm). Bericht: "
+           "docs/system-audit/ABWICKLUNGSKERN_2411.md.")
     i.abschnitt("STEP-Viewer", marke="step_viewer")
     i.text("<i>Datei → STEP-Viewer (Datei ansehen und prüfen) …</i> (Strg+Umschalt+O, auch in <i>Meine "
            "Werkzeugleiste</i>) öffnet eine STEP-, IGES-, TUBX- oder BLM-Datei <b>ohne Angebot</b>. Im Angebot: "
@@ -12814,6 +12838,10 @@ def kapitel_einstellungen(i):
          "So viele Dateien misst <i>STEP-Import.exe</i> gleichzeitig (Vorgabe 0 = Prozessorkerne − 1); eine "
          "einzelne große Baugruppe wird auf so viele Prozesse verteilt (mit Zeitlimit). Weniger "
          "Prozesse entlasten einen langsamen Arbeitsplatz. Gilt nur für diesen Arbeitsplatz."],
+        ["STEP-Import", "Messung: Abwicklungskern (schnelle Rohrmessung; aus = bisher, vergleich = beide rechnen "
+                        "und protokollieren, an = neu mit automatischem Rückfall)",
+         "Vorgabe aus. an: Rohre und Profile schneller messen, wo es sicher geht, sonst wie bisher; vergleich: "
+         "beide Wege rechnen, Zeiten und Unterschiede ins Tempo-Protokoll ([[abwicklungskern]])."],
         ["STEP-Import", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper vereinfacht gemessen)",
          "Braucht ein einzelner Körper länger (Vorgabe 600 s; wer noch die alte Vorgabe 120 s hatte, bekommt mit "
          "0.9.274 einmalig 600 s, eigene Werte bleiben), wird er vereinfacht gemessen: nur Hüllmaß und Volumen, als "
