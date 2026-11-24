@@ -4141,7 +4141,7 @@ def kapitel_step(i):
             "sobald sie fertig sind, rücken sie von selbst nach (Messwerte und 3D, Eingaben im Dialog bleiben). "
             "<b>OK</b> wartet nötigenfalls auf sie; das Fenster zeigt die Teile und die Wartezeit. "
             "<i>Nicht mehr warten …</i> fragt: <i>Zurück zur Liste (weiter messen)</i> (Vorgabe, die Messung läuft "
-            "weiter) oder <i>Ohne diese Teile übernehmen</i>. Halbfertige Teile kommen nie ins Angebot (seit 0.9.479): "
+            "weiter) oder <i>Ohne diese Teile übernehmen</i>. Halbfertige Teile kommen nie ins Angebot (seit 0.9.480): "
             "die langsamen Teile fehlen dann, die Meldung und der Bericht nennen sie, zum Nachholen die STEP erneut "
             "einlesen und die Messung abwarten. Solange ein Teil noch gemessen wird, gibt es kein <i>Von Hand "
             "nachtragen</i> (das ergäbe ein Rohr mit Länge aus dem Hüllmaß ohne Bohrungen und Konturen, Laserzeit "
@@ -13105,6 +13105,80 @@ def kapitel_einstellungen(i):
            "gewechselt, gelten deren aktuelle Werte.")
 
 
+def kapitel_austausch(i):
+    i.kapitel("Austauschordner: gemeinsame Dateien, Aufgaben und Versionen", marke="austausch")
+    i.text("Seite <b>Austausch</b> in der Seitenleiste unter <i>Arbeiten</i>: der gemeinsame Ordner als Datei- und "
+           "Projektverwaltung im Programm. Dateien hochladen, ansehen, einem Kunden, Angebot oder Auftrag zuordnen, "
+           "einem Kollegen zuweisen, kommentieren und alte Fassungen zurückholen, ohne den Windows-Explorer. Es gibt "
+           "<b>keinen Server</b>: die Dateien liegen im gemeinsamen Ordner ([[mehrere_arbeitsplaetze]]) im "
+           "Unterordner <b>Austausch</b>, Zuordnung, Status und Kommentare gehen mit dem normalen Abgleich an alle "
+           "Plätze. Ohne gemeinsamen Ordner zeigt die Seite nur die eigenen Bereiche.", kurz=True)
+    i.liste("<b>Links</b>: Übersicht, <i>Neu für mich</i> (seit dem letzten Ansehen neu oder geändert), "
+            "<i>Meine Aufgaben</i> (mir zugewiesen, nicht fertig), Favoriten, Zuletzt verwendet, <i>Wer arbeitet "
+            "woran</i>; darunter die Bereiche <b>Gemeinsame Dateien</b>, <b>Mein Ordner</b> (persönlich), "
+            "<b>Anfragen</b> (nur lesen), <b>Angebotsablage</b> und <b>PPEASE-Ablage</b>, dazu Archiv, Papierkorb "
+            "und gespeicherte Suchen.",
+            "<b>Oben</b>: Pfad zum Anklicken, Suche über <b>alle</b> Bereiche (Name, Kunde, Nummern, Mitarbeiter, "
+            "Kommentare und Text in TXT/CSV/LST/PDF, Groß-/Kleinschreibung und Umlaute egal), Filter Typ, "
+            "Mitarbeiter, Status, Kunde, Zeitraum, Sortierung, <i>Kacheln</i> (mit Vorschaubildern) oder Liste, "
+            "<i>Suche merken</i> (Rechtsklick auf eine gemerkte Suche: <i>Gespeicherte Suche löschen</i>). "
+            "<i>Neuer Ordner</i> legt im gewählten Ordner einen Unterordner an.",
+            "<b>Rechts</b>: Infobereich der gewählten Datei mit Vorschau, Bauteilinfo (STEP), Zuordnung, "
+            "Verantwortlich, Status (Neu, Ungesehen, In Bearbeitung, Rückfrage erforderlich, Fertiggestellt, "
+            "Archiviert), Priorität, Fällig (Haken <i>fällig am</i> und Datum), Aufgabe, interne Notiz, Kommentare "
+            "mit Verlauf und Versionen. Bei STEP-Dateien übernimmt <i>In Kalkulation</i> die gewählten Dateien in ein "
+            "neues Angebot (Kunde aus der Zuordnung) oder ins geöffnete Angebot.",
+            "<b>Hochladen</b>: Knopf <i>Hochladen …</i> oder Dateien/Ordner in die Liste ziehen; mit Fortschritt und "
+            "Abbrechen. Gibt es den Namen schon, fragt das Programm: <i>Neue Version</i> (die alte Fassung wird "
+            "gesichert), <i>Beide behalten</i> (Name (2)) oder <i>Überspringen</i>. Programme (.exe, .bat …) werden "
+            "nie angenommen. Herausziehen in den Explorer oder in eine Mail geht auch.", kurz=True)
+    i.genauer()
+    i.abschnitt("Zuordnung zu Kunde, Angebot und Auftrag")
+    i.text("Beim Hochladen sucht das Programm im Namen, im Ordner und in der Angebotsablage nach Angebots-, "
+           "Auftrags-, PPEASE-, Anfrage- und Kundennummern. Sichere Treffer (z. B. <i>2026-00042</i> im Namen und "
+           "das Angebot gibt es) werden gleich eingetragen; unsichere stehen gelb als <b>Vorschlag</b> im "
+           "Infobereich: <i>Vorschlag bestätigen</i> oder <i>Verwerfen</i>. Die Kachel <i>Zuordnung bestätigen</i> "
+           "in der Übersicht zeigt alle offenen Vorschläge. Rechtsklick → <i>Zuordnung erkennen</i> prüft die "
+           "gewählten Dateien neu.")
+    i.abschnitt("Aufgaben, Kommentare und Benachrichtigungen")
+    i.liste("Im Infobereich <i>Verantwortlich</i>, Status, Priorität, Fällig und Aufgabe eintragen und "
+            "<i>Speichern</i>; bei mehreren gewählten Dateien gilt es für alle. Rechtsklick → <i>Zuweisen an</i> und "
+            "<i>Status</i> gehen ohne Infobereich.",
+            "Kommentar unten im Infobereich; mit <b>@MK</b> vorne geht er gezielt an den Kollegen MK.",
+            "<b>Benachrichtigungen …</b> oben (Fenster <i>Benachrichtigungen im Austauschordner</i>): wählen, wobei dieser Platz Bescheid bekommt (neue Datei, neue "
+            "Kundenanfrage, Aufgabe, Zuweisung, geänderte eigene Datei, Kommentar, Status, Fertiggestellt). Die "
+            "Meldung kommt unten in der Statusleiste und, wenn das Programm im Hintergrund ist, im Windows-"
+            "Infobereich. Eigene Änderungen werden nie gemeldet, viele neue Dateien kommen als eine Sammelmeldung, "
+            "dieselbe geänderte Datei höchstens alle 30 Minuten.",
+            "Die <b>Übersicht</b> zeigt Kacheln (neue Dateien, meine Aufgaben, fällig, offene Rückfragen, in "
+            "Bearbeitung, fertig, Zuordnung bestätigen) und Listen (kürzlich geändert, wer arbeitet woran, "
+            "Aktivitäten). <i>Anpassen …</i> (Fenster <i>Übersicht anpassen</i>) blendet Kacheln und Listen je Platz "
+            "ein oder aus.")
+    i.abschnitt("Bearbeiten, Versionen, Papierkorb: nichts geht verloren")
+    i.liste("<b>Bearbeiten</b> (Doppelklick öffnet die Vorschau, Rechtsklick → <i>Bearbeiten</i>) öffnet die Datei "
+            "mit dem zugehörigen Programm, sichert vorher die aktuelle Fassung unter <i>Versionen</i> und zeigt den "
+            "Kollegen „in Bearbeitung von …“. Bearbeitet schon jemand die Datei (auch in Excel/Word erkannt), fragt "
+            "das Programm: <i>Nur ansehen</i> oder <i>Trotzdem bearbeiten</i>.",
+            "<b>Versionen</b>: jede ersetzte Fassung liegt im Unterordner <i>_Versionen</i> (Name_V1_Datum_Kürzel). "
+            "<i>Fassung wiederherstellen</i> macht eine ältere wieder aktuell und sichert die jetzige vorher.",
+            "Hat ein Kollege die Datei geändert, während man sie offen hatte, wird nichts still überschrieben: das "
+            "Programm meldet den Konflikt und wer zuletzt gespeichert hat.",
+            "<b>Löschen</b> (Entf) verschiebt in den <b>Papierkorb</b> des Bereichs; dort <i>Wiederherstellen</i>. "
+            "Endgültig löschen und den Papierkorb leeren (älter als 30 Tage) darf nur der Administrator.",
+            "<b>Archivieren</b> verschiebt nach <i>_Archiv</i> (Ansicht Archiv links); <i>Aus dem Archiv holen</i> "
+            "bringt es zurück.")
+    i.abschnitt("Rechte und Schutz")
+    i.text("Wer hochladen, ändern, löschen oder verwalten darf, folgt den Rollen der Benutzerverwaltung (Hauptadmin). "
+           "Der Bereich Anfragen ist nur zum Lesen; PPEASE-Angebotsordner legt das Programm nie an (das macht "
+           "PPEASE). Weil es keinen Server gibt, prüft das Programm die Rechte; wer zusätzlich verhindern will, dass "
+           "jemand im Explorer löscht, stellt die Windows-Freigabe des gemeinsamen Ordners entsprechend ein. Jede "
+           "Aktion steht im Verlauf der Datei (wer, wann, was). Abschalten: Einstellungen → <i>Ablage und Teilen</i> → "
+           "<i>Seite Austausch verwenden</i>.")
+    i.tabelle(["Taste", "Wirkung"], [["F5", "Ordner neu einlesen"], ["F2", "Umbenennen"],
+                                    ["Entf", "In den Papierkorb"], ["Doppelklick", "Ordner öffnen bzw. Vorschau"]],
+              [40 * mm, 120 * mm])
+
+
 def kapitel_mehrere(i):
     i.kapitel("Mehrere Arbeitsplätze: Kürzel, Nummernkreis und gemeinsamer Ordner", marke="mehrere_arbeitsplaetze")
     i.text("Jeder Mitarbeiter hat das Programm auf seinem Rechner, mit eigener Datendatei. Damit trotzdem jeder die "
@@ -16737,6 +16811,9 @@ STECKBRIEFE = {
     "zukauf": ("Zukaufartikel, Lieferanten, Einkaufspreise und Aufschläge verwalten.", "Reiter <i>Zukaufartikel</i>"),
     "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",
                      "Reiter <i>Frachtkosten</i>"),
+    "austausch": ("Gemeinsame Dateien im Programm: hochladen, suchen, Kunde/Angebot/Auftrag zuordnen, Kollegen "
+                  "zuweisen, kommentieren, Versionen und Papierkorb; Übersicht und Benachrichtigungen.",
+                  "Seite <i>Austausch</i> in der Seitenleiste unter Arbeiten; Einstellungen → Ablage und Teilen"),
     "mehrere_arbeitsplaetze": ("Kürzel als Bearbeiter, gemeinsamer Nummernkreis 2026-00001; Angebote und Stammdaten "
                                "mit den Kollegen über einen gemeinsamen Ordner teilen, Angebote übergeben, sehen wer "
                                "woran arbeitet.",
@@ -16768,7 +16845,7 @@ TEILE = [
       kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
-     [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_material, kapitel_zukauf, kapitel_frachtkosten,
+     [kapitel_einstellungen, kapitel_mehrere, kapitel_austausch, kapitel_stammdaten, kapitel_material, kapitel_zukauf, kapitel_frachtkosten,
       kapitel_pflege, kapitel_admin_datenbank, kapitel_lizenz]),
     ("Anhang", "Nachschlagen", "STEP-Messung im Detail, Tastenkürzel, häufige Fragen und die Neuerungen je "
      "Version.",

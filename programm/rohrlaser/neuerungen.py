@@ -21,13 +21,24 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.479", "<b>STEP-Import: langsame Teile nie halbfertig übernehmen</b> ([[step]]): Ein Teil, das noch gemessen "
+    ["0.9.480", "<b>STEP-Import: langsame Teile nie halbfertig übernehmen</b> ([[step]]): Ein Teil, das noch gemessen "
                 "wird, lässt sich im Prüfdialog nicht mehr <i>von Hand nachtragen</i> (das gab ein Rohr mit Länge aus "
                 "dem Hüllmaß, aber ohne Bohrungen – z. B. 30 Bohrungen und nur 2 s Laserzeit). Beim Warten auf "
                 "langsame Teile zeigt das Fenster Teile und Wartezeit; <i>Nicht mehr warten …</i> fragt <i>Zurück "
                 "zur Liste</i> oder <i>Ohne diese Teile übernehmen</i>. Ohne sie fehlen diese Teile im Angebot und "
                 "stehen in der Meldung, statt mit falschem Schneidweg übernommen zu werden.",
                 "STEP-Import: noch laufende Teile nie halbfertig übernehmen (kein Rohr ohne Bohrungen mehr)"],
+    ["0.9.477", "<b>Austauschordner 2.0</b> ([[austausch]]): neue Seite <b>Austausch</b> unter Arbeiten, der "
+                "gemeinsame Ordner als Datei- und Projektverwaltung im Programm. Liste oder Kacheln mit Vorschau, "
+                "Suche über alle Bereiche (auch Kommentare und Dateiinhalt), Filter nach Typ, Mitarbeiter, Kunde, "
+                "Status und Zeitraum, Favoriten, zuletzt verwendet, gespeicherte Suchen. Hochladen per Knopf oder "
+                "Ziehen mit Fortschritt; gleicher Name wird nie überschrieben (neue Version, beide behalten oder "
+                "überspringen). Automatische Zuordnung zu Angebot, Auftrag, PPEASE-Nr., Anfrage und Kunde, unsichere "
+                "Treffer als Vorschlag zum Bestätigen. Verantwortlich, Status, Priorität, Fällig, Aufgabe, "
+                "Kommentare mit @Kürzel, Verlauf, Versionen mit Wiederherstellen, Papierkorb (endgültig nur Admin), "
+                "Archiv, Bearbeitungssperre mit „in Bearbeitung von …“, Übersicht mit Kacheln und einstellbare "
+                "Benachrichtigungen ohne Flut. Ohne Server: Dateien im gemeinsamen Ordner, Angaben über den Abgleich.",
+     "Neue Seite Austausch: gemeinsame Dateien mit Zuordnung, Aufgaben, Versionen und Papierkorb"],
     ["0.9.476", "<b>Rechenkern 2.0, Teil 1: schneller bei genau gleichen Ergebnissen</b>: Staffeln rechnen die "
                 "Schnittzeit je Position nur noch einmal für alle Stufen, denn sie hängt nicht von der Stückzahl ab "
                 "(Staffeln etwa 15–20 % schneller). Beim STEP-Import rechnen die Booleschen "
