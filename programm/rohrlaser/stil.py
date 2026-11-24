@@ -46,6 +46,9 @@ QPushButton#primaer:hover { background: #183E60; }
 QPushButton#primaer:disabled { background: #EEF1F5; color: #9AA3AF; border-color: #D5DBE3; font-weight: normal; }
 QPushButton::menu-indicator { subcontrol-position: right center; right: 4px; }
 QPushButton[menu="true"] { padding-right: 18px; }
+QToolBar QToolButton[popupMode="2"], QStatusBar QToolButton[popupMode="2"] { padding-right: 13px; }
+QToolBar QToolButton[popupMode="2"]::menu-indicator, QStatusBar QToolButton[popupMode="2"]::menu-indicator {
+    subcontrol-origin: padding; subcontrol-position: right center; right: 2px; }
 QTabWidget::pane { border: 1px solid #D5DBE3; top: -1px; }
 QTabBar::tab { background: transparent; color: #5F6B7A; border: none; border-bottom: 2px solid transparent;
                padding: 4px 11px; margin-right: 1px; }
@@ -469,22 +472,35 @@ class _TexteBeimZeigen:
 
     def __new__(cls):
         from PySide6.QtCore import QEvent, QObject
-        from PySide6.QtWidgets import QAbstractSpinBox, QLabel, QLineEdit
+        from PySide6.QtWidgets import QAbstractItemView, QAbstractSpinBox, QLabel, QLineEdit
+
+        from . import leerhinweis
+
+        relevant = (QLabel, QAbstractSpinBox, QAbstractItemView)
+        polieren = QEvent.Polish
 
         class Filter(QObject):
+            # Tempo (Generalüberholung 24.11.2026): der Filter sieht JEDES Ereignis der Anwendung (beim Aufbau des
+            # Hauptfensters rund 144.000). Erst die Art des Widgets prüfen (schnell, in C), dann einmal die Art des
+            # Ereignisses; vorher wurde ereignis.type() bis zu dreimal je Ereignis als Python-Enum erzeugt.
             def eventFilter(self, obj, ereignis):
-                if ereignis.type() == QEvent.Polish and isinstance(obj, QLabel) and _thema != "Hell":
-                    t = obj.text()
-                    if "#" in t and obj.property(_HELL_TEXT) is None:
-                        neu = umsetzen(t)
-                        if neu != t:
-                            obj.setText(t)          # merkt die Hell-Fassung und setzt um
-                elif ereignis.type() == QEvent.Polish and isinstance(obj, QAbstractSpinBox):
+                if not isinstance(obj, relevant) or ereignis.type() != polieren:
+                    return False
+                if isinstance(obj, QLabel):
+                    if _thema != "Hell":
+                        t = obj.text()
+                        if "#" in t and obj.property(_HELL_TEXT) is None:
+                            neu = umsetzen(t)
+                            if neu != t:
+                                obj.setText(t)          # merkt die Hell-Fassung und setzt um
+                elif isinstance(obj, QAbstractSpinBox):
                     # Dunkel: Zahlenfeld mit Rahmen aus dem Stylesheet – dort wirkt padding nicht, der Text stünde
                     # direkt am Rahmen; Abstand wie bei den Textfeldern
                     feld = obj.findChild(QLineEdit)
                     if feld is not None:
                         feld.setTextMargins(3 if _thema == "Dunkel" else 0, 0, 0, 0)
+                else:
+                    leerhinweis.automatisch(obj)   # leere Tabelle: Hinweis statt weißer Fläche (24.11.2026)
                 return False
         return Filter()
 

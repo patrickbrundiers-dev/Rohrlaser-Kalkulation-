@@ -21,6 +21,79 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.473", "<b>Eigener STEP-Viewer</b> ([[step_viewer]]): <i>Datei → STEP-Viewer</i> (Strg+Umschalt+O) oder "
+                "Rechtsklick auf eine Position → <i>Im STEP-Viewer öffnen …</i> zeigt eine STEP-Datei ohne Angebot: "
+                "Format (AP203/AP214/AP242), Einheit und Baugruppe sofort, danach alle Bauteile nach Art, 3D mit "
+                "allen Ansichten, Darstellungen und Messwerkzeugen, die Erkennung je Teil (Profil, Wand, Länge, "
+                "Schneidweg, Einstiche, Normteil mit Grund) und <b>jede Kontur farbig nach Art</b>. Eine Kontur in "
+                "der Liste oder im 3D anklicken zeigt ihre Berechnungswerte; die Summe ist genau der Schneidweg, den "
+                "die Position übernimmt, mit Gegenprobe über die 3D-Linien. Art von Hand ändern (auf Wunsch für "
+                "künftige Importe gemerkt), ins Angebot übernehmen, dunkler CAD-Hintergrund, Analysestufe "
+                "<i>Experte</i> mit feinerem 3D-Netz (Messwerte bleiben gleich) und gemessene Ladezeiten. Die "
+                "STEP-Messung liefert dazu je 3D-Linie die Konturnummer; alle Messwerte bleiben bitgleich.",
+     "Eigener STEP-Viewer: Konturen farbig mit Berechnungswerten, Erkennung korrigierbar, Experten-Netz"],
+    ["0.9.472", "<b>Generalüberholung, Paket 1: schneller und aufgeräumter</b>: Die Datendatei öffnet schneller "
+                "(beim Start rund 600 Datenbank-Anweisungen weniger, 0,6 → 0,3 s im Test), weil die Trigger des "
+                "Änderungsprotokolls stehen bleiben statt bei jedem Öffnen neu angelegt zu werden. Speichern, "
+                "Kopieren und Importe brauchen je Anweisung einen Weg weniger zur Datenbank (Angebot mit 50 "
+                "Positionen kopieren 132 → 103 ms); ein Fehler verwirft weiter nur die eine Anweisung. Die "
+                "<b>Startseite</b> zeigt die Schnellzugriffe wieder in voller Höhe und mehreren Spalten (nach dem "
+                "Öffnen eines Angebots waren sie flach gedrückt). <b>Leere Tabellen</b> zeigen in der Mitte "
+                "<i>Keine Einträge</i> statt einer weißen Fläche ([[spalten_waehlen]]). Der Pfeil an Knöpfen mit "
+                "Menü (<i>Letzte Angebote</i>, <i>Favoriten</i>, <i>Meldungen</i>) steht rechts neben dem Text. "
+                "Meine Werkzeugleiste räumt beim Wechsel des Reiters ihre alten Knöpfe und Menüs weg (vorher kamen "
+                "sie bei jedem Wechsel dazu). Alle Rechenergebnisse bleiben gleich.",
+     "Generalüberholung 1: Öffnen und Speichern schneller, Startseite, leere Tabellen, Menüpfeile"],
+    ["0.9.471", "<b>Produktionsdaten-Intelligenz</b> ([[lernsystem]]): Das Fenster <i>Datei → "
+                "Produktionsdaten-Intelligenz …</i> liest jetzt TRUMPF-LST und BLM-BPF (Ordner oder <i>Dateien "
+                "importieren …</i>, im Hintergrund, abbrechbar). Jeder Wert steht mit Einheit, Quelle und Deutung im "
+                "Reiter <i>Maschinendaten</i>, z. B. Laser an je Leistungsstufe, Verfahrzeit, Einstiche, Konturen, "
+                "Positionierungen, Umspannen und Vollkreise; fehlende Werte werden nicht ergänzt. Neu sind die Reiter "
+                "<i>Abgleich</i> (12 Werte Kalkulation gegen Maschine und Ursachen der Zeitabweichung), "
+                "<i>Genauigkeit</i> (sehr gut nur mit mindestens 10 gemessenen Teilen), <i>Lernanalyse</i> "
+                "(Vorschub je Konturklasse groß/mittel/klein aus der Laser-an-Zeit) und <i>Importprotokoll</i>. "
+                "Jeder Lernvorschlag bekommt eine Gegenprobe; ist er nicht besser, geht die Freigabe nur mit "
+                "Bestätigung. Die KI nennt im Angebots-Check und bei Preis erklären die Datenbasis je Position. "
+                "Maschinenprogramme werden nie verändert, ohne Freigabe ändert sich an der Kalkulation nichts.",
+     "Produktionsdaten-Intelligenz: LST + BPF lesen, Abgleich mit Ursachen, Genauigkeit, Zeitmodell je Konturklasse"],
+    ["0.9.470", "<b>Nesting-Arbeitsplatz 2.0</b> ([[nesting]]): neuer Aufbau mit Bauteilen, Material und Resten "
+                "links, dem Bild in der Mitte (Bearbeiten 2D, Stangenbild wie in der Optimierung, 3D), Kennzahlen "
+                "rechts und Optimierungsvergleich, Kosten, Berechnungsprotokoll und CSV-Export unten; Bereiche ein- "
+                "und ausblendbar. Teile lassen sich mit der Maus frei auf der Stange, auf eine andere oder eine neue "
+                "Stange ziehen (geprüft, Reihenfolge bleibt so), Stangen auflösen und von Hand verschachteln, mit "
+                "Rückgängig, Wiederholen und Zurücksetzen je Abmessung oder alles. Das Bild zeigt Gehrungen "
+                "ineinander, gemeinsame Schnitte, Schnittfugen, Rest/Verschnitt, Maßkette und Lineal, auch im "
+                "Stangenbild des Angebots. Neue Strategien <i>F Wenigste Stangen</i>, <i>G Geringster Verschnitt</i>, "
+                "<i>H Schnellrechnung</i>; jede Strategie wird technisch geprüft (unzulässige nie empfohlen); die "
+                "Zeile „aktuell“ zeigt den gespeicherten Plan. Schneller: gleiche Zwischenergebnisse je Abmessung "
+                "nur einmal (große Baugruppe 6/12 m 20,6 s → 4,4 s, Ergebnis bitgleich); während der Rechnung "
+                "Live-Stand. Rechtsklick im Stangenbild öffnet die Stange im Arbeitsplatz; der Reiter Optimierung "
+                "schlägt eine bessere Verschachtelung mit gerechnetem Vorteil vor.",
+     "Nesting-Arbeitsplatz 2.0: neuer Aufbau, Teile ziehen, von Hand verschachteln, 3D, Machbarkeit, schneller"],
+    ["0.9.469", "<b>Staffelpreise = Angebotskalkulation</b>: Jede Staffelstufe kostet jetzt Cent für Cent so viel wie "
+                "ein normales Angebot mit derselben Menge. Bisher fehlten in den Staffeln Rabatt, Verpackung, "
+                "Finanzierung, Runden und Frachtfrei des Angebots (Staffel z. B. 4,7 % teurer als das Angebot bei "
+                "gleicher Menge). Gewinn, Zuschläge, Gaspreise und alle anderen rechenrelevanten Einstellungen "
+                "rechnen die Stufen neu, nie mehr veraltete Werte. Neu: Unterreiter <b>Übersicht</b> im Reiter "
+                "Staffeln mit Herstellkosten, Material, Maschine, Personal, Zusatz, Gemeinkosten, Gewinn, Netto, "
+                "Deckungsbeitrag, Marge und Gegenprobe je Stufe ([[staffel_wie_angebot]]). Das Fenster einer Stufe "
+                "ist jetzt aufgebaut und wird bedient wie ein eigenes Angebot: Reiter Positionen, Kalkulation, "
+                "Schnittplan, Einstellungen und Übersicht, Summenzeile und <b>Übernehmen und rechnen</b>.",
+     "Staffelpreise rechnen wie das Angebot; Stufenfenster wie ein eigenes Angebot"],
+    ["0.9.468", "<b>Programmierter Schneidweg und Laserzeit aus der TRUMPF-LST</b> ([[trumpf_programm]]): Das "
+                "Programm liest den Schneidweg aus dem NC-Teil der LST wie das Abwicklungsbild der "
+                "Programmiersoftware, je Kontur getrennt in Anfahrt, Schnitt, Trennschnitt und Restzerteilung, und "
+                "versetzt ihn um die halbe Schnittfuge zur Teilkante. Als Schneidweg gilt jetzt die Schnittlänge am "
+                "Material; die <i>Cutting length</i> der LST (mit Anfahrten und Kopfweg um die Ecken) steht als "
+                "Maschinenweg im Bericht. Jede Kontur wird groß, mittel oder klein eingeteilt, der Bericht nennt "
+                "Anzahl und Länge je Klasse. Eine LST mit einem Teil wird als exaktes 3D-Rohr gebaut und wie eine "
+                "STEP-Datei gemessen (auch die TUBX daneben nimmt das Teil aus der LST). <b>Zeiten</b>: Alle Zeiten der "
+                "LST werden übernommen: Laser an als reine Laserzeit (Einstiche enthalten), Laser aus als Verfahren "
+                "und Drehen, gemessene Zeit vor berechneter. Nur was fehlt (Nebenzeit, Messen, Entnahme, Beladen), "
+                "rechnet das Programm wie bisher dazu. Einstellungen unter STEP-Import, "
+                "TRUMPF-Programme. LST-Dateien lassen sich jetzt auch wie STEP-Dateien ziehen und im Ablagefeld "
+                "wählen. BPF-Programme zeigen ihre Geschwindigkeitsstufen.",
+     "TRUMPF-LST: Schneidweg am Material, Konturklassen, 3D-Messung, alle LST-Zeiten übernommen"],
     ["0.9.467", "<b>12 m nur noch mit echtem Kostenvorteil</b> ([[lieferlaengen]]): Eine zentrale Entscheidung "
                 "vergleicht 6 m, andere Lieferlängen und 12 m mit Zuschnitt über die Gesamtkosten (Material, "
                 "Beladungen, Zuschnitt, Handhabung langer Stangen, verwertbare Reste nur mit Lager und Reststücken). "

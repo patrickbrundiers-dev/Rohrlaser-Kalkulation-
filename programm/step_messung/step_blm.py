@@ -231,7 +231,8 @@ def bpf_teil(daten, name=""):
                 rk.append(v or (0.0, 0.0, 0.0))
         if len(pk) >= 2:
             konturen.append(dict(nr=int(g.get("id") or len(konturen) + 1), art=(g.findtext("tipogeo") or "").strip(),
-                                 punkte=pk, richtung=rk, laenge=_f(g, "dimensioni/l")))
+                                 punkte=pk, richtung=rk, laenge=_f(g, "dimensioni/l"),
+                                 velo=(g.findtext("velo") or g.findtext(".//velo") or "").strip()))
     maschine = proj.find("info_pezzo/macchine/macchina_valida")
     return dict(name=(pez.findtext("nome") or "").strip() or name, laenge=_f(pez, "lunghezza"),
                 volumen=_f(pez, "volume"), querschnitt=qs, werkstoff=(proj.findtext("info_tubo/materiale") or "").strip(),
@@ -855,6 +856,12 @@ def _bpf_text(teil, form):
          f"{qs['a']:g}×{qs['b']:g}×{qs['wand']:g} exakt, {len(teil['konturen'])} Schneidwege, Länge {teil['laenge']:g} mm")
     if teil["werkstoff"]:
         t += f", Werkstoff im Programm {teil['werkstoff']}"
+    stufen = {}         # Geschwindigkeitsstufe je Kontur (velo; eine Zeit steht im BPF nicht, Patrick 24.11.2026)
+    for k in teil["konturen"]:
+        if k.get("velo"):
+            stufen[k["velo"]] = stufen.get(k["velo"], 0) + 1
+    if stufen:
+        t += ", Geschwindigkeitsstufe " + ", ".join(f"{v} ({n}×)" for v, n in sorted(stufen.items()))
     try:
         v = volumen(form)
         if teil["volumen"] > 0:

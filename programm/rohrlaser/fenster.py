@@ -2038,7 +2038,7 @@ class EinstellungenSeite(QScrollArea):
                                "csv_ordner": "Ordner für den CSV-Export wählen",
                                "anfrage_ordner": "Anfrage-Ordner wählen",
                                "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen",
-                               "lst_ordner": "Ordner der gefertigten LST-Dateien wählen"}.get(e.name, "Standardordner wählen"),
+                               "lst_ordner": "Ordner der gefertigten LST- und BPF-Dateien wählen"}.get(e.name, "Standardordner wählen"),
                               e.titel)
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
@@ -3683,6 +3683,7 @@ class Hauptfenster(QMainWindow):
         datei = self.menuBar().addMenu("&Datei")
         self.datei_aktionen = {}
         for text, ziel, taste in (("Neues Angebot aus STEP …", lambda: self.angebote.neu_aus_step(), None),
+                                  ("STEP-Viewer (Datei ansehen und prüfen) …", lambda: self.step_viewer(), "Ctrl+Shift+O"),
                                   ("Neue Fassung des Angebots", self.neue_fassung, None),
                                   (None, None, None),
                                   ("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
@@ -3714,7 +3715,7 @@ class Hauptfenster(QMainWindow):
                                   ("Lernzentrale …", self.lernzentrale, None),
                                   ("KI-Zentrale …", lambda: self.ki_zentrale(), None),
                                   ("KI-Assistent …", lambda: self.ki_assistent(), "Ctrl+Alt+K"),
-                                  ("Produktionsdaten & Lernsystem …", lambda: self.lernsystem(), None),
+                                  ("Produktionsdaten-Intelligenz …", lambda: self.lernsystem(), None),
                                   ("Monatsbericht …", self.monatsbericht, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
                                   ("Reklamationen …", self.reklamationen, None),
@@ -5112,6 +5113,12 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def step_viewer(self, pfad=None):
+        """Eigener STEP-Viewer (Master-Auftrag 24.11.2026): Datei ohne Angebot öffnen, messen, Konturen und Schneidweg
+        prüfen, bei Bedarf ins Angebot übernehmen (step_viewer_fenster.py). Ergebnis: das Fenster."""
+        from . import step_viewer_fenster
+        return step_viewer_fenster.oeffnen(self, pfad)
 
     def kostentreiber_zeigen(self, zeigen=True, zeitraum=None):
         """CALC-030: Kostentreiber über die beauftragten Angebote (kostentreiber.auswertung), je Bearbeitungsart und

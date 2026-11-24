@@ -16,7 +16,9 @@ Aufruf:
   0 = ebene flache Teile immer als Blech (Vorgabe im Programm), Flachstahl steht dann in der Spalte "alternative".
 
 --netze ORDNER: je Teil zusätzlich ein Dreiecksnetz für die 3D-Ansicht als JSON-Datei (Spalte "netz" = Dateiname);
-  "lage" = Einbaulage in der Datei (Ende A, Rohrachse, X-Richtung), damit Baugruppen zusammengesetzt gezeigt werden.
+  "lage" = Einbaulage in der Datei (Ende A, Rohrachse, X-Richtung), damit Baugruppen zusammengesetzt gezeigt werden;
+  "lk" = Kontur je Linienzug (Nummer in der Spalte konturen_liste, -1 = keine; STEP-Viewer).
+  --netze-fein: Analysestufe Experte, feineres Netz (nur Anzeige, Messwerte gleich).
 
 --flach-laenge F, --gekantet-anteil A: Grenzwerte der Erkennung aus den Einstellungen (step_geometrie.einstellen).
 
@@ -214,6 +216,7 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
             netz = f"{nr:05d}_{t.koerper}.json"
             if "lage" not in q.netz and q.ende_a_global and q.achse_global and q.x_global:   # Einbaulage (Baugruppe)
                 q.netz["lage"] = [round(v, 6) for v in (*q.ende_a_global, *q.achse_global, *q.x_global)]
+            kontur_kennung(q)
             (Path(netze) / netz).write_text(json.dumps(q.netz, separators=(",", ":")), encoding="utf-8")
         z = _zeile(t, datei.name, artikel, netz)
         if t.geschlossen is not None:
@@ -231,6 +234,22 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
             z[SPALTEN.index("arten")] = json.dumps(arten, ensure_ascii=False, separators=(",", ":"))
         out.append(z)
     return out, step_ergebnis.datei(datei.name, teile)
+
+
+def kontur_kennung(t):
+    """netz['lk'] (Kontur je Linienzug, STEP-Viewer 24.11.2026) auf die fertige konturen_liste beziehen: beim Netz
+    war es die Nummer in der damaligen Liste, danach können Gravurkörper Konturen einsortiert haben. Ohne Bezug fällt
+    lk weg (lieber keine Zuordnung als eine falsche)."""
+    netz = t.netz
+    if not netz or "lk" not in netz:
+        return
+    alt = getattr(t, "_lk_liste", None)
+    if alt is None:
+        netz.pop("lk", None)
+        return
+    jetzt = {id(d): i for i, d in enumerate(t.konturen_liste or ())}
+    netz["lk"] = {a: [jetzt.get(id(alt[n]), -1) if 0 <= n < len(alt) else -1 for n in nummern]
+                  for a, nummern in netz["lk"].items()}
 
 
 def _zeile(t, name, artikel, netz):
@@ -283,7 +302,7 @@ def step_dateien(pfade):
     for p in map(Path, pfade):
         if p.is_dir():
             out += sorted(x for x in p.iterdir() if x.suffix.lower() in (".step", ".stp", ".igs", ".iges", ".tubx", ".bpf",
-                                                                    ".artube"))
+                                                                    ".artube", ".lst"))
         else:
             out.append(p)
     return out
@@ -810,6 +829,8 @@ def main(argv=None):
     ap.add_argument("--naht-spalt", type=float, help="Schweißstoß: Spalt bis [mm] noch Naht und Gravur (Vorgabe 3)")
     ap.add_argument("--normteile-voll", action="store_true",
                     help="Normteile laut Bauteilname (DIN 933 …) wie jedes Teil voll messen (sonst nur als Zukaufteil)")
+    ap.add_argument("--netze-fein", action="store_true",
+                    help="Analysestufe Experte: feineres Netz für die 3D-Ansicht (Messwerte gleich)")
     ap.add_argument("--netze-linien", action="store_true",
                     help="Schnellimport: in den Netzen nur die Linienzüge der Konturen (keine Dreiecke, kein "
                          "Flächenkatalog); die Messwerte sind dieselben")
@@ -848,6 +869,7 @@ def main(argv=None):
                                ("naht_spalt", a.naht_spalt),
                                ("stege", a.stege), ("virtuell", a.virtuell),
                                ("normteile_voll", a.normteile_voll or None),
+                               ("netz_fein", a.netze_fein or None),
                                ("netz_linien", a.netze_linien or None)) if v is not None}
     ergebnis = [None] * len(dateien)
     with open(a.ausgabe, "w", encoding="utf-8", newline="\n") as f:      # Teilergebnis wächst je Datei

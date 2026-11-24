@@ -1067,7 +1067,8 @@ def kapitel_start(i):
            "Anfragen) gehören nach oben, das Programm setzt sie sonst selbst dorthin. <i>Standard</i> stellt die Vorgabe "
            "wieder her.")
     i.liste("Neue Karte <b>Schnellzugriffe</b>: große Knöpfe für die gewählten Funktionen, darunter "
-            "<b>Zuletzt verwendet</b> mit den sechs zuletzt benutzten Funktionen als Links.",
+            "<b>Zuletzt verwendet</b> mit den sechs zuletzt benutzten Funktionen als Links. Die Knöpfe stehen in so "
+            "vielen Spalten, wie ungekürzt nebeneinander passen, und behalten immer ihre volle Höhe.",
             "Karten, die ein Recht oder eine Funktion brauchen (z. B. die Wiedervorlage bei ausgeschaltetem Nachfassen), bleiben trotz Wahl "
             "aus, ohne eine Lücke zu hinterlassen. Ist eine Spalte leer, nutzt die andere die ganze Breite.", kurz=True)
     i.abschnitt("Info-Panel rechts", marke="info_panel")
@@ -1103,7 +1104,9 @@ def kapitel_start(i):
            "<b>ziehen</b>, um die Reihenfolge zu ändern; <i>Spaltenreihenfolge zurücksetzen</i> stellt sie wieder her. "
            "Sortieren (Klick auf den Kopf) und Filtern wie bisher. Ausgeblendete Spalten, Reihenfolge und Breiten "
            "merkt sich das Programm je Tabelle. Die Positionsliste im Angebot hat dafür ihr eigenes Menü "
-           "<i>Weitere Spalten</i> ([[spalten_ansichten]]).")
+           "<i>Weitere Spalten</i> ([[spalten_ansichten]]). Eine <b>leere Tabelle</b> zeigt in der Mitte einen "
+           "grauen Hinweis (z. B. <i>Keine Einträge</i> oder einen Satz, was hier erscheinen wird) statt einer weißen "
+           "Fläche – so ist zu sehen, dass nichts fehlt, sondern die Auswahl oder der Filter leer ist.")
     i.abschnitt("Erste Schritte", marke="erste_schritte")
     i.text("<i>Hilfe → Erste Schritte …</i> zeigt fünf Schritte zum ersten Angebot, jeder mit einem Knopf, der die "
            "richtige Stelle öffnet: Firma und Kürzel eintragen, Maschine und Preise prüfen, erstes Angebot aus einer "
@@ -3805,9 +3808,10 @@ def abschnitte_profirst_angebot(i):
            "wird neu optimiert); beim Vorschub ist berücksichtigt, dass die Zeit mit 1/Vorschub geht. Ein "
            "ermittelter Maschinenstundensatz bleibt dabei, wie er ist. Das Angebot ändert sich nicht.")
     i.abschnitt("Nesting-Arbeitsplatz: Verschachtelung je Abmessung", marke="nesting")
-    i.text("Reiter <b>Kalkulation → Optimierung</b>, Knopf <b>Nesting-Arbeitsplatz …</b>: je Abmessung fünf "
-           "Strategien gegen den bisherigen Schnittplan, die Stangen maßstäblich untereinander und Teile von Hand "
-           "umsetzen. Ohne Wahl rechnet jedes Angebot genau wie bisher.", kurz=True)
+    i.text("Reiter <b>Kalkulation → Optimierung</b>, Knopf <b>Nesting-Arbeitsplatz …</b> (oder Rechtsklick auf eine "
+           "Stange im Stangenbild): je Abmessung alle Strategien gegen den gespeicherten und den bisherigen "
+           "Schnittplan, die Stangen maßstäblich wie im Stangenbild, Teile frei mit der Maus verschieben und von Hand "
+           "verschachteln, mit Zurücksetzen. Ohne Wahl rechnet jedes Angebot genau wie bisher.", kurz=True)
     i.genauer()
     i.liste("<b>A Minimaler Materialverbrauch</b>: kleinste eingekaufte Stangenlänge; die Lieferlängen der "
             "Abmessung (Stammdaten <i>Lieferlängen</i>, z. B. 6, 6,5 und 7 m) werden gemischt.",
@@ -3819,7 +3823,20 @@ def abschnitte_profirst_angebot(i):
             "Belegungen (Programme).",
             "<b>E Ausgewogen</b> (Empfehlung): Bewertung in €: Material + Beladungen (Stangenwechsel) + € je "
             "verschiedene Belegung (Einstellung <i>Verschachtelung ausgewogen: € je verschiedene Stangenbelegung</i>, "
-            "Vorgabe 5 €).")
+            "Vorgabe 5 €).",
+            "<b>F Wenigste Stangen</b>: aus allen geprüften Plänen (A, B, D, je Lieferlänge, gemischt, bisher) der "
+            "mit den wenigsten Stangen, dann der kürzesten eingekauften Länge, dann dem kleinsten Einkauf.",
+            "<b>G Geringster Verschnitt</b>: aus denselben Plänen der mit dem kleinsten nicht verwertbaren Verschnitt "
+            "(mm), dann der kürzesten eingekauften Länge.",
+            "<b>H Schnellrechnung</b>: nur First-Fit auf der Stangenlänge des Angebots, für sehr große Baugruppen "
+            "zum schnellen Überblick; die Tabelle zeigt daneben die Untergrenze (so viele Stangen braucht es "
+            "mindestens).")
+    i.text("<b>Welcher Rechenweg?</b> Das Programm wählt ihn selbst: je Lieferlänge rechnet die exakte Optimierung "
+           "(Muster, Simplex, Branch-and-Bound) die kleinste Stangenzahl und beweist sie meist gegen die Untergrenze; "
+           "ein genetischer Algorithmus oder Simulated Annealing würde dort keine Stange sparen und rechnet deshalb "
+           "nicht. Alle Grenzen sind Rechenschritte, keine Sekunden: das Ergebnis ist auf jedem PC gleich. Gleiche "
+           "Zwischenergebnisse (Pläne je Lieferlänge, gemischter Plan) werden je Abmessung nur einmal gerechnet und "
+           "für alle Strategien verwendet.")
     i.liste("<b>Gemischt werden nur ganze Lieferstangen</b>, die die Maschine laden kann; jede Stange wird ganz "
             "bezahlt.",
             "<b>12 m mit Zuschnitt</b>: Lieferlängen über der Beladelänge der Maschine schneidet der Lieferant zu; "
@@ -3839,13 +3856,44 @@ def abschnitte_profirst_angebot(i):
            "gegenüber bisher und die Rechenzeit. Rechts stehen die Materialkosten je Position (nach Teilelänge "
            "verteilt). Jede Stange ist geprüft: Teile + Schnittverluste + Endbeschnitt + Rest = Stangenlänge, der "
            "Greiferrest bleibt frei, keine Stange ist überbelegt.")
-    i.liste("<b>Bild</b>: Endbeschnitt grau, Teile in der Farbe ihrer Position, Schnitte schwarz, verwertbarer Rest "
-            "grün, nicht verwertbarer Verschnitt rot schraffiert, Greiferrest dunkelgrau.",
-            "<b>Von Hand umsetzen</b>: Teil anklicken, dann eine andere Stange; rechts neben die Stangen = neue Stange. "
-            "Passt es nicht, steht dort, wie viel frei ist und wie viel das Teil braucht. Die Kennzahlen rechnen sofort "
-            "neu, <b>Rückgängig</b> nimmt den letzten Schritt zurück.",
+    i.liste("<b>Aufbau</b>: links <i>Bauteile</i> (Stück, davon auf Stangen), <i>Material</i> (Profil, Werkstoff, "
+            "Lieferlängen mit Preis, Endbeschnitt, Greiferrest, Schnittverlust, Maschine), <i>Reststücke</i> und "
+            "<i>Nicht eingeplant</i>; in der Mitte das Bild; rechts die Kennzahlen (Ausnutzung, Verschnitt, Stangen, "
+            "eingekaufte Länge, Reste, Kosten, Einsparung gegen den gespeicherten Plan, Berechnungsstatus, "
+            "Machbarkeit); unten <i>Optimierungsvergleich</i>, <i>Kosten je Position</i>, "
+            "<i>Berechnungsprotokoll</i> und <i>Export</i>. Die Knöpfe <b>Links</b>, <b>Rechts</b>, <b>Unten</b> "
+            "blenden Bereiche aus, die Teiler ändern die Größe. Hell und dunkel wie das Programm.",
+            "<b>Ansichten</b> aus denselben Daten: <i>Bearbeiten (2D)</i>, <i>Stangenbild wie Optimierung</i> und "
+            "<i>3D</i> (gewählte Stange als Rohr, ziehen = drehen, Mausrad = Zoom, Doppelklick = zurück).",
+            "<b>Bild</b> wie das Stangenbild: Gehrungen schräg, Gehrungen ineinander grün, gemeinsamer Schnitt als "
+            "blaues Dreieck, Schnittfugen, Schweißnaht, verwertbarer Rest grün, Verschnitt rot schraffiert, "
+            "Greiferrest; darunter Maßkette und Lineal. Strg + Mausrad zoomt, mittlere Maustaste verschiebt. Auch "
+            "das Stangenbild im Angebot ist so detailliert.",
+            "<b>Teile frei verschieben</b>: Teil mit der Maus ziehen, entlang der Stange, auf eine andere Stange oder "
+            "unter die letzte Stange (neue Stange). Die orange Linie zeigt die Einfügestelle; das Teil rastet am "
+            "Nachbarn ein, gemeinsamer Schnitt und Gehrungen ineinander ergeben sich aus der Reihenfolge. Jede Lage "
+            "wird geprüft; passt es nicht, bleibt das Teil, wo es war, und es steht da, wie viel frei ist. Klick auf "
+            "ein Teil und dann auf eine andere Stange geht wie bisher.",
+            "<b>Von Hand verschachteln</b>: Stange wählen, <b>Stange auflösen</b>: ihre Teile stehen links unter "
+            "<i>Nicht eingeplant</i>. Teil dort wählen und auf die Stelle einer Stange klicken. <b>Rückgängig</b> "
+            "und <b>Wiederholen</b> gehen Schritt für Schritt, <b>Abmessung zurücksetzen</b> verwirft alles dieser "
+            "Abmessung (auch eine gespeicherte Belegung von Hand), <b>Alles zurücksetzen</b> die Belegungen von Hand "
+            "aller Abmessungen.",
+            "<b>Machbarkeit</b>: Jeder Plan wird mit der Maschine geprüft (max. Stangenlänge, Hüllkreis, Gewicht, "
+            "Greiferrest, Überbelegung); unzulässige Pläne stehen rot und werden nie empfohlen. Hinweise "
+            "(Lademinimum, kürzestes Teil, 3D-Teil nicht am Stangenende) stehen im Protokoll.",
+            "<b>Zeile „aktuell (gespeichert)“</b>: genau der Schnittplan von Optimieren (F9). Passt er nicht mehr zu "
+            "den Eingaben, steht oben ein roter Hinweis.",
+            "<b>Während der Rechnung</b> zeigt der Fortschritt Abmessung x von y, geprüfte Pläne, die beste Lösung "
+            "bisher (Ausnutzung, Verschnitt, Stangen) und die Dauer; <i>Abbrechen</i> stoppt.",
+            "<b>Export</b>: <i>Schnittplan als CSV speichern …</i> (Stange, Platz, Pos., Länge, von/bis, Trennung, Rest) für Excel und "
+            "die Arbeitsvorbereitung.",
+            "<b>Reiter Optimierung</b>: Spart die empfohlene Strategie gegen den gespeicherten Plan mindestens 1 € "
+            "Einkauf oder eine Stange (und ist zulässig), steht sie als Vorschlag <i>Verschachtelung</i> in der "
+            "Liste; <i>Als neue Fassung übernehmen</i> speichert sie in einer neuen Fassung.",
             "<b>Strategie übernehmen</b>: gilt für diese Abmessung und rechnet bei jeder Mengenänderung neu. "
-            "<b>Belegung von Hand übernehmen</b>: diese Stangen bleiben fest; ändert sich ein Teil, wird nur die "
+            "<b>Belegung von Hand übernehmen</b>: diese Stangen bleiben fest (nach dem Ziehen auch die Reihenfolge "
+            "auf der Stange); ändert sich ein Teil, wird nur die "
             "betroffene Stange aufgelöst, neue Teile plant Strategie B dazu. <b>Wie bisher rechnen</b> nimmt beides "
             "zurück. Mit <b>Übernehmen und neu optimieren</b> gilt es im Angebot.",
             "<b>Hinweise</b> (lokal, ohne Internet, nur Vorschläge): mögliche Einsparung, schwach belegte Stange, hoher "
@@ -5310,6 +5358,50 @@ def kapitel_step(i):
             "--json ergebnis.json Ordner</i>.")
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "
            "Grenzen liegen, steht im Anhang ([[step_messung]]).")
+    i.abschnitt("STEP-Viewer", marke="step_viewer")
+    i.text("<i>Datei → STEP-Viewer (Datei ansehen und prüfen) …</i> (Strg+Umschalt+O, auch in <i>Meine "
+           "Werkzeugleiste</i>) öffnet eine STEP-, IGES-, TUBX- oder BLM-Datei <b>ohne Angebot</b>. Im Angebot: "
+           "Rechtsklick auf eine Position → <i>Im STEP-Viewer öffnen …</i> zeigt die STEP-Datei, aus der sie stammt. "
+           "Der Viewer misst die Datei mit derselben STEP-Messung und denselben Einstellungen wie der Import; die "
+           "Werte sind also genau die, die eine Position übernimmt.", kurz=True)
+    i.genauer()
+    i.tabelle(["Bereich", "Inhalt"], [
+        ["<b>Datei</b> (sofort)", "Format (AP203, AP214, AP242), Einheit, Baugruppen, Bauteile, Körper, Flächen, "
+         "vermutete Normteile und geschätzte Messzeit: gelesen aus dem Text der Datei, bevor die Messung fertig ist"],
+        ["<b>Bauteilbaum</b>", "alle Körper nach Rohr/Profil, Blech, Dreh-/Frästeil, Normteil/Zukaufteil und nicht "
+         "messbar; Doppelklick oder Rechtsklick → <i>Einzelteil zeigen</i> = Einzelteil, Rechtsklick → <i>Art ändern</i>"],
+        ["<b>3D-Ansicht</b>", "dieselbe Ansicht wie in allen 3D-Fenstern: drehen, zoomen, verschieben, Blick "
+         "(vorn, oben, Seite, Isometrie), perspektivisch oder orthografisch, Darstellungen (Schattiert, Mit Kanten, "
+         "Drahtgitter, Durchsichtig, Technisch …), Auswahl von Körper, Fläche, Kante, Messen (Abstand, Winkel, Ø, "
+         "Radius, Wandstärke mit <i>Teil messen</i>), Schnitt und Explosion ([[ansicht_3d_bedienung]])"],
+        ["<b>Erkennung</b>", "Art, Profiltyp, Profil-ID, Abmessungen, Wandstärke, Länge, Schneidweg, Einstiche, "
+         "Innenkonturen, Gravur, Bohrungen, Gehrungen, Normteil mit Grund, Volumen, Oberfläche, Hüllquader, "
+         "Sicherheit der Erkennung, Warnungen; in der Gesamtansicht die Zusammenfassung der Datei"],
+        ["<b>Konturen</b>", "jede Kontur mit Art, Maß, Lage, Schnittlänge und Einstich; darunter Gesamtschneidweg, "
+         "Einstiche und Summe der Konturen. Eine Kontur in der Liste <b>oder im 3D anklicken</b> zeigt ihre "
+         "Berechnungswerte (Schnittlänge, Einstich, Schwenkwinkel, Anteil am Schneidweg) und hebt sie hervor"],
+        ["<b>Leistung</b>", "gemessene Zeiten: Kopf lesen, Messung (Einlesen, Analyse, Abschluss), Netze laden, "
+         "Modell aufbauen und zeichnen, Zeit bis zum ersten 3D-Bild, Zahl der Dreiecke"]], [32, 138])
+    i.liste("<b>Konturen nach Art</b> färbt Bohrungen, Langlöcher, Rechtecke/Ausschnitte, Sonderkonturen, gerade "
+            "Enden, Gehrungen/Schrägschnitte, Gravuren und nicht gelaserte Konturen (Sackbohrung, Fließloch) mit "
+            "Legende. <b>Nur Rohrlaser-Teile</b> blendet in der Gesamtansicht Normteile, Bleche und Dreh-/Frästeile "
+            "aus, im Einzelteil Anbauteile und Innenwand. <b>Dunkel</b> schaltet einen dunklen CAD-Hintergrund ein "
+            "(nur solange der Viewer offen ist; im dunklen Programm-Design ist die Ansicht ohnehin dunkel).",
+            "<b>Gegenprobe:</b> Die Spalte <i>Linie 3D</i> ist die Länge der Konturlinien im 3D-Bild, unabhängig "
+            "von der Messung zusammengezählt; ✓ heißt: sie passt zur Schnittlänge (2 %, mindestens 0,5 mm). Bei "
+            "offenen Profilen zählt eine Seite der Wand, Bohrungen im Rundrohr zeigen <i>✓ 2D-Schnitt</i> (der "
+            "Laser schneidet außen länger als konstruiert, gerechnet wird der 2D-Schnitt). Senkungen, Fließlöcher und "
+            "Gewinde vergleicht sie nicht (die Linie ist der Rand, geschnitten wird das Kernloch).",
+            "<b>Analysestufe:</b> <i>Standard</i> misst wie der Import. <i>Experte</i> rechnet dazu ein feineres "
+            "3D-Netz (Abweichung ein Viertel, feinere Rundungen) für genaueres Messen und Ansehen; alle Messwerte "
+            "bleiben gleich. Den Schnellmodus (nur Kalkulationsdaten) wählt man beim Import.",
+            "<b>Art ändern:</b> Rechtsklick im Baum oder Feld <i>Art</i> unter der Erkennung: Rohr/Profil, Blech, "
+            "Dreh-/Frästeil (wenn gemessen) oder Normteil/Zukaufteil. Mit dem Haken <i>Korrekturen für künftige "
+            "Importe merken</i> (Vorgabe an) gilt die Wahl beim nächsten Import desselben Teils wie im Prüfdialog "
+            "([[lernen]]).",
+            "<b>Ins Angebot übernehmen …</b> liest die Datei in das geöffnete Angebot (sonst als neues Angebot) mit "
+            "dem üblichen Prüfdialog; die Messung kommt aus dem Zwischenspeicher. Der Viewer selbst ändert kein "
+            "Angebot. <i>Werte kopieren</i> legt Erkennung und Konturen als Tabelle in die Zwischenablage.")
 
 
 def kapitel_optimieren(i):
@@ -7629,7 +7721,7 @@ def kapitel_optimieren(i):
             "zu sehen und wie gewohnt änderbar; erst <b>OK</b> legt die Position an.")
     i.abschnitt("Rohrteil aus einer PDF-Zeichnung (Test)", marke="pdf_zeichnung")
     i.text("Noch eine <b>Testfunktion</b>: Erst mit der Einstellung <i>Testfunktion PDF-Zeichnungen: Neue Position „Aus PDF-Zeichnung“</i>"
-           " (Einstellungen → STEP-Import, Vorgabe nein) bietet <i>Neue Position</i> den Typ "
+           " (Einstellungen → DXF-Import, Vorgabe nein) bietet <i>Neue Position</i> den Typ "
            "<b>Aus PDF-Zeichnung (Test)</b> an. Das Programm liest den <b>Text</b> der Zeichnung (aus einem PDF mit "
            "Text direkt, Scans und Fotos mit der Texterkennung wie beim Anfrageformular, [[anfragen]]) und öffnet den "
            "Rohr-Editor damit. Ist das PDF direkt aus dem CAD gespeichert (Linien, kein Scan), liest es auch die "
@@ -8009,8 +8101,9 @@ def kapitel_staffeln(i):
             "<b>Fracht</b> (bei berechneter Fracht): Betrag der Stufe, Ladung mit Versandart und Fracht je Stück, "
             "z. B. „115,00 € · 1 × EUR (Palette) · 0,57 €/Stk.“; im Abruf-Angebot „je Abruf“."),
         (4, "<b>Staffelpreise rechnen</b> rechnet alle Stufen neu. Meist ist das nicht nötig: Sind Stufen angelegt, "
-            "rechnet das Programm sie nach jeder Änderung am Angebot <b>selbst neu</b> (siehe unten). Gewinn und "
-            "Zuschläge wirken sofort.")])
+            "rechnet das Programm sie nach jeder Änderung am Angebot <b>selbst neu</b> (siehe unten), auch nach "
+            "Änderungen an Gewinn, Zuschlägen und Einstellungen. Die Sonderwerte unter <i>Erweitert</i> wirken "
+            "sofort.")])
     i.text("Reiter <i>Staffeln</i>: Preise für weitere Mengen. Jede <b>Stufe</b> wird wie ein eigener Auftrag "
            "optimiert und kalkuliert; Rüsten, Verschnitt und Pauschalen verteilen sich auf ihre Menge. Ein "
            "Doppelklick auf eine Stufe öffnet ihre Werte.", kurz=True)
@@ -8027,18 +8120,32 @@ def kapitel_staffeln(i):
            "Lieferlängen sind dieselben wie im Angebot; mit <b>Lieferlänge je Stufe wählen</b> = ja (unter "
            "Erweitert) nimmt die Stufe die empfohlene Lieferlänge für ihre Mengen ([[lieferlaengen]]), bei großen "
            "Mengen also z. B. 12 m.")
-    i.bild("staffel_stufe", "Fenster einer Stufe: Einstellungen, Materialpreise und Mengen", hoehe=110 * mm, legende=[
-        (1, "Einstellungen wie im Angebot. Leere Felder zeigen grau den Wert des Angebots."),
+    i.text("Das Fenster einer Stufe ist aufgebaut und wird bedient wie ein eigenes Angebot (seit 0.9.469): oben "
+           "der Kopf der Stufe, darunter dieselben Reiter wie im Angebot – <b>Positionen</b>, <b>Kalkulation</b> "
+           "(Kalkulation, Zeiten &amp; Arbeitskosten), <b>Schnittplan</b> (Stangen), <b>Einstellungen</b> "
+           "(Einstellungen, Materialpreise, Wirksame Werte) und <b>Übersicht</b> – und unten die Summenzeile.",
+           kurz=True)
+    i.bild("staffel_positionen", "Fenster einer Stufe, Reiter Positionen", hoehe=110 * mm, legende=[
+        (1, "<b>Kopf der Stufe</b>: Nummer, Bezeichnung und Stand des letzten Mengenlaufs (Teile, Stangen)."),
+        (2, "Reiter wie im Angebot: Positionen, Kalkulation, Schnittplan, Einstellungen, Übersicht."),
+        (3, "<b>Positionen und Mengen</b>: Häkchen = Satz bzw. Position gehört zur Stufe (neue Stufe: alle "
+            "angehakt; <b>Alle</b> / <b>Keine</b> haken alle an bzw. ab). Mengen in Sätzen bzw. Stück; eine Menge "
+            "eintragen hakt die Zeile an. <b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen "
+            "die angehakten Zeilen. <b>Menge bis</b> ist freiwillig. Rechts stehen wie in der Positionsliste des "
+            "Angebots <b>Preis je Einheit</b> und <b>Gesamt</b> der Stufe."),
+        (4, "<b>Summenzeile</b> wie im Angebot: Material, Herstellkosten, Gewinn, Netto gesamt, Marge und die "
+            "Gegenprobe gegen die Angebotskalkulation."),
+        (5, "<b>Übernehmen und rechnen</b>: Eingaben speichern und die Stufe sofort neu rechnen; das Fenster bleibt "
+            "offen und zeigt den neuen Stand – wie das Angebot nach einer Änderung. <b>OK</b> speichert und "
+            "schließt.")])
+    i.bild("staffel_stufe", "Fenster einer Stufe, Reiter Einstellungen", hoehe=110 * mm, legende=[
+        (1, "Einstellungen wie im Kopf des Angebots. Leere Felder zeigen grau den Wert des Angebots."),
         (2, "<b>Frachtkosten</b>: fester Betrag für die ganze Stufe; leer = Fracht wie im Angebot (mit der Frachtart "
             "<i>berechnet</i> für die Mengen der Stufe)."),
         (3, "<b>Erweitert</b>: Materialzuschlag, Verlust, Grundpreis, Gemeinkosten, Rüsten separat, zusätzlicher "
-            "Arbeitsgang, Nebenkosten, Rabatt und Lieferlänge je Stufe (Tabelle unten)."),
-        (4, "<b>Materialpreis je Abmessung</b> (Profil · Werkstoff): €/m im Angebot grau, daneben der Preis für diese "
-            "Stufe (leer = wie im Angebot). Er gilt für alle Positionen dieser Abmessung in der Stufe."),
-        (5, "<b>Positionen und Mengen</b>: Häkchen = Satz bzw. Position gehört zur Stufe (neue Stufe: alle "
-            "angehakt; <b>Alle</b> / <b>Keine</b> haken alle an bzw. ab). Mengen in Sätzen bzw. Stück; eine Menge "
-            "eintragen hakt die Zeile an. <b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen "
-            "die angehakten Zeilen. <b>Menge bis</b> ist freiwillig.")])
+            "Arbeitsgang, Nebenkosten, Rabatt und Lieferlänge je Stufe."),
+        (4, "Unterreiter <b>Materialpreise</b> (€/m je Abmessung: im Angebot grau, daneben der Preis für diese Stufe, "
+            "leer = wie im Angebot) und <b>Wirksame Werte</b>.")])
     i.text("<b>Standard-Staffeln</b>: Der Knopf legt die Standard-Staffeln an, z. B. für 10 Stück die Stufen 10, 20 "
            "und 50; danach rechnet das Programm sie selbst. Das Angebots-PDF legt keine Stufen an. Die "
            "Faktoren stehen in den Einstellungen, Gruppe Angebot, unter <i>Standard-Staffeln: Faktoren auf die "
@@ -8089,6 +8196,38 @@ def kapitel_staffeln(i):
         ["Lieferlänge je Stufe wählen", "ja = empfohlene Lieferlänge für die Mengen der Stufe (leer = Lieferlängen "
                                         "des Angebots)"],
     ], [55 * mm, 200 * mm])
+    i.abschnitt("Staffel rechnet wie das Angebot", marke="staffel_wie_angebot")
+    i.text("Jede Stufe rechnet mit <b>derselben Kalkulation wie ein normales Angebot</b> mit dieser Menge: Material "
+           "nach dem Schnittplan der Stufe (neu optimiert), Laserzeit, Schnittmeter, Einstiche, Rüsten, "
+           "Arbeitsschritte, Zusatzarbeiten, Schweißen, Zukaufteile, Gemeinkosten, Gewinn, Mindestauftragswert und "
+           "die Preisschicht des Angebots (Verpackung, Finanzierung, Rabatt, Runden, Frachtfrei ab). Eine Stufe "
+           "ohne Sonderwerte kostet Cent für Cent so viel wie das Angebot mit derselben Menge.", kurz=True)
+    i.genauer()
+    i.liste("<b>Ein Rechenkern</b>: Der Mengenlauf der Stufe ruft dieselbe Optimierung und Kalkulation auf wie das "
+            "Angebot. Der Preis je Einheit der Stufe ist der Verkaufspreis dieser Kalkulation; jede spätere Änderung "
+            "an der Kalkulation gilt damit sofort auch für die Staffeln.",
+            "<b>Einmalig und je Menge</b>: Rüsten, Programmierung, Pauschalen, Musterkosten und Einmalkosten der "
+            "Baugruppen fallen je Stufe einmal an und verteilen sich auf ihre Menge; Material, Laserzeit und "
+            "Arbeitszeiten rechnen mit der Menge der Stufe. Staffelpreise der Zukaufteile und Blech-EK gelten nach "
+            "dem Verbrauch der Stufe.",
+            "<b>Sonderwerte der Staffel</b> (unter <i>Erweitert</i>: Materialzuschlag, Verlust, Grundpreis, "
+            "Gemeinkosten, Rüsten separat, Arbeitsgang, Nebenkosten, Staffelrabatt, Zukauf-EK, Preis von Hand) und "
+            "die Mindestmarge gibt es im Angebot nicht. Sie wirken als Zu- bzw. Abschlag auf den Preis der "
+            "Kalkulation, sofort bei der Eingabe.",
+            "<b>Nie veraltet</b>: Jede Änderung, die die Rechnung beeinflusst (Positionen, Stammdaten, Preise, "
+            "Einstellungen wie Gewinn, Zuschläge, Gaspreis, Runden, Verpackung, Werte der Stufe), macht die Stufe "
+            "<i>VERALTET</i>; das Programm rechnet sie kurz danach im Hintergrund neu, vor dem Angebots-PDF sofort. "
+            "Reine Oberflächen-Einstellungen (Ansicht, Texte, Angebotsnummer) zählen nicht.",
+            "<b>Übersicht</b> (Unterreiter im Reiter Staffeln): je Stufe Menge, Herstellkosten gesamt, Material, "
+            "Maschine, Personal, Zusatz, Gemeinkosten, Gewinn, Fracht + Skonto, Netto gesamt und je Einheit, "
+            "Deckungsbeitrag, Marge, Einsparung zur kleinsten Menge und die <b>Gegenprobe</b>: "
+            "„= Angebotskalkulation“ (grün) oder „mit Sonderwerten der Stufe“.",
+            "Im Kostenbaum (Unterreiter <i>Kosten</i>) steht die <b>Preisschicht des Angebots</b> als eigene "
+            "Gruppe, wenn sie etwas ausmacht: Mannlose Laufzeit, Neuteil-Zuschlag, Angebotsregeln (Zuschlag), "
+            "Verpackung (Stammdaten), Finanzierung, Frachtfrei ab Warenwert, Rabatt des Angebots, Preis gerundet und "
+            "Preis von Hand je Baugruppe.",
+            "Prüfung: der Test <i>test_staffel_wie_angebot</i> rechnet Abnahme-Angebote, Sätze und Schweißbaugruppen "
+            "mit allen Kalkulationsparametern als Angebot und als Staffel und vergleicht jeden Preis auf den Cent.")
     i.abschnitt("Mindestmarge, Kennzahlen und Preis von Hand je Stufe", marke="staffel_mindestmarge")
     i.text("Jede Stufe hält die <b>Mindestmarge</b> (Einstellungen → Angebot, <i>Angebots-Check: Mindestmarge</i>): "
            "liegt die Marge einer größeren Menge darunter, hebt das Programm den Stückpreis genau auf die "
@@ -8218,27 +8357,29 @@ def kapitel_staffeln(i):
                (4, "<b>Kompakt</b>: das Wichtigste je Bauteil; ohne Häkchen alle Spalten der Kalkulation."),
                (5, "Kalkulation je Bauteil mit den Stückzahlen der Stufe: Profil, Länge, Material, Laserzeit, "
                    "Verkaufspreis je Teil – wie im Angebot.")])
-    i.text("Ein Doppelklick auf eine Stufe zeigt neben den Einstellungen die Reiter <b>Kalkulation</b>, "
-           "<b>Stangen</b>, <b>Zeiten</b> und <b>Wirksame Werte</b> – dieselben Werte wie im Angebot, für die Mengen "
-           "der Stufe.",
+    i.text("Ein Doppelklick auf eine Stufe öffnet sie wie ein eigenes Angebot: <b>Kalkulation</b> mit Zeiten, "
+           "<b>Schnittplan</b>, <b>Einstellungen</b> mit Wirksamen Werten und <b>Übersicht</b> – dieselben Werte wie "
+           "im Angebot, für die Mengen der Stufe.",
            kurz=True)
     i.genauer()
-    i.text("Das Fenster der Stufe hat fünf Reiter. <i>Einstellungen und Mengen</i> ist zum Bearbeiten (siehe "
-           "oben). Die anderen vier zeigen, womit die Stufe gerechnet wurde, aus ihrem letzten Mengenlauf: "
-           "<b>Kalkulation</b> wie der Reiter Kalkulation des Angebots ([[kalkulation]]), <b>Zeiten</b> wie der "
-           "Reiter Zeiten &amp; Arbeitskosten, <b>Stangen</b> wie der Unterreiter Stangen im Reiter Staffeln (siehe "
-           "unten) und <b>Wirksame Werte</b>: je Einstellung der Wert, mit dem die Stufe "
+    i.text("Bearbeitet werden die Reiter <i>Positionen</i> und <i>Einstellungen</i> (siehe oben). Die anderen "
+           "zeigen, womit die Stufe gerechnet wurde, aus ihrem letzten Mengenlauf: <b>Kalkulation</b> wie der "
+           "Reiter Kalkulation des Angebots ([[kalkulation]]), Unterreiter <b>Zeiten &amp; Arbeitskosten</b> wie im "
+           "Angebot, <b>Schnittplan › Stangen</b> wie der Unterreiter Stangen im Reiter Staffeln (siehe unten), "
+           "<b>Übersicht</b> je Satz bzw. Position wie im Reiter Staffeln und <b>Einstellungen › Wirksame Werte</b>: "
+           "je Einstellung der Wert, mit dem die Stufe "
            "rechnet, und ob er aus der Stufe oder aus dem Angebot kommt, dazu Materialpreis €/m und Lieferlänge je "
            "Abmessung und die Stundensätze. Werte der Stufe sind gelb.")
-    i.text("Gewinn und Zuschläge wirken in der Stufe sofort, ohne neuen Mengenlauf. Die Tabelle je Bauteil zeigt "
-           "sie so, wie sie beim Mengenlauf galten; deshalb steht oben der <b>Preis der Stufe</b> mit dem "
-           "Unterschied und seinem Grund. Werte unter <i>Erweitert</i> (Materialzuschlag, Verlust, Nebenkosten …) "
-           "und der Mindestpreis wirken nur im Staffelpreis.")
-    i.bild("staffel_zeiten", "Reiter Zeiten der Stufe", hoehe=80 * mm, legende=[
+    i.text("Gewinn und Zuschläge der Stufe rechnet das Programm wie im Angebot durch die ganze Kalkulation (die "
+           "Stufe wird dafür kurz neu gerechnet; mit <b>Übernehmen und rechnen</b> sofort). Oben steht der "
+           "<b>Preis der Stufe</b> mit dem Unterschied zur Kalkulation und seinem Grund. Nur die Werte unter "
+           "<i>Erweitert</i> (Materialzuschlag, Verlust, Nebenkosten …) und die Mindestmarge der Staffel wirken "
+           "zusätzlich im Staffelpreis.")
+    i.bild("staffel_zeiten", "Reiter Kalkulation › Zeiten & Arbeitskosten der Stufe", hoehe=80 * mm, legende=[
         (1, "Arbeitsschritte der Stufe mit Menge, Rüstzeit, Zeit je Einheit, Gesamtzeit, Stundensatz und Kosten."),
         (2, "Maschinen-, Personal-, Arbeits- und Durchlaufzeit, Arbeitskosten und die Laserzeit je Satz bzw. "
             "Position.")])
-    i.bild("staffel_werte", "Reiter Wirksame Werte der Stufe", hoehe=80 * mm, legende=[
+    i.bild("staffel_werte", "Reiter Einstellungen › Wirksame Werte der Stufe", hoehe=80 * mm, legende=[
         (1, "Wert, mit dem die Stufe rechnet, und seine Quelle (Stufe gelb, sonst Angebot).")])
     i.text("Auch im Reiter <i>Staffeln</i> stehen die Zeiten: die Gruppe <b>Zeiten</b> im Ergebnis zeigt je Stufe "
            "die Laserzeit je Einheit und gesamt und die Maschinen-, Personal-, Arbeits- und Durchlaufzeit der "
@@ -8826,11 +8967,42 @@ def kapitel_zukauf_angebot(i):
         ["Werkstoff", "TRUMPF-Werkstoff (St37 bzw. 1.0038 → S235, St52 bzw. 1.0570 → S355, 1.4301 …), sonst der "
          "Standard-Werkstoff des STEP-Imports"],
         ["Länge", "Teillänge des Programms (<i>Work Part Length</i>)"],
-        ["Schneidweg, Einstiche", "Schnittlänge des Programms (<i>Cutting length</i>) und die Einstiche im NC-Teil; "
-         "die Konturklassen bleiben leer, gerechnet wird mit Vorschub groß"],
-        ["Schneidzeit je Teil", "die von TRUMPF berechnete Zeit (Anschnitt + Konturen + Abschnitt), wenn die "
-         "Einstellung <i>TRUMPF-Programm: berechnete Zeit je Teil als Schneidzeit übernehmen</i> (STEP-Import) auf "
-         "<i>ja</i> steht (Vorgabe); bei <i>nein</i> rechnet das Programm die Zeit selbst"]], [40, 130])
+        ["Schneidweg, Einstiche", "Schnittlänge am Material aus dem programmierten Schneidweg (seit 0.9.468, siehe "
+         "unten) und die Einstiche im NC-Teil; die <i>Cutting length</i> der LST steht als Maschinenweg im Bericht. "
+         "Ohne lesbaren Schneidweg gilt wie bisher die <i>Cutting length</i>"],
+        ["Konturen", "jede Kontur aus dem Schneidweg mit Hüllmaß und Länge, eingeteilt in groß, mittel und klein nach "
+         "den Grenzen der Maschine (wie bei der STEP-Messung); der Bericht nennt Anzahl und Länge je Klasse"],
+        ["Laserzeit", "Einstellung <i>TRUMPF-Programm: Laserzeit aus dem Programm</i> (STEP-Import): <i>ja</i> "
+         "(Vorgabe) = alle Zeiten der LST werden übernommen (Laser an als reine Laserzeit, Laser aus als Verfahren "
+         "und Drehen, gemessene Zeit vor berechneter); nur was die LST nicht enthält (Nebenzeit, Messen, Entnahme, "
+         "Beladen) rechnet das Programm wie immer dazu; <i>ganz</i> = die ganze von TRUMPF berechnete Zeit (Anschnitt + "
+         "Konturen + Abschnitt) wird Schneidzeit von Hand; <i>nein</i> = das Programm rechnet alles selbst. Ohne "
+         "Laser-an-Zeit in der LST gilt bei <i>ja</i> die ganze TRUMPF-Zeit"]], [40, 130])
+    i.text("<b>Programmierter Schneidweg aus der LST</b> (Patrick 24.11.2026, seit 0.9.468): Der NC-Teil der LST "
+           "beschreibt den Weg des Schneidkopfs (Konturanfang, Einstich, Geraden, Bögen, Drehung um die Ecken). Das "
+           "Programm liest ihn wie das Abwicklungsbild der Programmiersoftware: je Kontur die Bahn, getrennt in "
+           "Anfahrt, Schnitt, Trennschnitt und Restzerteilung (Abfall zerschneiden). TRUMPF programmiert die Mitte des "
+           "Strahls; die halbe Schnittfuge kommt aus den beiden Trennschnitten und der Teillänge, jede Kontur wird um "
+           "sie zur Teilkante versetzt (Bohrungen haben so ihr Maß aus der Zeichnung). Die <b>Schnittlänge am "
+           "Material</b> ist deutlich kürzer als die <i>Cutting length</i>, denn die zählt die Achswege mit Anfahrten "
+           "und dem Kopfweg um die Ecken. Enthält die LST genau ein Teil, baut das Programm daraus ein exaktes 3D-Rohr "
+           "(Querschnitt exakt, jede Kontur lagegenau abgezogen) und misst es wie eine STEP-Datei mit Prüfdialog und "
+           "3D-Ansicht. Liegt neben einer TUBX die gleichnamige LST, misst die TUBX das Teil aus der LST (genauer als "
+           "das Netz). Job-Listen mit mehreren Programmen bekommen die Werte je Teil ohne 3D-Messung.")
+    i.text("<b>Laserzeit aus der LST</b>: Die LST teilt die Maschinenzeit nach Laserleistung auf "
+           "(<i>CONSUMPTION_TIMES</i>): <i>Laser an</i> ist das Schneiden einschließlich der Einstiche, <i>Laser aus</i> "
+           "das Verfahren und Drehen. Beide zusammen sind die berechnete TRUMPF-Zeit je Teil. Beladen, Entladen, "
+           "Rohrwechsel und Nebenzeiten stehen nicht in der LST. Mit der Vorgabe ersetzt die Laser-an-Zeit in der "
+           "Kalkulation das Schneiden und die Ecken (verteilt auf groß, mittel, klein nach den berechneten Anteilen), "
+           "die Laser-aus-Zeit ersetzt Verfahren und Drehen. Hat die Maschine das Teil schon gemessen (die LST nach "
+           "dem Lauf gespeichert), gilt die gemessene Zeit. Nur was fehlt, rechnet das Programm dazu (Patrick "
+           "24.11.2026: „nur das dazurechnen, was fehlt“). Die Pausen-Einstellungen für Laden und Entladen in der "
+           "LST (z. B. Haltezeit Bundablage) sind Maschinenparameter, keine Zeit je Teil; "
+           "die Einstiche sind enthalten (Einstellung <i>TRUMPF-Programm: Einstiche</i> = <i>enthalten</i>, "
+           "Entscheidung Patrick 24.11.2026). Mit <i>eigen</i> bleibt die berechnete Einstichzeit ein eigener Posten "
+           "und wird von der Laser-an-Zeit abgezogen. Eine Schneidzeit von Hand geht immer vor.")
+    i.text("BLM-Programme (BPF) enthalten keine Zeit, nur eine Geschwindigkeitsstufe je Kontur; der Bericht der "
+           "Messung nennt sie.")
     i.text("<b>TUBX wird wie eine STEP-Datei gemessen</b>: Ziehen, Ablagefeld oder <i>Aus TRUMPF-Programm</i> geben "
            "die TUBX in den STEP-Import mit Prüfdialog und 3D-Ansicht. Die TUBX enthält das Teil als Dreiecksnetz und "
            "die exakten Kanten des Modells: aus dem Netz wird ein Volumenkörper, Bohrungen werden aus den Kreisen des "
@@ -8840,8 +9012,8 @@ def kapitel_zukauf_angebot(i):
            "Laser sie schneidet. Liegt eine LST mit gleichem Namen dabei, wird sie nicht zusätzlich eingelesen. "
            "Rückgängig nimmt alle eingelesenen Positionen auf einmal zurück.")
     i.text("<b>Produktionsdaten fürs Lernen</b> (seit 0.9.437): In den Einstellungen (STEP-Import, "
-           "TRUMPF-Programme) die Einstellung <i>TRUMPF-Programme: Ordner der gefertigten LST-Dateien fürs Lernen (leer = "
-           "aus)</i> setzen; am besten einen gemeinsamen "
+           "TRUMPF-Programme) die Einstellung <i>Maschinendaten: Ordner der gefertigten LST- und BPF-Dateien fürs Lernen "
+           "(leer = aus)</i> setzen; am besten einen gemeinsamen "
            "Ordner, in den die Maschine die LST nach dem Lauf speichert. Gelesen werden alle LST-Dateien auch in "
            "Unterordnern, jede nur einmal (auch als Kopie oder umbenannt); unveränderte Dateien öffnet das Programm "
            "beim nächsten Mal gar nicht. Je Teil merkt es sich Auftrag, PPEASE-Nummer (aus Jobname, "
@@ -8872,14 +9044,26 @@ def kapitel_zukauf_angebot(i):
            "dem Volumen, das das BLM-Programm selbst angibt (gleich = Konturen lagegenau). Den Werkstoff übernimmt "
            "die Position wie bei STEP aus der Einstellung bzw. dem Prüfdialog; Laserzeiten rechnet das Programm wie "
            "immer selbst.")
-    i.abschnitt("Produktionsdaten & Lernsystem", marke="lernsystem")
-    i.text("<i>Datei → Produktionsdaten & Lernsystem …</i> (auch aus der Lernzentrale): die Kalkulation lernt aus "
-           "den gemessenen Zeiten der Maschine. Oben Kacheln (LST-Dateien, Teile, mit gemessener Zeit, zugeordnet, "
-           "Abweichung, STEP-Messung prüfen, Vorschläge bereit), darunter vier Reiter. <b>LST-Ordner einlesen</b> "
-           "liest im Hintergrund; das Fenster bleibt bedienbar.")
+    i.abschnitt("Produktionsdaten-Intelligenz (LST und BPF)", marke="lernsystem")
+    i.text("<i>Datei → Produktionsdaten-Intelligenz …</i> (auch aus der Lernzentrale, seit 0.9.471): die Kalkulation "
+           "lernt aus den Maschinendaten. Gelesen werden TRUMPF-<b>LST</b> und BLM-<b>BPF</b> aus dem eingestellten "
+           "Ordner (<b>LST-Ordner einlesen</b>) oder über <b>Dateien importieren …</b> (mehrere Dateien auf einmal). "
+           "Alles läuft im Hintergrund, "
+           "<b>Abbrechen</b> hält es an, eine kaputte Datei stört die übrigen nicht. Maschinenprogramme werden nur "
+           "gelesen, nie verändert. Oben zwei Kachelzeilen (Dateien, Teile, gemessen, zugeordnet, Abweichung, "
+           "STEP-Messung prüfen, Vorschläge; BPF-Dateien, Datenqualität, Lernschritte, Genauigkeit, Fortschritt, "
+           "Zeitmodelle), darunter die Reiter.", kurz=True)
+    i.genauer()
     i.liste(
-        "<b>Produktionsdaten</b>: alle gelesenen Teile mit Datenqualität (vollständig, Teilwerte fehlen, "
-        "unplausibel) und Gründen. Gelernt wird nur aus vollständigen Teilen.",
+        "<b>Produktionsdaten</b>: alle gelesenen Teile mit Format (LST/BPF), Datenqualität (vollständig, Teilwerte "
+        "fehlen, unplausibel) und Gründen. Gelernt wird nur aus vollständigen Teilen; eine BPF enthält keine Zeiten "
+        "und zählt deshalb nur für Geometrie und Abgleich.",
+        "<b>Maschinendaten</b>: jeder Wert des gewählten Teils mit Einheit, Quelle (Abschnitt und Feld der Datei "
+        "oder „berechnet aus …“) und Deutung; unsichere Deutungen sind markiert. Aus der LST kommen u. a. Laser an "
+        "je Leistungsstufe und Verfahrzeit (Laser aus), Einstiche, Konturen, Positionierungen, Umspannen, Vollkreise, "
+        "Materialverbrauch und Teile je Stange; aus der BPF Profil, Konturen je Art, Schnittlänge, Anfahrwege, "
+        "Eilgänge und Gehrungen. Fehlt ein Wert in der Datei, wird er nicht ergänzt. Steht eine reine Laserzeit in "
+        "der Datei, gilt sie als Laserzeit; Einstich, Positionieren und Zuschläge kommen wie gewohnt dazu.",
         "<b>Vergleich</b>: je Teil Angebot und Position. Zugeordnet wird über die PPEASE-Nummer (Angebotsnummer "
         "oder die PPEASE-Nummer der Dokumentenablage), sonst über die Artikelnummer, sonst über gleiche Merkmale "
         "(Profil, Werkstoff, Länge ± 0,5 mm, Schneidweg ± 2 %) in Angeboten der letzten 6 Monate. Unsichere "
@@ -8899,10 +9083,27 @@ def kapitel_zukauf_angebot(i):
         "(Haken <i>Abgelehnte zeigen</i>). "
         "<b>Laserzeit je Baustein …</b> öffnet die Kalibrierung: dort lernt das Programm mit den LST-Zeiten je "
         "Baustein, das Einstechen mit eigenem Faktor (die Einstichzeit bleibt ein eigener Posten).",
+        "<b>Abgleich</b>: zum Teil der Vergleichszeile 12 Werte Kalkulation gegen Maschine (Material, Einstiche, "
+        "Konturen, Schnittlänge, Konturklassen groß/mittel/klein, Zeit, Laserzeit, Positionierzeit, Vorschub, "
+        "Ausnutzung), jeweils gekennzeichnet als berechnet, geschätzt, aus der Maschine ermittelt oder fehlt; darunter "
+        "die Ursachen der Zeitabweichung in Sekunden (Schnittlänge, Einstiche, Positionieren, Vorschub/Laserleistung, "
+        "übrige Zeit).",
+        "<b>Genauigkeit</b>: je Bereich (Material, Geometrie, Zeit), wie gut die Kalkulation durch Produktionsdaten "
+        "belegt ist: <i>sehr gut</i> nur mit mindestens 10 gemessenen Teilen und höchstens 10 % Abweichung, "
+        "<i>gut</i> ab 3 gemessenen Teilen bis 20 %, nur CAM-Zeiten höchstens <i>gering</i>, sonst <i>keine "
+        "Produktionsdaten</i>. Die KI (Angebots-Check, Preis erklären) nennt diese Datenbasis je Position.",
+        "<b>Lernanalyse</b>: Zeitmodell je Maschine, Werkstoff und Wandbereich aus den Konturklassen: Vorschub groß, "
+        "mittel und klein und Sekunden je Einstich, gerechnet aus der Laser-an-Zeit vieler Programme (ab 3 "
+        "Programmen), daneben der Vorschub der Kalkulation und die Gegenprobe. Das Modell ist ein Hinweis und ändert "
+        "keine Schneiddaten. Dazu die häufigsten Ursachen über alle Teile.",
+        "<b>Importprotokoll</b>: jede gelesene Datei mit Format, Version, Teilen, Fehlermeldung und Anzahl nicht "
+        "gedeuteter Felder.",
         "<b>Protokoll</b>: jede Freigabe, Zurücknahme und Ablehnung mit Datum, Gruppe, Faktor und Begründung. "
         "<b>Zurücksetzen</b> stellt die alten Werte wieder her (nur die, die seitdem niemand geändert hat). Die "
         "Freigaben stehen auch unter Kennwerte ([[lernen]]).")
-    i.text("Ohne Freigabe ändert sich an der Kalkulation nichts.")
+    i.text("Ohne Freigabe ändert sich an der Kalkulation nichts. Jeder Vorschlag hat eine <b>Gegenprobe</b> (Spalte "
+           "in Vorschläge): jedes Programm wird aus den übrigen gelernt und geprüft, ob der Faktor die Abweichung "
+           "wirklich verkleinert. Ist er nicht besser, geht die Freigabe nur mit ausdrücklicher Bestätigung.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "
