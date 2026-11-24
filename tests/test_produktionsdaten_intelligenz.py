@@ -97,6 +97,11 @@ assert md.w(mb, "konturen_trennschnitt") == 2 and md.w(mb, "gehrung_ende") == 90
 assert e["kopf"] == dict(profilform="Rechteckrohr", a=60.0, b=40.0, wand=3.0, radius=0.0), e["kopf"]
 assert "zeit_gesamt_s" in e["fehlend"] and any("keine Zeiten" in f for f in e["fehlend"])
 assert ("XML", "unbekanntes_feld", "42") in e["unbekannt"] and e["version"] == "3.10"
+from step_messung import step_blm  # noqa: E402
+from rohrlaser import bpf_xml  # noqa: E402
+import xml.etree.ElementTree as ET  # noqa: E402
+assert [ET.tostring(x) for x in bpf_xml.bpf_dokumente(bpf.read_bytes())] == \
+    [ET.tostring(x) for x in step_blm.bpf_dokumente(bpf.read_bytes())], "Kopie bpf_xml liest wie step_blm"
 ok("I2 BPF: Profil, Konturen je Art, Schnittlänge 562,8 mm, 2 Vollkreise, 5 Einstiche, 6 Eilgänge, Gehrung; "
    "keine Zeiten (als fehlend gemeldet), unbekanntes Feld dokumentiert")
 

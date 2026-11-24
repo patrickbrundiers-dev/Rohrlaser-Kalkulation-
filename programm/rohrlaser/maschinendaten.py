@@ -17,7 +17,7 @@ DA-Zeilen (Werte), danach der NC-Teil (BEGIN_PROGRAMM, Sinumerik). Aus dem NC-Te
 (Konturen, Einstiche, Positionierungen, Umspannen, Vollkreise); den Schneidweg als Geometrie liest
 trumpf_programm/der LST-Schneidweg-Leser.
 
-BLM-BPF (ArTube, LT7/LT8): gepacktes XML (step_messung/step_blm.bpf_dokumente) mit info_tubo (Querschnitt, Werkstoff),
+BLM-BPF (ArTube, LT7/LT8): gepacktes XML (bpf_xml.bpf_dokumente, Kopie aus step_messung/step_blm) mit info_tubo (Querschnitt, Werkstoff),
 info_pezzo (Länge, Volumen, Maschine, Gehrungswinkel, Toleranzen), geometrie (je Kontur Art, Länge, Anfahrweg,
 Einschalten) und nesting. Die BPF enthält keine Zeiten."""
 import csv
@@ -447,7 +447,7 @@ def _profilform(name, a, b, aussen_boegen_nur):
 def bpf_auswerten(daten, name="BPF"):
     """Alle deutbaren Werte einer BPF (ein Teil): [dict(format, programm, teil_nr, version, merkmale, unbekannt,
     fehlend, kopf (Profilform, a, b, wand, radius für die Tabelle der Produktionsdaten))]."""
-    from step_messung import step_blm
+    from . import bpf_xml as step_blm
     try:
         docs = step_blm.bpf_dokumente(daten)
     except (ValueError, IndexError, KeyError, UnicodeDecodeError) as e:
