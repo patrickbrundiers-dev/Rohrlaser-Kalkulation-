@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.473", "<b>Eigener STEP-Viewer</b> ([[step_viewer]]): <i>Datei → STEP-Viewer</i> (Strg+Umschalt+O) oder "
+                "Rechtsklick auf eine Position → <i>Im STEP-Viewer öffnen …</i> zeigt eine STEP-Datei ohne Angebot: "
+                "Format (AP203/AP214/AP242), Einheit und Baugruppe sofort, danach alle Bauteile nach Art, 3D mit "
+                "allen Ansichten, Darstellungen und Messwerkzeugen, die Erkennung je Teil (Profil, Wand, Länge, "
+                "Schneidweg, Einstiche, Normteil mit Grund) und <b>jede Kontur farbig nach Art</b>. Eine Kontur in "
+                "der Liste oder im 3D anklicken zeigt ihre Berechnungswerte; die Summe ist genau der Schneidweg, den "
+                "die Position übernimmt, mit Gegenprobe über die 3D-Linien. Art von Hand ändern (auf Wunsch für "
+                "künftige Importe gemerkt), ins Angebot übernehmen, dunkler CAD-Hintergrund, Analysestufe "
+                "<i>Experte</i> mit feinerem 3D-Netz (Messwerte bleiben gleich) und gemessene Ladezeiten. Die "
+                "STEP-Messung liefert dazu je 3D-Linie die Konturnummer; alle Messwerte bleiben bitgleich.",
+     "Eigener STEP-Viewer: Konturen farbig mit Berechnungswerten, Erkennung korrigierbar, Experten-Netz"],
     ["0.9.467", "<b>12 m nur noch mit echtem Kostenvorteil</b> ([[lieferlaengen]]): Eine zentrale Entscheidung "
                 "vergleicht 6 m, andere Lieferlängen und 12 m mit Zuschnitt über die Gesamtkosten (Material, "
                 "Beladungen, Zuschnitt, Handhabung langer Stangen, verwertbare Reste nur mit Lager und Reststücken). "

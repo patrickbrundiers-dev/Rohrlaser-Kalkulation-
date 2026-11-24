@@ -42,6 +42,7 @@ HINTERGRUENDE = {
     "Weiß": ("#FFFFFF", "#FFFFFF"),
     "Hellgrau": ("#E9ECEF", "#E9ECEF"),
     "Studio (Blaugrau)": ("#B8C4D0", "#F4F6F8"),
+    "Dunkel (CAD)": ("#2E353D", "#15191E"),        # STEP-Viewer 24.11.2026: dunkles CAD-Design
 }
 VERLAUF = "Verlauf"
 SCHATTEN_DECKKRAFT = 0.5       # Kontaktschatten unter dem Modell: Deckkraft in der Mitte (weich nach außen)

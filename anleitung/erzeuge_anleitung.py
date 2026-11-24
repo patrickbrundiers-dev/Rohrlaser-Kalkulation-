@@ -5266,6 +5266,50 @@ def kapitel_step(i):
             "--json ergebnis.json Ordner</i>.")
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "
            "Grenzen liegen, steht im Anhang ([[step_messung]]).")
+    i.abschnitt("STEP-Viewer", marke="step_viewer")
+    i.text("<i>Datei → STEP-Viewer (Datei ansehen und prüfen) …</i> (Strg+Umschalt+O, auch in <i>Meine "
+           "Werkzeugleiste</i>) öffnet eine STEP-, IGES-, TUBX- oder BLM-Datei <b>ohne Angebot</b>. Im Angebot: "
+           "Rechtsklick auf eine Position → <i>Im STEP-Viewer öffnen …</i> zeigt die STEP-Datei, aus der sie stammt. "
+           "Der Viewer misst die Datei mit derselben STEP-Messung und denselben Einstellungen wie der Import; die "
+           "Werte sind also genau die, die eine Position übernimmt.", kurz=True)
+    i.genauer()
+    i.tabelle(["Bereich", "Inhalt"], [
+        ["<b>Datei</b> (sofort)", "Format (AP203, AP214, AP242), Einheit, Baugruppen, Bauteile, Körper, Flächen, "
+         "vermutete Normteile und geschätzte Messzeit: gelesen aus dem Text der Datei, bevor die Messung fertig ist"],
+        ["<b>Bauteilbaum</b>", "alle Körper nach Rohr/Profil, Blech, Dreh-/Frästeil, Normteil/Zukaufteil und nicht "
+         "messbar; Doppelklick = Einzelteil, Rechtsklick → <i>Art ändern</i>"],
+        ["<b>3D-Ansicht</b>", "dieselbe Ansicht wie in allen 3D-Fenstern: drehen, zoomen, verschieben, Blick "
+         "(vorn, oben, Seite, Isometrie), perspektivisch oder orthografisch, Darstellungen (Schattiert, Mit Kanten, "
+         "Drahtgitter, Durchsichtig, Technisch …), Auswahl von Körper, Fläche, Kante, Messen (Abstand, Winkel, Ø, "
+         "Radius, Wandstärke mit <i>Teil messen</i>), Schnitt und Explosion ([[ansicht_3d_bedienung]])"],
+        ["<b>Erkennung</b>", "Art, Profiltyp, Profil-ID, Abmessungen, Wandstärke, Länge, Schneidweg, Einstiche, "
+         "Innenkonturen, Gravur, Bohrungen, Gehrungen, Normteil mit Grund, Volumen, Oberfläche, Hüllquader, "
+         "Sicherheit der Erkennung, Warnungen; in der Gesamtansicht die Zusammenfassung der Datei"],
+        ["<b>Konturen</b>", "jede Kontur mit Art, Maß, Lage, Schnittlänge und Einstich; darunter Gesamtschneidweg, "
+         "Einstiche und Summe der Konturen. Eine Kontur in der Liste <b>oder im 3D anklicken</b> zeigt ihre "
+         "Berechnungswerte (Schnittlänge, Einstich, Schwenkwinkel, Anteil am Schneidweg) und hebt sie hervor"],
+        ["<b>Leistung</b>", "gemessene Zeiten: Kopf lesen, Messung (Einlesen, Analyse, Abschluss), Netze laden, "
+         "Modell aufbauen und zeichnen, Zeit bis zum ersten 3D-Bild, Zahl der Dreiecke"]], [32, 138])
+    i.liste("<b>Konturen nach Art</b> färbt Bohrungen, Langlöcher, Rechtecke/Ausschnitte, Sonderkonturen, gerade "
+            "Enden, Gehrungen/Schrägschnitte, Gravuren und nicht gelaserte Konturen (Sackbohrung, Fließloch) mit "
+            "Legende. <b>Nur Rohrlaser-Teile</b> blendet in der Gesamtansicht Normteile, Bleche und Dreh-/Frästeile "
+            "aus, im Einzelteil Anbauteile und Innenwand. <b>Dunkel</b> schaltet einen dunklen CAD-Hintergrund ein "
+            "(nur solange der Viewer offen ist; im dunklen Programm-Design ist die Ansicht ohnehin dunkel).",
+            "<b>Gegenprobe:</b> Die Spalte <i>Linie 3D</i> ist die Länge der Konturlinien im 3D-Bild, unabhängig "
+            "von der Messung zusammengezählt; ✓ heißt: sie passt zur Schnittlänge (2 %, mindestens 0,5 mm). Bei "
+            "offenen Profilen zählt eine Seite der Wand, Bohrungen im Rundrohr zeigen <i>✓ 2D-Schnitt</i> (der "
+            "Laser schneidet außen länger als konstruiert, gerechnet wird der 2D-Schnitt). Senkungen, Fließlöcher und "
+            "Gewinde vergleicht sie nicht (die Linie ist der Rand, geschnitten wird das Kernloch).",
+            "<b>Analysestufe:</b> <i>Standard</i> misst wie der Import. <i>Experte</i> rechnet dazu ein feineres "
+            "3D-Netz (Abweichung ein Viertel, feinere Rundungen) für genaueres Messen und Ansehen; alle Messwerte "
+            "bleiben gleich. Den Schnellmodus (nur Kalkulationsdaten) wählt man beim Import.",
+            "<b>Art ändern:</b> Rechtsklick im Baum oder Feld <i>Art</i> unter der Erkennung: Rohr/Profil, Blech, "
+            "Dreh-/Frästeil (wenn gemessen) oder Normteil/Zukaufteil. Mit dem Haken <i>Korrekturen für künftige "
+            "Importe merken</i> (Vorgabe an) gilt die Wahl beim nächsten Import desselben Teils wie im Prüfdialog "
+            "([[lernen]]).",
+            "<b>Ins Angebot übernehmen …</b> liest die Datei in das geöffnete Angebot (sonst als neues Angebot) mit "
+            "dem üblichen Prüfdialog; die Messung kommt aus dem Zwischenspeicher. Der Viewer selbst ändert kein "
+            "Angebot. <i>Werte kopieren</i> legt Erkennung und Konturen als Tabelle in die Zwischenablage.")
 
 
 def kapitel_optimieren(i):
