@@ -13,6 +13,7 @@ from collections import namedtuple
 Funktion = namedtuple("Funktion", "name titel text seiten datei reiter vorgabe", defaults=((), (), None, "ja"))
 
 ZUKAUF_STAMM = "funktion_zukauf_stamm"
+SCHNELLIMPORT = "funktion_schnellimport"
 
 FUNKTIONEN = (
     Funktion("funktion_blech", "Bleche und Kantteile",
@@ -89,6 +90,14 @@ FUNKTIONEN = (
              "Maschine günstiger ist, Wechsel auf die günstigste Maschine nach dem STEP-Import und der Vorschlag im "
              "Reiter Optimierung. Aus spart bei großen Angeboten viel Rechenzeit; der Knopf „Maschinen vergleichen …“ "
              "bleibt"),
+    # Patrick 24.11.2026 „den Schnellimport in den Einstellungen optional machen, wenn es nicht so viel Zeit bringt“:
+    # Vorgabe aus. Aus = jeder STEP-Import vollständig ohne Frage nach dem Importmodus, Seite „STEP-Import:
+    # Schnellimport“ und Rechtsklick „3D aus STEP nachladen …“ ausgeblendet; Positionen aus dem Schnellimport bleiben.
+    Funktion(SCHNELLIMPORT, "Schnellimport STEP (ohne 3D)",
+             "Beim STEP-Import die Wahl „Schneidweg & Zusatzarbeiten (Schnellkalkulation)“: gleiche Werte und gleiche "
+             "Kalkulation, kompakte Übersicht statt Prüfdialog, ohne 3D-Körper (weniger Arbeitsspeicher, nur wenig "
+             "schneller). Dazu die Seite „STEP-Import: Schnellimport“ und „3D aus STEP nachladen …“",
+             seiten=("e_step_ablauf",), vorgabe="nein"),
     # Vorschlag K3 (Patrick 02.11.2026 „K3b“): nur intern, Vorgabe aus
     Funktion("funktion_co2", "CO₂-Bilanz (intern)",
              "CO₂ je Teil im Preisaufbau und im Kalkulations-PDF, Spalte CO₂ bei den Werkstoffen", vorgabe="nein"),

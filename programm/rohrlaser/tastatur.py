@@ -255,8 +255,9 @@ class EnterRegel(QObject):
 def einrichten(app):
     """Einmal nach dem Anlegen der QApplication aufrufen: die Enter-Regel gilt dann in allen Dialogen."""
     if getattr(app, "_enter_regel", None) is None:
+        from . import ereignis_verteiler
         app._enter_regel = EnterRegel(app)
-        app.installEventFilter(app._enter_regel)
+        ereignis_verteiler.anmelden(app._enter_regel, (QEvent.KeyPress,), app)
     return app._enter_regel
 
 

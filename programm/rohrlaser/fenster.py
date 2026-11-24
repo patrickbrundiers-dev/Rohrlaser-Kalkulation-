@@ -1506,8 +1506,13 @@ class EinstellungenSeite(QScrollArea):
     gesperrte = frozenset()     # Admin-Schutz: diese Einstellungen grau (schutz_setzen)
     schluessel = "vorgaben"     # Navigation der Einstellungen (einstellungen_nav.GRUPPEN)
 
-    def __init__(self, db, meldung, gruppen=None, ohne=(), seite=None):
-        from . import einstellungen_ordnung as ordnung
+    # Generalüberholung 24.11.2026 (Paket 2): mit spaet=True baut die Seite ihre Felder erst, wenn sie zum ersten Mal
+    # gezeigt wird oder jemand ihre Felder braucht (felder, boxen …). Das Hauptfenster hat 29 Seiten mit über 400
+    # Feldern; bis 0.9.472 entstanden alle beim Start, obwohl meist keine einzige geöffnet wird.
+    _SPAET = frozenset(("felder", "wert_schalter", "boxen", "zeilen", "_formulare", "sterne", "zurueck", "kopf",
+                        "warnung", "hinweis", "spalten", "_spalten_lay", "zweispaltig", "geteilt", "profil_3d"))
+
+    def __init__(self, db, meldung, gruppen=None, ohne=(), seite=None, spaet=False):
         super().__init__()
         self.db, self.meldung = db, meldung
         self.seite = seite
@@ -1523,6 +1528,33 @@ class EinstellungenSeite(QScrollArea):
                     abschnitte[-1][1].append(e)
         self.liste = [e for _, liste, _ in abschnitte for e in liste]
         self.setWidgetResizable(True)
+        self._suche = ""
+        self._abschnitte = abschnitte
+        self._gebaut = False
+        if not spaet:
+            self._bauen()
+
+    def __getattr__(self, name):
+        # nur für die Teile, die erst _bauen anlegt: beim ersten Zugriff die Seite bauen
+        if name in EinstellungenSeite._SPAET and not self.__dict__.get("_gebaut", True):
+            self._bauen()
+            return getattr(self, name)
+        raise AttributeError(f"{type(self).__name__!r} hat kein Attribut {name!r}")
+
+    @property
+    def gebaut(self):
+        return self._gebaut
+
+    def showEvent(self, e):
+        if not self._gebaut:
+            self._bauen()
+            self._stufe_anwenden()
+        super().showEvent(e)
+
+    def _bauen(self):
+        from . import einstellungen_ordnung as ordnung
+        self._gebaut = True
+        seite, abschnitte = self.seite, self._abschnitte
         innen = QWidget()
         aussen = QVBoxLayout(innen)
         if seite is not None and seite.hinweis:
@@ -1553,7 +1585,6 @@ class EinstellungenSeite(QScrollArea):
         self.boxen = []
         self.zeilen = []            # (Einstellung, Formular, Zeile, Karte) für die Suche (filtern)
         self._formulare = {}        # id(Karte) -> (Formular links, rechts, [(Einstellung, Titel, Eingabe)])
-        self._suche = ""
         lokal = ordnung.lokal() if seite is not None and seite.schluessel not in ("e_arbeitsplatz", "e_navigation",
                                                                                   "e_kanten3d") \
             else ()
@@ -1614,6 +1645,8 @@ class EinstellungenSeite(QScrollArea):
         self._anordnen(False)
         self.setWidget(innen)
         self.neu_laden()
+        if self._suche.strip():     # Suche lief schon, bevor die Seite gebaut war
+            self.filtern(self._suche)
 
     def _mit_knoepfen(self, e, w):
         """Rechts neben dem Wert: ☆/★ Favorit und ↺ Standard (nur sichtbar, wenn der Wert vom Standard abweicht).
@@ -1826,6 +1859,8 @@ class EinstellungenSeite(QScrollArea):
         return n
 
     def _knoepfe_aktualisieren(self):
+        if not self._gebaut:
+            return
         sterne = getattr(self, "sterne", {})
         if not sterne:
             return
@@ -1891,6 +1926,8 @@ class EinstellungenSeite(QScrollArea):
         """Suche der Einstellungen: nur passende Einstellungen und Karten zeigen (leer = alle). Ein Treffer in einem
         eingeklappten Expertenabschnitt klappt ihn auf."""
         self._suche = suche
+        if not self._gebaut:        # gilt beim Bauen
+            return
         from .einstellungen_ordnung import kurztitel
         from .einstellungen_nav import passt
         sichtbar = {}
@@ -1961,6 +1998,12 @@ class EinstellungenSeite(QScrollArea):
         self.filtern(self._suche)           # Sichtbarkeit (Suche, Expertenkarten) neu anwenden
 
     def resizeEvent(self, e):
+        if self._gebaut:
+            self._stufe_anwenden()
+        super().resizeEvent(e)
+
+    def _stufe_anwenden(self):
+        """Karten je nach Breite teilen und/oder zweispaltig anordnen (bei jeder Größenänderung)."""
         b = self.viewport().width()
         lang = any(self._teilbar(box, b) for box in self.boxen)
         # zwei Spalten nur, wenn jede Karte in halber Breite ihre Wunschbreite hat (Auswahlen ganz lesbar); sonst
@@ -1983,7 +2026,6 @@ class EinstellungenSeite(QScrollArea):
             self.teilen(teilen, b)
             self._anordnen(zwei)
             self.widget().layout().activate()   # neue Mindestbreite gilt sofort, sonst rollt die Seite kurz quer
-        super().resizeEvent(e)
 
     def _eingabe(self, e):
         if e.art == "anteil":
@@ -2071,6 +2113,8 @@ class EinstellungenSeite(QScrollArea):
     def admin_setzen(self, an):
         """Admin-Rechte an/aus (Hauptfenster.lizenz_anwenden): Passwortfelder nur mit Admin-Rechten änderbar."""
         self.admin = bool(an)
+        if not self._gebaut:        # gilt beim Bauen (_eingabe, neu_laden)
+            return
         for w in self.felder.values():
             if isinstance(w, PasswortEingabe):
                 w.freigeben(self.admin)
@@ -2268,6 +2312,11 @@ class EinstellungenSeite(QScrollArea):
                     haupt.reiter.setTabVisible(haupt.reiter.indexOf(getattr(haupt, seite)), haupt.auftraege_an())
             if hasattr(haupt, "rechte_anwenden"):
                 haupt.rechte_anwenden()
+        if e.name == "austausch_aktiv":
+            haupt = self.window()
+            if hasattr(haupt, "austausch"):
+                haupt.reiter.setTabVisible(haupt.reiter.indexOf(haupt.austausch),
+                                           self.db.einstellung("austausch_aktiv") != "nein")
         if e.name in ("fertigung_aktiv", "fertigung_status"):
             haupt = self.window()
             if hasattr(haupt, "fertigung_anwenden"):
@@ -2302,6 +2351,8 @@ class EinstellungenSeite(QScrollArea):
         self.meldung(f"{e.titel} gespeichert.")
 
     def neu_laden(self):
+        if not self._gebaut:        # lädt beim Bauen
+            return
         self._laden = True
         k = self.db.kontext()
         for e in self.liste:
@@ -2362,6 +2413,8 @@ class EinstellungenSeite(QScrollArea):
         self._schutz_anwenden()
 
     def _schutz_anwenden(self):
+        if not self._gebaut:        # gilt beim Bauen (neu_laden)
+            return
         for name, z in getattr(self, "zurueck", {}).items():
             z.setEnabled(name not in self.gesperrte)
         for name, w in self.felder.items():
@@ -2380,12 +2433,17 @@ class EinstellungenSammlung:
 
     def __init__(self, seiten):
         self.seiten = list(seiten)
-        self.felder, self.liste = {}, []
+        self.liste, self._seite = [], {}
         for s in self.seiten:
             for e in s.liste:
-                if e.name not in self.felder:
-                    self.felder[e.name] = s.felder[e.name]
+                if e.name not in self._seite:
+                    self._seite[e.name] = s
                     self.liste.append(e)
+
+    @property
+    def felder(self):
+        """Name -> Eingabefeld (erste Seite der Einstellung). Baut dafür alle noch nicht gebauten Seiten."""
+        return {e.name: self._seite[e.name].felder[e.name] for e in self.liste}
 
     @property
     def boxen(self):
@@ -2393,7 +2451,7 @@ class EinstellungenSammlung:
 
     def seite_von(self, name):
         """Erste Seite, auf der die Einstellung steht (oder None)."""
-        return next((s for s in self.seiten if name in s.felder), None)
+        return self._seite.get(name)
 
     def neu_laden(self):
         for s in self.seiten:
@@ -2408,6 +2466,9 @@ class EinstellungenSammlung:
             s.admin_setzen(an)
 
     def findChildren(self, typ):
+        for s in self.seiten:
+            if not s.gebaut:
+                s._bauen()
         return [w for s in self.seiten for w in s.findChildren(typ)]
 
     def setEnabled(self, an):
@@ -3331,6 +3392,11 @@ class Hauptfenster(QMainWindow):
         self.reiter.addTab(self.anfragen_seite, "Anfragen")
         self.reiter.setTabVisible(self.reiter.indexOf(self.anfragen_seite), anfragen_akten.aktiv(db))
         self.anfragen_seite.neu_laden()
+        # Austausch: Austauschordner 2.0 als Datei- und Projektmanager im Programm (Patrick 24.11.2026)
+        from .austausch_seite import AustauschSeite
+        self.austausch = AustauschSeite(self)
+        self.reiter.addTab(self.austausch, self.austausch.titel)
+        self.reiter.setTabVisible(self.reiter.indexOf(self.austausch), self.db.einstellung("austausch_aktiv") != "nein")
         # Materialanfragen an Lieferanten: Historie mit Status (Materialanfragen über Outlook, 13.11.2026)
         from .materialanfragen_seite import MaterialanfragenSeite
         self.materialanfragen = MaterialanfragenSeite(self)
@@ -3386,7 +3452,7 @@ class Hauptfenster(QMainWindow):
         # Einstellungen nach Themen (Plan „Einstellungen aufräumen“, 29.10.2026): je Seite der Ordnung ein Formular
         from .einstellungen_ordnung import SEITEN as EINSTELLUNGS_SEITEN
         funktionen.db_setzen(db)
-        self.einstellungen = EinstellungenSammlung(EinstellungenSeite(db, self.meldung, seite=s)
+        self.einstellungen = EinstellungenSammlung(EinstellungenSeite(db, self.meldung, seite=s, spaet=True)
                                                    for s in EINSTELLUNGS_SEITEN)
         seite = {s.t.name: s for s in self.seiten}
         self.zeitvorgaben = ZeitvorgabenSeite(seite["stundensaetze"], seite["arbeitsschritte"])
@@ -3467,14 +3533,15 @@ class Hauptfenster(QMainWindow):
             from . import fenster_platz     # Fenster passen auf den Bildschirm, offenes Fenster bleibt vorne (E3/E6)
             self.fenster_platz = fenster_platz.einrichten(self)
             self.eingabe_waechter = EingabeWaechter(self.bereich.sitzung)  # Admin sperrt nach 15 min ohne Eingabe
-            QApplication.instance().installEventFilter(self.eingabe_waechter)
+            from . import ereignis_verteiler      # ein gemeinsamer Filter der Anwendung (B9)
+            ereignis_verteiler.anmelden(self.eingabe_waechter, EingabeWaechter.ARTEN)
             self.admin_uhr = QTimer(self)
             self.admin_uhr.setInterval(30_000)
             self.admin_uhr.timeout.connect(self.admin_ablauf)
             self.admin_uhr.start()
             from .fenster_merken import FensterMerker     # Größe, Lage, Teiler der Dialoge (Plan Bedienung B4)
             self.fenster_merker = FensterMerker(db, self)
-            QApplication.instance().installEventFilter(self.fenster_merker)
+            ereignis_verteiler.anmelden(self.fenster_merker, (QEvent.Show, QEvent.Hide, QEvent.Close))
 
     def starten(self):
         """Programmstart: Fenster maximiert (mit Taskleiste) und gleich im Reiter Angebote; danach Benutzer (beim

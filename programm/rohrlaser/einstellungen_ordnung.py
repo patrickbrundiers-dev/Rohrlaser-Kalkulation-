@@ -61,7 +61,7 @@ SEITEN = (
                         "ansicht3d_kantenstaerke ansicht3d_kantenwinkel"),
            _a("Durchsicht", "ansicht3d_deckkraft"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
-          (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
+          (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung austausch_aktiv"),
            _a("Anfragen", "anfragen_ohne_step anfragen_nachfassen_tage"),
            _a("PPEASE-Ablage (Dokumente je PPEASE-Angebotsnummer)", "ppease_ordner ppease_jahresordner ppease_ordnername "
                                                                     "ppease_praefix ppease_nummer_muster ppease_kategorien"),
@@ -181,6 +181,9 @@ SEITEN = (
            _a("TRUMPF-Programme (LST/TUBX)", "trumpf_zeit programmzeit_einstiche lst_ordner"),
            _a("Toleranzen", "step_tol_profil step_tol_gleich step_tol_kernloch step_flach_laenge "
                             "step_gekantet_anteil step_zeitlimit step_abwicklungskern", True))),
+    # Schnellimport (24.11.2026): eigene Seite („STEP-Import“ hat schon 25 Einträge), nur mit Funktion Schnellimport
+    Seite("e_step_ablauf", "STEP-Import: Schnellimport", ALLE_PLAETZE,
+          (_a("Importmodus", "step_importmodus step_importmodus_fragen"),)),
     Seite("e_dxf", "DXF-Import", ALLE_PLAETZE,
           (_a("Layer und Splitter", "dxf_weg_layer dxf_splitter dxf_farbe_gewinde dxf_farbe_senkung dxf_farbe_bohren"),
            # von „STEP-Import“ hierher (0.9.468): dort ist mit den TRUMPF-Einstellungen die Höchstzahl je Seite erreicht

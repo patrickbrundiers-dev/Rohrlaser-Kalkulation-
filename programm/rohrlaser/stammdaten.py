@@ -1728,6 +1728,11 @@ EINSTELLUNGEN = (
     # Übersicht vor dem Messen (CAD-Plan Paket 5): Baugruppen, Bauteile, Zukaufteile, geschätzte Messzeit
     Einstellung("step_vorschau", "STEP-Import: Übersicht vor dem Messen zeigen (ab 20 Körpern oder 30 s Messzeit)",
                 "STEP-Import", "auswahl", "ja", auswahl="janein"),
+    # Schnellimport (Patrick 24.11.2026 „Schneidweg & Zusatzarbeiten ohne editierbare 3D-Geometrie“, schnellimport.py)
+    Einstellung("step_importmodus", "STEP-Import: Importmodus als Vorgabe (vollständig oder Schnellkalkulation)",
+                "STEP-Import", "auswahl", "vollständig", auswahl="importmodus"),
+    Einstellung("step_importmodus_fragen", "STEP-Import: bei jedem Import nach dem Importmodus fragen", "STEP-Import",
+                "auswahl", "ja", auswahl="janein"),
     # Vorbelegung im STEP-Prüfdialog für Rohre und Profile (nicht für Bleche); leer = keine Vorgabe
     # MAT-015 eigene Werkstoff-Gleichnamen für Mail-, Formular-, Stücklisten- und STEP-Erkennung (leer = eingebaute)
     Einstellung("werkstoff_gleichnamen", "Werkstoff-Gleichnamen, z. B. 1.4301 = V2A = A2; 1.0038 = RSt37-2 "
@@ -2263,6 +2268,9 @@ EINSTELLUNGEN = (
     Einstellung("benutzer_telefon", "Telefon (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("teilen_ordner", "Gemeinsamer Ordner der Mitarbeiter (leer = nicht teilen)", "Benutzer", "ordner", ""),
     Einstellung("teilen_takt", "Automatischer Abgleich alle [min] (0 = aus)", "Benutzer", "zahl", 1.0, 0, 60),
+    # Austauschordner 2.0 (austausch_dateien.py, Patrick 24.11.2026)
+    Einstellung("austausch_aktiv", "Seite Austausch verwenden (gemeinsame Dateien, Zuordnung, Aufgaben, Versionen)",
+                "Benutzer", "auswahl", "ja", auswahl="janein"),
     Einstellung("teilen_meldung", "Windows-Meldung bei Übergaben, Anfragen, Notizen und fälligen Wiedervorlagen",
                 "Benutzer", "auswahl", "ja", auswahl="janein"),
     Einstellung("nummern_vorrat", "Angebotsnummern im Vorrat für Arbeiten ohne gemeinsamen Ordner (0 = vorläufige "
@@ -2467,7 +2475,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(n for n, z in self.profile.items() if not _archiviert(z)), "janein": ["ja", "nein"], "trumpfzeit": ["ja", "ganz", "nein"], "programmeinstiche": ["enthalten", "eigen"], "nesting": list(NESTING_AUSWAHL), "kundentyp": ["Firma", "Privatkunde", "Händler", "Lieferant"], "kundenstatus": ["Aktiv", "Inaktiv", "Gesperrt"], "waehrung": ["EUR", "CHF", "USD", "GBP", "PLN", "CZK"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(n for n, z in self.profile.items() if not _archiviert(z)), "janein": ["ja", "nein"], "importmodus": ["vollständig", "Schnellkalkulation"], "trumpfzeit": ["ja", "ganz", "nein"], "programmeinstiche": ["enthalten", "eigen"], "nesting": list(NESTING_AUSWAHL), "kundentyp": ["Firma", "Privatkunde", "Händler", "Lieferant"], "kundenstatus": ["Aktiv", "Inaktiv", "Gesperrt"], "waehrung": ["EUR", "CHF", "USD", "GBP", "PLN", "CZK"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"], "sd_quelle": list(SD_QUELLEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),

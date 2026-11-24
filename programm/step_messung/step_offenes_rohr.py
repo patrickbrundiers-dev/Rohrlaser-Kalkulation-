@@ -1085,7 +1085,7 @@ def _netz_koerper(t, koerper, ax3, abheben=0.0, art="EO"):
     from OCP.TopLoc import TopLoc_Location
     from OCP.TopoDS import TopoDS
     from OCP.BRep import BRep_Tool
-    if t.netz is None or not t.achse_global:
+    if t.netz is None or not t.achse_global or t.netz.get("nur_linien"):    # Schnellimport: keine Dreiecke
         return
     zu_datei, zu_netz = gp_Trsf(), gp_Trsf()
     zu_datei.SetTransformation(ax3)
