@@ -121,6 +121,25 @@ def _zeitanteile(z):
     return ({k: v for k, v in ber.items() if v is not None} or None), gem, n
 
 
+def _laser_an(zeilen, teile):
+    """(Laser an, Verfahren) [s] je Teil aus CONSUMPTION_TIMES Gruppe 2 (Zeit je Laserleistung; 0 W = Verfahren ohne
+    Strahl). Beide zusammen sind die berechnete Maschinenzeit (P20: 12,7 + 9,8 = 22,5 s); sonst (None, None)."""
+    an = aus = 0.0
+    gefunden = False
+    for z in zeilen:
+        if str(z.get("ConsumptionGroup")).strip() != "2":
+            continue
+        t, w = _zahl(z.get("OnTime")) or 0.0, _zahl(z.get("LaserPower")) or 0.0
+        gefunden = True
+        if w > 0:
+            an += t
+        else:
+            aus += t
+    if not gefunden or an <= 0:
+        return None, None
+    return round(an / max(teile, 1), 2), round(aus / max(teile, 1), 2)
+
+
 def _strahl(zeilen, teile):
     """Strahl-Ein-Zeit [s] je Teil aus CONSUMPTION_TIMES (Verbrauchsgruppe 1 = Schneidgas, OnTime) oder None."""
     s = sum(_zahl(z.get("OnTime")) or 0.0 for z in zeilen if str(z.get("ConsumptionGroup")).strip() == "1")
@@ -189,6 +208,8 @@ def lst_lesen(pfad=None, text=None, name=None):
         zeiten = {z.get("Data Set Name"): z for z in ab.get("TUBE_PART_TIMES") or []}
         nc = b[b.find("BEGIN_PROGRAMM"):] if "BEGIN_PROGRAMM" in b else ""
         weg, stiche = _zahl(info.get("Cutting length")), _einstiche(nc) if nc else None
+        bahn = _bahn(b, prog)
+        laser_an, verfahren = _laser_an(ab.get("CONSUMPTION_TIMES") or [], len(pt))
         if len(pt) > 1:
             hinweise.append(f"{len(pt)} Teile in einem Programm: Schneidweg und Einstiche gleichmäßig geteilt")
         fa = auftrag.get(prog) or {}
@@ -218,10 +239,74 @@ def lst_lesen(pfad=None, text=None, name=None):
                 zeiten_gemessen=gemessen, messungen=messungen,
                 maschinenzeit_s=round(_zahl(info.get("Maschinenzeit")) * 60.0, 1)
                 if _zahl(info.get("Maschinenzeit")) else None,
-                strahl_s=_strahl(ab.get("CONSUMPTION_TIMES") or [], len(pt))))
+                strahl_s=_strahl(ab.get("CONSUMPTION_TIMES") or [], len(pt)),
+                laser_an_s=laser_an, verfahren_s=verfahren))
+            _bahn_werte(teile[-1], bahn, len(pt), weg)
     if not teile:
         raise TrumpfFehler(f"{name}: kein Teil im Programm gefunden.")
     return teile
+
+
+def _bahn(block, prog):
+    """Schneidweg aus dem NC-Teil (lst_bahn) für ein Programm-Block oder None."""
+    try:
+        from . import lst_bahn
+        progs = lst_bahn.programme(block, prog)
+    except Exception:       # noqa: BLE001 – Zusatz (Patrick 24.11.2026); ohne ihn bleiben die LST-Werte wie bisher
+        from . import protokoll
+        protokoll.warnung("Schneidweg der LST nicht lesbar")
+        return None
+    return progs[0] if progs else None
+
+
+def _bahn_werte(t, bahn, teile, weg):
+    """Teil um die Werte aus dem NC-Schneidweg ergänzen: Schnittlänge am Material (wird Schneidweg), Maschinenweg
+    laut LST, Anfahrt, Restzerteilung, Konturen je Klasse (Hüllmaß, Länge) für die Konturklassen der Kalkulation."""
+    t["maschinenweg"] = round(weg / teile, 1) if weg else None
+    if bahn is None:
+        return
+    if weg and not 0.3 * weg <= bahn["schnittlaenge"] <= 1.05 * weg:
+        return      # Schneidweg passt nicht zum Maschinenweg (NC-Teil unvollständig): Werte der LST bleiben wie bisher
+    from . import lst_bahn
+    t["schnittlaenge_material"] = round(bahn["schnittlaenge"] / teile, 1)
+    t["schneidweg"] = t["schnittlaenge_material"] or t["schneidweg"]
+    t["anfahrt"], t["restzerteilung"] = round(bahn["anfahrt"] / teile, 1), round(bahn["restzerteilung"] / teile, 1)
+    t["konturen"] = bahn["einstiche"]
+    t["halbspalt"] = bahn.get("halbspalt")
+    if teile == 1:
+        t["enden"], t["innen"] = lst_bahn.konturliste(bahn)
+    if t.get("schnittlaenge_material") and weg:
+        t["hinweise"].append(f"Schneidweg am Material {t['schnittlaenge_material']:.0f} mm (Maschinenweg laut LST "
+                             f"{weg / teile:.0f} mm mit Anfahrten und Ecken)")
+
+
+# Programmdaten je Datei (Name ohne Endung, klein): beim Übernehmen aus der Messung in positionen.step_merkmale
+# ['programm'] (Laser-an-Zeit, TRUMPF-Zeit, Schneidweg); step.step_dateien trägt LST-Dateien (auch neben einer TUBX) ein
+PROGRAMMDATEN = {}
+_PROGRAMM_FELDER = ("quelle", "programm", "laser_an_s", "verfahren_s", "zeit_s", "maschinenweg", "schnittlaenge_material",
+                    "einstiche", "stueck", "maschine")
+
+
+def programm_merken(pfad, auch=()):
+    """LST-Datei lesen und ihre Programmdaten unter ihrem Namen (und den Namen in auch, z. B. der TUBX daneben)
+    merken, wenn sie genau ein Teil enthält. Ergebnis: die Daten oder None."""
+    try:
+        teile = lst_lesen(pfad)
+    except TrumpfFehler:
+        return None
+    if len(teile) != 1:
+        return None
+    d = {k: teile[0].get(k) for k in _PROGRAMM_FELDER if teile[0].get(k) not in (None, "")}
+    for name in (Path(pfad).stem, *auch):
+        PROGRAMMDATEN[str(name).lower()] = d
+    return d
+
+
+def programmdaten(datei):
+    """Gemerkte Programmdaten zur Datei (Name oder Pfad einer gemessenen Datei) oder None."""
+    if not datei:
+        return None
+    return PROGRAMMDATEN.get(Path(str(datei)).stem.lower())
 
 
 # ----------------------------------------------------------------------------------------------------------- TUBX

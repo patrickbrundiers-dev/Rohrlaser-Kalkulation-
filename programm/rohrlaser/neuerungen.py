@@ -21,6 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.468", "<b>Programmierter Schneidweg und Laserzeit aus der TRUMPF-LST</b> ([[trumpf_programm]]): Das "
+                "Programm liest den Schneidweg aus dem NC-Teil der LST wie das Abwicklungsbild der "
+                "Programmiersoftware, je Kontur getrennt in Anfahrt, Schnitt, Trennschnitt und Restzerteilung, und "
+                "versetzt ihn um die halbe Schnittfuge zur Teilkante. Als Schneidweg gilt jetzt die Schnittlänge am "
+                "Material; die <i>Cutting length</i> der LST (mit Anfahrten und Kopfweg um die Ecken) steht als "
+                "Maschinenweg im Bericht. Jede Kontur wird groß, mittel oder klein eingeteilt, der Bericht nennt "
+                "Anzahl und Länge je Klasse. Eine LST mit einem Teil wird als exaktes 3D-Rohr gebaut und wie eine "
+                "STEP-Datei gemessen (auch die TUBX daneben nimmt das Teil aus der LST). <b>Laserzeit</b>: Die "
+                "Laser-an-Zeit der LST ist die reine Laserzeit (Einstiche enthalten), Verfahren, Drehen, Nebenzeit "
+                "und Entladen rechnet das Programm wie bisher dazu. Einstellungen unter STEP-Import, "
+                "TRUMPF-Programme. LST-Dateien lassen sich jetzt auch wie STEP-Dateien ziehen und im Ablagefeld "
+                "wählen. BPF-Programme zeigen ihre Geschwindigkeitsstufen.",
+     "TRUMPF-LST: Schneidweg am Material, Konturklassen, 3D-Messung, Laser-an-Zeit als reine Laserzeit"],
     ["0.9.467", "<b>12 m nur noch mit echtem Kostenvorteil</b> ([[lieferlaengen]]): Eine zentrale Entscheidung "
                 "vergleicht 6 m, andere Lieferlängen und 12 m mit Zuschnitt über die Gesamtkosten (Material, "
                 "Beladungen, Zuschnitt, Handhabung langer Stangen, verwertbare Reste nur mit Lager und Reststücken). "

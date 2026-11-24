@@ -283,6 +283,9 @@ def lies_step_info(pfad):
     if _Path(str(pfad)).suffix.lower() == ".tubx":      # TRUMPF TubeCAM (Patrick 20.11.2026): Netz wie STEP messen
         from step_tubx import lies_tubx_info
         return lies_tubx_info(pfad)
+    if _Path(str(pfad)).suffix.lower() == ".lst":      # TRUMPF-LST (Patrick 24.11.2026): aus dem Schneidweg
+        from step_lst import lies_lst_info
+        return lies_lst_info(pfad)
     if _Path(str(pfad)).suffix.lower() in (".bpf", ".artube"):   # BLM ArTube/BPF (Patrick 24.11.2026) wie STEP
         from step_blm import lies_blm_info
         return lies_blm_info(pfad)
@@ -350,7 +353,7 @@ def lies_step_info(pfad):
 
 
 IGES_ENDUNGEN = (".igs", ".iges")
-CAD_ENDUNGEN = (".step", ".stp") + IGES_ENDUNGEN + (".tubx", ".bpf", ".artube")   # TUBX: step_tubx, BLM: step_blm
+CAD_ENDUNGEN = (".step", ".stp") + IGES_ENDUNGEN + (".tubx", ".bpf", ".artube", ".lst")  # step_tubx, step_blm, step_lst
 
 
 def ist_iges(pfad):
