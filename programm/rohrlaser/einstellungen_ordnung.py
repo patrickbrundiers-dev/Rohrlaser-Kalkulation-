@@ -176,11 +176,14 @@ SEITEN = (
           (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_zukauf_begriffe step_benennung step_werkstoff werkstoff_gleichnamen "
                            "biegerohr_faktor"),
            _a("Bohrungen", "bohren_laser fliessloch_laser bohr_gewinde_gaenge bohr_flowdrill_min bohr_flowdrill_faktor"),
-           _a("Dateien", "step_kopieren step_vorschau"),
            _a("TRUMPF-Programme (LST/TUBX)", "trumpf_zeit lst_ordner"),
            _a("Testfunktion", "pdf_zeichnung"),
            _a("Toleranzen", "step_tol_profil step_tol_gleich step_tol_kernloch step_flach_laenge "
                             "step_gekantet_anteil step_zeitlimit", True))),
+    # Schnellimport (24.11.2026): eigene Seite, „STEP-Import“ hatte schon 25 Einträge
+    Seite("e_step_ablauf", "STEP-Import: Ablauf", ALLE_PLAETZE,
+          (_a("Importmodus", "step_importmodus step_importmodus_fragen"),
+           _a("Dateien", "step_kopieren step_vorschau"))),
     Seite("e_dxf", "DXF-Import", ALLE_PLAETZE,
           (_a("Layer und Splitter", "dxf_weg_layer dxf_splitter dxf_farbe_gewinde dxf_farbe_senkung dxf_farbe_bohren"),)),
     Seite("e_lager", "Lager", ALLE_PLAETZE,

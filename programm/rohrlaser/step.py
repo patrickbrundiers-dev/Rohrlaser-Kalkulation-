@@ -2507,6 +2507,9 @@ def kant_gegenprobe(m):
     verglichen. Ergebnis (passt, Text) oder None (kein Kantteil mit Abwicklung oder ohne Netz)."""
     if m.get("profilform") != "Blech gekantet" or not m.get("_netz"):
         return None
+    from . import schnellimport
+    if schnellimport.nur_linien(m["_netz"]):       # Schnellimport ohne Dreiecke: nicht vergleichbar
+        return None
     b = blech(m)
     if not b or not isinstance(b.get("abwicklung"), dict):
         return None
