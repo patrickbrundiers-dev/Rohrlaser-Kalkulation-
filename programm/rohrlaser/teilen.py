@@ -188,8 +188,10 @@ def _protokoll_einrichten(con):
     con.execute(f"CREATE TABLE IF NOT EXISTS {HERKUNFT} (wert TEXT)")
     con.execute(f"DELETE FROM {HERKUNFT}")      # nach einem abgebrochenen Abgleich: wieder „hier geändert“
     tabellen = set(db_verbindung.tabellen(con))
-    for name, tabelle in db_trigger.namen(con, "_protokoll"):
-        db_trigger.loeschen(con, name, tabelle)
+    # Generalüberholung 24.11.2026: früher wurden zuerst alle rund 200 Protokoll-Trigger gelöscht und danach neu
+    # angelegt (gut 400 Anweisungen bei jedem Öffnen, ~0,2 s). Jetzt bleiben unveränderte stehen (db_trigger prüft
+    # Rumpf und Definition) und am Ende fallen nur die weg, die es nicht mehr geben soll – derselbe Endzustand.
+    gewollt = set()
     platz = "(SELECT replace(wert, '\"', '') FROM einstellungen WHERE name='teilen_installation')"
     werte = (f"{db_trigger.jetzt_text(con)}, (SELECT wert FROM {HERKUNFT} LIMIT 1), {platz}")
     herkunft = f"(SELECT wert FROM {HERKUNFT} LIMIT 1)"
@@ -204,6 +206,7 @@ def _protokoll_einrichten(con):
         rumpf.append(f"INSERT INTO {PROTOKOLL} (tabelle, uid, art, zeit, herkunft, platz) "
                      f"SELECT {tabelle_text}, k, '{als}', {werte} FROM (SELECT {uid} AS k) AS z WHERE k IS NOT NULL")
         db_trigger.trigger(con, f"{name}_protokoll", tabelle, art, rumpf, wann=wann or None)
+        gewollt.add((f"{name}_protokoll", tabelle))
 
     for t in GETEILT:
         if t.name not in tabellen:
@@ -229,6 +232,9 @@ def _protokoll_einrichten(con):
             trigger(f"netze_{art.lower()}", "netze", art, "'angebote'",
                     f"(SELECT a.uid FROM angebote a JOIN positionen p ON p.angebot_id = a.id "
                     f"WHERE p.id = {zeile}.position_id)", als="geaendert")
+    for name, tabelle in db_trigger.namen(con, "_protokoll"):
+        if (name, tabelle) not in gewollt:
+            db_trigger.loeschen(con, name, tabelle)
     con.execute(f"DELETE FROM {PROTOKOLL} WHERE zeit < {db_trigger.jetzt_text(con, PROTOKOLL_TAGE)}")
 
 
