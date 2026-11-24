@@ -5365,7 +5365,11 @@ def kapitel_step(i):
             "Enden, Gehrungen/Schrägschnitte, Gravuren und nicht gelaserte Konturen (Sackbohrung, Fließloch) mit "
             "Legende. <b>Nur Rohrlaser-Teile</b> blendet in der Gesamtansicht Normteile, Bleche und Dreh-/Frästeile "
             "aus, im Einzelteil Anbauteile und Innenwand. <b>Dunkel</b> schaltet einen dunklen CAD-Hintergrund ein "
-            "(nur solange der Viewer offen ist; im dunklen Programm-Design ist die Ansicht ohnehin dunkel).",
+            "(nur solange der Viewer offen ist; im dunklen Programm-Design ist die Ansicht ohnehin dunkel). "
+            "<b>Farben nach Prüfung</b> färbt die Gesamtansicht nach der Geometrieprüfung (grün korrekt, gelb "
+            "unsicher, blau reparierbar, rot fehlerhaft, dunkelgrau ausgeschlossene Normteile); auffällige Körper "
+            "stehen auch im Baum farbig, und beim Anklicken zeigt das Feld Erkennung Toleranz, Fehler, Reparatur-Probe "
+            "und den Abgleich mit den Prüfwerten des CAD (siehe [[geometriepruefung]]).",
             "<b>Gegenprobe:</b> Die Spalte <i>Linie 3D</i> ist die Länge der Konturlinien im 3D-Bild, unabhängig "
             "von der Messung zusammengezählt; ✓ heißt: sie passt zur Schnittlänge (2 %, mindestens 0,5 mm). Bei "
             "offenen Profilen zählt eine Seite der Wand, Bohrungen im Rundrohr zeigen <i>✓ 2D-Schnitt</i> (der "

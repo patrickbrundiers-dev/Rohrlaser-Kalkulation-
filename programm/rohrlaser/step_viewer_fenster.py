@@ -16,13 +16,14 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QBrush, QKeySequence
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QFileDialog, QHBoxLayout,
                                QHeaderView, QLabel, QMainWindow, QMenu, QProgressBar, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QToolBar, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
 from . import step_viewer as sv
+from . import stil
 from .ansicht3d import Ansicht3DMitKnoepfen
 
 GESAMT, EINZEL = "Gesamtansicht", "Einzelteil"
@@ -118,6 +119,9 @@ class StepViewer(QMainWindow):
         self.aktionen["farben"].setChecked(True)
         aktion("relevant", "Nur Rohrlaser-Teile", lambda: self.zeigen(self.gezeigt), None, "Gesamtansicht: Normteile, "
                "Bleche und Dreh-/Frästeile ausblenden; Einzelteil: Anbauteile und Innenwand ausblenden", check=True)
+        aktion("pruefung", "Farben nach Prüfung", lambda: self.zeigen(None), None, "Gesamtansicht nach der "
+               "Geometrieprüfung färben: grün korrekt, gelb unsicher, blau reparierbar, rot fehlerhaft, dunkelgrau "
+               "ausgeschlossene Normteile (Prüfprotokoll: Körper anklicken)", check=True)
         aktion("dunkel", "Dunkel", self._dunkel, None, "Dunkler Hintergrund der 3D-Ansicht (CAD)", check=True)
         leiste.addSeparator()
         aktion("uebernehmen", "Ins Angebot übernehmen …", self.uebernehmen, None, "Die Datei wie mit „STEP "
@@ -348,6 +352,11 @@ class StepViewer(QMainWindow):
             kind = QTreeWidgetItem([sv.name(m), form, sv._dez(sv._f(m, "laenge"), 1) if sv._f(m, "laenge") else ""])
             kind.setData(0, Qt.UserRole, i)
             kind.setToolTip(0, m.get("pfad") or sv.name(m))
+            st = sv.pruef_status(m)
+            if st and st != "korrekt" and g != sv.NORMTEIL:     # Geometrieprüfung: auffällige Körper farbig
+                from .importanalyse_dialog import STATUS_FARBE
+                kind.setForeground(0, QBrush(stil.farbe(STATUS_FARBE[st])))
+                kind.setToolTip(0, f"{m.get('pfad') or sv.name(m)}\nGeometrie {st}")
             gruppen[g].addChild(kind)
         for g in sv.GRUPPEN:
             if g in gruppen:
@@ -403,9 +412,12 @@ class StepViewer(QMainWindow):
             alle = range(len(mes.messwerte))
             if self.aktionen["relevant"].isChecked():
                 alle = [k for k in alle if sv.gruppe(mes.messwerte[k]) == sv.ROHR]
-            netz, ohne = sv.gesamt_netz(mes, list(alle))
+            nach = self.aktionen["pruefung"].isChecked()
+            netz, ohne = sv.gesamt_netz(mes, list(alle), nach_pruefung=nach)
             n = len(list(alle))
-            info = (f"{n} Körper in Einbaulage, gleiche Teile in gleicher Farbe, Normteile dunkelgrau. Körper anklicken "
+            info = (f"{n} Körper in Einbaulage, "
+                    + ("Farbe nach Geometrieprüfung (grün korrekt, gelb unsicher, blau reparierbar, rot fehlerhaft)"
+                       if nach else "gleiche Teile in gleicher Farbe") + ", Normteile dunkelgrau. Körper anklicken "
                     "= Eigenschaften, Doppelklick im Baum = Einzelteil mit Konturen."
                     + (f" {ohne} Körper ohne Einbaulage fehlen." if ohne else ""))
             self._anzeigen(netz, "", info, erstes)

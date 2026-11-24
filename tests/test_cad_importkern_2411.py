@@ -190,6 +190,7 @@ def _():
         aus = tmp / f"m{n}.txt"
         subprocess.run([sys.executable, str(HIER.parent / "programm" / "step_messung" / "step_messen.py"),
                         "--ausgabe", str(aus), "--json", str(tmp / f"m{n}.json"), "--prozesse", "1",
+                        "--netze", str(tmp / f"netze{n}"),
                         str(P / "P02_RE60x40x2_Pruefwerte_falsch.step"), str(P / "P05_RE60x40x2_doppelt.step")],
                        check=True, capture_output=True, timeout=600)
         d = json.loads((tmp / f"m{n}.json").read_text(encoding="utf-8"))
@@ -201,7 +202,7 @@ def _():
     assert d2["genauigkeit"]["cad_abgleich"] == {"abweichung": 1} and d5["genauigkeit"]["doppelte_koerper"] == 1
     assert d5["koerper"][1]["geometriepruefung"]["doppelt_zu"] == 1
     from rohrlaser import step
-    mw = step.lies_messwerte(tmp / "m1.txt")
+    mw = step.lade_netze(step.lies_messwerte(tmp / "m1.txt"), tmp / "netze1")
     assert json.loads(mw[0]["pruefung"])["cad_referenz"]["status"] == "abweichung", mw[0]["pruefung"]
     assert json.loads(mw[0]["pruefung_datei"])["schema"] == "AP214"
     globals()["MW"] = mw
@@ -230,6 +231,29 @@ def _():
     assert "Prüfwerte des Original-CAD" in d.pruefung_text.toHtml()
     assert d.pruefung_tabelle.item(0, 3).foreground().color().name().lower() == \
         iad.stil.farbe(iad.STATUS_FARBE["fehlerhaft"]).name().lower()
+
+
+@fall("STEP-Viewer: Prüfwerte beim Anklicken, Übersicht, Farben nach Prüfung im 3D")
+def _():
+    from types import SimpleNamespace
+    from rohrlaser import step_viewer as sv
+    from rohrlaser.ansicht3d import baugruppe
+    mw = globals()["MW"]
+    z = dict(sv.pruef_zeilen(mw[0]))
+    assert z["Geometrieprüfung"] == "fehlerhaft" and z["CAD-Prüfwerte"].startswith("abweichung"), z
+    assert dict(sv.pruef_zeilen(mw[2]))["Doppelt"] == "liegt deckungsgleich auf Körper 1"
+    assert ("Geometrieprüfung", "fehlerhaft") in sv.erkennung(mw[0])
+    u = dict(sv.pruef_uebersicht(SimpleNamespace(messwerte=mw)))
+    assert u["Geometrieprüfung"] == "1 korrekt, 1 unsicher, 1 fehlerhaft", u
+    netze = [m.get("_netz") for m in mw]
+    assert all(netze), "keine Netze"
+    farbe = {n: sv.PRUEF_ART[sv.pruef_status(m)] for n, m in enumerate(mw)}
+    netz, _ = baugruppe(netze, pruefung=farbe)
+    assert {"QF", "QK", "QU"} <= set(netz["t"]), set(netz["t"])
+    netz, _ = baugruppe(netze, pruefung=farbe, normteile={0})
+    assert "QF" not in netz["t"] and "NT" in netz["t"]                   # Zukauf bleibt ausgeschlossen (grau)
+    netz, _ = baugruppe(netze)
+    assert not {"QF", "QK", "QU"} & set(netz["t"])                       # ohne Schalter wie bisher
 
 
 print("Alles in Ordnung" if not fehler else f"{fehler} Fehler")
