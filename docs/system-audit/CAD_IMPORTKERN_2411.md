@@ -125,24 +125,80 @@ Ablauf (`step_messung/step_geometrie.py`, Programm startet `STEP-Import.exe` = `
 | `rohrlaser/importanalyse_dialog.py` | Reiter Geometrieprüfung (Ampel je Datei, Tabelle, Protokoll), Zukaufteile grau |
 | `werkzeuge/step_benchmark.py` | `vergleich --ohne FELD …` (neue Felder beim Bitgleich-Vergleich auslassen) |
 | `tests/erzeuge_pruefteile_2411.py`, `tests/step_pruefung/` (8 STEPs) | Prüfteile mit bekannten Sollwerten |
-| `tests/test_cad_importkern_2411.py` | 13 Fälle (in `tests/alle.py`) |
+| `tests/test_cad_importkern_2411.py` | 14 Fälle (in `tests/alle.py`) |
+| `rohrlaser/step_viewer.py`, `step_viewer_fenster.py`, `ansicht3d.py` | Knopf „Farben nach Prüfung“, Prüfwerte beim Anklicken, Übersicht je Datei |
 | Bedienungsanleitung | Abschnitt „Geometrieprüfung und Prüfwerte des CAD“ |
 
 ## 6. Benchmark vorher/nachher
 
-BENCHMARK_TABELLE
+Gemessen mit `werkzeuge/step_benchmark.py` auf diesem Rechner (Cloud, 4 Kerne), Ausgangsstand = main vor diesem PR.
+Vergleich mit `vergleich ALT NEU --ohne geometriepruefung genauigkeit schema_version` (nur die neuen Felder sind
+ausgenommen, alle übrigen Messwerte werden Zeichen für Zeichen verglichen).
+
+**126 Test-STEPs** (alle Testordner, inkl. 8 neue Prüfteile):
+
+| | vorher | nachher |
+|---|---:|---:|
+| Messwerte gleich | – | **126 von 126** (bitgleich) |
+| Summe Zeit | 365,8 s | 371,1 s (+1,4 %) |
+| RAM je Datei | ~300 MB | ~299 MB |
+
+**8 echte Kunden-STEPs** (aus Supportpaketen):
+
+| Datei | Körper | vorher s | nachher s | RAM vorher/nachher MB | Messwerte |
+|---|---:|---:|---:|---:|---|
+| 013dda55 | klein | 2,9 | 3,2 | 300 / 300 | gleich |
+| 15c5a561 | klein | 2,6 | 2,6 | 299 / 300 | gleich |
+| c04fe4c0 | klein | 6,1 | 5,9 | 299 / 285 | gleich |
+| 21cf4d1e | mittel | 16,1 | 16,4 | 309 / 309 | gleich, **+1 Hinweis „deckungsgleich doppelt“** |
+| 84f9a0c9 | mittel | 29,7 | 32,7 | 308 / 296 | gleich |
+| 462679ba | mittel | 58,4 | 68,6 | 305 / 296 | **1 Rohr vorher „nicht messbar“, jetzt gemessen** (siehe 7) |
+| 3859869a Trailer | 218 | 1348,9 | 1380,6 | 687 / 596 | gleich bis auf Rundungsrauschen 1e-16 (siehe unten) |
+| 93ce4136 | groß | 1744,4 | 1850,2 | 3045 / 2794 | siehe unten |
+
+Die Zeiten der großen Dateien schwanken auf der Cloud-Maschine um ±5 %; die reine Prüfzeit steht im Tempo-Protokoll
+(`pruefen_s`) und liegt bei den Testdateien bei rund 1,3 s gesamt.
 
 ## 7. Genauigkeitsvergleich
 
-GENAUIGKEIT_TABELLE
+Was sich an den Messwerten ändert, ist gewollt und begründet:
+
+1. **462679ba, Körper 5 (Rundrohr Ø 42,4 × 1426,2 mm):** vorher „nicht messbar“ (OpenCascade meldet 2 ungültige
+   Flächen, kein Profilquerschnitt gefunden). Die Reparatur-Probe an einer Kopie ergibt **Klasse 1** (Hülle, Volumen,
+   Oberfläche und Schwerpunkt unverändert, Abweichung 0,0000 mm, Toleranz danach 0,0003 mm). Nur in diesem Fall wird
+   die reparierte Kopie gemessen; das Teil steht trotzdem auf „prüfen“ mit dem Hinweis „mit sicher reparierter Kopie
+   gemessen“. Vorher musste das Rohr von Hand angelegt werden.
+2. **Doppelte Körper:** 21cf4d1e (1 Rohr) und 93ce4136 (1 Kantteil) enthalten Körper, die exakt deckungsgleich auf
+   einem anderen liegen (zweimal eingefügt). Sie werden weiter gezählt (nie still gelöscht), bekommen aber den Hinweis
+   „Anzahl prüfen“.
+3. **Prüfteile mit bekannten Sollwerten** (`tests/step_pruefung`): CAD-Prüfwerte richtig → „bestätigt“ (Abweichung
+   < 0,001 %), Volumen 2 % falsch → „abweichung“/fehlerhaft, Zoll-Datei → Prüfwerte richtig umgerechnet, Genauigkeit
+   0,05 mm → „unsicher“, offene Schale → „fehlerhaft“, keine Reparatur (es würde Geometrie erfunden).
+
+Ergebnis der Prüfung über alle 126 Test-STEPs (223 Körper): 215 korrekt, 4 unsicher (Flächenmodelle genäht, grobe
+Genauigkeit, Doppelter), 4 fehlerhaft (3 offene Flächenmodelle, 1 falsche CAD-Prüfwerte); alle Toleranzen „fein“
+(≤ 0,001 mm). Schemas: AP214 129, AP242 2, AP203 1.
 
 ## 8. Performancevergleich
 
-PERFORMANCE_TEXT
+- Mehrzeit durch die Prüfung: +1,4 % auf 126 Test-STEPs, +2 bis +6 % bei den großen Kunden-Baugruppen (innerhalb
+  der Messschwankung der Cloud-Maschine bei den großen Dateien). Bei 462679ba kommen die 10 s fast ganz aus der
+  zusätzlichen Messung des vorher nicht messbaren Rohrs.
+- RAM: nicht höher; bei den großen Dateien sogar niedriger (93ce4136 3045 → 2794 MB), weil die Prüfung keine Netze
+  erzeugt und die Reparatur nur an Kopien von ungültigen Körpern läuft.
+- Schutz gegen Ausreißer: Reparatur-Probe nur bis 5000 Flächen, Fehlerart-Suche je Fläche nur bis 300 Flächen,
+  CAD-Prüfwerte nur bis 100 MB Dateigröße.
+- Schneller wird der Import durch diesen PR nicht; das ist Aufgabe von #643/#651 und dem Schnellimport.
 
 ## 9. Testergebnisse
 
-TEST_TEXT
+- Neu: `tests/test_cad_importkern_2411.py` mit 14 Fällen (Datei-Kopf, Toleranzstufen, CAD-Prüfwerte inkl. Zoll,
+  Doppelte, offene Schale, Reparatur Klasse 1 und 3, Messung mit reparierter Kopie, TSV-Spalten, JSON 1.31,
+  Importanalyse-Reiter, Viewer-Farben) – grün, in `tests/alle.py`.
+- Grün: test_step_referenz (58/58), test_step_ergebnis, test_step_importfehler, test_step_robust, test_step_leistung,
+  test_step_viewer, test_importanalyse_3d, test_drehfraes, test_teilmessung_m3, test_step_benchmark,
+  test_quellcode_schutz, test_anleitung, test_ansicht, test_dunkelmodus, test_hell_dunkel; ruff sauber.
+- Benchmark: 126/126 Test-STEPs bitgleich, Kunden-STEPs siehe Abschnitt 6.
 
 ## 10. Noch bestehende Einschränkungen
 
@@ -153,8 +209,6 @@ TEST_TEXT
   nur bei Einzelkörpern (Bauteil-Koordinaten). Dateien über 100 MB: Prüfwerte werden nicht ausgewertet (Hinweis).
 - Die Test-STEPs stammen alle aus OpenCascade (Genauigkeit 1e-7 mm, keine Prüfwerte). Echte Exporte aus Inventor,
   SolidWorks, Creo, NX mit eingeschalteten Validierungseigenschaften fehlen noch als Referenz.
-- Farbige Darstellung im 3D: in der Importanalyse über die Tabelle; Einfärben im neuen STEP-Viewer folgt nach dem
-  Merge von #642 (gleiche Statusfarben).
 - Tempo: dieser PR macht den Import nicht schneller (Abschnitt 8); die Tempo-Arbeit läuft in #643 und im Schnellimport.
 
 ## 11. Empfehlungen für die nächste Entwicklungsstufe
@@ -163,7 +217,8 @@ TEST_TEXT
    in `tests/step_pruefung` aufnehmen; der Abgleich prüft dann automatisch gegen das Quell-CAD.
 2. **read.maxprecision begrenzen**: Test mit `read.maxprecision.mode = Forced`, 0,01 mm auf echten Dateien. Ändert
    Messwerte (nicht bitgleich), daher nur nach Patricks Freigabe.
-3. **STEP-Viewer**: Statusfarben und Prüfprotokoll beim Anklicken (nach #642).
+3. **Reparierte Kopie auch für die Kontur-Ausgabe**: heute nur Messung; DXF/Abwicklung aus der Kopie erst nach
+   Vergleich der Konturen mit dem Original (Grundregel 100 % STEP-Treue).
 4. **Netzformate** (STL, OBJ, 3MF): nur Anzeige, nie Grundlage für Maße; OCCT liest STL/OBJ/glTF, 3MF nicht.
    SAT, Parasolid X_T, JT gibt es für OCCT nur als kostenpflichtige Zusatzmodule – Kunden um STEP AP214/AP242 bitten.
 5. **Lokale KI** nur als Erkennungsschicht (Normteil/Art), ihre Vorschläge mit der Geometrieprüfung gegenprüfen; Maße
