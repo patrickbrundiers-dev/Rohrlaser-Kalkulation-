@@ -756,6 +756,12 @@ class OrdnerAblage:
         neu = self.kopieren(akte, pfade, herkunft=weitere.pop("herkunft", None))
         if neu:
             self.ereignis(akte, DATEI_DAZU, dateien=neu, jetzt=jetzt, **weitere)
+        elif (weitere.get("nachrichten_id") and weitere["nachrichten_id"] not in akte.stand["mids"]) or \
+                (weitere.get("internet_id") and weitere["internet_id"] not in akte.stand["internet_ids"]):
+            # 24.11.2026: gleicher Inhalt schon in der Akte (z. B. dieselbe Mail auf zweitem Weg), die Outlook-Mail
+            # muss trotzdem zur Akte gehören, sonst wird sie nie verschoben und bei jedem Abruf neu geholt
+            weitere.pop("antwort", None)
+            self.ereignis(akte, DATEI_DAZU, dateien=[], jetzt=jetzt, **weitere)
         return [d["name"] for d in neu]
 
     def kopieren(self, akte, pfade, herkunft=None, vorhanden=None):
@@ -1344,6 +1350,8 @@ def verlauf_text(e):
         t += f": {neu}" if neu else ""
     elif a == VERSENDET:
         t += f": {neu}" + (f" an {e['an']}" if e.get("an") else "")
+    elif a == DATEI_DAZU and not e.get("dateien"):
+        t = "Outlook-Mail zugeordnet (Inhalt schon in der Anfrage)"
     elif a == DATEI_DAZU:
         t = ("Antwort des Kunden" if e.get("antwort") else t) + ": " + ", ".join(
             d.get("name", "") for d in e.get("dateien", []))

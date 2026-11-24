@@ -1549,8 +1549,9 @@ def kapitel_angebote(i):
             "zu diesem Kunden. Die Regeln stehen im Fenster <i>Outlook …</i> unter <i>Zuordnungsregeln</i> und lassen "
             "sich dort löschen. Der Kundenstamm wird dabei nie geändert.",
             "<b>Doppelt und Antworten</b>: Kommt dieselbe Kundenmail auf zwei Wegen (direkt und weitergeleitet), "
-            "entsteht keine zweite Anfrage. Antworten erkennt das Programm auch an den Kopfzeilen der Mail, ohne AW: im "
-            "Betreff.",
+            "entsteht keine zweite Anfrage. Die zweite Mail gehört trotzdem zur Anfrage und wird in Outlook mit ihr "
+            "verschoben (nach In Bearbeitung, Erledigt …), auch wenn ihr Inhalt schon in der Anfrage steht. Antworten "
+            "erkennt das Programm auch an den Kopfzeilen der Mail, ohne AW: im Betreff.",
             "<b>Interne Notizen bleiben intern</b>: Ist die Anfrage intern weitergeleitet, öffnen <i>Rückfrage</i> und "
             "<i>Angebot per E-Mail</i> eine neue Mail an den Kunden, nie eine Antwort auf die interne Mail. So geht "
             "der interne Verlauf nicht mit.")
