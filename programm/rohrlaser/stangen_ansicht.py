@@ -13,7 +13,7 @@ Farben je Position wie im Stangenbild (stil.TEIL_FARBEN), Rest grau, Greiferrest
 hervorgehobenes Teil orange. Die Abwicklung rechnet stangen_abwicklung.py.
 """
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QCursor, QFont, QPainter, QPainterPath, QPen, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy,
                                QStackedWidget, QToolTip, QVBoxLayout, QWidget)
 
@@ -93,6 +93,196 @@ def _tipp_stange(s):
 
 def _punkt(ereignis):
     return ereignis.position() if hasattr(ereignis, "position") else QPointF(ereignis.pos())
+
+
+# ---------------------------------------------------------------------------------------------- gemeinsame Zeichnung
+# Nesting-Arbeitsplatz 2.0 (Patrick 24.11.2026: „wie in der Optimierung anzeigen, mit Gehrungen ineinander und allem,
+# was dazu gehört“; „Stangenbild weiterentwickeln und detaillierter machen“): eine Zeichnung je Stange für den Reiter
+# Stangenbild und den Nesting-Arbeitsplatz. Höhe: BALKEN_OBEN Beschriftung, Balken, MASS_HOEHE Maßkette, LINEAL_HOEHE.
+GRUEN_INEINANDER = "#1E7B34"
+MASS_HOEHE, LINEAL_HOEHE = 15, 12
+
+
+def letzter_schnitt(s):
+    """Schnittfuge hinter dem letzten Teil [mm]: Schnittverlust der Stange minus der Trennungen zwischen den Teilen."""
+    teile = s["teile"]
+    zwischen = sum(max(0.0, b["von"] - a["bis"]) for a, b in zip(teile, teile[1:]))
+    return max(0.0, float(s.get("verlust") or 0.0) - zwischen) if teile else 0.0
+
+
+def bereiche(s):
+    """Abschnitte einer Stange des Schnittplans: [(art, von, bis, Teil-Dict oder None)] mit art 'end' | 'teil' |
+    'schnitt' | 'rest' | 'greif', lückenlos von 0 bis zur Stangenlänge (Maße wie gespeichert)."""
+    out = [("end", 0.0, float(s["end"]), None)]
+    pos = float(s["end"])
+    for t in s["teile"]:
+        if t["von"] > pos + 1e-6:
+            out.append(("schnitt", pos, float(t["von"]), None))
+        out.append(("teil", float(t["von"]), float(t["bis"]), t))
+        pos = float(t["bis"])
+    ende = float(s["stange"] - s["greif"])
+    if s["teile"]:
+        k = min(letzter_schnitt(s), max(0.0, ende - pos))
+        if k > 0:
+            out.append(("schnitt", pos, pos + k, None))
+            pos += k
+    if ende > pos + 1e-6:
+        out.append(("rest", pos, ende, None))
+    out.append(("greif", max(pos, ende), float(s["stange"]), None))
+    return out
+
+
+def rest_regel(einst_holen):
+    """Regel für die Restfarbe im Stangenbild: f(Stange) -> True (Rest verwertbar, grün) / False (Verschnitt, rot)
+    wie nesting.verwertbar: mindestens rest_min_laenge und nach Endbeschnitt, Greiferrest und einem Schnitt noch
+    rest_min_nutz. einst_holen() liefert die Einstellungen des Angebots."""
+    from . import nesting
+
+    def regel(s):
+        einst = einst_holen() or {}
+        min_rest = rechnen.einstellung_wert(einst, "rest_min_laenge") or 0.0
+        min_nutz = rechnen.einstellung_wert(einst, "rest_min_nutz")
+        if not s["teile"]:
+            return None
+        rest = s["stange"] - max(t["bis"] for t in s["teile"]) - letzter_schnitt(s)
+        bedarf = max(min_rest, s["end"] + s["greif"] + letzter_schnitt(s) + max(min_nutz or nesting.REST_MIN_NUTZ, 1e-6))
+        return rest + 1e-6 >= bedarf
+    return regel
+
+
+def stange_zeichnen(p, s, x0, yb, hb, m, farben, markiert=None, rest_verwertbar=None, mass=True, lineal=True,
+                    gewaehlt=None, schrift=None):
+    """Eine Stange s (Format des Schnittplans) ab x0 [px], Balken oben yb, Höhe hb, Maßstab m [px/mm] zeichnen:
+    Endbeschnitt grau, Teile in Positionsfarbe mit schrägen Schnittkanten (Gehrung), Gehrungen ineinander grün,
+    gemeinsamer Schnitt als blaues Dreieck, getrennte Schnitte als dunkle Schnittfuge, Schweißnaht rot, Rest grün
+    (verwertbar) bzw. rot schraffiert (Verschnitt) bzw. hellgrau (unbekannt), Greiferrest rot (3D-Greifmaß „3D“).
+    Darunter die Maßkette (Endbeschnitt, Teillängen, Rest, Greiferrest in mm) und ein Lineal in Metern.
+    gewaehlt = Platz des hervorgehobenen Teils. Ergebnis: [(QRectF, Teil-Dict, Platz)] der Teile (Treffer)."""
+    klein = QFont(schrift) if schrift is not None else QFont()
+    klein.setPointSizeF(max(6.5, klein.pointSizeF() - 2))
+    p.save()
+    p.setFont(klein)
+    flaechen = []
+
+    def rechteck(von, bis, farbe, rand=None):
+        r = QRectF(x0 + von * m, yb, max(1.0, (bis - von) * m), hb)
+        p.fillRect(r, farbe)
+        if rand is not None:
+            p.setPen(QPen(rand, 1))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(r)
+        return r
+    ganz = rechteck(0, s["stange"], stil.farbe("#EDEDED"))
+    letzte = max((t["bis"] for t in s["teile"]), default=s["end"])
+    rest_von = letzte + letzter_schnitt(s) if s["teile"] else float(s["end"])
+    rest_bis = s["stange"] - s["greif"]
+    if rest_bis > rest_von:
+        if rest_verwertbar is True:
+            rechteck(rest_von, rest_bis, stil.farbe("#A5D6A7"))
+        elif rest_verwertbar is False:
+            r = QRectF(x0 + rest_von * m, yb, max(1.0, (rest_bis - rest_von) * m), hb)
+            p.fillRect(r, stil.farbe("#FDECEA"))
+            p.fillRect(r, QBrush(stil.farbe("#E15759"), Qt.BDiagPattern))
+    rechteck(0, s["end"], stil.farbe("#A6A6A6"))
+    greif = rechteck(rest_bis, s["stange"], stil.farbe("#E06666"))
+    if s.get("greif_3d") and greif.width() > 14:
+        p.setPen(stil.farbe("#FFFFFF"))
+        p.drawText(greif, Qt.AlignCenter, "3D")
+    vorher = None
+    for platz, t in enumerate(s["teile"]):
+        farbe = farben.get(t["ref"], stil.farbe("#4E79A7")) if isinstance(farben, dict) else stil.farbe("#4E79A7")
+        farbe = QColor(farbe)
+        if vorher is not None and t["von"] - vorher["bis"] > 0 and (t["von"] - vorher["bis"]) * m >= 1.5:
+            p.fillRect(QRectF(x0 + vorher["bis"] * m, yb, (t["von"] - vorher["bis"]) * m, hb), stil.farbe("#3C4650"))
+        if t.get("kante_a") or t.get("kante_b"):
+            ol, or_, ur, ul = rechnen.umriss(t)
+            form = QPolygonF([QPointF(x0 + ol * m, yb), QPointF(x0 + or_ * m, yb), QPointF(x0 + ur * m, yb + hb),
+                              QPointF(x0 + ul * m, yb + hb)])
+            p.setRenderHint(QPainter.Antialiasing, True)
+            p.setPen(QPen(stil.farbe("#202020"), 1.5))
+            p.setBrush(farbe)
+            p.drawPolygon(form)
+            p.setBrush(Qt.NoBrush)
+            p.setRenderHint(QPainter.Antialiasing, False)
+            r = QRectF(x0 + max(ol, ul) * m, yb, max(1.0, (min(or_, ur) - max(ol, ul)) * m), hb)
+        else:
+            r = QRectF(x0 + t["von"] * m, yb, max(1.0, (t["bis"] - t["von"]) * m), hb)
+            p.fillRect(r, farbe)
+            p.setPen(QPen(stil.farbe("#202020"), 1.5))
+            p.drawLine(r.topLeft(), r.bottomLeft())
+            p.drawLine(r.topRight(), r.bottomRight())
+        if t.get("material_gespart") and vorher is not None:     # Gehrungen ineinander: beide Kanten grün
+            p.setRenderHint(QPainter.Antialiasing, True)
+            p.setPen(QPen(QColor(GRUEN_INEINANDER), 3))
+            for u, a, b in ((vorher, 1, 2), (t, 0, 3)):
+                x = rechnen.umriss(u)
+                p.drawLine(QPointF(x0 + x[a] * m, yb), QPointF(x0 + x[b] * m, yb + hb))
+            p.setRenderHint(QPainter.Antialiasing, False)
+        if t.get("trennung") == "gemeinsamer Schnitt":           # ein Schnitt für zwei gerade Enden
+            xg = x0 + t["von"] * m
+            p.setRenderHint(QPainter.Antialiasing, True)
+            p.setPen(Qt.NoPen)
+            p.setBrush(stil.farbe("#1F77B4"))
+            p.drawPolygon(QPolygonF([QPointF(xg - 4, yb - 6), QPointF(xg + 4, yb - 6), QPointF(xg, yb - 1)]))
+            p.setBrush(Qt.NoBrush)
+            p.setRenderHint(QPainter.Antialiasing, False)
+        strich = rechnen.naht_strich(t, 270 if t.get("ansicht") == "von oben" else 0)
+        if strich and r.width() > 6:
+            hy = yb + hb / 2 - strich[0] * (hb / 2 - 3)
+            stift = QPen(stil.farbe("#D0021B"), 2.5)
+            if not strich[1]:
+                stift.setStyle(Qt.DashLine)
+            p.setPen(stift)
+            p.drawLine(QPointF(r.left() + 3, hy), QPointF(r.right() - 3, hy))
+        if (markiert is not None and t["ref"] == markiert) or gewaehlt == platz:
+            p.setPen(QPen(stil.farbe(stil.ORANGE), 3))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(r.adjusted(-1, -1, 1, 1))
+        pos = t["pos"] if t.get("pos") is not None else t.get("artikel") or ""
+        if r.width() > 46 and hb >= 24:
+            p.setPen(stil.schrift_auf(farbe))
+            p.drawText(r, Qt.AlignCenter, f"{pos}\n{_z(t['laenge'], 1)}")
+        elif r.width() > 16:
+            p.setPen(stil.schrift_auf(farbe))
+            p.drawText(r, Qt.AlignCenter, str(pos))
+        flaechen.append((QRectF(r), t, platz))
+        vorher = t
+    p.setPen(QPen(stil.farbe("#5F6B7A"), 1))
+    p.setBrush(Qt.NoBrush)
+    p.drawRect(ganz)
+    y = yb + hb + 2
+    if mass:                                # Maßkette: Grenzen als Striche, Längen dazwischen
+        p.setPen(QPen(stil.farbe("#5F6B7A"), 1))
+        grenzen = [0.0, float(s["end"])] + [x for t in s["teile"] for x in (t["von"], t["bis"])] + \
+            [rest_bis, float(s["stange"])]
+        grenzen = sorted({round(g, 2) for g in grenzen})
+        p.drawLine(QPointF(x0, y + 5), QPointF(x0 + s["stange"] * m, y + 5))
+        for g in grenzen:
+            p.drawLine(QPointF(x0 + g * m, y + 1), QPointF(x0 + g * m, y + 9))
+        p.setPen(stil.farbe(stil.TEXT_GRAU))
+        fm = p.fontMetrics()
+        stuecke = [(t["von"], t["bis"], _z(t["laenge"], 1)) for t in s["teile"]]
+        if rest_bis - letzte > 0:
+            stuecke.append((letzte, rest_bis, f"Rest {_z(rest_bis - letzte, 0)}"))
+        stuecke.append((rest_bis, s["stange"], _z(s["greif"], 0)))
+        for von, bis, txt in stuecke:
+            w = (bis - von) * m
+            if fm.horizontalAdvance(txt) + 4 <= w:
+                p.drawText(QRectF(x0 + von * m, y + 4, w, MASS_HOEHE - 2), Qt.AlignHCenter | Qt.AlignTop, txt)
+        y += MASS_HOEHE
+    if lineal:                              # Lineal: alle 500 mm ein Strich, je Meter beschriftet
+        p.setPen(QPen(stil.farbe("#9AA4AF"), 1))
+        schritt = 500 if s["stange"] * m > 300 else 1000
+        x = 0
+        while x <= s["stange"] + 1e-6:
+            lang = x % 1000 == 0
+            p.drawLine(QPointF(x0 + x * m, y), QPointF(x0 + x * m, y + (6 if lang else 3)))
+            if lang and x:
+                p.drawText(QRectF(x0 + x * m - 20, y + 2, 40, LINEAL_HOEHE), Qt.AlignHCenter | Qt.AlignTop,
+                           f"{x / 1000:g} m")
+            x += schritt
+    p.restore()
+    return flaechen
 
 
 # ---------------------------------------------------------------------------------------------- Übersicht (L1)
