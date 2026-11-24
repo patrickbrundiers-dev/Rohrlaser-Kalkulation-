@@ -46,6 +46,7 @@ SCHEMAS = (("AP242", (b"AP242", b"MANAGED_MODEL_BASED")), ("AP214", (b"AUTOMOTIV
 STATUS = ("korrekt", "unsicher", "reparierbar", "fehlerhaft")   # Ampel je Körper (Importanalyse)
 FEHLER_TEXT = {
     "ungueltige_flaechen": "ungültige Flächen",
+    "nicht_pruefbar": "Kontur nicht prüfbar",
     "selbstueberschneidung": "Selbstüberschneidung einer Kontur",
     "luecken": "Lücken zwischen Kanten",
     "kleine_kanten": "sehr kleine Kanten",
@@ -250,8 +251,8 @@ def _fehlerarten(shape, unsicherheit):
                                     ("entartete_kanten", sw.CheckDegenerated)):
                     if pruef():
                         out[code] = out.get(code, 0) + 1
-            except Exception:  # noqa: BLE001 – einzelne Prüfung nicht möglich: weiter
-                pass
+            except Exception:  # noqa: BLE001 – einzelne Prüfung nicht möglich: als eigene Fehlerart zählen
+                out["nicht_pruefbar"] = out.get("nicht_pruefbar", 0) + 1
     return out
 
 

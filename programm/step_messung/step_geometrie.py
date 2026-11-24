@@ -6269,8 +6269,9 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
             t.alternative.naehte = naehte
     try:
         _datei_pruefung(gel, out)
-    except Exception:  # noqa: BLE001 – Prüfung ist Zusatz, nie die Messung verhindern
-        pass
+    except Exception as e:  # noqa: BLE001 – Prüfung ist Zusatz, nie die Messung verhindern; Grund festhalten
+        for t in out:
+            t.pruefung_datei = dict(fehler=f"Datei-Prüfung nicht möglich: {type(e).__name__}")
     for t in out:
         teil_uebergeben(t)
         t.__dict__.pop("_rohr", None)

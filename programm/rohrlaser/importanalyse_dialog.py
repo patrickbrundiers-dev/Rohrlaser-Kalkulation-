@@ -476,7 +476,8 @@ STATUS_FARBE = {"korrekt": stil.GRUEN, "unsicher": "#B7791F", "reparierbar": "#2
 STATUS_TEXT = {"korrekt": "korrekt erkannt", "unsicher": "unsicher", "reparierbar": "reparierbar",
                "fehlerhaft": "fehlerhaft", "Zukauf": "ausgeschlossen (Zukauf)", "nicht geprüft": "nicht geprüft"}
 FEHLER_TEXT = {
-    "ungueltige_flaechen": "ungültige Flächen", "selbstueberschneidung": "Selbstüberschneidung",
+    "ungueltige_flaechen": "ungültige Flächen", "nicht_pruefbar": "Kontur nicht prüfbar",
+    "selbstueberschneidung": "Selbstüberschneidung",
     "luecken": "Lücken zwischen Kanten", "kleine_kanten": "sehr kleine Kanten", "entartete_kanten": "entartete Kanten",
     "offene_kanten": "offene Kanten", "falsch_orientiert": "falsch orientierte Kanten", "kein_volumen": "kein Volumen",
     "nicht_geschlossen": "nicht geschlossen",
