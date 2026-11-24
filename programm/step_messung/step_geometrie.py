@@ -283,6 +283,9 @@ def lies_step_info(pfad):
     if _Path(str(pfad)).suffix.lower() == ".tubx":      # TRUMPF TubeCAM (Patrick 20.11.2026): Netz wie STEP messen
         from step_tubx import lies_tubx_info
         return lies_tubx_info(pfad)
+    if _Path(str(pfad)).suffix.lower() in (".bpf", ".artube"):   # BLM ArTube/BPF (Patrick 24.11.2026) wie STEP
+        from step_blm import lies_blm_info
+        return lies_blm_info(pfad)
     from OCP.IFSelect import IFSelect_RetVoid
     try:            # mit Baugruppenstruktur und Namen (XCAF); Körper in derselben Reihenfolge wie ohne
         from OCP.STEPCAFControl import STEPCAFControl_Reader
@@ -347,7 +350,7 @@ def lies_step_info(pfad):
 
 
 IGES_ENDUNGEN = (".igs", ".iges")
-CAD_ENDUNGEN = (".step", ".stp") + IGES_ENDUNGEN + (".tubx",)       # TUBX: step_tubx
+CAD_ENDUNGEN = (".step", ".stp") + IGES_ENDUNGEN + (".tubx", ".bpf", ".artube")   # TUBX: step_tubx, BLM: step_blm
 
 
 def ist_iges(pfad):

@@ -89,7 +89,7 @@ AUSSORTIER_VORSCHLAG = 2    # so oft vom selben Absender aussortiert: beim näch
 AUTO = "Automatik"          # Kürzel-Zusatz im Verlauf für automatische Zuweisungen
 
 # Dateiarten (Anzeige als Kurzwort)
-ARTEN = {"step": {".step", ".stp", ".igs", ".iges", ".tubx"}, "pdf": {".pdf"}, "dxf": {".dxf", ".dwg"},
+ARTEN = {"step": {".step", ".stp", ".igs", ".iges", ".tubx", ".artube", ".bpf"}, "pdf": {".pdf"}, "dxf": {".dxf", ".dwg"},
          "excel": {".xlsx", ".xls", ".xlsm", ".csv"}, "bild": {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"},
          "mail": {".msg", ".eml"}, "zip": {".zip"}}
 ART_TEXT = {"step": "STEP", "pdf": "PDF", "dxf": "DXF/DWG", "excel": "Excel", "bild": "Bild", "mail": "Mail",

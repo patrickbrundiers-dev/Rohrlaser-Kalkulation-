@@ -30,7 +30,8 @@ from pathlib import Path
 
 STEP_ENDUNGEN = (".step", ".stp")
 IGES_ENDUNGEN = (".igs", ".iges")
-CAD_ENDUNGEN = STEP_ENDUNGEN + IGES_ENDUNGEN + (".tubx",)      # TUBX (TRUMPF TubeCAM) misst wie STEP (#593)
+BLM_ENDUNGEN = (".artube", ".bpf")      # BLM/Adige ArTube-Projekt und Teileprogramm (step_messung/step_blm.py)
+CAD_ENDUNGEN = STEP_ENDUNGEN + IGES_ENDUNGEN + (".tubx",) + BLM_ENDUNGEN    # TUBX (#593) und BLM messen wie STEP
 ZIP_ENDUNGEN = (".zip",)
 # Herstellerformate: Name für die Meldung
 NATIV = {
@@ -244,10 +245,21 @@ def vorbereiten(pfade, basis=None):
             nimm(p, p.name)
         else:
             erg.befunde.append(dict(datei=p.name, stufe=FEHLER, text="Datei nicht gefunden"))
+    for p in blm_doppelte(erg.dateien):
+        erg.dateien.remove(p)
+        erg.befunde.append(dict(datei=p.name, stufe=HINWEIS, text=f"gehört zu {p.stem}.artube daneben – nur einmal "
+                                "gemessen (die ARTUBE nimmt das BPF für den exakten Querschnitt)"))
     if andere:
         erg.befunde.append(dict(datei="andere Dateien", stufe=HINWEIS, text="übersprungen: " + ", ".join(
             f"{n}× {e}" for e, n in sorted(andere.items(), key=lambda x: -x[1]))))
     return erg
+
+
+def blm_doppelte(dateien):
+    """BPF-Dateien, deren ArTube-Projekt (gleicher Name, gleicher Ordner) auch in der Liste steht: die ARTUBE liest das
+    BPF daneben selbst (Teil nur einmal messen)."""
+    artube = {(Path(p).parent, Path(p).stem.lower()) for p in dateien if Path(p).suffix.lower() == ".artube"}
+    return [p for p in dateien if Path(p).suffix.lower() == ".bpf" and (Path(p).parent, Path(p).stem.lower()) in artube]
 
 
 def fehler_zeilen(vorbereitung, vorlage=None):

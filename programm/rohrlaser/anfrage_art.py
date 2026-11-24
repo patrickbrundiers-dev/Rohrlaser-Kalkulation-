@@ -104,7 +104,7 @@ REGELN = [
 ]
 _REGELN = [(a, re.compile(m, re.IGNORECASE | re.DOTALL), p, g) for a, m, p, g in REGELN]
 
-STEP_ENDUNGEN = (".step", ".stp", ".igs", ".iges", ".tubx")
+STEP_ENDUNGEN = (".step", ".stp", ".igs", ".iges", ".tubx", ".artube", ".bpf")
 ZEICHNUNG_ENDUNGEN = (".pdf", ".dxf", ".dwg", ".tif", ".tiff")
 
 # Sachgebiet: (Sachgebiet, Muster, Punkte)

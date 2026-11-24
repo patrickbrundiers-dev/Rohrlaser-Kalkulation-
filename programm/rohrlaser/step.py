@@ -15,10 +15,11 @@ from pathlib import Path
 from . import anbau, biegerohr, bohrbild, naht, ovalprofile, rechnen, rp_profile, step_pruefung, virtuell
 
 # Dateien, die der STEP-Import liest: STEP und IGES (Patrick 05.11.2026 „Iges import einbauen“)
-CAD_ENDUNGEN = (".step", ".stp", ".igs", ".iges", ".tubx")    # TUBX (TRUMPF TubeCAM) wie STEP, 20.11.2026
+# TUBX (TRUMPF TubeCAM, 20.11.2026) und BLM ArTube/BPF (24.11.2026) wie STEP
+CAD_ENDUNGEN = (".step", ".stp", ".igs", ".iges", ".tubx", ".artube", ".bpf")
 # ZIP-Archive mit CAD-Dateien (Importengine 20.11.2026, cad_import.py): werden entpackt, Herstellerformate gemeldet
-CAD_FILTER = ("STEP, IGES, TUBX und ZIP (*.step *.stp *.igs *.iges *.tubx *.zip *.STEP *.STP *.IGS *.IGES *.TUBX "
-              "*.ZIP)")
+CAD_FILTER = ("STEP, IGES, TUBX, BLM (ARTUBE/BPF) und ZIP (*.step *.stp *.igs *.iges *.tubx *.artube *.bpf *.zip "
+              "*.STEP *.STP *.IGS *.IGES *.TUBX *.ARTUBE *.BPF *.ZIP)")
 CAD_FILTER_ANDERE = ("Andere CAD-Formate, werden gemeldet (*.sldprt *.sldasm *.catpart *.catproduct *.ipt *.iam "
                      "*.prt *.x_t *.x_b *.SLDPRT *.SLDASM *.CATPart *.CATProduct *.IPT *.IAM *.PRT *.X_T *.X_B)")
 TOL_MASS = 0.15         # mm: Profil aus den Stammdaten passt zur Messung (Einstellung step_tol_profil)
@@ -71,7 +72,8 @@ def step_dateien(pfade):
                 gesehen.add(x)
                 vorhanden.add(_kennung(x))
                 out.append(x)
-    return out
+    doppelt = cad_import.blm_doppelte(out)      # BPF neben seiner ARTUBE: nur die ARTUBE messen
+    return [x for x in out if x not in doppelt]
 
 
 GROSS_AB_MB = 100          # Performance-Update 5a: ab dieser Dateigröße vor der Messung Dauer und Speicher nennen
