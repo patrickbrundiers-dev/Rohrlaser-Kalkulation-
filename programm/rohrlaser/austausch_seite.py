@@ -39,6 +39,9 @@ DASHBOARD_KACHELN = (("neu", "Neue Dateien", NEU_FUER_MICH), ("meine", "Meine Au
                      ("bearbeitung", "In Bearbeitung", ad.BEARBEITUNG), ("fertig", "Fertig (7 Tage)", ad.FERTIG),
                      ("vorschlag", "Zuordnung bestätigen", "vorschlag"))
 VORSCHAU_PX = 96
+SYMBOL_ART = {"ordner": "ordner", "step": "koerper", "stl": "koerper", "dxf": "kontur", "pdf": "pdf",
+              "excel": "liste", "csv": "liste", "laser": "schnitt", "mail": "mail", "zip": "lager", "bild": "blick",
+              "word": "pdf", "text": "pdf"}
 
 
 def _zeit_text(t):
@@ -63,6 +66,7 @@ class DateiModell(QAbstractTableModel):
         self.eintraege, self.metas, self.neu = [], {}, set()
         self.kacheln = False
         self._symbole = {}
+        self._kacheln = {}
         self._anbieter = QFileIconProvider()
 
     def setzen(self, eintraege, metas, neu):
@@ -89,10 +93,46 @@ class DateiModell(QAbstractTableModel):
         if k not in self._symbole:
             from PySide6.QtCore import QFileInfo
             if e.ordner:
-                self._symbole[k] = self._anbieter.icon(QFileIconProvider.Folder)
+                icon = self._anbieter.icon(QFileIconProvider.Folder)
             else:
-                self._symbole[k] = self._anbieter.icon(QFileInfo(f"x{e.endung}"))
+                icon = self._anbieter.icon(QFileInfo(f"x{e.endung}"))
+            if icon.isNull() or not icon.availableSizes():      # ohne Systemsymbol: eigenes Symbol je Art
+                from . import symbole
+                icon = symbole.symbol(SYMBOL_ART.get("ordner" if e.ordner else e.art, "ausgaben"), "#4A5B70")
+            self._symbole[k] = icon
         return self._symbole[k]
+
+    def _kachel(self, e):
+        """Kachelbild in fester Größe: Vorschaubild (Bild, PDF) oder großes Symbol der Dateiart, mittig."""
+        schl = (e.datei, e.zeit)
+        if schl not in self._kacheln:
+            from PySide6.QtCore import QRectF
+            from PySide6.QtGui import QPainter
+            leinwand = QPixmap(VORSCHAU_PX, VORSCHAU_PX)
+            leinwand.fill(Qt.transparent)
+            maler = QPainter(leinwand)
+            bild = self.seite.vorschaubild(e)
+            if bild is not None:
+                pm = bild.pixmap(VORSCHAU_PX, VORSCHAU_PX)
+                maler.drawPixmap((VORSCHAU_PX - pm.width()) // 2, (VORSCHAU_PX - pm.height()) // 2, pm)
+            else:
+                try:
+                    from PySide6.QtCore import QByteArray
+                    from PySide6.QtSvg import QSvgRenderer
+
+                    from . import symbole
+                    name = SYMBOL_ART.get("ordner" if e.ordner else e.art, "ausgaben")
+                    r = QSvgRenderer(QByteArray(symbole.svg(name, "#4A6FA5").encode()))
+                    rand = (VORSCHAU_PX - 60) / 2
+                    r.render(maler, QRectF(rand, rand, 60, 60))
+                except ImportError:
+                    pm = self._symbol(e).pixmap(48, 48)
+                    maler.drawPixmap((VORSCHAU_PX - pm.width()) // 2, (VORSCHAU_PX - pm.height()) // 2, pm)
+            maler.end()
+            if len(self._kacheln) > 3000:
+                self._kacheln.clear()
+            self._kacheln[schl] = QIcon(leinwand)
+        return self._kacheln[schl]
 
     def data(self, index, rolle=Qt.DisplayRole):
         e = self.eintrag(index.row())
@@ -114,9 +154,7 @@ class DateiModell(QAbstractTableModel):
             return m.get(s) or ""
         if rolle == Qt.DecorationRole and index.column() == 0:
             if self.kacheln:
-                bild = self.seite.vorschaubild(e)
-                if bild is not None:
-                    return bild
+                return self._kachel(e)
             return self._symbol(e)
         if rolle == Qt.FontRole and e.datei in self.neu:
             f = QFont()
@@ -234,7 +272,7 @@ class Uebersicht(QWidget):
         lay.addLayout(self.raster)
         self.kacheln = {}
         for i, (k, titel, ziel) in enumerate(DASHBOARD_KACHELN):
-            b = QPushButton(f"0\n{titel}")
+            b = QPushButton()                 # Text (Zahl und Titel) setzt fuellen()
             b.setObjectName("anfragen_zaehler")
             b.setMinimumHeight(64)
             b.clicked.connect(lambda _=False, z=ziel: self.gewaehlt.emit(z))
@@ -804,6 +842,8 @@ class AustauschSeite(QWidget):
         while self.pfad_zeile.count():
             w = self.pfad_zeile.takeAt(0).widget()
             if w is not None:
+                w.hide()
+                w.setParent(None)
                 w.deleteLater()
         art, b, o = self.ansicht
         if art != "bereich":

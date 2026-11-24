@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.474", "<b>Austauschordner 2.0</b> ([[austausch]]): neue Seite <b>Austausch</b> unter Arbeiten, der "
+                "gemeinsame Ordner als Datei- und Projektverwaltung im Programm. Liste oder Kacheln mit Vorschau, "
+                "Suche über alle Bereiche (auch Kommentare und Dateiinhalt), Filter nach Typ, Mitarbeiter, Kunde, "
+                "Status und Zeitraum, Favoriten, zuletzt verwendet, gespeicherte Suchen. Hochladen per Knopf oder "
+                "Ziehen mit Fortschritt; gleicher Name wird nie überschrieben (neue Version, beide behalten oder "
+                "überspringen). Automatische Zuordnung zu Angebot, Auftrag, PPEASE-Nr., Anfrage und Kunde, unsichere "
+                "Treffer als Vorschlag zum Bestätigen. Verantwortlich, Status, Priorität, Fällig, Aufgabe, "
+                "Kommentare mit @Kürzel, Verlauf, Versionen mit Wiederherstellen, Papierkorb (endgültig nur Admin), "
+                "Archiv, Bearbeitungssperre mit „in Bearbeitung von …“, Übersicht mit Kacheln und einstellbare "
+                "Benachrichtigungen ohne Flut. Ohne Server: Dateien im gemeinsamen Ordner, Angaben über den Abgleich.",
+     "Neue Seite Austausch: gemeinsame Dateien mit Zuordnung, Aufgaben, Versionen und Papierkorb"],
     ["0.9.469", "<b>Staffelpreise = Angebotskalkulation</b>: Jede Staffelstufe kostet jetzt Cent für Cent so viel wie "
                 "ein normales Angebot mit derselben Menge. Bisher fehlten in den Staffeln Rabatt, Verpackung, "
                 "Finanzierung, Runden und Frachtfrei des Angebots (Staffel z. B. 4,7 % teurer als das Angebot bei "
