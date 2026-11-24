@@ -321,14 +321,19 @@ assert any(t.startswith("Materialpreis") for t in werte) and any(t.startswith("L
 e.kompakt_haken.setChecked(False)
 assert not e.alle_ansicht.isHidden() and e.kompakt_ansicht.isHidden()
 d.reject()
-speichern(3, gewinn=30)                     # Gewinn der Stufe nach dem Mengenlauf: Staffelpreis neu, Grund genannt
+# Gewinn der Stufe gehört seit 24.11.2026 zur Kalkulation (Staffel = Angebot): Stufe veraltet, ihr Mengenlauf rechnet
+# neu, danach ist der Staffelpreis wieder der Preis der Kalkulation mit 30 % Gewinn
+speichern(3, gewinn=30)
+assert st.anzahl_veraltet() == 1
+assert st.rechnen(alle=False) is not None and st.anzahl_veraltet() == 0
 d = StufeDialog(st, m.daten[3])
 e = d.ergebnis
-assert float(e.preis.item(0, 4).text().replace(".", "").replace(",", ".")) > 0 and "Gewinn" in e.preis.item(0, 5).text()
+assert float(e.preis.item(0, 3).text().replace(".", "").replace(",", ".")) > 0 and e.preis.item(0, 5).text().startswith("gleich")
 werte = {e.werte.item(r, 0).text(): (e.werte.item(r, 1).text(), e.werte.item(r, 2).text()) for r in range(e.werte.rowCount())}
 assert werte["Gewinn [%]"] == ("30,0 %", "Stufe")
 d.reject()
 speichern(3, gewinn=None)
+assert st.rechnen(alle=False) is not None and st.anzahl_veraltet() == 0
 d = StufeDialog(st, {"id": None})           # noch nicht gerechnete Stufe: Hinweis statt Werte
 assert "noch nicht gerechnet" in d.ergebnis.stand.text() and d.ergebnis.preis.rowCount() == 0
 d.reject()

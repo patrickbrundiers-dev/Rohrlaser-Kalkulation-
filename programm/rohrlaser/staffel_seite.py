@@ -4,7 +4,10 @@ Ergebnis je Stufe mit allen Kostenpositionen bis zum Bruttopreis.
 Rechnung in staffeln.py: Stufen legt nur der Mensch an (Patrick 26.10.2026: nie automatisch anlegen). Sind Stufen da
 und ändert sich etwas am Angebot, rechnet der Mengenlauf (Optimierung je Stufe) die veralteten Stufen kurz nach der
 letzten Änderung im Hintergrund neu (Patrick 28.10.2026), vor dem Angebots-PDF sofort; Mengen und Werte der Stufen
-bleiben, wie sie eingetragen sind. Die Preisschicht (Zuschläge, Gewinn, Nebenkosten) wirkt sofort bei jeder Eingabe.
+bleiben, wie sie eingetragen sind. Seit 24.11.2026 ist der Preis jeder Stufe der Preis der zentralen Kalkulation (wie
+ein normales Angebot mit derselben Menge); nur die Sonderwerte der Stufe unter „Erweitert“ wirken sofort als Zu- bzw.
+Abschlag. Unterreiter „Übersicht“: je Staffel Herstellkosten, Material, Maschine, Personal, Zusatz, Gemeinkosten,
+Gewinn, Netto, Deckungsbeitrag, Marge und die Gegenprobe gegen die Angebotskalkulation.
 """
 import copy
 import datetime
@@ -837,6 +840,11 @@ ERGEBNIS = (
     ("preis_hand", "Preis von Hand (Unterschied zum berechneten Preis)", lambda z: (
         (z["preis_einheit"] - _p(z)["preis_berechnet"]) * z["menge"]) if _p(z).get("preis_hand") is not None
      else None, "gruppe"),
+    # Preisschicht des Angebots aus der zentralen Kalkulation (24.11.2026): wie im Angebot, ohne Skonto
+    ("preisschicht", "Preisschicht des Angebots (Verpackung, Finanzierung, Rabatt, Runden …)",
+     lambda z: _p(z).get("preisschicht_summe") or None, "gruppe"),
+    *((f"ps_{n}", staffeln.PREISSCHICHT_NAME[n], lambda z, n=n: (_p(z).get("preisschicht") or {}).get(n), "kind")
+      for n in staffeln.PREISSCHICHT),
     ("marge", "Gewinnmarge (vom Warenwert)", lambda z: _p(z).get("marge"), "prozent"),
     ("deckungsbeitrag", "Deckungsbeitrag (Warenwert − variable Kosten)", lambda z: _p(z).get("deckungsbeitrag"),
      "gruppe"),
@@ -852,6 +860,70 @@ ERGEBNIS = (
 )
 IMMER = {"material", "fertigung", "ruesten", "herstell", "selbst", "gewinn", "vk", "netto", "mwst", "brutto",
          "deckungsbeitrag"}
+
+
+class UebersichtTabelle(QTableWidget):
+    """Vergleichsansicht (Master-Prompt 24.11.2026, Punkt 4): je Staffel eine Zeile mit Menge, Herstellkosten,
+    Material, Maschine, Personal, Zusatz, Gemeinkosten, Gewinn, Netto gesamt und je Einheit, Deckungsbeitrag, Marge,
+    Einsparung zur kleinsten Menge und der Gegenprobe gegen die zentrale Kalkulation."""
+    KOPF = (("stufe", "Stufe", ""), ("name", "Satz bzw. Position", ""), ("menge", "Menge", "")) + staffeln.UEBERSICHT[:-1] \
+        + (("einsparung", "Einsparung je Einheit", "gegenüber der kleinsten Menge desselben Satzes bzw. derselben "
+                                                    "Position"),) + staffeln.UEBERSICHT[-1:]
+
+    def __init__(self):
+        super().__init__(0, len(self.KOPF))
+        self.setHorizontalHeaderLabels([t for _, t, _ in self.KOPF])
+        for c, (_, _, tipp) in enumerate(self.KOPF):
+            if tipp:
+                self.horizontalHeaderItem(c).setToolTip(tipp)
+        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.setAlternatingRowColors(True)
+        self.verticalHeader().setVisible(False)
+        self.verticalHeader().setDefaultSectionSize(22)
+        self.horizontalHeader().setDefaultAlignment(Qt.AlignCenter | Qt.TextWordWrap)
+        self.horizontalHeader().setMinimumHeight(40)
+        self.horizontalHeader().setStretchLastSection(True)
+        for c, (schl, _, _) in enumerate(self.KOPF):
+            self.setColumnWidth(c, {"stufe": 50, "name": 150, "menge": 80, "gegenprobe": 170, "db": 112}.get(schl, 96))
+
+    def setzen(self, zeilen):
+        zeilen = list(zeilen or [])
+        staffeln.einsparung(zeilen)
+        self.setRowCount(len(zeilen))
+        for r, z in enumerate(zeilen):
+            u = staffeln.uebersicht(z) or {}
+            werte = dict(u, stufe=str(z.get("stufe_nr") or ""), name=zeile_name(z),
+                         menge=f"{_z(z.get('menge'), 0)} {z.get('einheit') or ''}", einsparung=z.get("einsparung"))
+            if not u:
+                werte["gegenprobe"] = (z.get("hinweis") or "").split("; ")[0]
+            for c, (schl, _, _) in enumerate(self.KOPF):
+                w = werte.get(schl)
+                if schl in ("marge", "einsparung"):
+                    text = _pct(w) if isinstance(w, (int, float)) else ""
+                elif isinstance(w, (int, float)) and not isinstance(w, bool):
+                    text = _z(w)
+                else:
+                    text = "" if w is None else str(w)
+                it = QTableWidgetItem(text)
+                if isinstance(w, (int, float)) and not isinstance(w, bool):
+                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                if schl in ("herstell", "netto", "netto_einheit"):
+                    f = it.font()
+                    f.setBold(True)
+                    it.setFont(f)
+                if schl == "gegenprobe":
+                    if text.startswith("="):
+                        it.setForeground(QBrush(stil.farbe(stil.GRUEN)))
+                    elif text.startswith(("FEHLER", "VERALTET", "WARNUNG")):
+                        it.setBackground(QBrush(FARBE_STATUS["FEHLER"] if text.startswith(("FEHLER", "WARNUNG"))
+                                                else FARBE_STATUS["WARNUNG"]))
+                    it.setToolTip(z.get("hinweis") or text)
+                self.setItem(r, c, it)
+
+    def werte(self, zeile):
+        """{Spaltentitel: Text} einer Zeile (Tests, Bildschirmfotos)."""
+        return {t: (self.item(zeile, c).text() if self.item(zeile, c) else "") for c, (_, t, _) in enumerate(self.KOPF)}
 
 
 def schnitt_name(a):
@@ -1505,6 +1577,9 @@ class StaffelSeite(QWidget):
         self.stangen = StangenAnzeige(self)
         sl.addWidget(self.stangen, 1)
         self.ergebnis_reiter.addTab(stangen, "Stangen")
+        # Übersicht (24.11.2026): Staffelstufen nebeneinander verglichen, mit Gegenprobe zur Angebotskalkulation
+        self.uebersicht = UebersichtTabelle()
+        self.ergebnis_reiter.addTab(self.uebersicht, "Übersicht")
         self.ergebnis_reiter.currentChanged.connect(lambda _: self.stangen_zeigen())
         self.ansicht.selectionModel().currentRowChanged.connect(lambda *_: self.stangen_zeigen())
         ul.addWidget(self.ergebnis_reiter, 1)
@@ -1567,6 +1642,7 @@ class StaffelSeite(QWidget):
         except (ValueError, TypeError, KeyError):         # unvollständiges Angebot: ohne Vergleich
             angebot = None
         self.baum.setzen(self.zeilen, self.vorher, angebot)
+        self.uebersicht.setzen(self.zeilen)
         self.vergleich.setzen(self.zeilen)
         self.stangen_zeigen()
         if not staffeln.gueltige(self.s.stufen):

@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.467", "<b>Staffelpreise = Angebotskalkulation</b>: Jede Staffelstufe kostet jetzt Cent für Cent so viel wie "
+                "ein normales Angebot mit derselben Menge. Bisher fehlten in den Staffeln Rabatt, Verpackung, "
+                "Finanzierung, Runden und Frachtfrei des Angebots (Staffel z. B. 4,7 % teurer als das Angebot bei "
+                "gleicher Menge). Gewinn, Zuschläge, Gaspreise und alle anderen rechenrelevanten Einstellungen "
+                "rechnen die Stufen neu, nie mehr veraltete Werte. Neu: Unterreiter <b>Übersicht</b> im Reiter "
+                "Staffeln mit Herstellkosten, Material, Maschine, Personal, Zusatz, Gemeinkosten, Gewinn, Netto, "
+                "Deckungsbeitrag, Marge und Gegenprobe je Stufe ([[staffel_wie_angebot]])."],
     ["0.9.466", "<b>Update-Paket bauen</b>: Das Werkzeug für das Online-Update brach auf Windows nach dem fertigen "
                 "Paket ab, wenn im Änderungstext ein Sonderzeichen stand, das die Windows-Konsole nicht darstellen "
                 "kann (z. B. ein Pfeil). Jetzt erscheint so ein Zeichen in der Ausgabe als Ersatztext und das "

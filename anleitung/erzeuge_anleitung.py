@@ -7937,8 +7937,9 @@ def kapitel_staffeln(i):
             "<b>Fracht</b> (bei berechneter Fracht): Betrag der Stufe, Ladung mit Versandart und Fracht je Stück, "
             "z. B. „115,00 € · 1 × EUR (Palette) · 0,57 €/Stk.“; im Abruf-Angebot „je Abruf“."),
         (4, "<b>Staffelpreise rechnen</b> rechnet alle Stufen neu. Meist ist das nicht nötig: Sind Stufen angelegt, "
-            "rechnet das Programm sie nach jeder Änderung am Angebot <b>selbst neu</b> (siehe unten). Gewinn und "
-            "Zuschläge wirken sofort.")])
+            "rechnet das Programm sie nach jeder Änderung am Angebot <b>selbst neu</b> (siehe unten), auch nach "
+            "Änderungen an Gewinn, Zuschlägen und Einstellungen. Die Sonderwerte unter <i>Erweitert</i> wirken "
+            "sofort.")])
     i.text("Reiter <i>Staffeln</i>: Preise für weitere Mengen. Jede <b>Stufe</b> wird wie ein eigener Auftrag "
            "optimiert und kalkuliert; Rüsten, Verschnitt und Pauschalen verteilen sich auf ihre Menge. Ein "
            "Doppelklick auf eine Stufe öffnet ihre Werte.", kurz=True)
@@ -8017,6 +8018,36 @@ def kapitel_staffeln(i):
         ["Lieferlänge je Stufe wählen", "ja = empfohlene Lieferlänge für die Mengen der Stufe (leer = Lieferlängen "
                                         "des Angebots)"],
     ], [55 * mm, 200 * mm])
+    i.abschnitt("Staffel rechnet wie das Angebot", marke="staffel_wie_angebot")
+    i.text("Jede Stufe rechnet mit <b>derselben Kalkulation wie ein normales Angebot</b> mit dieser Menge: Material "
+           "nach dem Schnittplan der Stufe (neu optimiert), Laserzeit, Schnittmeter, Einstiche, Rüsten, "
+           "Arbeitsschritte, Zusatzarbeiten, Schweißen, Zukaufteile, Gemeinkosten, Gewinn, Mindestauftragswert und "
+           "die Preisschicht des Angebots (Verpackung, Finanzierung, Rabatt, Runden, Frachtfrei ab). Eine Stufe "
+           "ohne Sonderwerte kostet Cent für Cent so viel wie das Angebot mit derselben Menge.", kurz=True)
+    i.genauer()
+    i.liste("<b>Ein Rechenkern</b>: Der Mengenlauf der Stufe ruft dieselbe Optimierung und Kalkulation auf wie das "
+            "Angebot. Der Preis je Einheit der Stufe ist der Verkaufspreis dieser Kalkulation; jede spätere Änderung "
+            "an der Kalkulation gilt damit sofort auch für die Staffeln.",
+            "<b>Einmalig und je Menge</b>: Rüsten, Programmierung, Pauschalen, Musterkosten und Einmalkosten der "
+            "Baugruppen fallen je Stufe einmal an und verteilen sich auf ihre Menge; Material, Laserzeit und "
+            "Arbeitszeiten rechnen mit der Menge der Stufe. Staffelpreise der Zukaufteile und Blech-EK gelten nach "
+            "dem Verbrauch der Stufe.",
+            "<b>Sonderwerte der Staffel</b> (unter <i>Erweitert</i>: Materialzuschlag, Verlust, Grundpreis, "
+            "Gemeinkosten, Rüsten separat, Arbeitsgang, Nebenkosten, Staffelrabatt, Zukauf-EK, Preis von Hand) und "
+            "die Mindestmarge gibt es im Angebot nicht. Sie wirken als Zu- bzw. Abschlag auf den Preis der "
+            "Kalkulation, sofort bei der Eingabe.",
+            "<b>Nie veraltet</b>: Jede Änderung, die die Rechnung beeinflusst (Positionen, Stammdaten, Preise, "
+            "Einstellungen wie Gewinn, Zuschläge, Gaspreis, Runden, Verpackung, Werte der Stufe), macht die Stufe "
+            "<i>VERALTET</i>; das Programm rechnet sie kurz danach im Hintergrund neu, vor dem Angebots-PDF sofort. "
+            "Reine Oberflächen-Einstellungen (Ansicht, Texte, Angebotsnummer) zählen nicht.",
+            "<b>Übersicht</b> (Unterreiter im Reiter Staffeln): je Stufe Menge, Herstellkosten gesamt, Material, "
+            "Maschine, Personal, Zusatz, Gemeinkosten, Gewinn, Fracht + Skonto, Netto gesamt und je Einheit, "
+            "Deckungsbeitrag, Marge, Einsparung zur kleinsten Menge und die <b>Gegenprobe</b>: "
+            "„= Angebotskalkulation“ (grün) oder „mit Sonderwerten der Stufe“.",
+            "Im Kostenbaum (Unterreiter <i>Kosten</i>) steht die <b>Preisschicht des Angebots</b> als eigene "
+            "Gruppe mit Verpackung, Finanzierung, Rabatt, Rundung usw., wenn sie etwas ausmacht.",
+            "Prüfung: der Test <i>test_staffel_wie_angebot</i> rechnet Abnahme-Angebote, Sätze und Schweißbaugruppen "
+            "mit allen Kalkulationsparametern als Angebot und als Staffel und vergleicht jeden Preis auf den Cent.")
     i.abschnitt("Mindestmarge, Kennzahlen und Preis von Hand je Stufe", marke="staffel_mindestmarge")
     i.text("Jede Stufe hält die <b>Mindestmarge</b> (Einstellungen → Angebot, <i>Angebots-Check: Mindestmarge</i>): "
            "liegt die Marge einer größeren Menge darunter, hebt das Programm den Stückpreis genau auf die "
