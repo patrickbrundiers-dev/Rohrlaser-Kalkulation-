@@ -89,6 +89,7 @@ class MeineLeiste(QToolBar):
         self.setMovable(True)
         self.setFloatable(False)
         self.knoepfe = []           # [(QAction, Aktion, kontext?)]
+        self._titel = []            # Gruppentitel (QLabel) des aktuellen Aufbaus
         self.kontext = None
         self.aufbau = None
         self._uhr = QTimer(self)    # Zustand der Knöpfe (Auswahl in Tabellen ändert sich ohne Signal ans Fenster)
@@ -99,6 +100,7 @@ class MeineLeiste(QToolBar):
     def neu_bauen(self):
         db = self.f.db
         self.aufbau = wl.leiste(db)
+        self._alte_wegraeumen()
         self.clear()
         self.knoepfe = []
         px = wl.GROESSE_PX[self.aufbau["groesse"]]
@@ -121,10 +123,27 @@ class MeineLeiste(QToolBar):
         if not self._uhr.isActive() and not self.f.stumm:
             self._uhr.start()
 
+    def _alte_wegraeumen(self):
+        """Aktionen, Menüs und Gruppentitel des vorigen Aufbaus wirklich löschen (Generalüberholung 24.11.2026).
+        QToolBar.clear() nimmt sie nur aus der Leiste; da die Leiste ihr Elternteil ist, blieben sie bis zum
+        Programmende stehen – bei jedem Wechsel des Reiters (Kontextknöpfe) kamen vier Menüs, Aktionen und zwei
+        Beschriftungen samt Verbindungen dazu. deleteLater: neu_bauen kann aus einer Aktion der Leiste heraus laufen."""
+        for act in self.actions():          # Knöpfe, Trenner und die Aktionen der Gruppentitel
+            if act.parent() is not self:
+                continue
+            m = act.menu()
+            if m is not None:
+                m.deleteLater()
+            act.deleteLater()
+        for t in getattr(self, "_titel", ()):
+            t.deleteLater()
+        self._titel = []
+
     def _gruppe(self, titel, kontext=False):
         self.addSeparator()
         if titel:
             t = QLabel(titel)
+            self._titel.append(t)
             t.setObjectName("leiste_gruppe")
             t.setStyleSheet(f"color: {stil.umsetzen(design.TEXT_GRAU)}; font-size: 8pt; padding: 0 4px;"
                             + ("font-style: italic;" if kontext else ""))

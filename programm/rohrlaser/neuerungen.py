@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.472", "<b>Generalüberholung, Paket 1: schneller und aufgeräumter</b>: Die Datendatei öffnet schneller "
+                "(beim Start rund 600 Datenbank-Anweisungen weniger, 0,6 → 0,3 s im Test), weil die Trigger des "
+                "Änderungsprotokolls stehen bleiben statt bei jedem Öffnen neu angelegt zu werden. Speichern, "
+                "Kopieren und Importe brauchen je Anweisung einen Weg weniger zur Datenbank (Angebot mit 50 "
+                "Positionen kopieren 132 → 103 ms); ein Fehler verwirft weiter nur die eine Anweisung. Die "
+                "<b>Startseite</b> zeigt die Schnellzugriffe wieder in voller Höhe und mehreren Spalten (nach dem "
+                "Öffnen eines Angebots waren sie flach gedrückt). <b>Leere Tabellen</b> zeigen in der Mitte "
+                "<i>Keine Einträge</i> statt einer weißen Fläche ([[spalten_waehlen]]). Der Pfeil an Knöpfen mit "
+                "Menü (<i>Letzte Angebote</i>, <i>Favoriten</i>, <i>Meldungen</i>) steht rechts neben dem Text. "
+                "Meine Werkzeugleiste räumt beim Wechsel des Reiters ihre alten Knöpfe und Menüs weg (vorher kamen "
+                "sie bei jedem Wechsel dazu). Alle Rechenergebnisse bleiben gleich.",
+     "Generalüberholung 1: Öffnen und Speichern schneller, Startseite, leere Tabellen, Menüpfeile"],
     ["0.9.471", "<b>Produktionsdaten-Intelligenz</b> ([[lernsystem]]): Das Fenster <i>Datei → "
                 "Produktionsdaten-Intelligenz …</i> liest jetzt TRUMPF-LST und BLM-BPF (Ordner oder <i>Dateien "
                 "importieren …</i>, im Hintergrund, abbrechbar). Jeder Wert steht mit Einheit, Quelle und Deutung im "
