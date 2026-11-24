@@ -340,6 +340,9 @@ def lies_step_info(pfad):
         koerper += _naehen(lose)
         phasen["naehen_s"] = time.monotonic() - uhr
     meldungen = list(dict.fromkeys(m for m in meldungen if m))
+    fehlt = _fehlende_koerper(r, koerper)
+    if fehlt:
+        meldungen.insert(0, fehlt)
     info = dict(einheit=_einheit(pfad), meldungen=meldungen[:20], baugruppe=len(koerper) > 1, struktur=None,
                 bauteile={})
     if doc is not None:
@@ -351,6 +354,25 @@ def lies_step_info(pfad):
         phasen["struktur_s"] = time.monotonic() - uhr
     info["phasen"] = phasen
     return koerper, info
+
+
+def _fehlende_koerper(r, koerper):
+    """Text, wenn die Datei mehr Volumenkörper enthält, als gelesen wurden (Rechenkern 2.0, Paket 4: in einer
+    Baugruppe mit einem beschädigten Körper ließ der Leser ihn still weg, 47 statt 48 Teile ohne Hinweis), sonst "".
+    Gezählt werden die Volumenkörper-Einträge (MANIFOLD_SOLID_BREP) im eingelesenen Modell; ein Eintrag, den die
+    Baugruppe mehrfach einbaut, ergibt mehrere Körper – gemeldet wird also nur, wenn weniger Körper als Einträge da
+    sind. Die Messwerte ändern sich dadurch nicht."""
+    try:
+        liste = r.WS().GiveList("xst-type(ManifoldSolidBrep)")
+        n = liste.Length() if liste is not None else 0
+    except Exception:  # Zählen ist Zusatz: ohne Zahl kein Hinweis
+        return ""
+    gelesen = sum(1 for art, _ in koerper if art == "Volumenkörper")
+    if gelesen >= n:
+        return ""
+    fehlen = "er fehlt" if n - gelesen == 1 else "sie fehlen"
+    return (f"{n - gelesen} von {n} Volumenkörpern der Datei nicht lesbar (beschädigt?) – {fehlen} in der Liste, "
+            f"Datei prüfen oder neu exportieren")
 
 
 IGES_ENDUNGEN = (".igs", ".iges")

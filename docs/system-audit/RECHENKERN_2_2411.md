@@ -200,3 +200,26 @@ Untersuchung erledigt: alle 40+ Stellen, die Preise brauchen, rufen `rechnen.kal
 Rahmenaufträge (`rahmen_kalk`, über `staffeln.stufe_lauf`/`marge_anhebung`) und die Baugruppen-Kostenübersicht
 (`bg_kosten`) rechnen nichts selbst; Dreh-/Frästeil-Richtpreise sind EK-Vorschläge für Zukaufteile (gewollt eigene
 Rechnung). Weiter mit Paket 4 (Fehlerresistenz des Imports) und Paket 6 (Last/Speicher).
+
+## 8. Paket 4: Fehlerresistenz des Imports (24.11.2026)
+
+Neues Prüfwerkzeug `werkzeuge/step_robust.py`: macht aus guten STEP-Dateien beschädigte Fassungen (abgeschnitten
+bei 50/90 %, jede 7. Zeile weg, 200 Bytes gekippt, Unsinn-Koordinaten 1E308, ohne Kopf, nur Zufallsbytes, doppelte
+Entitätsnummern, ein einzelner Körper einer Baugruppe unbrauchbar) und misst jede wie im Programm (eigener Prozess,
+Zeitlimit je Körper). Geprüft: nichts hängt, jede Messung liefert ein Ergebnis, die übrigen Körper einer Baugruppe
+werden weiter gemessen.
+
+Ergebnis mit I05 (Baugruppe 48 Teile), T02 (Rundrohr), RP06 (Verbund 2 Körper), K08 (U-Profil): 34 Messungen, keine
+hängt, jede in 1–7 s fertig, jede mit Ergebnis. Unlesbare Dateien kommen als „STEP-Datei nicht lesbar
+(Syntaxfehler) …“, Abstürze des OpenCascade-Lesers (gekippte Bytes, doppelte Nummern) fängt die Aufsicht ab
+(„Messung abgebrochen (Absturz beim Lesen der Datei …)“), das Programm läuft weiter.
+
+**Gefunden und behoben:** Ein beschädigter Körper in einer Baugruppe fiel still weg (47 statt 48 Teile, Status
+„gelesen“, kein Hinweis). Jetzt zählt `step_geometrie._fehlende_koerper` die Volumenkörper-Einträge im Modell
+(`xst-type(ManifoldSolidBrep)`, ~15 ms bei 54.000 Entitäten) und meldet „1 von 48 Volumenkörpern der Datei nicht
+lesbar (beschädigt?) – er fehlt in der Liste, Datei prüfen oder neu exportieren“ als erste Lesermeldung (steht als
+Hinweis bei jedem Körper, Status „gelesen mit Meldungen“). Nur Hinweis, Messwerte unverändert; bei allen 124
+lesbaren Prüf-STEPs kein Hinweis (keine Fehlalarme). Test: `tests/test_rechenkern_2411.py` Teil 5.
+
+Grenze: Mit Zeitlimit 0 (Einstellung „ohne“) misst `step_messen` ohne Aufsicht; ein Absturz des Lesers beendet dann
+die Messung ohne Ergebnis (das Programm meldet den Fehler des Messprozesses). Vorgabe ist 600 s, also mit Aufsicht.
