@@ -20,6 +20,10 @@ Aufruf:
   "lk" = Kontur je Linienzug (Nummer in der Spalte konturen_liste, -1 = keine; STEP-Viewer).
   --netze-fein: Analysestufe Experte, feineres Netz (nur Anzeige, Messwerte gleich).
 
+--abwicklungskern aus|vergleich|an: Rohrmessung mit dem Abwicklungskern (step_abwicklungskern.py): Profil-Lage aus den
+  Flächen statt vieler Schnitte, Endlinien offener Rohre bereinigt; vergleich = beide rechnen, Ergebnis wie bisher,
+  Unterschiede in <ausgabe>.abwicklungskern.json; an = neu, wo sicher möglich, sonst automatisch die bisherige Rechnung.
+
 --flach-laenge F, --gekantet-anteil A: Grenzwerte der Erkennung aus den Einstellungen (step_geometrie.einstellen).
 
 --prozesse N: gleichzeitige Messprozesse (0 = automatisch, Kerne − 1). --zeitlimit S: Sekunden je Körper (0 = ohne);
@@ -826,6 +830,9 @@ def main(argv=None):
     ap.add_argument("--naht-spalt", type=float, help="Schweißstoß: Spalt bis [mm] noch Naht und Gravur (Vorgabe 3)")
     ap.add_argument("--normteile-voll", action="store_true",
                     help="Normteile laut Bauteilname (DIN 933 …) wie jedes Teil voll messen (sonst nur als Zukaufteil)")
+    ap.add_argument("--abwicklungskern", choices=("aus", "vergleich", "an"),
+                    help="Abwicklungskern (step_abwicklungskern): aus = bisher, vergleich = beide rechnen und "
+                         "protokollieren, an = neu mit automatischem Rückfall")
     ap.add_argument("--netze-fein", action="store_true",
                     help="Analysestufe Experte: feineres Netz für die 3D-Ansicht (Messwerte gleich)")
     ap.add_argument("--prozesse", type=int, default=0, help="Messprozesse (0 = automatisch)")
@@ -863,7 +870,8 @@ def main(argv=None):
                                ("naht_spalt", a.naht_spalt),
                                ("stege", a.stege), ("virtuell", a.virtuell),
                                ("normteile_voll", a.normteile_voll or None),
-                               ("netz_fein", a.netze_fein or None)) if v is not None}
+                               ("netz_fein", a.netze_fein or None),
+                               ("abwicklungskern", a.abwicklungskern)) if v is not None}
     ergebnis = [None] * len(dateien)
     with open(a.ausgabe, "w", encoding="utf-8", newline="\n") as f:      # Teilergebnis wächst je Datei
         f.write("\t".join(SPALTEN) + "\n")
