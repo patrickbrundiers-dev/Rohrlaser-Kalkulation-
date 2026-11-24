@@ -138,6 +138,11 @@ vs = na.zwischen_netz(qs, m, d3["zwischen"])
 assert vs and len(vs["t"]["VS"]) % 3 == 0 and vs["t"]["VS"]
 zs = vs["p"][2::3]
 assert min(zs) >= g["x0"] - 1e-6 or min(zs) >= 0
+a0 = [z for z in d3["zwischen"] if z["von_teil"] is None][0]       # vor dem 1. Teil: Besäumschnitt bis Gehrung
+assert abs(a0["x0"] - 10) < 1e-6 and a0["mm"] > 10
+va = na.zwischen_netz(qs, m, [a0])                                 # 3D: Wandstück über den ganzen Umfang
+xy = list(zip(va["p"][0::3], va["p"][1::3]))
+assert min(x for x, _ in xy) < -15 and max(x for x, _ in xy) > 15 and min(y for _, y in xy) < -15
 netz3, _ = na.netz_stange(s3, pos, lambda p: prof, None, {})
 assert "VS" in netz3["t"] and netz3["t"]["VS"]
 ok("Verschnitt zwischen den Teilen: Fuge 2 mm bei geraden Enden, Gehrung als Dreieck, Kennzahl, 3D-Netz (Art VS)")

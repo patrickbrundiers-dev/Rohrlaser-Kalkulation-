@@ -193,7 +193,8 @@ def zwischenflaechen(teile, umfang, anfang, ende):
         if f <= 0.5:
             continue
         xs = [x for x, _ in poly]
-        out.append(dict(von_teil=li, bis_teil=ri, poly=poly, flaeche=f, mm=f / umfang, x0=min(xs), x1=max(xs)))
+        out.append(dict(von_teil=li, bis_teil=ri, poly=poly, flaeche=f, mm=f / umfang, x0=min(xs), x1=max(xs),
+                        links=list(links), rechts=list(rechts)))
     return out
 
 
@@ -217,8 +218,8 @@ def zwischen_netz(qs, mantel, zwischen, punkte=PUNKTE):
         pk.extend((uv[0], uv[1], x))
         return len(pk) // 3 - 1
     for z in zwischen:
-        n_l = len(z["poly"]) // 2
-        links, rechts = z["poly"][:n_l], list(reversed(z["poly"][n_l:]))
+        # beide Schnittkanten einzeln (am Stangenanfang/-ende hat die gerade Kante nur 2 Punkte, die Gehrung viele)
+        links, rechts = z["links"], z["rechts"]
         stellen = sorted({U * i / punkte for i in range(punkte + 1)} | {q for _, q in links} | {q for _, q in rechts})
         reihe = []
         for t in stellen:
