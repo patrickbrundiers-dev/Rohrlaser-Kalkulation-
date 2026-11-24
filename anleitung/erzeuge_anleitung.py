@@ -7585,7 +7585,7 @@ def kapitel_optimieren(i):
             "zu sehen und wie gewohnt änderbar; erst <b>OK</b> legt die Position an.")
     i.abschnitt("Rohrteil aus einer PDF-Zeichnung (Test)", marke="pdf_zeichnung")
     i.text("Noch eine <b>Testfunktion</b>: Erst mit der Einstellung <i>Testfunktion PDF-Zeichnungen: Neue Position „Aus PDF-Zeichnung“</i>"
-           " (Einstellungen → STEP-Import, Vorgabe nein) bietet <i>Neue Position</i> den Typ "
+           " (Einstellungen → DXF-Import, Vorgabe nein) bietet <i>Neue Position</i> den Typ "
            "<b>Aus PDF-Zeichnung (Test)</b> an. Das Programm liest den <b>Text</b> der Zeichnung (aus einem PDF mit "
            "Text direkt, Scans und Fotos mit der Texterkennung wie beim Anfrageformular, [[anfragen]]) und öffnet den "
            "Rohr-Editor damit. Ist das PDF direkt aus dem CAD gespeichert (Linien, kein Scan), liest es auch die "
@@ -8831,11 +8831,42 @@ def kapitel_zukauf_angebot(i):
         ["Werkstoff", "TRUMPF-Werkstoff (St37 bzw. 1.0038 → S235, St52 bzw. 1.0570 → S355, 1.4301 …), sonst der "
          "Standard-Werkstoff des STEP-Imports"],
         ["Länge", "Teillänge des Programms (<i>Work Part Length</i>)"],
-        ["Schneidweg, Einstiche", "Schnittlänge des Programms (<i>Cutting length</i>) und die Einstiche im NC-Teil; "
-         "die Konturklassen bleiben leer, gerechnet wird mit Vorschub groß"],
-        ["Schneidzeit je Teil", "die von TRUMPF berechnete Zeit (Anschnitt + Konturen + Abschnitt), wenn die "
-         "Einstellung <i>TRUMPF-Programm: berechnete Zeit je Teil als Schneidzeit übernehmen</i> (STEP-Import) auf "
-         "<i>ja</i> steht (Vorgabe); bei <i>nein</i> rechnet das Programm die Zeit selbst"]], [40, 130])
+        ["Schneidweg, Einstiche", "Schnittlänge am Material aus dem programmierten Schneidweg (seit 0.9.468, siehe "
+         "unten) und die Einstiche im NC-Teil; die <i>Cutting length</i> der LST steht als Maschinenweg im Bericht. "
+         "Ohne lesbaren Schneidweg gilt wie bisher die <i>Cutting length</i>"],
+        ["Konturen", "jede Kontur aus dem Schneidweg mit Hüllmaß und Länge, eingeteilt in groß, mittel und klein nach "
+         "den Grenzen der Maschine (wie bei der STEP-Messung); der Bericht nennt Anzahl und Länge je Klasse"],
+        ["Laserzeit", "Einstellung <i>TRUMPF-Programm: Laserzeit aus dem Programm</i> (STEP-Import): <i>ja</i> "
+         "(Vorgabe) = alle Zeiten der LST werden übernommen (Laser an als reine Laserzeit, Laser aus als Verfahren "
+         "und Drehen, gemessene Zeit vor berechneter); nur was die LST nicht enthält (Nebenzeit, Messen, Entnahme, "
+         "Beladen) rechnet das Programm wie immer dazu; <i>ganz</i> = die ganze von TRUMPF berechnete Zeit (Anschnitt + "
+         "Konturen + Abschnitt) wird Schneidzeit von Hand; <i>nein</i> = das Programm rechnet alles selbst. Ohne "
+         "Laser-an-Zeit in der LST gilt bei <i>ja</i> die ganze TRUMPF-Zeit"]], [40, 130])
+    i.text("<b>Programmierter Schneidweg aus der LST</b> (Patrick 24.11.2026, seit 0.9.468): Der NC-Teil der LST "
+           "beschreibt den Weg des Schneidkopfs (Konturanfang, Einstich, Geraden, Bögen, Drehung um die Ecken). Das "
+           "Programm liest ihn wie das Abwicklungsbild der Programmiersoftware: je Kontur die Bahn, getrennt in "
+           "Anfahrt, Schnitt, Trennschnitt und Restzerteilung (Abfall zerschneiden). TRUMPF programmiert die Mitte des "
+           "Strahls; die halbe Schnittfuge kommt aus den beiden Trennschnitten und der Teillänge, jede Kontur wird um "
+           "sie zur Teilkante versetzt (Bohrungen haben so ihr Maß aus der Zeichnung). Die <b>Schnittlänge am "
+           "Material</b> ist deutlich kürzer als die <i>Cutting length</i>, denn die zählt die Achswege mit Anfahrten "
+           "und dem Kopfweg um die Ecken. Enthält die LST genau ein Teil, baut das Programm daraus ein exaktes 3D-Rohr "
+           "(Querschnitt exakt, jede Kontur lagegenau abgezogen) und misst es wie eine STEP-Datei mit Prüfdialog und "
+           "3D-Ansicht. Liegt neben einer TUBX die gleichnamige LST, misst die TUBX das Teil aus der LST (genauer als "
+           "das Netz). Job-Listen mit mehreren Programmen bekommen die Werte je Teil ohne 3D-Messung.")
+    i.text("<b>Laserzeit aus der LST</b>: Die LST teilt die Maschinenzeit nach Laserleistung auf "
+           "(<i>CONSUMPTION_TIMES</i>): <i>Laser an</i> ist das Schneiden einschließlich der Einstiche, <i>Laser aus</i> "
+           "das Verfahren und Drehen. Beide zusammen sind die berechnete TRUMPF-Zeit je Teil. Beladen, Entladen, "
+           "Rohrwechsel und Nebenzeiten stehen nicht in der LST. Mit der Vorgabe ersetzt die Laser-an-Zeit in der "
+           "Kalkulation das Schneiden und die Ecken (verteilt auf groß, mittel, klein nach den berechneten Anteilen), "
+           "die Laser-aus-Zeit ersetzt Verfahren und Drehen. Hat die Maschine das Teil schon gemessen (die LST nach "
+           "dem Lauf gespeichert), gilt die gemessene Zeit. Nur was fehlt, rechnet das Programm dazu (Patrick "
+           "24.11.2026: „nur das dazurechnen, was fehlt“). Die Pausen-Einstellungen für Laden und Entladen in der "
+           "LST (z. B. Haltezeit Bundablage) sind Maschinenparameter, keine Zeit je Teil; "
+           "die Einstiche sind enthalten (Einstellung <i>TRUMPF-Programm: Einstiche</i> = <i>enthalten</i>, "
+           "Entscheidung Patrick 24.11.2026). Mit <i>eigen</i> bleibt die berechnete Einstichzeit ein eigener Posten "
+           "und wird von der Laser-an-Zeit abgezogen. Eine Schneidzeit von Hand geht immer vor.")
+    i.text("BLM-Programme (BPF) enthalten keine Zeit, nur eine Geschwindigkeitsstufe je Kontur; der Bericht der "
+           "Messung nennt sie.")
     i.text("<b>TUBX wird wie eine STEP-Datei gemessen</b>: Ziehen, Ablagefeld oder <i>Aus TRUMPF-Programm</i> geben "
            "die TUBX in den STEP-Import mit Prüfdialog und 3D-Ansicht. Die TUBX enthält das Teil als Dreiecksnetz und "
            "die exakten Kanten des Modells: aus dem Netz wird ein Volumenkörper, Bohrungen werden aus den Kreisen des "
