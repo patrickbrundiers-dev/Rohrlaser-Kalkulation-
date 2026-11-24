@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.481", "<b>Austauschordner 2.0, Paket C</b> ([[austausch]]): STEP-Dateien öffnen mit einem Klick im "
+    ["0.9.482", "<b>Austauschordner 2.0, Paket C</b> ([[austausch]]): STEP-Dateien öffnen mit einem Klick im "
                 "<b>STEP-Viewer</b> des Programms. LST, BPF und ArTube gleichen Namens stehen als <i>Zugehörige "
                 "Programme</i> neben der STEP. Neuer Knopf <b>Dateien im Austausch</b> bei Kunde, Angebot und "
                 "Auftrag, er findet auch Dateien mit der Angebots- oder PPEASE-Nummer im Pfad. Outlook-Mails (MSG, "
@@ -32,6 +32,15 @@ NEUERUNGEN = [
                 "sperrt kein Rest mehr die Datei.",
      "Austausch: STEP-Viewer, zugehörige LST/BPF, Dateien im Austausch bei Kunde/Angebot/Auftrag, Mail-Anhänge, "
      "Rechtetabelle"],
+    ["0.9.481", "<b>Schnellimport STEP (ohne 3D), optional</b> ([[step]]): neuer Importmodus <i>Schnellkalkulation</i> "
+                "neben dem vollständigen CAD-Import. Gleiche Messung und genau gleiche Kalkulation, aber statt des "
+                "Prüfdialogs mit 3D eine kompakte Ergebnisübersicht (Schneidweg, Konturen, Einstiche, Bearbeitungen, "
+                "Zusatzarbeiten, Genauigkeit je Teil, Kalkulationsstatus); 3D lässt sich später je Position per "
+                "Rechtsklick <i>3D aus STEP nachladen …</i> holen. Spart bis 68 % Arbeitsspeicher, aber nur etwa 5 % "
+                "Zeit, deshalb ist er eine Funktion und standardmäßig aus (Einstellungen → Funktionen → "
+                "<i>Schnellimport STEP (ohne 3D)</i>, danach Seite <i>STEP-Import: Schnellimport</i>). Die "
+                "Kantteil-Gegenprobe ist in beiden Modi 35 % schneller (gleiche Ergebnisse).",
+                "Schnellimport STEP ohne 3D als optionale Funktion (Vorgabe aus), Kantteil-Gegenprobe schneller"],
     ["0.9.480", "<b>STEP-Import: langsame Teile nie halbfertig übernehmen</b> ([[step]]): Ein Teil, das noch gemessen "
                 "wird, lässt sich im Prüfdialog nicht mehr <i>von Hand nachtragen</i> (das gab ein Rohr mit Länge aus "
                 "dem Hüllmaß, aber ohne Bohrungen – z. B. 30 Bohrungen und nur 2 s Laserzeit). Beim Warten auf "
