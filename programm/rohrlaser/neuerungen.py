@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.474", "<b>Rechenkern 2.0, Teil 1: schneller bei genau gleichen Ergebnissen</b>: Staffeln rechnen die "
+                "Schnittzeit je Position nur noch einmal für alle Stufen, denn sie hängt nicht von der Stückzahl ab "
+                "(Angebot mit 200 Positionen und 6 Stufen etwa 4× schneller). Beim STEP-Import rechnen die Booleschen "
+                "Operationen auf allen Prozessorkernen (offene U-Profile bis 25 % schneller, alle 126 Prüf-STEPs "
+                "zusammen 12 %). Jede Zahl bleibt gleich. Neu in der Diagnose: <b>Leistung je "
+                "Verarbeitungsschritt</b> mit Median, 95-%-Wert, CPU, Arbeitsspeicher und Anzahl je Schritt "
+                "(STEP-Import mit Teilschritten, Optimieren, Kalkulation, Staffeln, PDF …) ([[diagnose]]).",
+     "Staffeln und STEP-Import schneller (bitgleich); Leistung je Schritt in der Diagnose"],
     ["0.9.469", "<b>Staffelpreise = Angebotskalkulation</b>: Jede Staffelstufe kostet jetzt Cent für Cent so viel wie "
                 "ein normales Angebot mit derselben Menge. Bisher fehlten in den Staffeln Rabatt, Verpackung, "
                 "Finanzierung, Runden und Frachtfrei des Angebots (Staffel z. B. 4,7 % teurer als das Angebot bei "

@@ -18,7 +18,7 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame,
                                 Image, NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 from reportlab.pdfgen import canvas as rl_canvas
 
-from . import ausgabe, design, querschnitt, rechnen, stangen_abwicklung
+from . import ausgabe, design, leistung, querschnitt, rechnen, stangen_abwicklung
 from .rechnen import kostenarten
 from .stammdaten import zahl_als_text
 
@@ -631,6 +631,7 @@ def _zeilen_hoehen(daten, breiten, stil, rand=3, oben_unten=7):
 GRUPPE_MAX_HOEHE = 600      # pt: kleiner als der Textbereich einer A4-Seite (765 pt) abzüglich Tabellenkopf
 
 
+@leistung.gemessen("PDF: Angebot")
 def angebot_pdf(pfad, kopf, ang, einst, ab=None):
     """ang = ausgabe.angebot(...). ab: Auftragsbestätigung (auftragsbestaetigung_pdf). ang['englisch'] (OFFER-015,
     englisch.angebot): Bezeichnungen und Zahlen englisch."""
@@ -1114,6 +1115,7 @@ def _kundenhinweis_block(text):
     return [t, Spacer(1, 4 * mm)]
 
 
+@leistung.gemessen("PDF: Werkstattpapiere")
 def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
     """wp = ausgabe.werkstatt(...). Schnittpläne hochkant, danach das Stangenbild quer – eine Datei."""
     nr = kopf.get("nummer") or ""
@@ -1738,6 +1740,7 @@ def _zeilen_kalk(zeilen, positionen, summen):
     return out
 
 
+@leistung.gemessen("PDF: Kalkulation")
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=None, muster=None, profile=None,
                     hinweise=None, positionen=None, staffel=None, plausi=None, maschine=None, co2=None,
                     bearbeitungen=None):

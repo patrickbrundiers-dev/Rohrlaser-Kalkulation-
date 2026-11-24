@@ -485,7 +485,8 @@ def rechnen_alle(kopf, positionen, stufen, k, tabellen, einst, fortschritt=None,
     ohne_lauf: nur die Preisschicht; Stufen ohne passenden Mengenlauf bekommen Zeilen 'VERALTET'.
     fortschritt(i, n) wird vor jedem Mengenlauf aufgerufen und kann mit False abbrechen (Ergebnis dann None)."""
     from . import diagnose          # Rechenzeit je Rechenkern (Performance-Monitoring 21.11.2026)
-    with diagnose.messen("Staffeln" if not ohne_lauf else "Staffeln (nur Preise)"):
+    # Mengenläufe teilen die Schnittzeiten je Position (Stückzahl geht nicht ein, rechnen.schnittzeiten_teilen)
+    with diagnose.messen("Staffeln" if not ohne_lauf else "Staffeln (nur Preise)"), rechnen.schnittzeiten_teilen():
         return _rechnen_alle(kopf, positionen, stufen, k, tabellen, einst, fortschritt, alt, ohne_lauf, stufen_daten)
 
 

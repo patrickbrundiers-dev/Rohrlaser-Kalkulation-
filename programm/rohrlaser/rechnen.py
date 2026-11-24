@@ -3496,10 +3496,54 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
     return t["sd"], t["vorschuebe"], sum(t["anteile"].values()) if t["anteile"] else None
 
 
+# Mengenläufe teilen Schnittzeiten (Master-Auftrag Rechenkern 2.0, 24.11.2026): Die Staffeln rechnen jede Stufe wie
+# ein eigenes Angebot (rechnen.kalkulation je Stufe). Die Positionen der Stufen unterscheiden sich in der Stückzahl
+# (stueck, abruf_basis), die die Schnittzeit nicht liest (geprüft: tests/test_rechenkern_2411.py verfolgt jeden
+# Feldzugriff von _schneidzeit_teile_rechnen über alle Regressions- und Testangebote). Innerhalb von
+# schnittzeiten_teilen() gilt deshalb eine Schnittzeit für alle Stufen mit sonst gleicher Position, gleichem Kopf,
+# gleicher Wand und denselben Stammdaten-Objekten – gleiche Rechnung, gleiche Zahl (bitgleich).
+SCHNITTZEIT_OHNE_MENGE = ("stueck", "abruf_basis")
+SCHNITTZEITEN_TEILEN = True     # False = jede Stufe rechnet ihre Schnittzeiten selbst (wie bis 0.9.469)
+
+
+@contextlib.contextmanager
+def schnittzeiten_teilen():
+    """Schnittzeiten je Position für alle Rechnungen im with-Block einmal (je Faden; verschachtelt: der äußere gilt)."""
+    if not SCHNITTZEITEN_TEILEN or getattr(_MERKER, "teilen", None) is not None:
+        yield
+        return
+    _MERKER.teilen, _MERKER.teilen_halten = {}, []
+    try:
+        yield
+    finally:
+        _MERKER.teilen = _MERKER.teilen_halten = None
+
+
 def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     """Schneiddaten, wirksame Vorschübe (Schnittqualität, dicke Wand: zeit_zusatz.vorschuebe), 3D, Enden, Zeit je
     Kontur und Zeitanteile einer Position. Im Merker je Eingabe einmal (Stabilitäts-Auftrag 18.11.2026, D2:
     Positionstabelle und Kalkulation rechneten sie im selben Neuladen doppelt); jeder Aufrufer bekommt eine Kopie."""
+    teilen = getattr(_MERKER, "teilen", None)
+    if teilen is not None and type(p) is dict and type(kopf) is dict:
+        try:
+            # Kopf ohne die Felder, die die Schnittzeit nicht liest (wie der Angebots-Cache, KOPF_OHNE_SCHNITTZEIT;
+            # das Ergebnis darin ist bei großen Angeboten sehr lang)
+            s = (repr({n: w for n, w in p.items() if n not in SCHNITTZEIT_OHNE_MENGE}),
+                 repr({n: w for n, w in kopf.items() if n not in KOPF_OHNE_SCHNITTZEIT}), repr(wand),
+                 id(tabellen), id(k))
+        except Exception:       # noqa: BLE001 – ohne Schlüssel wie ohne Teilen
+            s = None
+        if s is not None and " at 0x" not in s[0] and " at 0x" not in s[1]:
+            v = teilen.get(s)
+            diagnose.merker_zaehlen("Schnittzeit je Stufe", v is not None)
+            if v is None:
+                v = teilen[s] = _schneidzeit_teile_einzeln(p, kopf, wand, tabellen, k)
+                _MERKER.teilen_halten.append((tabellen, k))
+            return kopie(v)
+    return _schneidzeit_teile_einzeln(p, kopf, wand, tabellen, k)
+
+
+def _schneidzeit_teile_einzeln(p, kopf, wand, tabellen, k):
     if getattr(_MERKER, "werte", None) is None:
         return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
     # Schlüssel nach Inhalt von Position und Kopf: die Kalkulation rechnet mit Kopien der Positionen (Konturklassen

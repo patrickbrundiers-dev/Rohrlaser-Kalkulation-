@@ -28,6 +28,7 @@ Annahmen:
   (der Laser schneidet jede Wand einmal), siehe _offen_konturen.
 """
 import math
+import os
 import time
 from dataclasses import dataclass, field
 
@@ -4279,6 +4280,13 @@ def _als_profil(solid, b, form=None, t=None, ersatz=False):
 FUZZY = 1e-3                 # mm, Toleranz der Booleschen Operationen (die Hülle liegt genau auf dem Außenmantel)
 
 
+# Rechenkern 2.0 (Master-Auftrag 24.11.2026): Boolesche Operationen rechnen die Schnitte der Flächenpaare auf allen
+# Kernen (OpenCascade-Parallelmodus wie schon _schnitt). Offene U-Profile verbringen ~60 % der Messung hier; K08
+# 21,6 → 16,5 s, eine Baugruppe mit 48 Körpern in 3 Messprozessen 50,7 → 43,8 s. Das Ergebnis ist dasselbe (alle
+# 126 Test-STEPs bitgleich, step_benchmark vergleich). RL_BOOLESCH_SEQ=1 schaltet es zur Fehlersuche ab.
+BOOLESCH_PARALLEL = not os.environ.get("RL_BOOLESCH_SEQ")
+
+
 def boolesch(art, a, b, fuzzy=FUZZY):
     """Boolesche Operation a ∩ b ("und"), a ∪ b ("plus") bzw. a − b ("minus") mit Toleranz fuzzy, GENAU EINMAL
     gerechnet (gebaut, IsDone() prüfen). Tempo 21.11.2026: BRepAlgoAPI_Fuse(a, b) rechnet schon im Konstruktor (ohne
@@ -4298,6 +4306,8 @@ def boolesch(art, a, b, fuzzy=FUZZY):
     op.SetTools(tools)
     if fuzzy:
         op.SetFuzzyValue(fuzzy)
+    if BOOLESCH_PARALLEL:
+        op.SetRunParallel(True)
     op.Build()
     return op
 ANBAU_DICKE_MIN = 0.05       # mm, mittlere Dicke 2·V/A darunter: Rechenrest der Booleschen Operation, kein Teil

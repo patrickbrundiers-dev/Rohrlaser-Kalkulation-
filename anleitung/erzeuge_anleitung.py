@@ -739,6 +739,20 @@ def kapitel_start(i):
             "100 ms, 1 s, länger) mit der längsten Anweisung, fehlgeschlagene Berechnungen mit dem letzten Befund "
             "sowie die Hintergrundaufgaben (Optimieren, Staffelpreise, Maschinenvergleich, Wiederholteile, "
             "Sicherung): was gerade läuft und seit wann, und wie oft und wie lange sie seit dem Start liefen.",
+            "<b>Leistung je Verarbeitungsschritt (Rechenkern 2.0, 24.11.2026):</b> Ein eigener Abschnitt zeigt für "
+            "jeden wichtigen Schritt (STEP-Import gesamt und seine Teilschritte Datei lesen, umwandeln und heilen, "
+            "Flächen nähen, Baugruppenstruktur, gleiche Körper suchen, Körper messen, Baugruppe auswerten; "
+            "Optimieren, Kalkulation, Staffeln, Maschinenvergleich, Nesting-Vergleich, PDF für Angebot, "
+            "Werkstattpapiere, Kalkulation und Angebotsakte) die Anzahl, den <i>Median</i> und den <i>95-%-Wert</i> "
+            "der letzten 256 Läufe, den längsten Lauf, die Gesamtzeit, die CPU-Auslastung, den Arbeitsspeicher und "
+            "den größten Zuwachs während eines Laufs sowie Zählwerte wie Dateien, MB und Körper, dazu Fehler und "
+            "Warnungen. Der 95-%-Wert zeigt, wie lange es in den langsamen Fällen dauert – ein einzelner schneller "
+            "Lauf verfälscht ihn nicht. Gemessen wird nur um die Schritte herum; Ergebnisse ändert das nicht.",
+            "<b>Schneller ohne andere Ergebnisse (Rechenkern 2.0):</b> Die Staffeln rechnen die Schnittzeit je "
+            "Position nur noch einmal für alle Stufen, weil sie nicht von der Stückzahl abhängt (Staffeln eines "
+            "Angebots mit 200 Positionen und 6 Stufen etwa 4× schneller). Beim STEP-Import rechnen die Booleschen "
+            "Operationen (z. B. beim Schließen offen gezeichneter U-Profile) auf allen Prozessorkernen; die 126 "
+            "Prüf-STEPs messen zusammen etwa 12 % schneller. Alle Werte bleiben auf die letzte Stelle gleich.",
             "<b>Ergebnisprüfung:</b> Nach jeder Kalkulation prüft das Programm das Ergebnis unabhängig von der "
             "Rechnung: jede Zahl muss gültig sein (kein NaN, nicht unendlich). Sonst zeigt der Angebots-Check einen "
             "FEHLER ([[angebots_check]]), das Protokoll eine Warnung und die Diagnose die fehlgeschlagene "
