@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.468", "<b>Generalüberholung, Paket 1: schneller und aufgeräumter</b>: Die Datendatei öffnet schneller "
+    ["0.9.472", "<b>Generalüberholung, Paket 1: schneller und aufgeräumter</b>: Die Datendatei öffnet schneller "
                 "(beim Start rund 600 Datenbank-Anweisungen weniger, 0,6 → 0,3 s im Test), weil die Trigger des "
                 "Änderungsprotokolls stehen bleiben statt bei jedem Öffnen neu angelegt zu werden. Speichern, "
                 "Kopieren und Importe brauchen je Anweisung einen Weg weniger zur Datenbank (Angebot mit 50 "
