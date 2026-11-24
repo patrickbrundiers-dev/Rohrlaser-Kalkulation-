@@ -653,14 +653,6 @@ def _text_zahl(t):
         return None
 
 
-def ek_gesamt(e, stueck):
-    """EK gesamt der Position für die Anzeige: Menge × Bezugsmenge × EK je Einheit (ohne Bezugskosten) oder None."""
-    ek = ek_einheit(e.get("stand"))
-    if ek is None:
-        return None
-    return ek * _d(e.get("menge")) * _d(stueck)
-
-
 def ek_einheit(st):
     """EK je Einheit des Preisstands für die Anzeige: erster Staffelpreis / Preiseinheit (ohne Rabatt) oder None."""
     b = (st or {}).get("bezug") or {}

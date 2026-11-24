@@ -141,12 +141,6 @@ def teilenummern(pfad):
     return _PRODUKTE[schl]
 
 
-def _datei_artikel(bisher):
-    """Artikel aus dem Dateinamen (Messung: Datei bzw. Datei-K2) bereinigt, der Körperzusatz -K2 bleibt."""
-    t = re.match(r"^(.*?)(-K\d+)?$", str(bisher or ""))
-    return (bereinigt(t.group(1)) + (t.group(2) or "")) if t.group(1) else str(bisher or "")
-
-
 def bestimmen(m, benennung, muster=""):
     """Artikelnummer eines Körpers aus der STEP-Datei. Rangfolge (Patrick 28.10.2026, alle a): Teilenummer der STEP
     (PRODUCT-ID, F1) > Muster des Importprofils > Bauteilname (Nummer darin automatisch, F3) > Dateiname. Namen

@@ -135,11 +135,6 @@ def frei(g, laenge, folge):
     return h.nutzbar_bis - opt.belegt(h, folge)
 
 
-def physischer_rest(g, laenge, folge):
-    """Länge, die hinter dem letzten Schnitt an der Stange bleibt (mit dem Greiferrest)."""
-    return laenge - opt.verbrauch(_h(g, laenge, []), folge)
-
-
 def verwertbar(g, rest_mm, min_rest=0.0, min_nutz=REST_MIN_NUTZ):
     """Ist ein Reststück wiederverwendbar? Theoretischer Rest ist jede Länge; verwertbar ist er erst, wenn er
     mindestens min_rest lang ist UND nach Endbeschnitt, Greiferrest (Spannbereich) und einem Schnitt noch min_nutz
