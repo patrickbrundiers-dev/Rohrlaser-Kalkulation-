@@ -1440,9 +1440,9 @@ def kapitel_angebote(i):
             "eine eigene <b>Akte</b> mit Nummer <i>A-2026-00042</i>. Die Akte enthält eine Kopie der Mail und aller "
             "Anhänge mit Prüfsumme. Dieselbe Mail ergibt nie zwei Akten; ein Nachtrag des Kunden kommt dazu, "
             "solange die Anfrage neu ist.",
-            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt, Meine oder Keine Anfrage zeigt "
-            "diesen Ordner; jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung 0</b>, "
-            "<b>Erledigt 0</b>, <b>Meine 0</b> und <b>Keine Anfrage 0</b>. "
+            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt, Meine, Keine Anfrage oder Gelöscht "
+            "zeigt diesen Ordner; jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung "
+            "0</b>, <b>Erledigt 0</b>, <b>Meine 0</b>, <b>Keine Anfrage 0</b> und <b>Gelöscht 0</b>. "
             "Daneben Suche (Kunde, Betreff, Text, Dateiname, Angebotsnummer) und Filter nach Bearbeiter, Priorität "
             "und Zeitraum (Erledigt: letzte 90 Tage, auf Wunsch länger). Die Zahl der neuen Anfragen steht auch in "
             "der Seitenleiste.",
@@ -1566,8 +1566,9 @@ def kapitel_angebote(i):
             "zu diesem Kunden. Die Regeln stehen im Fenster <i>Outlook …</i> unter <i>Zuordnungsregeln</i> und lassen "
             "sich dort löschen. Der Kundenstamm wird dabei nie geändert.",
             "<b>Doppelt und Antworten</b>: Kommt dieselbe Kundenmail auf zwei Wegen (direkt und weitergeleitet), "
-            "entsteht keine zweite Anfrage. Antworten erkennt das Programm auch an den Kopfzeilen der Mail, ohne AW: im "
-            "Betreff.",
+            "entsteht keine zweite Anfrage. Die zweite Mail gehört trotzdem zur Anfrage und wird in Outlook mit ihr "
+            "verschoben (nach In Bearbeitung, Erledigt …), auch wenn ihr Inhalt schon in der Anfrage steht. Antworten "
+            "erkennt das Programm auch an den Kopfzeilen der Mail, ohne AW: im Betreff.",
             "<b>Interne Notizen bleiben intern</b>: Ist die Anfrage intern weitergeleitet, öffnen <i>Rückfrage</i> und "
             "<i>Angebot per E-Mail</i> eine neue Mail an den Kunden, nie eine Antwort auf die interne Mail. So geht "
             "der interne Verlauf nicht mit.")
@@ -1738,6 +1739,15 @@ def kapitel_angebote(i):
             "Hauptanfrage. Automatisch wird nie zusammengeführt.",
             "<b>Zusammenführung rückgängig</b>: trennt die zuletzt zusammengeführten Anfragen wieder. Gelöscht wird "
             "nichts, die Originaldateien bleiben unverändert.",
+            "<b>Originale im Anfrage-Ordner</b>: Beim Zusammenführen legt das Programm die Originale der übernommenen "
+            "Anfragen aus dem Anfrage-Ordner in dessen Unterordner .uebernommen. So erscheinen sie nach dem "
+            "Kalkulieren nicht wieder als neue Anfrage. Das gilt auch für gelöschte und aussortierte Anfragen.",
+            "<b>Löschen …</b>: legt die gewählte Anfrage in den Ordner <i>Gelöscht</i> (oben in der Zählerleiste). Dort "
+            "ist sie für alle Kollegen aus den Listen, Zählern und der Auswertung heraus, und in Outlook kommt die Mail "
+            "nach Erledigt. Ein Grund ist freiwillig. Eine neue Anfrage darf jeder löschen, eine übernommene nur der "
+            "Bearbeiter oder der Admin. Verknüpfte Angebote bleiben erhalten. <i>Wiederherstellen</i> holt die Anfrage "
+            "in ihren alten Ordner zurück. Die Dateien bleiben in der Akte, damit dieselbe Mail nicht als neue "
+            "Anfrage wiederkommt.",
             "<b>Sicherheit</b>: Zusammenführen dürfen der Bearbeiter und der Admin, eine neue Anfrage darf jeder "
             "zusammenführen. Eine Sperre verhindert, dass zwei Plätze gleichzeitig dieselben Anfragen zusammenführen. "
             "Ein Journal sorgt dafür, dass ein Absturz oder Netzabbruch mittendrin beim nächsten Start sauber zu Ende "
@@ -12486,7 +12496,9 @@ def kapitel_einstellungen(i):
            "Versand</i>; jede Einstellung steht auf der Seite ihres Themas neben den passenden Stammdaten. Darüber das "
            "<b>Suchfeld</b>: es zeigt nur die Seiten, deren Titel, Spalten oder Einstellungen zum Suchwort passen, und "
            "auf diesen Seiten nur die passenden Einstellungen (z. B. „gewinn“). Enter öffnet den ersten Treffer, "
-           "das × im Feld zeigt wieder alles. Seiten mit 🔒 ändert nur der Admin ([[passwort]]).", kurz=True)
+           "das × im Feld zeigt wieder alles. Seiten mit 🔒 ändert nur der Admin ([[passwort]]). Die Seiten mit "
+           "Einstellungen entstehen erst, wenn Sie sie zum ersten Mal öffnen; so startet das Programm schneller.",
+           kurz=True)
     i.bild("einstellungen_suche", "Einstellungen: Suche nach „gewinn“", hoehe=60 * mm, legende=[
         (1, "<b>Suchfeld</b>"), (2, "Navigation: nur Seiten mit Treffern"),
         (3, "Seite Zuschläge und Preise: nur die passenden Einstellungen")])

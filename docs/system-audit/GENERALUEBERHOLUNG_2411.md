@@ -116,6 +116,53 @@ Stelle. **Empfehlung: Aufbau beibehalten.** Ein Wechsel (z. B. die am 19.11. bes
 Abgleich“) wird nur mit Patricks Freigabe und eigenem Migrationsplan (Sicherung, Probe-Wiederherstellung,
 Rückfall) angegangen; die Schichten dafür (Versionsnummern, Verbindungswächter) sind schon vorbereitet.
 
-## 6. Lasttest (wird nachgetragen)
+## 6. Lasttest 1 / 10 / 25 Benutzer
 
-Siehe Abschnitt im Pull Request; Werte vorher/nachher mit `werkzeuge/last_messung.py --angebote 3000 --benutzer 1,10,25`.
+`werkzeuge/last_messung.py --angebote 3000 --benutzer 1,10,25` auf demselben Testrechner, je Benutzer 30 Vorgänge
+(Liste, Suche, Öffnen, Ändern, Neu). Vorher = main 0.9.466, nachher = mit Paket 1 (Datenschicht). Median, in
+Klammern 95 %-Wert, Millisekunden.
+
+| Benutzer gleichzeitig | Gesamtdauer | Liste | Suche | Öffnen | Ändern | Neu | Fehler |
+|---|---|---|---|---|---|---|---|
+| 1 vorher | 1,21 s | 41 (47) | 66 (81) | 1,7 | 3,6 | 31 | 0 |
+| 1 nachher | 1,05 s | 42 (76) | 75 (82) | 1,7 | 4,4 | 28 | 0 |
+| 10 vorher | 7,50 s | 88 (270) | 99 (139) | 9,8 (56) | 30 (92) | 382 (827) | 0 |
+| 10 nachher | 4,48 s | 78 (216) | 103 (156) | 6,6 (35) | 21 (77) | 280 (426) | 0 |
+| 25 vorher | 25,2 s | 167 (698) | 123 (282) | 24 (94) | 129 (218) | 1988 (5533) | 0 |
+| 25 nachher | 16,9 s | 188 (755) | 139 (263) | 28 (126) | 107 (220) | 1649 (4355) | 0 |
+
+Abgleich über den gemeinsamen Ordner (je PC eigene Datenbank): 25 Arbeitsplätze vorher 1260 ms (1562), nachher
+955 ms (1076); alle Plätze danach auf gleichem Stand, keine doppelten Nummern, Konflikte gleich (18, gewollt
+erzeugt). Keine Fehler bei 25 Benutzern. Engpass bleibt „Neu“ (Nummernvergabe unter Sperre): 1,6 s Median bei 25
+gleichzeitig Anlegenden; im Alltag legen nie 25 Personen in derselben Sekunde an. Die Liste ist bei 25 Benutzern
+leicht schwankend (Messrauschen der gemeinsamen CPU), Suche und Öffnen bleiben unter 0,3 s.
+
+## 7. Paket 2: Einstellungsseiten erst bei Bedarf
+
+Das Hauptfenster baute beim Start alle 29 Einstellungsseiten mit über 400 Feldern, dazu das Anordnen jeder Seite
+bei jeder Größenänderung, obwohl meist keine geöffnet wird. Jetzt entsteht eine Seite erst beim ersten Zeigen oder
+beim ersten Zugriff auf ihre Felder. Suche, Admin-Schutz und Neuladen merken sich ihren Zustand und wenden ihn beim
+Bau an. Hauptfenster aufbauen (zweiter Aufbau, gleiche Daten): 2,07 s → 1,25 s.
+
+Systemcheck mit 14 STEP-Dateien (`werkzeuge/systemcheck.py`, vorher main 0.9.466, nachher Paket 1 + 2):
+
+| Vorgang | vorher | nachher |
+|---|---|---|
+| Hauptfenster mit Startseite aufbauen | 3,01 s | 1,23 s |
+| Angebot öffnen (kalt) | 0,56 s | 0,37 s |
+| STEP-Import 14 Dateien | 22,4 s | 19,2 s |
+| Datendatei öffnen (erstes Öffnen, legt alles an) | 2,14 s | 2,06 s |
+| Angebots-PDF / Werkstatt-PDF | 0,48 / 0,47 s | 0,47 / 0,46 s |
+
+Rechenergebnisse: Fingerabdruck aller Positionen, Kalkulation und Staffeln gleich; einziger Unterschied sind die drei
+neuen Einstellungen aus #637 (12-m-Zuschnitt), die es vorher noch nicht gab. Der Programmstart (Module laden) ist im
+Vergleich verzerrt (vorher ohne übersetzte .pyc) und zählt nicht.
+
+**B10 (Speicher):** Angebot 16-mal öffnen, Stückzahl ändern, prüfen, schließen: Speicher bleibt bei 298 MB, keine
+übrig bleibenden Fenster oder Widgets, je Runde 7 schwache Verweise (vernachlässigbar). Der frühere Zuwachs von
+1,7 MB je Runde trat nur auf, während parallel die Testreihe lief, und ist so nicht nachzustellen.
+
+**B8 (Software-3D):** Versuch ohne Rekursion beim Teilen und mit Stift/Pinsel nur bei Wechsel: Bild pixelgleich,
+aber nur 2–4 % schneller (die Zeit liegt im Zeichnen der rund 38.000 Stücke je Bild in Qt). Nicht übernommen;
+schneller ginge es nur mit weniger Stücken, und das ändert das Bild. Bleibt als bekannte Einschränkung: ohne
+OpenGL (z. B. Remote-Desktop) braucht ein Standbild eines großen Teils rund 0,8–1,2 s, Drehen selbst bleibt flüssig.
