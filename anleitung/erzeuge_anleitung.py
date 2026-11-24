@@ -7831,15 +7831,15 @@ def kapitel_optimieren(i):
             "eigene Kontrolle prüft, dass kein Werkstück und keine Stange überbelegt ist und jedes Teil genau einmal "
             "vorkommt.",
             "Längen bis zur Beladelänge (z. B. 6.500 mm) werden direkt geladen, ohne Zuschnitt.",
-            "Reste bleiben Verschnitt. Es gibt keine Reststückverwaltung: nichts wird gespeichert oder in einem "
-            "späteren Angebot wiederverwendet; ein Reststückwert wird nicht angerechnet.")
+            "Reste bleiben Verschnitt, solange Lager und Reststücke aus sind (Vorgabe): dann wird nichts gespeichert "
+            "oder in einem späteren Angebot wiederverwendet und kein Reststückwert angerechnet.")
     i.text("<b>Gesamtkosten je Variante</b> = Materialkosten (Stangen × Preis der Lieferlänge) + Stangenwechsel und "
            "Arbeitsschritte je Stange für jede Beladung + Kosten je Zuschnitt beim Lieferanten (Vorgabe 0 €: die "
            "12-m-Stangen kommen geschnitten ohne Zusatzkosten). Die Kosten je Zuschnitt zählen auch im Angebot zu "
            "den Materialkosten der Lieferstange (seit 26.10.2026; Beispiel 2 Zuschnitte à 3 € = 6,00 € je "
            "Lieferstange). Laserzeit und Schnittwege sind in allen Varianten "
            "gleich. Die Tabelle zeigt je Variante Stangen, Beladungen, Zuschnitte, Stangenlängen nach Zuschnitt, Materiallänge, "
-           "Materialkosten, Stangenwechsel, Zuschnittkosten, Reststückwert (nicht angerechnet), Gesamtkosten, "
+           "Materialkosten, Stangenwechsel, Zuschnittkosten, Handhabung, Reststückwert, Gesamtkosten, "
            "Verschnitt in mm und % und fehlende Angaben.")
     i.tabelle(["Empfehlung", "Wann"], [
         ["<b>6-m-Stangen empfohlen</b>", "Profil ausgenommen oder keine ausführbare andere Lieferlänge"],
@@ -7853,11 +7853,39 @@ def kapitel_optimieren(i):
         ["<b>6 m nicht lieferbar – 12-m-Stangen verwenden</b>",
          "für Profil + Werkstoff ist die Stangenlänge des Angebots nicht als Lieferlänge hinterlegt; es gibt keine "
          "künstliche 6-m-Variante, das Programm plant gleich mit 12 m"]], [70, 195])
-    i.text("<b>Übernehmen erst auf Klick:</b> Die Planung bleibt bei der Stangenlänge des Angebots, bis unter dem "
-           "Vergleich <i>12-m-Stangen übernehmen</i> geklickt wird. Dann optimiert das Programm neu: Schnittplan, "
+    i.text("<b>12 m nur mit echtem Kostenvorteil (seit 24.11.2026):</b> 12 m ist eine Optimierungsmöglichkeit, keine "
+           "Standardempfehlung. Eine zentrale Entscheidung vergleicht je Abmessung und Werkstoff die Varianten "
+           "(Stangenlänge des Angebots, z. B. 6 m, andere Lieferlängen, 12 m mit Zuschnitt beim Lieferanten) über die "
+           "<b>Gesamtkosten</b> = Material (ganze Lieferstangen) + Stangenwechsel und Arbeitsschritte je Beladung + "
+           "Zuschnitt beim Lieferanten + Handhabung/Transport langer Stangen − Wert verwertbarer Reststücke. Weniger "
+           "Verschnitt allein reicht nie. Die andere Länge gilt nur, wenn sie mindestens die Mindestersparnis in € "
+           "<b>und</b> in % erreicht. Dieselbe Entscheidung gilt im Angebot, in jeder Staffel (je Menge die passende "
+           "Länge), in Rahmenaufträgen und Abrufen, Baugruppen und Schweißbaugruppen (ihre Rohre laufen durch "
+           "dieselbe Optimierung), in der Materialanfrage, in Fertigung und Nachkalkulation (sie übernehmen den Plan "
+           "des Angebots) und im Nesting-Arbeitsplatz: auch dort ersetzt keine Strategie mehr 6-m-Stangen durch "
+           "12-m-Zuschnitte ohne diesen Kostenvorteil.")
+    i.liste("<b>Materialoptimierung</b> im Vergleich: Rohre in 6 m und in 12 m (bzw. der anderen Länge), "
+            "Materialeinsparung in €, Verschnitteinsparung in Prozentpunkten, Gesamtkosteneinsparung in € und je "
+            "Teil, darunter <i>Empfehlung: 12-m-Material verwenden</i> oder <i>6-m-Material verwenden</i> und die "
+            "Begründung mit allen Zahlen.",
+            "<b>Reststücke</b> zählen nur mit Lager <b>und</b> Reststücken (Einstellungen, Vorgabe aus): dann wird "
+            "der Wert der verwertbaren Reste (Mindestlänge, Spannbereich) mit Meterpreis × Restwert-Anteil "
+            "abgezogen; sonst steht <i>nicht angerechnet</i>.",
+            "<b>Handhabung/Transport</b>: Einstellung je langer Lieferstange in € (Vorgabe 0 €); als lang gilt eine "
+            "Stange über der eingestellten Länge (Vorgabe 6.500 mm).",
+            "<b>Technische Grenzen</b>: kein Werkstück länger als die Maschine laden kann (max. Stangenlänge); ein "
+            "Teil, das in kein Werkstück passt, macht die 12-m-Variante nicht ausführbar, sie wird nie gewählt.")
+    i.text("<b>Automatisch oder von Hand:</b> Mit <i>Lieferlängen: empfohlene Lieferlänge automatisch wählen (nur bei "
+           "Kostenvorteil)</i> = ja (Vorgabe) plant das Programm beim Optimieren gleich mit der empfohlenen Länge; "
+           "unter dem Vergleich steht dann <i>Geplant: 12 m (automatisch nach Gesamtkosten)</i>. Von Hand "
+           "übersteuern geht immer: <i>12-m-Stangen übernehmen</i> bzw. <i>wieder 6-m-Stangen verwenden</i> gilt "
+           "vor der Automatik (<i>von Hand gewählt</i>). Mit nein bleibt es wie früher: die Planung bleibt bei der "
+           "Stangenlänge des Angebots, bis unter dem Vergleich <i>12-m-Stangen übernehmen</i> geklickt wird. Dann "
+           "optimiert das Programm neu: Schnittplan, "
            "Stangenbild, Material, Stangenwechsel (je Beladung), Kalkulation, Werkstattpapiere und Nachkalkulation "
            "rechnen mit den 12-m-Stangen. <i>Wieder 6-m-Stangen verwenden</i> macht es rückgängig. Die Wahl gilt je "
-           "Gruppe und bleibt bei Kopien des Angebots erhalten.")
+           "Gruppe und bleibt bei Kopien des Angebots erhalten. Die Automatik wirkt nur mit "
+           "<i>Lieferlängen: beim Optimieren andere Lieferlängen vergleichen</i> = ja.")
     i.text("<b>Schnittplan, Stangenbild und Werkstattpapiere zeigen die Stangen so, wie die Maschine sie lädt:</b> "
            "jedes zugeschnittene Stück erscheint als eigene Stange mit Endbeschnitt, Teilen, Schnittverlust und "
            "Greiferrest, genau wie eine normale Stange. Der Zuschnitt der 12-m-Stange selbst wird dort nicht gezeigt. "
@@ -12515,6 +12543,14 @@ def kapitel_einstellungen(i):
         ["Lieferlängen", "Lieferlängen: Mindestersparnis je Gruppe in €, Lieferlängen: Mindestersparnis je Gruppe in %",
          "Eine andere Lieferlänge (z. B. 12 m) wird nur empfohlen, wenn sie gegenüber der Stangenlänge des Angebots "
          "mindestens so viel spart, in € und in % (Vorgabe 20 € und 3 %)."],
+        ["Lieferlängen", "Lieferlängen: empfohlene Lieferlänge automatisch wählen (nur bei Kostenvorteil)",
+         "ja (Vorgabe) = beim Optimieren gleich mit der empfohlenen Lieferlänge planen, im Angebot und in jeder "
+         "Staffel gleich; nur wenn die Gesamtkosten um die Mindestersparnis sinken. Von Hand gewählte Längen gelten "
+         "vor. nein = nur empfehlen, Übernahme per Klick ([[lieferlaengen]])."],
+        ["Lieferlängen", "Lieferlängen: Handhabung/Transport je langer Lieferstange [€], Lieferlängen: als lang gilt "
+                         "eine Lieferstange über [mm]",
+         "Mehrkosten je langer Lieferstange (z. B. 12 m: Abladen, Lagerplatz, Transport) in der Entscheidung "
+         "6 m gegen 12 m und im Nesting (Vorgabe 0 € und 6.500 mm)."],
         ["Lieferlängen", "Lieferlängen: ohne Eintrag lieferbar ab Hüllkreis-Ø [mm] (0 = aus), Lieferlängen: Länge "
                          "für Profile ab diesem Hüllkreis-Ø [mm]",
          "Profile ohne Zeile in Lieferlängen mit größerem Hüllkreis-Ø gelten zusätzlich in dieser Länge als lieferbar "

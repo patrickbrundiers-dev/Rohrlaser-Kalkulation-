@@ -1993,7 +1993,10 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst, nur=None):
               ("Materialkosten [€]", lambda v: _z(v["material"])),
               ("Stangenwechsel / je Beladung [€]", lambda v: _z(v["werkstueck_kosten"])),
               ("Zuschnittkosten [€]", lambda v: _z(v["zuschnitt_kosten"]) if v["zuschnitt"] else "–"),
-              ("Reststückwert [€]", lambda v: "nicht angerechnet"),
+              ("Handhabung lange Stangen [€]", lambda v: _z(v["handling_kosten"]) if v.get("handling_kosten") else "–"),
+              ("Reststückwert [€]", lambda v: (f"− {_z(v['rest_wert'])} ({_z(v['rest_verwertbar_mm'] / 1000, 1)} m "
+                                                "verwertbar)") if v.get("rest_wert") else
+               ("nicht angerechnet (nur mit Lager und Reststücken)" if not rechnen.reste_an(einst) else "–")),
               ("<b>Gesamtkosten [€]</b>", lambda v: f"<b>{_z(v['gesamt'])}</b>"),
               ("Verschnitt [mm]", lambda v: _z(v["verschnitt_mm"], 0)),
               ("Verschnitt [%]", lambda v: _z(100 * v["verschnitt_anteil"], 1)),
@@ -2024,6 +2027,20 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst, nur=None):
                 zellen = "<td></td>" + zellen
             html.append(f"<tr><td>{titel}</td>{zellen}</tr>")
         html.append("</table>")
+        vk = b.get("vergleich")
+        if vk:          # Kurzvergleich wie im Auftrag 24.11.2026 (Rohre, Material, Verschnitt, Gesamtkosten)
+            lb, l12 = rechnen.m_text(vk["basis_laenge"]), rechnen.m_text(vk["laenge"])
+            html.append(
+                "<p><b>Materialoptimierung:</b><br>"
+                f"{lb}-m-Material: {vk['basis_rohre']} {'Rohr' if vk['basis_rohre'] == 1 else 'Rohre'} · "
+                f"{l12}-m-Material" + (" (Zuschnitt)" if vk["zuschnitt"] else "")
+                + f": {vk['rohre']} {'Rohr' if vk['rohre'] == 1 else 'Rohre'}<br>"
+                f"Materialeinsparung: {_z(vk['material_ersparnis'])} € · Verschnitteinsparung: "
+                f"{_z(100 * vk['verschnitt_ersparnis'], 1)} %-Punkte · Gesamtkosteneinsparung: "
+                f"{_z(vk['gesamt_ersparnis'])} €"
+                + (f" ({_z(vk['je_teil'], 3)} € je Teil)" if vk.get("je_teil") is not None else "")
+                + f"<br><b>Empfehlung: {l12 + '-m-Material verwenden' if vk['lohnt'] else lb + '-m-Material verwenden'}"
+                  "</b></p>")
         html.append(f"<p><span style='color:{farbe.get(b['empfehlung'], '#202020')}'><b>{b['titel']}</b></span><br>"
                     f"{b['begruendung']}</p>")
         mi = b.get("mischung")
@@ -2043,7 +2060,10 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst, nur=None):
         if geplant != vg["stange"] and vg["basis_lieferbar"]:
             links.append(f"<a href='laenge:{i}:0'>wieder {rechnen.m_text(vg['stange'])}-m-Stangen verwenden</a>")
         if links:
-            html.append("<p>Geplant: " + f"{rechnen.m_text(geplant)} m. " + " · ".join(links) + "</p>")
+            hand = vg["schluessel"] in (kopf.get("laengenwahl") or {})
+            quelle = " (von Hand gewählt)" if hand else (" (automatisch nach Gesamtkosten)"
+                                                         if geplant != vg["stange"] else "")
+            html.append("<p>Geplant: " + f"{rechnen.m_text(geplant)} m{quelle}. " + " · ".join(links) + "</p>")
         teile.append("".join(html))
     return "<hr>".join(teile)
 
@@ -9801,6 +9821,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         wahl = dict(self.kopf.get("laengenwahl") or {})
         if laenge:
             wahl[vg["schluessel"]] = laenge
+        elif rechnen.laenge_automatisch(self.einst):
+            wahl[vg["schluessel"]] = vg["stange"]     # von Hand übersteuert: auch die Automatik bleibt bei der Länge
         else:
             wahl.pop(vg["schluessel"], None)
         self.db.laengenwahl_speichern(self.id, wahl)

@@ -43,6 +43,7 @@ app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
 db.einstellung_setzen("laenge_vergleich", "ja")
+db.einstellung_setzen("laenge_automatisch", "nein")                  # Übernahme von Hand im Fenster
 db.neu("lieferlaengen", dict(profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=12000))
 fenster = Hauptfenster(db, tmp, stumm=True)
 aid = db.angebot_neu(dict(kunde="Test", maschine="T11", stange=6000))
