@@ -299,7 +299,7 @@ def step_dateien(pfade):
     for p in map(Path, pfade):
         if p.is_dir():
             out += sorted(x for x in p.iterdir() if x.suffix.lower() in (".step", ".stp", ".igs", ".iges", ".tubx", ".bpf",
-                                                                    ".artube"))
+                                                                    ".artube", ".lst"))
         else:
             out.append(p)
     return out
