@@ -35,7 +35,7 @@ import time
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.Bnd import Bnd_Box
 from OCP.BRepBndLib import BRepBndLib
-from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane
+from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane, GeomAbs_SurfaceOfExtrusion
 from OCP.BRep import BRep_Tool
 from OCP.TopAbs import TopAbs_FACE, TopAbs_VERTEX
 from OCP.TopoDS import TopoDS
@@ -95,25 +95,49 @@ def _richtung_key(v):
     return (round(x, 6), round(y, 6), round(z, 6))
 
 
+FREIFORM_TOL = 1e-4     # mm: Freiform-Fläche (B-Spline) gilt als Ebene/Zylinder, wenn sie so genau passt (N6)
+
+
+def analytisch(f):
+    """('E', gp_Pln) | ('Z', gp_Cylinder) | ('X', gp_Dir Extrusionsrichtung) | ('F', None): Grundform der Fläche. Freiformflächen (B-Spline-Rohre aus
+    manchen CAD-Systemen) werden auf Ebene/Zylinder geprüft (GeomConvert_SurfToAnaSurf, Abweichung höchstens
+    FREIFORM_TOL); die Fläche selbst bleibt unverändert, Schnitte und Kanten laufen auf der Originalgeometrie."""
+    s = BRepAdaptor_Surface(TopoDS.Face(f))
+    typ = s.GetType()
+    if typ == GeomAbs_Plane:
+        return "E", s.Plane()
+    if typ == GeomAbs_Cylinder:
+        return "Z", s.Cylinder()
+    if typ == GeomAbs_SurfaceOfExtrusion:
+        return "X", s.Direction()       # Extrusionsfläche (Ovalrohr, Sonderkontur): läuft längs der Richtung
+    try:
+        from OCP.Geom import Geom_CylindricalSurface, Geom_Plane
+        from OCP.GeomConvert import GeomConvert_SurfToAnaSurf
+        ana = GeomConvert_SurfToAnaSurf(BRep_Tool.Surface_s(TopoDS.Face(f))).ConvertToAnalytical(FREIFORM_TOL)
+    except Exception:  # keine Grundform bestimmbar: Freiform
+        return "F", None
+    if isinstance(ana, Geom_Plane):
+        return "E", ana.Pln()
+    if isinstance(ana, Geom_CylindricalSurface):
+        return "Z", ana.Cylinder()
+    return "F", None
+
+
 def flaechen(solid):
-    """Flächen mit Typ, Fläche und Parametern: [(face, 'E'|'Z'|'F', Fläche, gp_Dir Normale/Achse oder None)]."""
+    """Flächen mit Typ, Fläche und Parametern: [(face, 'E'|'Z'|'X'|'F', Fläche, gp_Dir Normale/Achse/Extrusionsrichtung
+    oder None)]."""
     out = []
     for f in g._liste(solid, TopAbs_FACE):
-        s = BRepAdaptor_Surface(TopoDS.Face(f))
-        typ = s.GetType()
-        if typ == GeomAbs_Plane:
-            out.append((f, "E", g._flaeche(f), s.Plane().Axis().Direction()))
-        elif typ == GeomAbs_Cylinder:
-            out.append((f, "Z", g._flaeche(f), s.Cylinder().Axis().Direction()))
-        else:
-            out.append((f, "F", g._flaeche(f), None))
+        typ, geo = analytisch(f)
+        d = geo if typ == "X" else geo.Axis().Direction() if geo is not None else None
+        out.append((f, typ, g._flaeche(f), d))
     return out
 
 
 def _laengs(typ, d, achse):
     if typ == "E":
         return abs(d.Dot(achse)) < SENKRECHT
-    if typ == "Z":
+    if typ in ("Z", "X"):
         return 1 - abs(d.Dot(achse)) < PARALLEL
     return False
 
@@ -128,7 +152,7 @@ def achse(fl, solid=None, mit_art=False):
     gesamt = sum(a for _, _, a, _ in fl) or 1.0
     kand = {}
     for _, typ, a, d in fl:
-        if typ == "Z":
+        if typ in ("Z", "X"):
             kand.setdefault(_richtung_key(d), d)
     ebenen = sorted(((a, d) for _, typ, a, d in fl if typ == "E"), key=lambda x: -x[0])[:12]
     gruppen = []
@@ -325,7 +349,7 @@ def _flaechen_lage(fl, ax3):
     ov = gp_Vec(o.X(), o.Y(), o.Z())
     ebenen, zylinder = [], []
     for f, typ, _, n in fl:
-        if n is None or not _laengs(typ, n, d):
+        if n is None or typ == "X" or not _laengs(typ, n, d):
             continue
         b = Bnd_Box()
         BRepBndLib.Add_s(f, b, False)
@@ -333,9 +357,9 @@ def _flaechen_lage(fl, ax3):
             continue
         ecken = [gp_Vec(p.X(), p.Y(), p.Z()).Subtracted(ov).Dot(gp_Vec(d.X(), d.Y(), d.Z()))
                  for p in (b.CornerMin(), b.CornerMax())]
-        s = BRepAdaptor_Surface(TopoDS.Face(f))
+        geo = analytisch(f)[1]
         if typ == "E":
-            pl = s.Plane()
+            pl = geo
             q = pl.Location()
             nn = pl.Axis().Direction()
             k = _richtung_key(nn)       # Richtung ohne Vorzeichen: Lage aller Ebenen dieser Richtung vergleichbar
@@ -343,7 +367,7 @@ def _flaechen_lage(fl, ax3):
             lage_n = gp_Vec(q.X(), q.Y(), q.Z()).Subtracted(ov).Dot(kv) / kv.Magnitude()
             ebenen.append((k, lage_n, abs(ecken[1] - ecken[0])))
         else:
-            c = s.Cylinder()
+            c = geo
             q = c.Location()
             v = gp_Vec(q.X(), q.Y(), q.Z()).Subtracted(ov)
             abstand = v.Crossed(gp_Vec(d.X(), d.Y(), d.Z())).Magnitude()

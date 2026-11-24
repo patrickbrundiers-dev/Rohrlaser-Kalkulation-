@@ -219,3 +219,14 @@ behoben.
   Tasche/Stufe, 6 Fenster/Anbau, 6 ohne freien Bereich, 6 Freiform.
 - **Zielwert angepasst:** 95 % Kernquote ist mit Blechen in der Zählung nicht sinnvoll, weil Bleche keine Profile
   sind. Neues Ziel für PR C bis E: alle Rohre und Profile außer echten Sonderfällen.
+
+### PR E: Freiform-Mantel (N6)
+
+- `step_abwicklungskern.analytisch`: Ebene/Zylinder direkt, Extrusionsflächen (Ovalrohr, Sonderkontur) als
+  Längsrichtung, Freiform (B-Spline) über `GeomConvert_SurfToAnaSurf.ConvertToAnalytical(1e-4)`. Die Geometrie
+  selbst bleibt unverändert (Schnitte, Kanten, Schneidweg aus dem Original).
+- R01 (RE als B-Spline) 2,78 → 1,25 s, R05 (QR mit Merkmalen als B-Spline) 5,79 → 1,49 s, beide gleich der Prüfbasis
+  und mit Maß-Probe (Vertrauen 100). R02 (RR als B-Spline) und I02 (Ovalrohr) bleiben bei der bisherigen Rechnung:
+  die Querschnitte der Näherung weichen um bis zu 0,6 % voneinander ab, die Volumen-Probe schlägt an.
+- Gegen die Prüfbasis: 124 von 124 gleich, Summe 91,5 → 82,3 s, Kernquote 87 % (184 von 211), Vertrauen 100 bei
+  145 Messungen.

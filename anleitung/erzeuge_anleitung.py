@@ -5390,7 +5390,11 @@ def kapitel_step(i):
             "der 2D-Rundrohr-Regel gerechnet.",
             "<b>Flachstahl:</b> Hier sind zwei Richtungen fast gleich gut. Der Kern nimmt die Richtung, die "
             "mindestens 1,5-mal länger ist als die andere. Platten mit Tasche oder Stufe rechnet er wie bisher.",
-            "<b>Bisherige Rechnung bleibt</b> bei Freiformflächen (B-Spline), Platten ohne klar längste Seite, "
+            "<b>Freiform-Rohre:</b> Manche CAD-Systeme speichern Rohrwände als Freiformfläche (B-Spline). Passt "
+            "eine solche Fläche auf 0,0001 mm zu einer Ebene oder einem Zylinder, zählt sie als solche. Schnitte und "
+            "Kanten laufen weiter auf der Originalfläche. Sind die Querschnitte der Näherung ungleich, rechnet das "
+            "Programm wie bisher.",
+            "<b>Bisherige Rechnung bleibt</b> bei echten Freiformflächen, Platten ohne klar längste Seite, "
             "Anbauteilen, langen Fenstern und Rohren ohne merkmalsfreie Stelle.",
             "<b>Selbstprüfung:</b> Jede Messung über den Abwicklungskern wird gegengeprüft, unabhängig von den "
             "Schnitten. Beim Rundrohr müssen Ø und Innen-Ø als Radien der Zylinderflächen in der STEP stehen. Beim "

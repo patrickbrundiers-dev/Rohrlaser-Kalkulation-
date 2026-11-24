@@ -7,6 +7,8 @@ A9  Dauer-Vergleich (N1): Auswahl nur nach Datei und Körper; Stichprobe rechnet
     0 = aus; Einstellung über step_geometrie.einstellen.
 A11 Flachstahl (N3): zwei fast gleich gute Längsrichtungen, klar längste gewinnt (1,5×); Tasche/Stufe und kurze
     Platte bleiben bei der bisherigen Rechnung.
+A12 Freiform-Mantel (N6): B-Spline-Flächen, die genau einer Ebene/einem Zylinder entsprechen, zählen als solche;
+    ungleiche Querschnitte der Näherung (R02) bleiben bei der bisherigen Rechnung.
 A10 Prüfbasis (N7): Sollwerte JSON hin und zurück gleich; Auswahl von Prüf-STEPs gegen tests/daten/
     abwicklungskern_soll.json (Modus an) ohne Abweichung.
 
@@ -133,5 +135,24 @@ for name, methode, grund in (("step_profile/P08_FL40x5_L800.step", "abwicklung",
     if methode == "abwicklung":
         assert e["vertrauen"] == 100, (name, e)       # Breite × Dicke gegen die Wandebenen geprüft
 ok("A11 Flachstahl: Längsrichtung über die Länge (P08, B09), Tasche und kurze Platte wie bisher")
+
+# A12 Freiform-Mantel (N6)
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox  # noqa: E402
+from OCP.TopAbs import TopAbs_FACE  # noqa: E402
+from OCP.TopoDS import TopoDS  # noqa: E402
+box = BRepPrimAPI_MakeBox(10, 20, 30).Shape()
+f0 = TopoDS.Face(g._liste(box, TopAbs_FACE)[0])
+assert ak.analytisch(f0)[0] == "E"
+for name in ("step_regression/R01_RE60x40x2_L1000_Freiform.step",
+             "step_regression/R05_QR40x3_L1000_Merkmale_Freiform.step"):
+    del ak.PROTOKOLL[:]
+    g.analysiere_datei(str(HIER / name))
+    e = ak.PROTOKOLL[0]
+    assert e["methode"] == "abwicklung" and e["vertrauen"] == 100, (name, e)
+    assert av.datei_vergleich(HIER / name, basis=HIER, soll=SOLL[name]).get("gleich"), name
+del ak.PROTOKOLL[:]
+g.analysiere_datei(str(HIER / "step_regression/R02_RR42-4x2_L1000_Freiform.step"))
+assert ak.PROTOKOLL[0]["methode"] == "bisher"      # Querschnitte der Näherung ungleich: bisherige Rechnung
+ok("A12 Freiform: B-Spline-Wände als Ebene erkannt (R01, R05 über den Kern, gleich der Prüfbasis), R02 wie bisher")
 g._profil_messen = _alt
 print("Alle Tests bestanden.")
