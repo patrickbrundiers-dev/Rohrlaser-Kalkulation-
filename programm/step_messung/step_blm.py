@@ -859,8 +859,8 @@ def _bpf_text(teil, form):
         v = volumen(form)
         if teil["volumen"] > 0:
             t += f", Volumen {v:.0f} mm³ (Programm {teil['volumen']:.0f} mm³)"
-    except Exception:       # noqa: BLE001 – nur Bericht
-        pass
+    except Exception as e:  # noqa: BLE001 – nur Bericht, Messung läuft weiter
+        t += f", Volumen nicht berechenbar ({type(e).__name__})"
     return t
 
 
