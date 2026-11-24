@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.478", "<b>Austauschordner 2.0, Paket C</b> ([[austausch]]): STEP-Dateien öffnen mit einem Klick im "
+    ["0.9.479", "<b>Austauschordner 2.0, Paket C</b> ([[austausch]]): STEP-Dateien öffnen mit einem Klick im "
                 "<b>STEP-Viewer</b> des Programms. LST, BPF und ArTube gleichen Namens stehen als <i>Zugehörige "
                 "Programme</i> neben der STEP. Neuer Knopf <b>Dateien im Austausch</b> bei Kunde, Angebot und "
                 "Auftrag, er findet auch Dateien mit der Angebots- oder PPEASE-Nummer im Pfad. Outlook-Mails (MSG, "
@@ -32,6 +32,13 @@ NEUERUNGEN = [
                 "sperrt kein Rest mehr die Datei.",
      "Austausch: STEP-Viewer, zugehörige LST/BPF, Dateien im Austausch bei Kunde/Angebot/Auftrag, Mail-Anhänge, "
      "Rechtetabelle"],
+    ["0.9.478", "<b>Anfragen löschen und Zusammenführen ohne Wiederkehr</b> ([[anfragen_sammeln]]): Nach dem "
+                "Zusammenführen und Kalkulieren erschienen die übernommenen Anfragen wieder als neu, weil ihre "
+                "Originale im Anfrage-Ordner liegen blieben. Jetzt kommen sie nach .uebernommen und werden nie neu "
+                "angelegt. Neu ist <i>Löschen …</i> mit dem Ordner <i>Gelöscht</i> und <i>Wiederherstellen</i>. Outlook: Kam dieselbe Mail ein "
+                "zweites Mal (Inhalt schon in der Anfrage), gehörte sie keiner Anfrage, blieb im Eingang liegen und "
+                "wurde nie verschoben. Jetzt wandert sie mit der Anfrage nach In Bearbeitung und Erledigt.",
+     "Anfragen löschen; zusammengeführte kommen nicht wieder als neu; Outlook verschiebt auch doppelte Mails"],
     ["0.9.477", "<b>Austauschordner 2.0</b> ([[austausch]]): neue Seite <b>Austausch</b> unter Arbeiten, der "
                 "gemeinsame Ordner als Datei- und Projektverwaltung im Programm. Liste oder Kacheln mit Vorschau, "
                 "Suche über alle Bereiche (auch Kommentare und Dateiinhalt), Filter nach Typ, Mitarbeiter, Kunde, "
