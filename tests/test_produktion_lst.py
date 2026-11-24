@@ -107,7 +107,7 @@ erg = pl.ordner_einlesen(db)
 tl = [x for x in pl.teile(db) if x["programm"] == "10186133_P20"]
 assert erg["neu"] == 1 and len(tl) == 1 and tl[0]["messungen"] == 3 and pl.zeit_s(tl[0]) == 24.0, (erg, tl)
 u = pl.uebersicht(db)
-assert u == dict(dateien=4, teile=2, voll=1, gemessen=1), u
+assert u == dict(dateien=4, teile=2, voll=1, gemessen=1, lst=4, bpf=0, fehler=1), u
 assert "1 LST-Datei neu gelesen (1 Teile)" in pl.ergebnis_text(erg)
 ok("P2 Ordner mit Unterordnern, PPEASE-Nummer, jede Datei einmal (auch Kopie), gelaufene Fassung ersetzt die alte")
 
