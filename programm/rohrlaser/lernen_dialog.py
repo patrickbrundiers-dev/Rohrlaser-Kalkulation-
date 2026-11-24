@@ -100,7 +100,7 @@ def zeigen(f, dialog=None):
                             [r for r in m if eintraege[r]["quelle"] == lernen.TABELLE], lernen.sperren)),
                         ("Kennwerte prüfen …", kennwerte),
                         ("LST-Ordner einlesen", lst_einlesen),
-                        ("Produktionsdaten & Lernsystem …", lernsystem)],
+                        ("Produktionsdaten-Intelligenz …", lernsystem)],
                        farben=grau, breite=1100)
     if dialog:
         dialog(d)
