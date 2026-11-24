@@ -139,6 +139,28 @@ def vorbereiten(pfade, summen=(), dateien=None, abbrechen=None):
     return out
 
 
+def _klassen(t):
+    """Konturklassen groß/mittel/klein aus dem NC-Schneidweg der LST (innen = [(Hüllmaß, Länge)]) wie in der
+    Kalkulation: klein und mittel aus den Innenkonturen, groß = Schnitt am Material − klein − mittel (Enden und große
+    Konturen). Grenzen: Standard der Konturklassen (die Maschine des Teils ist hier nicht bekannt)."""
+    from . import rechnen
+    try:
+        regel = rechnen.kontur_regel(None, t.get("wand"))
+        k = rechnen.konturklassen(t.get("innen") or (), regel)
+    except (TypeError, ValueError, IndexError):
+        return {}
+    weg = t.get("schnittlaenge_material") or t.get("schneidweg") or 0.0
+    gross = max(0.0, float(weg) - k["klein_mm"] - k["mittel_mm"])
+    q = f"berechnet aus dem NC-Schneidweg der LST (Grenzen {rechnen.grenzen_text(regel)})"
+    out = {"mm_klein": md.wert(k["klein_mm"], "mm", q, "Schnittlänge kleine Konturen", True),
+           "mm_mittel": md.wert(k["mittel_mm"], "mm", q, "Schnittlänge mittlere Konturen", True),
+           "mm_gross": md.wert(round(gross, 1), "mm", q, "Schnittlänge große Konturen und Enden", True),
+           "n_klein": md.wert(k["klein_n"], "", q, "kleine Konturen", True),
+           "n_mittel": md.wert(k["mittel_n"], "", q, "mittlere Konturen", True),
+           "n_gross": md.wert(k["gross_n"] + len(t.get("enden") or ()), "", q, "große Konturen und Enden", True)}
+    return out
+
+
 def lesen_teile(roh, name):
     """Teile einer Maschinendatei mit allen ausgelesenen Werten: ([Teil], Formatversion, [unbekannte Felder]).
     LST: Teile von trumpf_programm.lst_lesen + Werte von maschinendaten.lst_auswerten (gleiche Reihenfolge);
@@ -169,6 +191,8 @@ def lesen_teile(roh, name):
                 if t.get(schl) is not None:       # aus dem NC-Schneidweg (lst_bahn, Klassen nach konturklassen)
                     m[schl] = md.wert(t[schl], "mm" if schl.startswith("mm_") or schl in ("anfahrt", "restzerteilung")
                                       else "", "NC-Schneidweg der LST (lst_bahn)", deutung, True)
+            if (t.get("innen") or t.get("enden")) and "mm_gross" not in m:
+                m.update(_klassen(t))
             if t.get("schnittlaenge_material"):
                 pass
             elif t.get("schneidweg"):

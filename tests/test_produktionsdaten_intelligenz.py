@@ -137,6 +137,10 @@ teile = {t["programm"]: t for t in pl.teile(db)}
 assert teile["Teil-1"]["format"] == "BPF" and teile["Teil-1"]["qualitaet"] == "Teilwerte fehlen"
 assert teile["Teil-1"]["profilform"] == "Rechteckrohr" and teile["P10"]["format"] == "LST"
 assert md.w(teile["P10"]["merkmale"], "laser_an_s") == 6.5
+kl = pl._klassen(dict(wand=2.0, schnittlaenge_material=1304.1, innen=[(10.3, 32.4)] * 3 + [(5.0, 15.7)],
+                      enden=[("A", 40.0, 153.1), ("E", 40.0, 273.1)]))      # Felder aus trumpf_programm.lst_lesen
+assert (md.w(kl, "mm_klein"), md.w(kl, "mm_mittel"), md.w(kl, "n_gross")) == (15.7, 97.2, 2), kl
+assert abs(md.w(kl, "mm_gross") - (1304.1 - 15.7 - 97.2)) < 0.05 and "Grenzen" in kl["mm_gross"][2]
 prot = {d["name"]: d for d in pl.dateien(db)}
 assert prot["Teil-1.bpf"]["format"] == "BPF" and prot["Teil-1.bpf"]["version"] == "3.10"
 assert prot["Teil-1.bpf"]["unbekannt"] >= 1 and prot["fremd.lst"]["fehler"]
