@@ -3808,7 +3808,8 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
     if netz:
         faces = TopTools_IndexedMapOfShape()
         TopExp.MapShapes_s(lok, TopAbs_FACE, faces)
-        t.netz = dreiecksnetz(lok, faces, {i: "A" for i in range(1, faces.Extent() + 1)}, [], zmin, t.abm_a)
+        t.netz = dreiecksnetz(lok, faces, {i: "A" for i in range(1, faces.Extent() + 1)}, [], zmin, t.abm_a,
+                              voll=True)
     return t
 
 
@@ -5441,16 +5442,26 @@ def flaechen_eintrag(face):
         return dict(a="Freiform")
 
 
-def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse):
+# Schnellimport (Patrick 24.11.2026 „Schneidweg & Zusatzarbeiten ohne editierbare 3D-Geometrie“): nur die Linienzüge
+# der Schnittkonturen (Gegenprobe, Lage), keine Dreiecke und kein Flächenkatalog für 3D-Ansicht und 3D-Editor.
+# Die Messwerte sind dieselben (das Netz ist reine Ausgabe), Schalter --netze-linien bzw. einst["netz_linien"].
+NUR_LINIEN = False
+
+
+def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse, voll=False):
     """Dreiecksnetz des Teils (lokal, Rohrachse = Z, Z ab 0) mit der Art je Fläche und den Schnittkonturen auf der
-    Außenhaut als Linienzüge. Koordinaten auf 0,01 mm gerundet."""
+    Außenhaut als Linienzüge. Koordinaten auf 0,01 mm gerundet. Mit NUR_LINIEN (Schnellimport) nur die Linienzüge
+    (p, t, tf und fk leer, "nur_linien": True), außer voll (Bleche: die 3D-Gegenprobe der Kantteile vergleicht
+    die Faltung mit den Dreiecken und entscheidet damit über den Prüfstatus)."""
+    nur_linien = NUR_LINIEN and not voll
     from OCP.BRepMesh import BRepMesh_IncrementalMesh
     from OCP.TopLoc import TopLoc_Location
     from OCP.TopAbs import TopAbs_REVERSED
     abw = min(0.5, max(0.02, (groesse or 40) / 250))
-    BRepMesh_IncrementalMesh(lok, abw, False, 0.35, True)
+    if not nur_linien:
+        BRepMesh_IncrementalMesh(lok, abw, False, 0.35, True)
     punkte, dreiecke, katalog, zu_flaeche = [], {}, [], {}
-    for i in range(1, faces.Extent() + 1):
+    for i in range(1, 0 if nur_linien else faces.Extent() + 1):
         f = TopoDS.Face(faces.FindKey(i))
         ort = TopLoc_Location()
         tri = BRep_Tool.Triangulation_s(f, ort)
@@ -5482,6 +5493,8 @@ def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse):
                 q = c.Value(u0 + (u1 - u0) * k / n)
                 zug += [round(q.X(), 2), round(q.Y(), 2), round(q.Z() - zmin, 2)]
             linien.setdefault(art_, []).append(zug)
+    if nur_linien:
+        return dict(p=punkte, t=dreiecke, l=linien, tf=zu_flaeche, fk=katalog, nur_linien=True)
     return dict(p=punkte, t=dreiecke, l=linien, tf=zu_flaeche, fk=katalog)
 
 
@@ -5601,8 +5614,9 @@ def einstellen(werte):
     """Grenzwerte der Erkennung aus den Einstellungen setzen ({Name aus EINSTELLBAR: Wert}, None = Vorgabe), das
     größere Profil für Winkel/U mit Stegen (Schlüssel stege, step_schenkel) und den Ordner für die virtuellen Bauteile
     als STEP (Schlüssel virtuell, virtuell_ablegen)."""
-    global STEGE, VIRTUELL, NORMTEILE_VOLL
+    global STEGE, VIRTUELL, NORMTEILE_VOLL, NUR_LINIEN
     STEGE = (werte or {}).get("stege") or None
+    NUR_LINIEN = bool((werte or {}).get("netz_linien"))
     NORMTEILE_VOLL = bool((werte or {}).get("normteile_voll"))
     VIRTUELL = (werte or {}).get("virtuell") or None
     vorgabe = {"flach_laenge": 3.0, "gekantet_anteil": 0.85, "naht_spalt": 3.0}
