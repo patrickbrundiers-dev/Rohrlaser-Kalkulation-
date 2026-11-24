@@ -97,6 +97,7 @@ class FensterPlatz(QObject):
 
 def einrichten(hauptfenster):
     """Filter an der QApplication installieren (einmal je Hauptfenster)."""
+    from . import ereignis_verteiler
     f = FensterPlatz(hauptfenster, hauptfenster)
-    QApplication.instance().installEventFilter(f)
+    ereignis_verteiler.anmelden(f, (QEvent.Show,))
     return f

@@ -30,6 +30,14 @@ NEUERUNGEN = [
                 "Speicherleck). Beim Schließen offener Profile entfällt eine doppelte Rechnung. Alle Zahlen bleiben "
                 "gleich.",
      "Beschädigte Körper in Baugruppen gemeldet; Schnittplan-Merker sparsamer; alle Werte gleich"],
+    ["0.9.479", "<b>Generalüberholung, Paket 2: schnellerer Start und flüssigere Bedienung</b>: Das Hauptfenster "
+                "baut die 29 Seiten der Einstellungen erst, wenn Sie eine davon öffnen ([[einstellungen]]); der "
+                "Aufbau des Hauptfensters dauert im Test 1,25 statt 2,1 s. "
+                "Statt sieben einzelner Ereignisfilter (Darstellung, Mausrad, Enter-Taste, Zeitwächter, Fensterlage, "
+                "Admin-Sperre, Fenstergrößen) gibt es einen gemeinsamen, der jedes Ereignis nur an die Teile gibt, die "
+                "es brauchen: Fenster mit vielen Feldern bauen sich spürbar schneller auf. Alle Rechenergebnisse "
+                "bleiben gleich (Fingerabdruck aller Positionen geprüft).",
+     "Generalüberholung 2: Start und Bedienung schneller"],
     ["0.9.478", "<b>Anfragen löschen und Zusammenführen ohne Wiederkehr</b> ([[anfragen_sammeln]]): Nach dem "
                 "Zusammenführen und Kalkulieren erschienen die übernommenen Anfragen wieder als neu, weil ihre "
                 "Originale im Anfrage-Ordner liegen blieben. Jetzt kommen sie nach .uebernommen und werden nie neu "
