@@ -318,6 +318,11 @@ class Verbindung:
     def _roh(self, sql):
         raise NotImplementedError
 
+    def _roh_folge(self, *anweisungen):
+        """Mehrere Steueranweisungen ohne Werte nacheinander (PostgreSQL: in einem Weg zum Server)."""
+        for sql in anweisungen:
+            self._roh(sql)
+
     # -------- Aufbau der Datenbank
     def tabellen(self):
         raise NotImplementedError
@@ -598,6 +603,10 @@ class PostgresVerbindung(Verbindung):
     def _roh(self, sql):
         self._ausfuehren(sql, ())
 
+    def _roh_folge(self, *anweisungen):
+        # ohne Werte (None) schickt psycopg die Anweisungen als eine einfache Abfrage: ein Weg statt mehrerer
+        self._ausfuehren("; ".join(anweisungen), None)
+
     def tabellen(self):
         return [r[0] for r in self.execute(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() "
@@ -781,6 +790,7 @@ class KompatVerbindung:
     def __init__(self, verbindung, sofort=False):
         self.v = verbindung
         self._offen = False
+        self._sicherungspunkt = False   # SAVEPOINT anweisung steht noch (siehe _sicher)
         self._aenderungen = 0
         # sofort=True wie sqlite3 mit isolation_level=None (Rohrlaser Auslastung): eine Änderung außerhalb einer mit
         # beginnen() geöffneten Transaktion gilt sofort; beginnen() … with … bestätigt am Ende.
@@ -802,21 +812,31 @@ class KompatVerbindung:
         if (aendert or _SPERRT.search(sql)) and not self.in_transaction:
             self.v._roh("BEGIN")
             self._offen = True
+            self._sicherungspunkt = False
         return aendert
 
     def _sicher(self, tun):
         """PostgreSQL bricht nach einem Fehler die ganze Transaktion ab, SQLite nur die eine Anweisung. Wie bei
-        SQLite: in einer offenen Transaktion läuft jede Anweisung hinter einem Sicherungspunkt."""
+        SQLite: in einer offenen Transaktion läuft jede Anweisung hinter einem Sicherungspunkt.
+
+        Tempo (Generalüberholung 24.11.2026): bisher drei Wege zum Server je Anweisung (SAVEPOINT, Anweisung,
+        RELEASE); ein Angebot mit 50 Positionen kopieren brauchte 215 Anweisungen, 38 % der Zeit gingen auf die
+        Sicherungspunkte. Jetzt bleibt der Sicherungspunkt nach einer erfolgreichen Anweisung stehen und wird erst
+        vor der nächsten Anweisung zusammen mit dem neuen Sicherungspunkt in EINEM Weg freigegeben
+        ("RELEASE …; SAVEPOINT …"); COMMIT/ROLLBACK räumen ihn mit ab. Wirkung genau wie vorher: jede Anweisung
+        läuft direkt hinter ihrem eigenen Sicherungspunkt, ein Fehler verwirft nur diese eine Anweisung."""
         if self.v.art == "sqlite" or not self._offen:
             return tun()
-        self.v._roh("SAVEPOINT anweisung")
+        if self._sicherungspunkt:
+            self.v._roh_folge("RELEASE SAVEPOINT anweisung", "SAVEPOINT anweisung")
+        else:
+            self.v._roh("SAVEPOINT anweisung")
+            self._sicherungspunkt = True
         try:
-            e = tun()
+            return tun()
         except DbFehler:
-            self.v._roh("ROLLBACK TO SAVEPOINT anweisung")
+            self.v._roh("ROLLBACK TO SAVEPOINT anweisung")      # der Sicherungspunkt bleibt dabei bestehen
             raise
-        self.v._roh("RELEASE SAVEPOINT anweisung")
-        return e
 
     def execute(self, sql, werte=()):
         return self._gezaehlt(sql, lambda: self.v.execute(sql, werte))
@@ -858,6 +878,7 @@ class KompatVerbindung:
         if not self.in_transaction:
             self.v._roh(getattr(self.v, "_BEGIN", "BEGIN"))
             self._offen = True
+            self._sicherungspunkt = False
 
     @property
     def in_transaction(self):
@@ -872,11 +893,13 @@ class KompatVerbindung:
         return self._aenderungen
 
     def commit(self):
+        self._sicherungspunkt = False   # COMMIT gibt einen stehenden Sicherungspunkt mit frei
         if self.in_transaction:
             self.v._roh("COMMIT")
         self._offen = False
 
     def rollback(self):
+        self._sicherungspunkt = False
         if self.in_transaction:
             self.v._roh("ROLLBACK")
             self.rueckgaengig += 1      # Merker der Datenbank (Einstellungen) gelten danach nicht mehr (19.11.2026)
