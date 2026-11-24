@@ -375,6 +375,9 @@ AKTIONEN = (
        lambda f: f.ppease_ablage(angebot(f).kopf if angebot(f) is not None else None)),
     _A("dok_ordner", "Angebotsordner öffnen", "Dokumente", "ordner",
        "Ordner des Angebots (in der Liste: des gewählten, sonst die Ablage)", _ordner),
+    _A("dok_austausch", "Dateien im Austausch", "Dokumente", "ordner",
+       "Dateien zum Angebot im Austauschordner (Zuordnung, Angebots- oder PPEASE-Nummer im Pfad)",
+       lambda f: f.austausch_angebot(), "angebot"),
     # Produktion
     _A("prod_uebergeben", "Auftrag übergeben …", "Produktion", "auftraege", "Angebot in einen Auftrag übernehmen",
        _auftrag_uebergeben, "auswahl"),

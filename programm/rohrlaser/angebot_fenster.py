@@ -2628,7 +2628,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         menue.addSeparator()
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
-                           ("Ordner öffnen", lambda: self.f.angebot_ordner_oeffnen(self.kopf))):
+                           ("Ordner öffnen", lambda: self.f.angebot_ordner_oeffnen(self.kopf)),
+                           ("Dateien im Austausch", lambda: self.f.austausch_angebot(self.kopf))):
             a = menue.addAction(text, lambda ziel=ziel: ziel())
             if text == "Schweißnaht …":
                 fa.append((a, "funktion_schweissen"))

@@ -324,7 +324,9 @@ class AuftraegeSeite(QWidget):
                  "Eine Position nur im Auftrag ergänzen (z. B. Zukaufteil, Muster, Nacharbeit), mit Historie"),
                 ("loesen", "Angebot lösen …", self.angebot_loesen,
                  "Ein irrtümlich zugeordnetes Angebot wieder aus dem Auftrag nehmen (nur vor der Produktion)"),
-                ("angebot", "Angebot öffnen", self.angebot_oeffnen, "Erstes Angebot des Auftrags öffnen")):
+                ("angebot", "Angebot öffnen", self.angebot_oeffnen, "Erstes Angebot des Auftrags öffnen"),
+                ("austausch", "Dateien im Austausch", self.austausch_zeigen,
+                 "Dateien zum Auftrag und seinen Angeboten im Austauschordner")):
             b = QPushButton(text)
             b.setToolTip(tip)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
@@ -527,7 +529,7 @@ class AuftraegeSeite(QWidget):
     def detail_zeigen(self):
         uid = self.gewaehlt()
         a = au.auftrag(self.db, uid) if uid else None
-        for n in ("bearbeiten", "status", "angebot", "position", "loesen"):
+        for n in ("bearbeiten", "status", "angebot", "position", "loesen", "austausch"):
             self.knopf[n].setEnabled(a is not None and not self.knopf[n].property("ohne_recht"))
         if a is None:
             self.kopf_text.setText("")
@@ -772,6 +774,14 @@ class AuftraegeSeite(QWidget):
             return False
         self.neu_laden()
         return True
+
+    def austausch_zeigen(self):
+        uid = self.gewaehlt()
+        a = au.auftrag(self.db, uid) if uid else None
+        if a is None or not hasattr(self.f, "austausch_zeigen"):
+            return None
+        return self.f.austausch_zeigen(angebot=[x["nummer"] for x in a.get("angebote") or () if x.get("nummer")],
+                                       auftrag=a.get("nummer") or "", titel=f"Auftrag {a.get('nummer') or ''}".strip())
 
     def angebot_oeffnen(self):
         uid = self.gewaehlt()

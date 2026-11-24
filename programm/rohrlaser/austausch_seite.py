@@ -9,6 +9,7 @@ Kommentare, Verlauf und Versionen. Hochladen per Knopf oder Ziehen (mit Fortschr
 Namen), Herausziehen in den Explorer, Mehrfachauswahl und Kontextmenü. Die Logik steht in austausch_dateien.py.
 """
 import hashlib
+import html
 import time
 from pathlib import Path
 
@@ -30,8 +31,8 @@ SPALTEN = (("name", "Name"), ("art", "Typ"), ("groesse", "Größe"), ("zeit", "G
 STATUS_FARBE = {ad.NEU: "#2F6FB3", ad.UNGESEHEN: "#2F6FB3", ad.BEARBEITUNG: "#A66A00",
                 ad.RUECKFRAGE: "#C0392B", ad.FERTIG: "#2F7D4F", ad.ARCHIVIERT: "#8A94A6"}
 ZEITRAUM = (("", "Jederzeit"), (1, "Heute"), (7, "Letzte 7 Tage"), (30, "Letzte 30 Tage"), (365, "Letztes Jahr"))
-UEBERSICHT, NEU_FUER_MICH, MEINE, FAVORITEN, ZULETZT, WER, ARCHIV, PAPIERKORB, SUCHE = (
-    "uebersicht", "neu", "meine", "favoriten", "zuletzt", "wer", "archiv", "papierkorb", "suche")
+UEBERSICHT, NEU_FUER_MICH, MEINE, FAVORITEN, ZULETZT, WER, ARCHIV, PAPIERKORB, SUCHE, ZUGEORDNET = (
+    "uebersicht", "neu", "meine", "favoriten", "zuletzt", "wer", "archiv", "papierkorb", "suche", "zugeordnet")
 SCHNELL = ((UEBERSICHT, "Übersicht"), (NEU_FUER_MICH, "Neu für mich"), (MEINE, "Meine Aufgaben"),
            (FAVORITEN, "Favoriten"), (ZULETZT, "Zuletzt verwendet"), (WER, "Wer arbeitet woran"))
 DASHBOARD_KACHELN = (("neu", "Neue Dateien", NEU_FUER_MICH), ("meine", "Meine Aufgaben", MEINE),
@@ -390,9 +391,23 @@ class Info(QScrollArea):
         self.k_kalk = QPushButton("In Kalkulation")
         self.k_kalk.setToolTip("STEP-Dateien als neues Angebot kalkulieren (oder ins geöffnete Angebot)")
         self.k_kalk.clicked.connect(lambda: self.seite.in_kalkulation())
-        for k in (self.k_vorschau, self.k_oeffnen, self.k_kalk):
+        self.k_viewer = QPushButton("STEP-Viewer")
+        self.k_viewer.setToolTip("Im STEP-Viewer des Programms öffnen: Konturen, Maße, Rohr oder Blech")
+        self.k_viewer.clicked.connect(lambda: self.seite.step_viewer())
+        for k in (self.k_vorschau, self.k_oeffnen):
             knoepfe.addWidget(k)
         lay.addLayout(knoepfe)
+        knoepfe2 = QHBoxLayout()            # zweite Zeile: sonst wird der Infobereich breiter als 340 px
+        for k in (self.k_viewer, self.k_kalk):
+            knoepfe2.addWidget(k)
+        lay.addLayout(knoepfe2)
+        self.zugehoerig = QLabel("")
+        self.zugehoerig.setWordWrap(True)
+        self.zugehoerig.setTextFormat(Qt.RichText)
+        self.zugehoerig.setToolTip("Maschinenprogramme (LST, BPF …) und STEP gleichen Namens im selben Ordner")
+        self.zugehoerig.linkActivated.connect(self._zugehoerig_geklickt)
+        lay.addWidget(self.zugehoerig)
+        self._zugehoerige = []
         # Zuordnung
         lay.addWidget(QLabel("<b>Zuordnung</b>"))
         self.vorschlag = QLabel()
@@ -480,6 +495,10 @@ class Info(QScrollArea):
             w.setEnabled(aktiv)
         self.bild.clear()
         self.sperre.setText("")
+        self.zugehoerig.setText("")
+        self.zugehoerig.hide()
+        self._zugehoerige = []
+        self.k_viewer.setVisible(e is not None and e.art == "step")
         self.vorschlag.hide()
         self.k_bestaetigen.hide()
         self.k_verwerfen.hide()
@@ -503,6 +522,12 @@ class Info(QScrollArea):
         if info:
             zeilen.append(info)
         self.daten.setText("<br>".join(zeilen))
+        self._zugehoerige = ad.zugehoerige(s.alle_eintraege(), e)
+        if self._zugehoerige:
+            titel = "Zugehörige Programme" if e.art == "step" else "Zugehörige STEP"
+            self.zugehoerig.setText(f"<b>{titel}</b>: " + ", ".join(
+                f'<a href="z:{i}">{html.escape(x.name)}</a>' for i, x in enumerate(self._zugehoerige)))
+            self.zugehoerig.show()
         bild = s.vorschaubild(e, 260)
         if bild is not None:
             self.bild.setPixmap(bild.pixmap(260, 260))
@@ -544,6 +569,14 @@ class Info(QScrollArea):
         self.k_kalk.setVisible(e.art == "step")
         self.k_oeffnen.setEnabled(not e.ordner)
 
+    def _zugehoerig_geklickt(self, ziel):
+        """Link „z:<Nummer>“ (ohne Unterstrich, sonst verwirft QUrl ihn): die Datei wählen."""
+        try:
+            x = self._zugehoerige[int(str(ziel).partition(":")[2])]
+        except (ValueError, IndexError):
+            return None
+        return self.seite.zeige_datei(x.datei)
+
     def werte(self):
         w = {k: f.text().strip() for k, f in self.felder.items()}
         w.update(bearbeiter=self.bearbeiter.currentText().strip().upper(), status=self.status.currentText(),
@@ -571,6 +604,7 @@ class AustauschSeite(QWidget):
         self.inhalt = None
         self._bilder = {}
         self._lauf = None
+        self.zuordnung = {}             # Ansicht ZUGEORDNET: kundennr, angebot, auftrag
         self.antworten = []             # Tests: vorbereitete Antworten auf Rückfragen
         self.meldungen = []             # Tests: gezeigte Benachrichtigungen
         lay = QVBoxLayout(self)
@@ -853,7 +887,8 @@ class AustauschSeite(QWidget):
         art, b, o = self.ansicht
         if art != "bereich":
             t = dict(SCHNELL).get(art) or {ARCHIV: "Archiv", PAPIERKORB: "Papierkorb", "alle": "Suche in allen "
-                                           "Bereichen", "vorschlag": "Zuordnung bestätigen"}.get(art, art)
+                                           "Bereichen", "vorschlag": "Zuordnung bestätigen",
+                                           ZUGEORDNET: f"Dateien zu {b or 'der Auswahl'}"}.get(art, art)
             lab = QLabel(f"<b>{t}</b>")
             self.pfad_zeile.addWidget(lab)
             return
@@ -892,7 +927,7 @@ class AustauschSeite(QWidget):
         f = self.filter_aus_feldern()
         if art in (UEBERSICHT,) and (f.text or f.art or f.mitarbeiter or f.kunde or f.status or f.seit_tage):
             self.ansicht = ("alle", None, "")
-        elif art == "bereich" and f.text:
+        elif art in ("bereich", ZUGEORDNET) and f.text:
             self.ansicht = ("alle", None, "")       # Suche läuft über alle Bereiche
         self._zeigen()
 
@@ -927,6 +962,9 @@ class AustauschSeite(QWidget):
             basis = [e for e in alle if e.datei in dateien]
         elif art == "vorschlag":
             basis = [e for e in alle if ad.vorschlaege(self.metas.get(e.datei) or {})]
+            f.ordner = False
+        elif art == ZUGEORDNET:
+            basis = ad.zugeordnet(alle, self.metas, **self.zuordnung)
             f.ordner = False
         else:                       # alle (Suche)
             basis = alle
@@ -1144,6 +1182,38 @@ class AustauschSeite(QWidget):
             self._vorschau.raise_()
         return self._vorschau
 
+    def step_viewer(self, e=None):
+        """STEP-Datei im STEP-Viewer des Programms öffnen (bei Mehrfachauswahl die erste STEP)."""
+        e = e or next((x for x in self.gewaehlte() if x.art == "step"), None)
+        if e is None or e.art != "step":
+            self.f.meldung("Bitte eine STEP-Datei wählen.")
+            return None
+        p = ad.pfad(self.db, e.datei, self.w)
+        if p is None or not p.is_file():
+            self._fehler(ad.AustauschFehler("Die Datei ist nicht (mehr) im Austauschordner."))
+            return None
+        from . import step_viewer_fenster
+        v = step_viewer_fenster.oeffnen(self.f, str(p), self)
+        ad.benutzt(self.db, e.datei)
+        self.gesehen([e])
+        return v
+
+    def zeige_zuordnung(self, kundennr="", angebot="", auftrag="", titel=""):
+        """Ansicht „Dateien zu …“ (Knopf „Dateien im Austausch“ bei Kunde, Angebot, Auftrag)."""
+        self.zuordnung = dict(kundennr=kundennr or "", angebot=angebot or "", auftrag=auftrag or "")
+        if not titel:
+            teile = [t for t in (f"Auftrag {auftrag}" if auftrag else "",
+                                 f"Angebot {angebot}" if isinstance(angebot, str) and angebot else "",
+                                 f"Kunde {kundennr}" if kundennr else "") if t]
+            titel = ", ".join(teile)
+        if not self.index or time.monotonic() - self.index_zeit > 30:
+            self.einlesen()             # im Hauptfenster im Hintergrund; danach zeigt es diese Ansicht
+        self.metas = ad.meta(self.db)
+        self.filter_setzen(ad.Filter())
+        self.ansicht = (ZUGEORDNET, titel, "")
+        self._zeigen()
+        return self.sichtbare()
+
     # -------------------------------------------------------------- Auswahl und Info
     def gewaehlte(self):
         zeilen = sorted({i.row() for i in self.liste.selectionModel().selectedRows()})
@@ -1326,7 +1396,7 @@ class AustauschSeite(QWidget):
         try:
             bericht = ad.hochladen(self.db, pfade, b, o, konflikt=self._konflikt_frage(), fortschritt=fortschritt,
                                    abbrechen=abbrechen, w=self.w or None)
-        except ad.AustauschFehler as f:
+        except (ad.AustauschFehler, OSError) as f:      # auch Netzlaufwerk weg: Meldung statt Absturz
             self._fehler(f)
             return None
         finally:
@@ -1580,6 +1650,25 @@ class AustauschSeite(QWidget):
                 protokoll.warnung(f"Austausch: {fehler!r}")
         return out
 
+    def anhaenge_auspacken(self):
+        """Anhänge der gewählten MSG/EML daneben ablegen (gleicher Anhang wird übersprungen, nie überschrieben)."""
+        g = [e for e in self.gewaehlte() if e.art == "mail"]
+        if not g:
+            return None
+        texte, berichte = [], []
+        for e in g:
+            try:
+                b = ad.anhaenge_auspacken(self.db, e.datei, self.w)
+            except ad.AustauschFehler as fehler:
+                self._fehler(fehler)
+                continue
+            berichte.append(b)
+            texte.append(f"{e.name}: {b.text() or 'keine neuen Anhänge'}")
+        self.neu_laden(einlesen=True)
+        if texte:
+            self.f.meldung("Anhänge: " + " · ".join(texte))
+        return berichte
+
     def zuordnung_erkennen(self):
         from . import austausch_zuordnung as az
         g = [e for e in self.gewaehlte() if not e.ordner] or [e for e in self.modell.eintraege if not e.ordner]
@@ -1695,9 +1784,12 @@ class AustauschSeite(QWidget):
                 if ad.sperre(self.db, e.datei, self.w) and ad.sperre(self.db, e.datei, self.w).get("eigene"):
                     a.append(("Bearbeitung beenden", self.bearbeitung_beenden))
         if any(x.art == "step" for x in g):
+            a.append(("Im STEP-Viewer öffnen", lambda: self.step_viewer()))
             a.append(("In Kalkulation übernehmen …", lambda: self.in_kalkulation()))
         if any(x.art == "mail" for x in g):
             a.append(("Als Kundenanfrage übernehmen", self.als_anfrage))
+            if not nur:
+                a.append(("Anhänge auspacken", self.anhaenge_auspacken))
         a.append(None)
         a += [("Herunterladen …", lambda: self.herunterladen()), ("Kopieren nach …", lambda: self.kopieren_nach())]
         if not nur:

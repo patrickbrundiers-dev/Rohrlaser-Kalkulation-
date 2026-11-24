@@ -13161,13 +13161,40 @@ def kapitel_austausch(i):
             "Endgültig löschen und den Papierkorb leeren (älter als 30 Tage) darf nur der Administrator.",
             "<b>Archivieren</b> verschiebt nach <i>_Archiv</i> (Ansicht Archiv links); <i>Aus dem Archiv holen</i> "
             "bringt es zurück.")
+    i.abschnitt("STEP-Viewer, Maschinenprogramme, Kunde/Angebot/Auftrag und Outlook")
+    i.liste("<b>STEP-Viewer</b>: bei einer STEP-Datei Knopf <i>STEP-Viewer</i> im Infobereich oder Rechtsklick → "
+            "<i>Im STEP-Viewer öffnen</i>: die Datei öffnet im STEP-Viewer des Programms (Konturen, Maße, Rohr oder "
+            "Blech), ohne sie vorher zu kopieren.",
+            "<b>Maschinenprogramme</b>: liegen LST, BPF oder ArTube gleichen Namens im selben Ordner wie die STEP "
+            "(<i>Halter.step</i> mit <i>Halter.lst</i> oder <i>Halter_02.bpf</i>, nicht <i>Halterung.lst</i>), zeigt "
+            "der Infobereich sie unter <i>Zugehörige Programme</i>; beim Programm steht umgekehrt <i>Zugehörige "
+            "STEP</i>. Ein Klick wählt die Datei.",
+            "<b>Dateien im Austausch</b>: Knopf im Kundenprofil (Reiter Dokumente), im Reiter Aufträge und im Angebot "
+            "unter <i>Weitere</i> (auch in <i>Meine Werkzeugleiste</i>). Er öffnet den Reiter Austausch mit allen "
+            "Dateien, die dem Kunden, Angebot oder Auftrag zugeordnet sind; bei Angebot und Auftrag auch Dateien, in "
+            "deren Pfad die Angebots-, PPEASE- oder Auftragsnummer steht. Eine Suche oben verlässt diese Ansicht und "
+            "sucht wieder in allen Bereichen.",
+            "<b>Outlook</b>: eine aus Outlook gezogene Mail (MSG oder EML) lässt sich mit Rechtsklick → <i>Anhänge "
+            "auspacken</i> zerlegen: die Anhänge landen im selben Ordner, bekommen die Zuordnung der Mail (Kunde, "
+            "Anfrage …) und im Verlauf „Anhang aus …“. Ein schon ausgepackter gleicher Anhang wird übersprungen, ein "
+            "anderer mit gleichem Namen bekommt einen neuen Namen (nie überschreiben); Programme (.exe …) bleiben "
+            "draußen. <i>Als Kundenanfrage übernehmen</i> gibt die Mail an die Anfragenverwaltung.")
     i.abschnitt("Rechte und Schutz")
-    i.text("Wer hochladen, ändern, löschen oder verwalten darf, folgt den Rollen der Benutzerverwaltung (Hauptadmin). "
+    i.text("Wer hochladen, ändern, löschen oder verwalten darf, folgt den Rollen der Benutzerverwaltung (Hauptadmin): "
+           "Einstellungen → <i>Benutzer und Rollen</i>, Tabelle <b>Austauschordner</b> mit einem Haken je Rolle und "
+           "Aktion (Lesen, Hochladen, Bearbeiten, Verschieben, Löschen, Freigeben, Archivieren, Verwalten). Der "
+           "Administrator darf immer alles; ohne Lesen gibt es kein anderes Recht, wer hochlädt oder bearbeitet, darf "
+           "auch lesen. <i>Vorgabe Austausch</i> setzt die Tabelle zurück. Die Tabelle geht wie die Rollen mit den "
+           "Admin-Vorgaben an alle Plätze und lässt sich nur dort ändern, wo der Admin angemeldet ist. "
            "Der Bereich Anfragen ist nur zum Lesen; PPEASE-Angebotsordner legt das Programm nie an (das macht "
            "PPEASE). Weil es keinen Server gibt, prüft das Programm die Rechte; wer zusätzlich verhindern will, dass "
            "jemand im Explorer löscht, stellt die Windows-Freigabe des gemeinsamen Ordners entsprechend ein. Jede "
            "Aktion steht im Verlauf der Datei (wer, wann, was). Abschalten: Einstellungen → <i>Ablage und Teilen</i> → "
            "<i>Seite Austausch verwenden</i>.")
+    i.text("<b>Netzlaufwerk weg</b>: Ist der gemeinsame Ordner gerade nicht erreichbar, meldet <i>Hochladen</i> das "
+           "(„… ist gerade nicht erreichbar“) und legt nichts woanders an. Fällt das Netz mitten im Kopieren weg, "
+           "bleibt keine halbe Datei unter dem echten Namen liegen; ist der Ordner wieder da, einfach noch einmal "
+           "hochladen. Laden mehrere Kollegen gleichzeitig hoch, geht keine Datei verloren.")
     i.tabelle(["Taste", "Wirkung"], [["F5", "Ordner neu einlesen"], ["F2", "Umbenennen"],
                                     ["Entf", "In den Papierkorb"], ["Doppelklick", "Ordner öffnen bzw. Vorschau"]],
               [40 * mm, 120 * mm])

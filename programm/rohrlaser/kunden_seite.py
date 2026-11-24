@@ -593,7 +593,9 @@ class Profil(QWidget):
                 ("Datei hinzufügen …", "Datei in den Dokumentenordner des Kunden kopieren (Original bleibt)",
                  self.dokument_neu, "neu"),
                 ("Öffnen", "Gewählte Datei öffnen", self.dokument_oeffnen, "oeffnen"),
-                ("Ordner öffnen", "Dokumentenordner des Kunden im Explorer", self.ordner_oeffnen, "ordner")):
+                ("Ordner öffnen", "Dokumentenordner des Kunden im Explorer", self.ordner_oeffnen, "ordner"),
+                ("Dateien im Austausch", "Alle Dateien des Kunden im Austauschordner (laut Zuordnung)",
+                 self.austausch_zeigen, "ordner")):
             zeile.addWidget(_knopf(text, tipp, aktion, sym))
         self.dok_ort = _grau()
         zeile.addWidget(self.dok_ort, 1)
@@ -929,6 +931,11 @@ class Profil(QWidget):
         o = kd.dokumente_ordner(basis, self.kundennr, anlegen=True)
         self.b.f.datei_oeffnen(o)
         return o
+
+    def austausch_zeigen(self):
+        if self.b.f is None or not self.kundennr or not hasattr(self.b.f, "austausch_zeigen"):
+            return None
+        return self.b.f.austausch_zeigen(kundennr=str(self.kundennr), titel=f"Kunde {self.kundennr}")
 
     def kontakt_neu(self, art=None, text=None):
         if art is None or text is None:

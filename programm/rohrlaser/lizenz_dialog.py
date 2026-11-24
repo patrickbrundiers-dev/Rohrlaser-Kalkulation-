@@ -22,7 +22,8 @@ LESEMODUS_TIPP = "Lesemodus: Ändern ist erst mit gültiger Lizenz möglich (Hil
 # Knöpfe, die auch im Lesemodus gehen: ansehen, blättern, Daten exportieren
 FREI = {"Öffnen", "Angebot öffnen", "Ablage öffnen", "Ordner öffnen", "3D-Ansicht …", "Kalkulation anzeigen", "Alle aufklappen",
         "Schließen", "Abbrechen", "Einpassen", "◀", "▶", "Weitere Spalten", "12-m-Lösung ansehen …",
-        "Frachtdaten öffnen", "Einstellungen öffnen", "Einstellungen sperren", "CSV exportieren", "Material …", "Ausgaben"}
+        "Frachtdaten öffnen", "Einstellungen öffnen", "Einstellungen sperren", "CSV exportieren", "Material …", "Ausgaben",
+        "Dateien im Austausch", "STEP-Viewer"}
 
 NUR_FREIE_EINTRAEGE = {"Ausgaben"}      # Menüknöpfe, die offen bleiben, deren Einträge aber nur frei nach FREI
 
