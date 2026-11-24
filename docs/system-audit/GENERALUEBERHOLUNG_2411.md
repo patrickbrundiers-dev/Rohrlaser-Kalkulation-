@@ -233,8 +233,8 @@ Datenbank: kein Schema-Sprung, keine Umstellung; PostgreSQL je PC mit Abgleich �
 
 **Bekannte Einschränkungen**
 - Ohne OpenGL (z. B. Remote-Desktop) braucht ein Standbild der Software-3D bei großen Teilen 0,8–1,2 s (B8).
-- Startseite: die Angebotsliste lädt auch die Nachkalkulationsdaten mit; bei sehr vielen Angeboten (über 10.000)
-  merklich. Nicht umgebaut, weil bei den heutigen Datenmengen unter 0,2 s.
+- Startseite: die Angebotsliste lädt auch die Nachkalkulationsdaten mit. Nicht umgebaut; mit sehr vielen Angeboten
+  (10.000 und mehr) noch nicht gemessen.
 - Die Kontrastprüfung misst Labels und Knöpfe, nicht Tabellenzellen und gezeichnete Flächen (3D, Stangenbild).
 - Die Einstellungsseiten entstehen erst beim ersten Öffnen; Werkzeuge, die alle Felder des Hauptfensters per
   `findChildren` suchen, müssen `f.einstellungen.findChildren` nutzen (baut alle Seiten).
