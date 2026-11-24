@@ -33,6 +33,16 @@ NEUERUNGEN = [
                 "Meine Werkzeugleiste räumt beim Wechsel des Reiters ihre alten Knöpfe und Menüs weg (vorher kamen "
                 "sie bei jedem Wechsel dazu). Alle Rechenergebnisse bleiben gleich.",
      "Generalüberholung 1: Öffnen und Speichern schneller, Startseite, leere Tabellen, Menüpfeile"],
+    ["0.9.469", "<b>Staffelpreise = Angebotskalkulation</b>: Jede Staffelstufe kostet jetzt Cent für Cent so viel wie "
+                "ein normales Angebot mit derselben Menge. Bisher fehlten in den Staffeln Rabatt, Verpackung, "
+                "Finanzierung, Runden und Frachtfrei des Angebots (Staffel z. B. 4,7 % teurer als das Angebot bei "
+                "gleicher Menge). Gewinn, Zuschläge, Gaspreise und alle anderen rechenrelevanten Einstellungen "
+                "rechnen die Stufen neu, nie mehr veraltete Werte. Neu: Unterreiter <b>Übersicht</b> im Reiter "
+                "Staffeln mit Herstellkosten, Material, Maschine, Personal, Zusatz, Gemeinkosten, Gewinn, Netto, "
+                "Deckungsbeitrag, Marge und Gegenprobe je Stufe ([[staffel_wie_angebot]]). Das Fenster einer Stufe "
+                "ist jetzt aufgebaut und wird bedient wie ein eigenes Angebot: Reiter Positionen, Kalkulation, "
+                "Schnittplan, Einstellungen und Übersicht, Summenzeile und <b>Übernehmen und rechnen</b>.",
+     "Staffelpreise rechnen wie das Angebot; Stufenfenster wie ein eigenes Angebot"],
     ["0.9.468", "<b>Programmierter Schneidweg und Laserzeit aus der TRUMPF-LST</b> ([[trumpf_programm]]): Das "
                 "Programm liest den Schneidweg aus dem NC-Teil der LST wie das Abwicklungsbild der "
                 "Programmiersoftware, je Kontur getrennt in Anfahrt, Schnitt, Trennschnitt und Restzerteilung, und "
