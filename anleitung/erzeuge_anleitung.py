@@ -3808,9 +3808,10 @@ def abschnitte_profirst_angebot(i):
            "wird neu optimiert); beim Vorschub ist berücksichtigt, dass die Zeit mit 1/Vorschub geht. Ein "
            "ermittelter Maschinenstundensatz bleibt dabei, wie er ist. Das Angebot ändert sich nicht.")
     i.abschnitt("Nesting-Arbeitsplatz: Verschachtelung je Abmessung", marke="nesting")
-    i.text("Reiter <b>Kalkulation → Optimierung</b>, Knopf <b>Nesting-Arbeitsplatz …</b>: je Abmessung fünf "
-           "Strategien gegen den bisherigen Schnittplan, die Stangen maßstäblich untereinander und Teile von Hand "
-           "umsetzen. Ohne Wahl rechnet jedes Angebot genau wie bisher.", kurz=True)
+    i.text("Reiter <b>Kalkulation → Optimierung</b>, Knopf <b>Nesting-Arbeitsplatz …</b> (oder Rechtsklick auf eine "
+           "Stange im Stangenbild): je Abmessung alle Strategien gegen den gespeicherten und den bisherigen "
+           "Schnittplan, die Stangen maßstäblich wie im Stangenbild, Teile frei mit der Maus verschieben und von Hand "
+           "verschachteln, mit Zurücksetzen. Ohne Wahl rechnet jedes Angebot genau wie bisher.", kurz=True)
     i.genauer()
     i.liste("<b>A Minimaler Materialverbrauch</b>: kleinste eingekaufte Stangenlänge; die Lieferlängen der "
             "Abmessung (Stammdaten <i>Lieferlängen</i>, z. B. 6, 6,5 und 7 m) werden gemischt.",
@@ -3822,7 +3823,20 @@ def abschnitte_profirst_angebot(i):
             "Belegungen (Programme).",
             "<b>E Ausgewogen</b> (Empfehlung): Bewertung in €: Material + Beladungen (Stangenwechsel) + € je "
             "verschiedene Belegung (Einstellung <i>Verschachtelung ausgewogen: € je verschiedene Stangenbelegung</i>, "
-            "Vorgabe 5 €).")
+            "Vorgabe 5 €).",
+            "<b>F Wenigste Stangen</b>: aus allen geprüften Plänen (A, B, D, je Lieferlänge, gemischt, bisher) der "
+            "mit den wenigsten Stangen, dann der kürzesten eingekauften Länge, dann dem kleinsten Einkauf.",
+            "<b>G Geringster Verschnitt</b>: aus denselben Plänen der mit dem kleinsten nicht verwertbaren Verschnitt "
+            "(mm), dann der kürzesten eingekauften Länge.",
+            "<b>H Schnellrechnung</b>: nur First-Fit auf der Stangenlänge des Angebots, für sehr große Baugruppen "
+            "zum schnellen Überblick; die Tabelle zeigt daneben die Untergrenze (so viele Stangen braucht es "
+            "mindestens).")
+    i.text("<b>Welcher Rechenweg?</b> Das Programm wählt ihn selbst: je Lieferlänge rechnet die exakte Optimierung "
+           "(Muster, Simplex, Branch-and-Bound) die kleinste Stangenzahl und beweist sie meist gegen die Untergrenze; "
+           "ein genetischer Algorithmus oder Simulated Annealing würde dort keine Stange sparen und rechnet deshalb "
+           "nicht. Alle Grenzen sind Rechenschritte, keine Sekunden: das Ergebnis ist auf jedem PC gleich. Gleiche "
+           "Zwischenergebnisse (Pläne je Lieferlänge, gemischter Plan) werden je Abmessung nur einmal gerechnet und "
+           "für alle Strategien verwendet.")
     i.liste("<b>Gemischt werden nur ganze Lieferstangen</b>, die die Maschine laden kann; jede Stange wird ganz "
             "bezahlt.",
             "<b>12 m mit Zuschnitt</b>: Lieferlängen über der Beladelänge der Maschine schneidet der Lieferant zu; "
@@ -3842,13 +3856,44 @@ def abschnitte_profirst_angebot(i):
            "gegenüber bisher und die Rechenzeit. Rechts stehen die Materialkosten je Position (nach Teilelänge "
            "verteilt). Jede Stange ist geprüft: Teile + Schnittverluste + Endbeschnitt + Rest = Stangenlänge, der "
            "Greiferrest bleibt frei, keine Stange ist überbelegt.")
-    i.liste("<b>Bild</b>: Endbeschnitt grau, Teile in der Farbe ihrer Position, Schnitte schwarz, verwertbarer Rest "
-            "grün, nicht verwertbarer Verschnitt rot schraffiert, Greiferrest dunkelgrau.",
-            "<b>Von Hand umsetzen</b>: Teil anklicken, dann eine andere Stange; rechts neben die Stangen = neue Stange. "
-            "Passt es nicht, steht dort, wie viel frei ist und wie viel das Teil braucht. Die Kennzahlen rechnen sofort "
-            "neu, <b>Rückgängig</b> nimmt den letzten Schritt zurück.",
+    i.liste("<b>Aufbau</b>: links <i>Bauteile</i> (Stück, davon auf Stangen), <i>Material</i> (Profil, Werkstoff, "
+            "Lieferlängen mit Preis, Endbeschnitt, Greiferrest, Schnittverlust, Maschine), <i>Reststücke</i> und "
+            "<i>Nicht eingeplant</i>; in der Mitte das Bild; rechts die Kennzahlen (Ausnutzung, Verschnitt, Stangen, "
+            "eingekaufte Länge, Reste, Kosten, Einsparung gegen den gespeicherten Plan, Berechnungsstatus, "
+            "Machbarkeit); unten <i>Optimierungsvergleich</i>, <i>Kosten je Position</i>, "
+            "<i>Berechnungsprotokoll</i> und <i>Export</i>. Die Knöpfe <b>Links</b>, <b>Rechts</b>, <b>Unten</b> "
+            "blenden Bereiche aus, die Teiler ändern die Größe. Hell und dunkel wie das Programm.",
+            "<b>Ansichten</b> aus denselben Daten: <i>Bearbeiten (2D)</i>, <i>Stangenbild wie Optimierung</i> und "
+            "<i>3D</i> (gewählte Stange als Rohr, ziehen = drehen, Mausrad = Zoom, Doppelklick = zurück).",
+            "<b>Bild</b> wie das Stangenbild: Gehrungen schräg, Gehrungen ineinander grün, gemeinsamer Schnitt als "
+            "blaues Dreieck, Schnittfugen, Schweißnaht, verwertbarer Rest grün, Verschnitt rot schraffiert, "
+            "Greiferrest; darunter Maßkette und Lineal. Strg + Mausrad zoomt, mittlere Maustaste verschiebt. Auch "
+            "das Stangenbild im Angebot ist so detailliert.",
+            "<b>Teile frei verschieben</b>: Teil mit der Maus ziehen, entlang der Stange, auf eine andere Stange oder "
+            "unter die letzte Stange (neue Stange). Die orange Linie zeigt die Einfügestelle; das Teil rastet am "
+            "Nachbarn ein, gemeinsamer Schnitt und Gehrungen ineinander ergeben sich aus der Reihenfolge. Jede Lage "
+            "wird geprüft; passt es nicht, bleibt das Teil, wo es war, und es steht da, wie viel frei ist. Klick auf "
+            "ein Teil und dann auf eine andere Stange geht wie bisher.",
+            "<b>Von Hand verschachteln</b>: Stange wählen, <b>Stange auflösen</b>: ihre Teile stehen links unter "
+            "<i>Nicht eingeplant</i>. Teil dort wählen und auf die Stelle einer Stange klicken. <b>Rückgängig</b> "
+            "und <b>Wiederholen</b> gehen Schritt für Schritt, <b>Abmessung zurücksetzen</b> verwirft alles dieser "
+            "Abmessung (auch eine gespeicherte Belegung von Hand), <b>Alles zurücksetzen</b> die Belegungen von Hand "
+            "aller Abmessungen.",
+            "<b>Machbarkeit</b>: Jeder Plan wird mit der Maschine geprüft (max. Stangenlänge, Hüllkreis, Gewicht, "
+            "Greiferrest, Überbelegung); unzulässige Pläne stehen rot und werden nie empfohlen. Hinweise "
+            "(Lademinimum, kürzestes Teil, 3D-Teil nicht am Stangenende) stehen im Protokoll.",
+            "<b>Zeile „aktuell (gespeichert)“</b>: genau der Schnittplan von Optimieren (F9). Passt er nicht mehr zu "
+            "den Eingaben, steht oben ein roter Hinweis.",
+            "<b>Während der Rechnung</b> zeigt der Fortschritt Abmessung x von y, geprüfte Pläne, die beste Lösung "
+            "bisher (Ausnutzung, Verschnitt, Stangen) und die Dauer; <i>Abbrechen</i> stoppt.",
+            "<b>Export</b>: <i>Schnittplan als CSV speichern …</i> (Stange, Platz, Pos., Länge, von/bis, Trennung, Rest) für Excel und "
+            "die Arbeitsvorbereitung.",
+            "<b>Reiter Optimierung</b>: Spart die empfohlene Strategie gegen den gespeicherten Plan mindestens 1 € "
+            "Einkauf oder eine Stange (und ist zulässig), steht sie als Vorschlag <i>Verschachtelung</i> in der "
+            "Liste; <i>Als neue Fassung übernehmen</i> speichert sie in einer neuen Fassung.",
             "<b>Strategie übernehmen</b>: gilt für diese Abmessung und rechnet bei jeder Mengenänderung neu. "
-            "<b>Belegung von Hand übernehmen</b>: diese Stangen bleiben fest; ändert sich ein Teil, wird nur die "
+            "<b>Belegung von Hand übernehmen</b>: diese Stangen bleiben fest (nach dem Ziehen auch die Reihenfolge "
+            "auf der Stange); ändert sich ein Teil, wird nur die "
             "betroffene Stange aufgelöst, neue Teile plant Strategie B dazu. <b>Wie bisher rechnen</b> nimmt beides "
             "zurück. Mit <b>Übernehmen und neu optimieren</b> gilt es im Angebot.",
             "<b>Hinweise</b> (lokal, ohne Internet, nur Vorschläge): mögliche Einsparung, schwach belegte Stange, hoher "
