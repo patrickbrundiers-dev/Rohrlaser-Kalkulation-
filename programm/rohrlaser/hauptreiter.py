@@ -11,13 +11,51 @@ Nach außen verhält sich der Reiter wie ein QTabWidget mit allen Seiten in eine
 Angebote): count, tabText, setTabText, widget, indexOf, currentIndex, currentWidget, setCurrentIndex,
 setCurrentWidget, addTab, removeTab, setTabVisible, isTabVisible, currentChanged, tabCloseRequested.
 """
-from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QHBoxLayout, QTabBar, QVBoxLayout, QWidget
+from PySide6.QtCore import QEvent, QSize, Qt, Signal
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QScrollArea, QSizePolicy, QTabBar, QVBoxLayout, QWidget
 
 from .navigation import Seitenleiste
 from .einstellungen_nav import SeitenStapel
 
 LISTE = "Angebotsliste"
+
+
+class _LeistenRolle(QScrollArea):
+    """Rahmenlose Rollfläche um die Seitenleiste: Breite wie die Leiste, Höhe beliebig klein."""
+
+    def __init__(self, leiste):
+        super().__init__()
+        self.setObjectName("seitenleiste_rolle")
+        self.setFrameShape(QFrame.NoFrame)
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        self.setWidget(leiste)
+        self.setMinimumWidth(leiste.minimumWidth())
+        self.setMaximumWidth(leiste.maximumWidth())
+        self.viewport().setAutoFillBackground(False)
+        leiste.installEventFilter(self)
+
+    def eventFilter(self, obj, ereignis):
+        if ereignis.type() in (QEvent.LayoutRequest, QEvent.Resize):
+            w = self.widget()
+            if self.minimumWidth() != w.minimumWidth() or self.maximumWidth() != w.maximumWidth():
+                QScrollArea.setMinimumWidth(self, w.minimumWidth())
+                self.setMaximumWidth(w.maximumWidth())
+            self.updateGeometry()
+        return super().eventFilter(obj, ereignis)
+
+    def _breite(self):
+        w = self.widget()
+        return min(max(w.sizeHint().width(), w.minimumWidth()), w.maximumWidth())
+
+    def sizeHint(self):
+        return QSize(self._breite(), self.widget().sizeHint().height())
+
+    def minimumSizeHint(self):
+        return QSize(self.widget().minimumWidth(), 120)
+
 
 
 class HauptReiter(QWidget):
@@ -43,7 +81,9 @@ class HauptReiter(QWidget):
         quer = QHBoxLayout(self)
         quer.setContentsMargins(0, 0, 0, 0)
         quer.setSpacing(0)
-        quer.addWidget(self.oben)
+        # Seitenleiste rollt bei kleiner Bildschirmhöhe (1280×720), statt die Mindesthöhe des Fensters zu erhöhen
+        self.oben_rollen = _LeistenRolle(self.oben)
+        quer.addWidget(self.oben_rollen)
         lay = QVBoxLayout()
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
