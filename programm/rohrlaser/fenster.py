@@ -3523,14 +3523,15 @@ class Hauptfenster(QMainWindow):
             from . import fenster_platz     # Fenster passen auf den Bildschirm, offenes Fenster bleibt vorne (E3/E6)
             self.fenster_platz = fenster_platz.einrichten(self)
             self.eingabe_waechter = EingabeWaechter(self.bereich.sitzung)  # Admin sperrt nach 15 min ohne Eingabe
-            QApplication.instance().installEventFilter(self.eingabe_waechter)
+            from . import ereignis_verteiler      # ein gemeinsamer Filter der Anwendung (B9)
+            ereignis_verteiler.anmelden(self.eingabe_waechter, EingabeWaechter.ARTEN)
             self.admin_uhr = QTimer(self)
             self.admin_uhr.setInterval(30_000)
             self.admin_uhr.timeout.connect(self.admin_ablauf)
             self.admin_uhr.start()
             from .fenster_merken import FensterMerker     # Größe, Lage, Teiler der Dialoge (Plan Bedienung B4)
             self.fenster_merker = FensterMerker(db, self)
-            QApplication.instance().installEventFilter(self.fenster_merker)
+            ereignis_verteiler.anmelden(self.fenster_merker, (QEvent.Show, QEvent.Hide, QEvent.Close))
 
     def starten(self):
         """Programmstart: Fenster maximiert (mit Taskleiste) und gleich im Reiter Angebote; danach Benutzer (beim
