@@ -7670,7 +7670,7 @@ def kapitel_optimieren(i):
             "zu sehen und wie gewohnt änderbar; erst <b>OK</b> legt die Position an.")
     i.abschnitt("Rohrteil aus einer PDF-Zeichnung (Test)", marke="pdf_zeichnung")
     i.text("Noch eine <b>Testfunktion</b>: Erst mit der Einstellung <i>Testfunktion PDF-Zeichnungen: Neue Position „Aus PDF-Zeichnung“</i>"
-           " (Einstellungen → STEP-Import, Vorgabe nein) bietet <i>Neue Position</i> den Typ "
+           " (Einstellungen → DXF-Import, Vorgabe nein) bietet <i>Neue Position</i> den Typ "
            "<b>Aus PDF-Zeichnung (Test)</b> an. Das Programm liest den <b>Text</b> der Zeichnung (aus einem PDF mit "
            "Text direkt, Scans und Fotos mit der Texterkennung wie beim Anfrageformular, [[anfragen]]) und öffnet den "
            "Rohr-Editor damit. Ist das PDF direkt aus dem CAD gespeichert (Linien, kein Scan), liest es auch die "
@@ -8050,8 +8050,9 @@ def kapitel_staffeln(i):
             "<b>Fracht</b> (bei berechneter Fracht): Betrag der Stufe, Ladung mit Versandart und Fracht je Stück, "
             "z. B. „115,00 € · 1 × EUR (Palette) · 0,57 €/Stk.“; im Abruf-Angebot „je Abruf“."),
         (4, "<b>Staffelpreise rechnen</b> rechnet alle Stufen neu. Meist ist das nicht nötig: Sind Stufen angelegt, "
-            "rechnet das Programm sie nach jeder Änderung am Angebot <b>selbst neu</b> (siehe unten). Gewinn und "
-            "Zuschläge wirken sofort.")])
+            "rechnet das Programm sie nach jeder Änderung am Angebot <b>selbst neu</b> (siehe unten), auch nach "
+            "Änderungen an Gewinn, Zuschlägen und Einstellungen. Die Sonderwerte unter <i>Erweitert</i> wirken "
+            "sofort.")])
     i.text("Reiter <i>Staffeln</i>: Preise für weitere Mengen. Jede <b>Stufe</b> wird wie ein eigener Auftrag "
            "optimiert und kalkuliert; Rüsten, Verschnitt und Pauschalen verteilen sich auf ihre Menge. Ein "
            "Doppelklick auf eine Stufe öffnet ihre Werte.", kurz=True)
@@ -8068,18 +8069,32 @@ def kapitel_staffeln(i):
            "Lieferlängen sind dieselben wie im Angebot; mit <b>Lieferlänge je Stufe wählen</b> = ja (unter "
            "Erweitert) nimmt die Stufe die empfohlene Lieferlänge für ihre Mengen ([[lieferlaengen]]), bei großen "
            "Mengen also z. B. 12 m.")
-    i.bild("staffel_stufe", "Fenster einer Stufe: Einstellungen, Materialpreise und Mengen", hoehe=110 * mm, legende=[
-        (1, "Einstellungen wie im Angebot. Leere Felder zeigen grau den Wert des Angebots."),
+    i.text("Das Fenster einer Stufe ist aufgebaut und wird bedient wie ein eigenes Angebot (seit 0.9.469): oben "
+           "der Kopf der Stufe, darunter dieselben Reiter wie im Angebot – <b>Positionen</b>, <b>Kalkulation</b> "
+           "(Kalkulation, Zeiten &amp; Arbeitskosten), <b>Schnittplan</b> (Stangen), <b>Einstellungen</b> "
+           "(Einstellungen, Materialpreise, Wirksame Werte) und <b>Übersicht</b> – und unten die Summenzeile.",
+           kurz=True)
+    i.bild("staffel_positionen", "Fenster einer Stufe, Reiter Positionen", hoehe=110 * mm, legende=[
+        (1, "<b>Kopf der Stufe</b>: Nummer, Bezeichnung und Stand des letzten Mengenlaufs (Teile, Stangen)."),
+        (2, "Reiter wie im Angebot: Positionen, Kalkulation, Schnittplan, Einstellungen, Übersicht."),
+        (3, "<b>Positionen und Mengen</b>: Häkchen = Satz bzw. Position gehört zur Stufe (neue Stufe: alle "
+            "angehakt; <b>Alle</b> / <b>Keine</b> haken alle an bzw. ab). Mengen in Sätzen bzw. Stück; eine Menge "
+            "eintragen hakt die Zeile an. <b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen "
+            "die angehakten Zeilen. <b>Menge bis</b> ist freiwillig. Rechts stehen wie in der Positionsliste des "
+            "Angebots <b>Preis je Einheit</b> und <b>Gesamt</b> der Stufe."),
+        (4, "<b>Summenzeile</b> wie im Angebot: Material, Herstellkosten, Gewinn, Netto gesamt, Marge und die "
+            "Gegenprobe gegen die Angebotskalkulation."),
+        (5, "<b>Übernehmen und rechnen</b>: Eingaben speichern und die Stufe sofort neu rechnen; das Fenster bleibt "
+            "offen und zeigt den neuen Stand – wie das Angebot nach einer Änderung. <b>OK</b> speichert und "
+            "schließt.")])
+    i.bild("staffel_stufe", "Fenster einer Stufe, Reiter Einstellungen", hoehe=110 * mm, legende=[
+        (1, "Einstellungen wie im Kopf des Angebots. Leere Felder zeigen grau den Wert des Angebots."),
         (2, "<b>Frachtkosten</b>: fester Betrag für die ganze Stufe; leer = Fracht wie im Angebot (mit der Frachtart "
             "<i>berechnet</i> für die Mengen der Stufe)."),
         (3, "<b>Erweitert</b>: Materialzuschlag, Verlust, Grundpreis, Gemeinkosten, Rüsten separat, zusätzlicher "
-            "Arbeitsgang, Nebenkosten, Rabatt und Lieferlänge je Stufe (Tabelle unten)."),
-        (4, "<b>Materialpreis je Abmessung</b> (Profil · Werkstoff): €/m im Angebot grau, daneben der Preis für diese "
-            "Stufe (leer = wie im Angebot). Er gilt für alle Positionen dieser Abmessung in der Stufe."),
-        (5, "<b>Positionen und Mengen</b>: Häkchen = Satz bzw. Position gehört zur Stufe (neue Stufe: alle "
-            "angehakt; <b>Alle</b> / <b>Keine</b> haken alle an bzw. ab). Mengen in Sätzen bzw. Stück; eine Menge "
-            "eintragen hakt die Zeile an. <b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen "
-            "die angehakten Zeilen. <b>Menge bis</b> ist freiwillig.")])
+            "Arbeitsgang, Nebenkosten, Rabatt und Lieferlänge je Stufe."),
+        (4, "Unterreiter <b>Materialpreise</b> (€/m je Abmessung: im Angebot grau, daneben der Preis für diese Stufe, "
+            "leer = wie im Angebot) und <b>Wirksame Werte</b>.")])
     i.text("<b>Standard-Staffeln</b>: Der Knopf legt die Standard-Staffeln an, z. B. für 10 Stück die Stufen 10, 20 "
            "und 50; danach rechnet das Programm sie selbst. Das Angebots-PDF legt keine Stufen an. Die "
            "Faktoren stehen in den Einstellungen, Gruppe Angebot, unter <i>Standard-Staffeln: Faktoren auf die "
@@ -8130,6 +8145,38 @@ def kapitel_staffeln(i):
         ["Lieferlänge je Stufe wählen", "ja = empfohlene Lieferlänge für die Mengen der Stufe (leer = Lieferlängen "
                                         "des Angebots)"],
     ], [55 * mm, 200 * mm])
+    i.abschnitt("Staffel rechnet wie das Angebot", marke="staffel_wie_angebot")
+    i.text("Jede Stufe rechnet mit <b>derselben Kalkulation wie ein normales Angebot</b> mit dieser Menge: Material "
+           "nach dem Schnittplan der Stufe (neu optimiert), Laserzeit, Schnittmeter, Einstiche, Rüsten, "
+           "Arbeitsschritte, Zusatzarbeiten, Schweißen, Zukaufteile, Gemeinkosten, Gewinn, Mindestauftragswert und "
+           "die Preisschicht des Angebots (Verpackung, Finanzierung, Rabatt, Runden, Frachtfrei ab). Eine Stufe "
+           "ohne Sonderwerte kostet Cent für Cent so viel wie das Angebot mit derselben Menge.", kurz=True)
+    i.genauer()
+    i.liste("<b>Ein Rechenkern</b>: Der Mengenlauf der Stufe ruft dieselbe Optimierung und Kalkulation auf wie das "
+            "Angebot. Der Preis je Einheit der Stufe ist der Verkaufspreis dieser Kalkulation; jede spätere Änderung "
+            "an der Kalkulation gilt damit sofort auch für die Staffeln.",
+            "<b>Einmalig und je Menge</b>: Rüsten, Programmierung, Pauschalen, Musterkosten und Einmalkosten der "
+            "Baugruppen fallen je Stufe einmal an und verteilen sich auf ihre Menge; Material, Laserzeit und "
+            "Arbeitszeiten rechnen mit der Menge der Stufe. Staffelpreise der Zukaufteile und Blech-EK gelten nach "
+            "dem Verbrauch der Stufe.",
+            "<b>Sonderwerte der Staffel</b> (unter <i>Erweitert</i>: Materialzuschlag, Verlust, Grundpreis, "
+            "Gemeinkosten, Rüsten separat, Arbeitsgang, Nebenkosten, Staffelrabatt, Zukauf-EK, Preis von Hand) und "
+            "die Mindestmarge gibt es im Angebot nicht. Sie wirken als Zu- bzw. Abschlag auf den Preis der "
+            "Kalkulation, sofort bei der Eingabe.",
+            "<b>Nie veraltet</b>: Jede Änderung, die die Rechnung beeinflusst (Positionen, Stammdaten, Preise, "
+            "Einstellungen wie Gewinn, Zuschläge, Gaspreis, Runden, Verpackung, Werte der Stufe), macht die Stufe "
+            "<i>VERALTET</i>; das Programm rechnet sie kurz danach im Hintergrund neu, vor dem Angebots-PDF sofort. "
+            "Reine Oberflächen-Einstellungen (Ansicht, Texte, Angebotsnummer) zählen nicht.",
+            "<b>Übersicht</b> (Unterreiter im Reiter Staffeln): je Stufe Menge, Herstellkosten gesamt, Material, "
+            "Maschine, Personal, Zusatz, Gemeinkosten, Gewinn, Fracht + Skonto, Netto gesamt und je Einheit, "
+            "Deckungsbeitrag, Marge, Einsparung zur kleinsten Menge und die <b>Gegenprobe</b>: "
+            "„= Angebotskalkulation“ (grün) oder „mit Sonderwerten der Stufe“.",
+            "Im Kostenbaum (Unterreiter <i>Kosten</i>) steht die <b>Preisschicht des Angebots</b> als eigene "
+            "Gruppe, wenn sie etwas ausmacht: Mannlose Laufzeit, Neuteil-Zuschlag, Angebotsregeln (Zuschlag), "
+            "Verpackung (Stammdaten), Finanzierung, Frachtfrei ab Warenwert, Rabatt des Angebots, Preis gerundet und "
+            "Preis von Hand je Baugruppe.",
+            "Prüfung: der Test <i>test_staffel_wie_angebot</i> rechnet Abnahme-Angebote, Sätze und Schweißbaugruppen "
+            "mit allen Kalkulationsparametern als Angebot und als Staffel und vergleicht jeden Preis auf den Cent.")
     i.abschnitt("Mindestmarge, Kennzahlen und Preis von Hand je Stufe", marke="staffel_mindestmarge")
     i.text("Jede Stufe hält die <b>Mindestmarge</b> (Einstellungen → Angebot, <i>Angebots-Check: Mindestmarge</i>): "
            "liegt die Marge einer größeren Menge darunter, hebt das Programm den Stückpreis genau auf die "
@@ -8259,27 +8306,29 @@ def kapitel_staffeln(i):
                (4, "<b>Kompakt</b>: das Wichtigste je Bauteil; ohne Häkchen alle Spalten der Kalkulation."),
                (5, "Kalkulation je Bauteil mit den Stückzahlen der Stufe: Profil, Länge, Material, Laserzeit, "
                    "Verkaufspreis je Teil – wie im Angebot.")])
-    i.text("Ein Doppelklick auf eine Stufe zeigt neben den Einstellungen die Reiter <b>Kalkulation</b>, "
-           "<b>Stangen</b>, <b>Zeiten</b> und <b>Wirksame Werte</b> – dieselben Werte wie im Angebot, für die Mengen "
-           "der Stufe.",
+    i.text("Ein Doppelklick auf eine Stufe öffnet sie wie ein eigenes Angebot: <b>Kalkulation</b> mit Zeiten, "
+           "<b>Schnittplan</b>, <b>Einstellungen</b> mit Wirksamen Werten und <b>Übersicht</b> – dieselben Werte wie "
+           "im Angebot, für die Mengen der Stufe.",
            kurz=True)
     i.genauer()
-    i.text("Das Fenster der Stufe hat fünf Reiter. <i>Einstellungen und Mengen</i> ist zum Bearbeiten (siehe "
-           "oben). Die anderen vier zeigen, womit die Stufe gerechnet wurde, aus ihrem letzten Mengenlauf: "
-           "<b>Kalkulation</b> wie der Reiter Kalkulation des Angebots ([[kalkulation]]), <b>Zeiten</b> wie der "
-           "Reiter Zeiten &amp; Arbeitskosten, <b>Stangen</b> wie der Unterreiter Stangen im Reiter Staffeln (siehe "
-           "unten) und <b>Wirksame Werte</b>: je Einstellung der Wert, mit dem die Stufe "
+    i.text("Bearbeitet werden die Reiter <i>Positionen</i> und <i>Einstellungen</i> (siehe oben). Die anderen "
+           "zeigen, womit die Stufe gerechnet wurde, aus ihrem letzten Mengenlauf: <b>Kalkulation</b> wie der "
+           "Reiter Kalkulation des Angebots ([[kalkulation]]), Unterreiter <b>Zeiten &amp; Arbeitskosten</b> wie im "
+           "Angebot, <b>Schnittplan › Stangen</b> wie der Unterreiter Stangen im Reiter Staffeln (siehe unten), "
+           "<b>Übersicht</b> je Satz bzw. Position wie im Reiter Staffeln und <b>Einstellungen › Wirksame Werte</b>: "
+           "je Einstellung der Wert, mit dem die Stufe "
            "rechnet, und ob er aus der Stufe oder aus dem Angebot kommt, dazu Materialpreis €/m und Lieferlänge je "
            "Abmessung und die Stundensätze. Werte der Stufe sind gelb.")
-    i.text("Gewinn und Zuschläge wirken in der Stufe sofort, ohne neuen Mengenlauf. Die Tabelle je Bauteil zeigt "
-           "sie so, wie sie beim Mengenlauf galten; deshalb steht oben der <b>Preis der Stufe</b> mit dem "
-           "Unterschied und seinem Grund. Werte unter <i>Erweitert</i> (Materialzuschlag, Verlust, Nebenkosten …) "
-           "und der Mindestpreis wirken nur im Staffelpreis.")
-    i.bild("staffel_zeiten", "Reiter Zeiten der Stufe", hoehe=80 * mm, legende=[
+    i.text("Gewinn und Zuschläge der Stufe rechnet das Programm wie im Angebot durch die ganze Kalkulation (die "
+           "Stufe wird dafür kurz neu gerechnet; mit <b>Übernehmen und rechnen</b> sofort). Oben steht der "
+           "<b>Preis der Stufe</b> mit dem Unterschied zur Kalkulation und seinem Grund. Nur die Werte unter "
+           "<i>Erweitert</i> (Materialzuschlag, Verlust, Nebenkosten …) und die Mindestmarge der Staffel wirken "
+           "zusätzlich im Staffelpreis.")
+    i.bild("staffel_zeiten", "Reiter Kalkulation › Zeiten & Arbeitskosten der Stufe", hoehe=80 * mm, legende=[
         (1, "Arbeitsschritte der Stufe mit Menge, Rüstzeit, Zeit je Einheit, Gesamtzeit, Stundensatz und Kosten."),
         (2, "Maschinen-, Personal-, Arbeits- und Durchlaufzeit, Arbeitskosten und die Laserzeit je Satz bzw. "
             "Position.")])
-    i.bild("staffel_werte", "Reiter Wirksame Werte der Stufe", hoehe=80 * mm, legende=[
+    i.bild("staffel_werte", "Reiter Einstellungen › Wirksame Werte der Stufe", hoehe=80 * mm, legende=[
         (1, "Wert, mit dem die Stufe rechnet, und seine Quelle (Stufe gelb, sonst Angebot).")])
     i.text("Auch im Reiter <i>Staffeln</i> stehen die Zeiten: die Gruppe <b>Zeiten</b> im Ergebnis zeigt je Stufe "
            "die Laserzeit je Einheit und gesamt und die Maschinen-, Personal-, Arbeits- und Durchlaufzeit der "
@@ -8867,11 +8916,42 @@ def kapitel_zukauf_angebot(i):
         ["Werkstoff", "TRUMPF-Werkstoff (St37 bzw. 1.0038 → S235, St52 bzw. 1.0570 → S355, 1.4301 …), sonst der "
          "Standard-Werkstoff des STEP-Imports"],
         ["Länge", "Teillänge des Programms (<i>Work Part Length</i>)"],
-        ["Schneidweg, Einstiche", "Schnittlänge des Programms (<i>Cutting length</i>) und die Einstiche im NC-Teil; "
-         "die Konturklassen bleiben leer, gerechnet wird mit Vorschub groß"],
-        ["Schneidzeit je Teil", "die von TRUMPF berechnete Zeit (Anschnitt + Konturen + Abschnitt), wenn die "
-         "Einstellung <i>TRUMPF-Programm: berechnete Zeit je Teil als Schneidzeit übernehmen</i> (STEP-Import) auf "
-         "<i>ja</i> steht (Vorgabe); bei <i>nein</i> rechnet das Programm die Zeit selbst"]], [40, 130])
+        ["Schneidweg, Einstiche", "Schnittlänge am Material aus dem programmierten Schneidweg (seit 0.9.468, siehe "
+         "unten) und die Einstiche im NC-Teil; die <i>Cutting length</i> der LST steht als Maschinenweg im Bericht. "
+         "Ohne lesbaren Schneidweg gilt wie bisher die <i>Cutting length</i>"],
+        ["Konturen", "jede Kontur aus dem Schneidweg mit Hüllmaß und Länge, eingeteilt in groß, mittel und klein nach "
+         "den Grenzen der Maschine (wie bei der STEP-Messung); der Bericht nennt Anzahl und Länge je Klasse"],
+        ["Laserzeit", "Einstellung <i>TRUMPF-Programm: Laserzeit aus dem Programm</i> (STEP-Import): <i>ja</i> "
+         "(Vorgabe) = alle Zeiten der LST werden übernommen (Laser an als reine Laserzeit, Laser aus als Verfahren "
+         "und Drehen, gemessene Zeit vor berechneter); nur was die LST nicht enthält (Nebenzeit, Messen, Entnahme, "
+         "Beladen) rechnet das Programm wie immer dazu; <i>ganz</i> = die ganze von TRUMPF berechnete Zeit (Anschnitt + "
+         "Konturen + Abschnitt) wird Schneidzeit von Hand; <i>nein</i> = das Programm rechnet alles selbst. Ohne "
+         "Laser-an-Zeit in der LST gilt bei <i>ja</i> die ganze TRUMPF-Zeit"]], [40, 130])
+    i.text("<b>Programmierter Schneidweg aus der LST</b> (Patrick 24.11.2026, seit 0.9.468): Der NC-Teil der LST "
+           "beschreibt den Weg des Schneidkopfs (Konturanfang, Einstich, Geraden, Bögen, Drehung um die Ecken). Das "
+           "Programm liest ihn wie das Abwicklungsbild der Programmiersoftware: je Kontur die Bahn, getrennt in "
+           "Anfahrt, Schnitt, Trennschnitt und Restzerteilung (Abfall zerschneiden). TRUMPF programmiert die Mitte des "
+           "Strahls; die halbe Schnittfuge kommt aus den beiden Trennschnitten und der Teillänge, jede Kontur wird um "
+           "sie zur Teilkante versetzt (Bohrungen haben so ihr Maß aus der Zeichnung). Die <b>Schnittlänge am "
+           "Material</b> ist deutlich kürzer als die <i>Cutting length</i>, denn die zählt die Achswege mit Anfahrten "
+           "und dem Kopfweg um die Ecken. Enthält die LST genau ein Teil, baut das Programm daraus ein exaktes 3D-Rohr "
+           "(Querschnitt exakt, jede Kontur lagegenau abgezogen) und misst es wie eine STEP-Datei mit Prüfdialog und "
+           "3D-Ansicht. Liegt neben einer TUBX die gleichnamige LST, misst die TUBX das Teil aus der LST (genauer als "
+           "das Netz). Job-Listen mit mehreren Programmen bekommen die Werte je Teil ohne 3D-Messung.")
+    i.text("<b>Laserzeit aus der LST</b>: Die LST teilt die Maschinenzeit nach Laserleistung auf "
+           "(<i>CONSUMPTION_TIMES</i>): <i>Laser an</i> ist das Schneiden einschließlich der Einstiche, <i>Laser aus</i> "
+           "das Verfahren und Drehen. Beide zusammen sind die berechnete TRUMPF-Zeit je Teil. Beladen, Entladen, "
+           "Rohrwechsel und Nebenzeiten stehen nicht in der LST. Mit der Vorgabe ersetzt die Laser-an-Zeit in der "
+           "Kalkulation das Schneiden und die Ecken (verteilt auf groß, mittel, klein nach den berechneten Anteilen), "
+           "die Laser-aus-Zeit ersetzt Verfahren und Drehen. Hat die Maschine das Teil schon gemessen (die LST nach "
+           "dem Lauf gespeichert), gilt die gemessene Zeit. Nur was fehlt, rechnet das Programm dazu (Patrick "
+           "24.11.2026: „nur das dazurechnen, was fehlt“). Die Pausen-Einstellungen für Laden und Entladen in der "
+           "LST (z. B. Haltezeit Bundablage) sind Maschinenparameter, keine Zeit je Teil; "
+           "die Einstiche sind enthalten (Einstellung <i>TRUMPF-Programm: Einstiche</i> = <i>enthalten</i>, "
+           "Entscheidung Patrick 24.11.2026). Mit <i>eigen</i> bleibt die berechnete Einstichzeit ein eigener Posten "
+           "und wird von der Laser-an-Zeit abgezogen. Eine Schneidzeit von Hand geht immer vor.")
+    i.text("BLM-Programme (BPF) enthalten keine Zeit, nur eine Geschwindigkeitsstufe je Kontur; der Bericht der "
+           "Messung nennt sie.")
     i.text("<b>TUBX wird wie eine STEP-Datei gemessen</b>: Ziehen, Ablagefeld oder <i>Aus TRUMPF-Programm</i> geben "
            "die TUBX in den STEP-Import mit Prüfdialog und 3D-Ansicht. Die TUBX enthält das Teil als Dreiecksnetz und "
            "die exakten Kanten des Modells: aus dem Netz wird ein Volumenkörper, Bohrungen werden aus den Kreisen des "

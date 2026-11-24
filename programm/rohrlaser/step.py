@@ -16,10 +16,11 @@ from . import anbau, biegerohr, bohrbild, naht, ovalprofile, rechnen, rp_profile
 
 # Dateien, die der STEP-Import liest: STEP und IGES (Patrick 05.11.2026 „Iges import einbauen“)
 # TUBX (TRUMPF TubeCAM, 20.11.2026) und BLM ArTube/BPF (24.11.2026) wie STEP
-CAD_ENDUNGEN = (".step", ".stp", ".igs", ".iges", ".tubx", ".artube", ".bpf")
+# TRUMPF-LST (24.11.2026) aus dem programmierten Schneidweg; Laserzeit und Sollanzahl über trumpf_programm.PROGRAMMDATEN
+CAD_ENDUNGEN = (".step", ".stp", ".igs", ".iges", ".tubx", ".artube", ".bpf", ".lst")
 # ZIP-Archive mit CAD-Dateien (Importengine 20.11.2026, cad_import.py): werden entpackt, Herstellerformate gemeldet
-CAD_FILTER = ("STEP, IGES, TUBX, BLM (ARTUBE/BPF) und ZIP (*.step *.stp *.igs *.iges *.tubx *.artube *.bpf *.zip "
-              "*.STEP *.STP *.IGS *.IGES *.TUBX *.ARTUBE *.BPF *.ZIP)")
+CAD_FILTER = ("STEP, IGES, TUBX, LST, BLM (ARTUBE/BPF) und ZIP (*.step *.stp *.igs *.iges *.tubx *.lst *.artube *.bpf "
+              "*.zip *.STEP *.STP *.IGS *.IGES *.TUBX *.LST *.ARTUBE *.BPF *.ZIP)")
 CAD_FILTER_ANDERE = ("Andere CAD-Formate, werden gemeldet (*.sldprt *.sldasm *.catpart *.catproduct *.ipt *.iam "
                      "*.prt *.x_t *.x_b *.SLDPRT *.SLDASM *.CATPart *.CATProduct *.IPT *.IAM *.PRT *.X_T *.X_B)")
 TOL_MASS = 0.15         # mm: Profil aus den Stammdaten passt zur Messung (Einstellung step_tol_profil)
@@ -72,8 +73,27 @@ def step_dateien(pfade):
                 gesehen.add(x)
                 vorhanden.add(_kennung(x))
                 out.append(x)
-    doppelt = cad_import.blm_doppelte(out)      # BPF neben seiner ARTUBE: nur die ARTUBE messen
+    doppelt = cad_import.blm_doppelte(out)      # BPF neben seiner ARTUBE, LST neben ihrer TUBX: nur einmal messen
+    _programme_merken(out)
     return [x for x in out if x not in doppelt]
+
+
+def _programme_merken(dateien):
+    """Laserzeit und Werte der TRUMPF-LST (auch der LST neben einer TUBX) für das Übernehmen merken
+    (trumpf_programm.PROGRAMMDATEN → positionen.step_merkmale['programm'])."""
+    from . import trumpf_programm
+    for x in dateien:
+        x = Path(x)
+        try:
+            if x.suffix.lower() == ".lst":
+                trumpf_programm.programm_merken(x)
+            elif x.suffix.lower() == ".tubx":
+                lst = next((q for q in x.parent.glob("*") if q.suffix.lower() == ".lst"
+                            and q.stem.lower() == x.stem.lower()), None)
+                if lst is not None:
+                    trumpf_programm.programm_merken(lst, auch=(x.stem,))
+        except OSError:
+            continue
 
 
 GROSS_AB_MB = 100          # Performance-Update 5a: ab dieser Dateigröße vor der Messung Dauer und Speicher nennen

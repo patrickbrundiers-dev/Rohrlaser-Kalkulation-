@@ -60,15 +60,12 @@ def vergleichen(a, name):
         if z["schluessel"] in fehlerhaft:
             assert z["preis_einheit"] is None and "FEHLER" in (z.get("hinweis") or ""), (name, z["schluessel"])
             continue
-        if fehlerhaft and summen.get("mindestpreis_anhebung"):
-            continue        # Mindestpreis verteilt sich in der Stufe nur auf Positionen mit Preis
+        # seit 24.11.2026 (Staffel = Angebot) auch mit Mindestpreis und fehlerhaften Positionen: jede Position mit
+        # Preis kostet in der Stufe genau so viel wie im Angebot
         assert z["preis_einheit"] == pdf[z["schluessel"]], (name, z["schluessel"], z["preis_einheit"],
                                                             pdf[z["schluessel"]])
     summe = sum(z["preis"]["netto"] for z in stufe if z.get("preis"))
-    if fehlerhaft and summen.get("mindestpreis_anhebung"):
-        assert summe >= db.einstellung("mindestpreis") - 0.005, (name, summe)
-    else:
-        assert abs(summe + sum(fehlerhaft.values()) - summen["verkauf"]) < 0.005, (name, summe, summen["verkauf"])
+    assert abs(summe + sum(fehlerhaft.values()) - summen["verkauf"]) < 0.005, (name, summe, summen["verkauf"])
     # Prüfangebot (K4): gleicher Verkaufspreis wie das Angebot
     if not fehlerhaft:
         ref = pa.markieren(db, a, VERSION)

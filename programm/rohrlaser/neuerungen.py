@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.472", "<b>Nesting: Stangenabwicklung und 3D auf CAD/CAM-Niveau</b> ([[nesting]]): neue Hauptansicht "
+    ["0.9.474", "<b>Nesting: Stangenabwicklung und 3D auf CAD/CAM-Niveau</b> ([[nesting]]): neue Hauptansicht "
                 "<i>Abwicklung</i> je Materialstange, maßstäblich mit echtem Umfang (Eckradien, Seiten bzw. Grad), "
                 "jedes Teil an seinem Platz aus dem Nesting mit Drehung und Wenden, Gehrungen, Bohrungen, Langlöcher "
                 "und Gravuren an der richtigen Stelle am Umfang, Endbeschnitt, Schnittfugen, Rest und Greiferrest. "
@@ -50,6 +50,30 @@ NEUERUNGEN = [
                 "Live-Stand. Rechtsklick im Stangenbild öffnet die Stange im Arbeitsplatz; der Reiter Optimierung "
                 "schlägt eine bessere Verschachtelung mit gerechnetem Vorteil vor.",
      "Nesting-Arbeitsplatz 2.0: neuer Aufbau, Teile ziehen, von Hand verschachteln, 3D, Machbarkeit, schneller"],
+    ["0.9.469", "<b>Staffelpreise = Angebotskalkulation</b>: Jede Staffelstufe kostet jetzt Cent für Cent so viel wie "
+                "ein normales Angebot mit derselben Menge. Bisher fehlten in den Staffeln Rabatt, Verpackung, "
+                "Finanzierung, Runden und Frachtfrei des Angebots (Staffel z. B. 4,7 % teurer als das Angebot bei "
+                "gleicher Menge). Gewinn, Zuschläge, Gaspreise und alle anderen rechenrelevanten Einstellungen "
+                "rechnen die Stufen neu, nie mehr veraltete Werte. Neu: Unterreiter <b>Übersicht</b> im Reiter "
+                "Staffeln mit Herstellkosten, Material, Maschine, Personal, Zusatz, Gemeinkosten, Gewinn, Netto, "
+                "Deckungsbeitrag, Marge und Gegenprobe je Stufe ([[staffel_wie_angebot]]). Das Fenster einer Stufe "
+                "ist jetzt aufgebaut und wird bedient wie ein eigenes Angebot: Reiter Positionen, Kalkulation, "
+                "Schnittplan, Einstellungen und Übersicht, Summenzeile und <b>Übernehmen und rechnen</b>.",
+     "Staffelpreise rechnen wie das Angebot; Stufenfenster wie ein eigenes Angebot"],
+    ["0.9.468", "<b>Programmierter Schneidweg und Laserzeit aus der TRUMPF-LST</b> ([[trumpf_programm]]): Das "
+                "Programm liest den Schneidweg aus dem NC-Teil der LST wie das Abwicklungsbild der "
+                "Programmiersoftware, je Kontur getrennt in Anfahrt, Schnitt, Trennschnitt und Restzerteilung, und "
+                "versetzt ihn um die halbe Schnittfuge zur Teilkante. Als Schneidweg gilt jetzt die Schnittlänge am "
+                "Material; die <i>Cutting length</i> der LST (mit Anfahrten und Kopfweg um die Ecken) steht als "
+                "Maschinenweg im Bericht. Jede Kontur wird groß, mittel oder klein eingeteilt, der Bericht nennt "
+                "Anzahl und Länge je Klasse. Eine LST mit einem Teil wird als exaktes 3D-Rohr gebaut und wie eine "
+                "STEP-Datei gemessen (auch die TUBX daneben nimmt das Teil aus der LST). <b>Zeiten</b>: Alle Zeiten der "
+                "LST werden übernommen: Laser an als reine Laserzeit (Einstiche enthalten), Laser aus als Verfahren "
+                "und Drehen, gemessene Zeit vor berechneter. Nur was fehlt (Nebenzeit, Messen, Entnahme, Beladen), "
+                "rechnet das Programm wie bisher dazu. Einstellungen unter STEP-Import, "
+                "TRUMPF-Programme. LST-Dateien lassen sich jetzt auch wie STEP-Dateien ziehen und im Ablagefeld "
+                "wählen. BPF-Programme zeigen ihre Geschwindigkeitsstufen.",
+     "TRUMPF-LST: Schneidweg am Material, Konturklassen, 3D-Messung, alle LST-Zeiten übernommen"],
     ["0.9.467", "<b>12 m nur noch mit echtem Kostenvorteil</b> ([[lieferlaengen]]): Eine zentrale Entscheidung "
                 "vergleicht 6 m, andere Lieferlängen und 12 m mit Zuschnitt über die Gesamtkosten (Material, "
                 "Beladungen, Zuschnitt, Handhabung langer Stangen, verwertbare Reste nur mit Lager und Reststücken). "
