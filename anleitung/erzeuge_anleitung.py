@@ -1067,7 +1067,8 @@ def kapitel_start(i):
            "Anfragen) gehören nach oben, das Programm setzt sie sonst selbst dorthin. <i>Standard</i> stellt die Vorgabe "
            "wieder her.")
     i.liste("Neue Karte <b>Schnellzugriffe</b>: große Knöpfe für die gewählten Funktionen, darunter "
-            "<b>Zuletzt verwendet</b> mit den sechs zuletzt benutzten Funktionen als Links.",
+            "<b>Zuletzt verwendet</b> mit den sechs zuletzt benutzten Funktionen als Links. Die Knöpfe stehen in so "
+            "vielen Spalten, wie ungekürzt nebeneinander passen, und behalten immer ihre volle Höhe.",
             "Karten, die ein Recht oder eine Funktion brauchen (z. B. die Wiedervorlage bei ausgeschaltetem Nachfassen), bleiben trotz Wahl "
             "aus, ohne eine Lücke zu hinterlassen. Ist eine Spalte leer, nutzt die andere die ganze Breite.", kurz=True)
     i.abschnitt("Info-Panel rechts", marke="info_panel")
@@ -1103,7 +1104,9 @@ def kapitel_start(i):
            "<b>ziehen</b>, um die Reihenfolge zu ändern; <i>Spaltenreihenfolge zurücksetzen</i> stellt sie wieder her. "
            "Sortieren (Klick auf den Kopf) und Filtern wie bisher. Ausgeblendete Spalten, Reihenfolge und Breiten "
            "merkt sich das Programm je Tabelle. Die Positionsliste im Angebot hat dafür ihr eigenes Menü "
-           "<i>Weitere Spalten</i> ([[spalten_ansichten]]).")
+           "<i>Weitere Spalten</i> ([[spalten_ansichten]]). Eine <b>leere Tabelle</b> zeigt in der Mitte einen "
+           "grauen Hinweis (z. B. <i>Keine Einträge</i> oder einen Satz, was hier erscheinen wird) statt einer weißen "
+           "Fläche – so ist zu sehen, dass nichts fehlt, sondern die Auswahl oder der Filter leer ist.")
     i.abschnitt("Erste Schritte", marke="erste_schritte")
     i.text("<i>Hilfe → Erste Schritte …</i> zeigt fünf Schritte zum ersten Angebot, jeder mit einem Knopf, der die "
            "richtige Stelle öffnet: Firma und Kürzel eintragen, Maschine und Preise prüfen, erstes Angebot aus einer "
