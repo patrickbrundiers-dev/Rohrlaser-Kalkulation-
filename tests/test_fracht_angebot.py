@@ -114,7 +114,9 @@ assert db.angebot(kopie)["fracht_umlage"] is None
 alt = {k: v for k, v in db.angebot(aid).items()}
 alt.update(aufschlag_blech=None, aufschlag_zukauf=None)         # ältere Angebote ohne Aufschlag im Angebot
 g = staffeln._gemeinsam(alt, pos, db.kontext(), db.tabellen(), {})
-assert set(g[0]) == {"maschine", "stange", "fracht", "skonto", "zeitbasis"}
+# (seit 24.11.2026 zählen gesetzte Werte der Preisschicht des Angebots mit: Verpackung, Neuteile, Kunde …)
+assert set(g[0]) - {"verpackung", "neuteile", "zahlungsziel", "kundennr", "bg_lose"} == \
+    {"maschine", "stange", "fracht", "skonto", "zeitbasis"}, set(g[0])
 ok("Kopie eines älteren Angebots bleibt bei je Stück; Prüfsumme der Staffeln älterer Angebote unverändert")
 
 # --- Dialog 'Fracht berechnen …' und Übernahme
