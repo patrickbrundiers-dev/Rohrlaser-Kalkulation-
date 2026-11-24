@@ -6,6 +6,9 @@ Material- und Kostenersparnis, technische Voraussetzung, Nachweis.
   - Lieferlänge je Stangengruppe (varianten.gruppen, gleiche Fertigungsregeln, nur ausführbare mit Preis)
   - Material aus dem Lager (nur mit eingeschaltetem Lager; Buchung bleibt im Fenster Material aus Lager)
   - andere Maschine (maschinen_vergleich: das ganze Angebot neu optimiert und kalkuliert, nur wenn alle Teile passen)
+  - Verschachtelung je Abmessung (Nesting-Arbeitsplatz 2.0, Patrick 24.11.2026): empfohlene Strategie gegen den
+    gespeicherten Schnittplan, nur zulässige Pläne und nur mit gerechnetem Vorteil (mind. NESTING_MIN_EUR € Einkauf
+    oder eine Stange weniger, nie teurer); Übernehmen speichert die Strategie in der neuen Fassung
   - Schneiddaten prüfen: Ist-Zeiten der Nachkalkulation (Laufzeit je Teil, CSV der Maschine) weichen bei derselben
     Schneiddaten-Zeile in mindestens SD_MINDESTENS Aufträgen im Mittel um SD_GRENZE oder mehr von der Rechnung ab
 Jeder Vorschlag rechnet auf einer Kopie, das Angebot bleibt unverändert. Ein Vorschlag ohne gerechneten Vorteil
@@ -15,6 +18,8 @@ stellt dort Lieferlänge bzw. Maschine um; den Unterschied zeigt der Fassungsver
 from . import rechnen
 
 LIEFERLAENGE, LAGER, MASCHINE, SCHNEIDDATEN = "Lieferlänge", "Lager", "Maschine", "Schneiddaten prüfen"
+VERSCHACHTELUNG = "Verschachtelung"
+NESTING_MIN_EUR = 1.0      # Verschachtelungs-Vorschlag ab 1 € weniger Einkauf (oder eine Stange weniger)
 SD_MINDESTENS = 3          # so viele Aufträge mit Ist-Laufzeit je Schneiddaten-Zeile, bevor ein Vorschlag erscheint
 SD_GRENZE = 0.10           # ab 10 % mittlerer Abweichung Ist gegen Soll
 EPS = 0.005
@@ -63,6 +68,42 @@ def lieferlaengen(gruppen, ergebnis):
                           "Lager eingeschaltet, Bestand vorhanden (Buchung im Fenster Material aus Lager)",
                           f"gleiche Optimierung und Fertigungsregeln, Status: {v.get('status') or ''}".strip(),
                           aktion))
+    return out
+
+
+def verschachtelung(vergleich):
+    """Vorschläge aus dem Strategievergleich (nesting_vergleich.vergleich mit dem gespeicherten Schnittplan): je
+    Abmessung die empfohlene, technisch zulässige Strategie, wenn sie gegen den gespeicherten Plan (sonst den
+    bisherigen) mindestens NESTING_MIN_EUR € Einkauf oder eine Stange spart und nicht teurer ist."""
+    from . import nesting as ne, nesting_vergleich as nv
+    out = []
+    for v in vergleich or ():
+        s = v["empfehlung"][0]
+        p = v["plaene"].get(s)
+        basis = v["plaene"].get(nv.AKTUELL) or v["plaene"].get(nv.BISHER)
+        if p is None or basis is None or s in (nv.AKTUELL, nv.BISHER) or s in v["zuschnitt"]:
+            continue
+        z = next((x for x in v["zeilen"] if x["strategie"] == s), {})
+        if not z.get("zulaessig", True):
+            continue
+        w, b = p.werte, basis.werte
+        eur = b["einkauf"] - w["einkauf"] if b.get("einkauf") is not None and w.get("einkauf") is not None else None
+        stangen = b["stangen"] - w["stangen"]
+        if eur is not None and eur < -EPS:
+            continue
+        if not ((eur is not None and eur >= NESTING_MIN_EUR - EPS) or stangen >= 1):
+            continue
+        name = "gespeichert" if basis.strategie == nv.AKTUELL else "bisher"
+        out.append(_v(VERSCHACHTELUNG, f"{v['titel']}: Strategie {s} {ne.STRATEGIEN[s]}",
+                      f"{name}: {b['stangen']} Stangen ({ne.laengen_text(b['je_laenge'])}), eingekauft "
+                      f"{rechnen.zahl(b['gekauft_mm'] / 1000)} m, Verschnitt {rechnen.zahl(b['verschnitt_mm'], 0)} mm",
+                      f"{w['stangen']} Stangen ({ne.laengen_text(w['je_laenge'])}), eingekauft "
+                      f"{rechnen.zahl(w['gekauft_mm'] / 1000)} m, Verschnitt {rechnen.zahl(w['verschnitt_mm'], 0)} mm",
+                      None, eur, eur,
+                      "Lieferlängen bestellbar, Plan technisch zulässig (Maschine, Greiferrest, Beladelänge)",
+                      f"gleiche Teile und Fertigungsregeln, {z.get('machbar') or 'zulässig'}; ansehen im "
+                      "Nesting-Arbeitsplatz",
+                      dict(typ="nesting", schluessel=v["schluessel"], strategie=s)))
     return out
 
 
@@ -120,10 +161,13 @@ def schneiddaten(teile_soll, faelle, mindestens=SD_MINDESTENS, grenze=SD_GRENZE)
 
 
 def alle(kopf, positionen, ergebnis, k, tabellen, einst, einst_db, zeilen, gruppen, maschinen_liste=None,
-         faelle=None):
-    """Alle Vorschläge, größte Kostenersparnis zuerst (Schneiddaten prüfen am Ende)."""
+         faelle=None, nesting=None):
+    """Alle Vorschläge, größte Kostenersparnis zuerst (Schneiddaten prüfen am Ende). nesting = Strategievergleich
+    (nesting_vergleich.vergleich) oder None."""
     from . import nachkalkulation
     out = lieferlaengen(gruppen, ergebnis or {})
+    if nesting:
+        out += verschachtelung(nesting)
     if maschinen_liste:
         out += maschinen(maschinen_liste, kopf.get("maschine"))
     if faelle:
