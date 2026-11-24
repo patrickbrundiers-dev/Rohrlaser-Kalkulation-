@@ -151,13 +151,14 @@ def rest_regel(einst_holen):
 
 
 def stange_zeichnen(p, s, x0, yb, hb, m, farben, markiert=None, rest_verwertbar=None, mass=True, lineal=True,
-                    gewaehlt=None, schrift=None):
+                    gewaehlt=None, schrift=None, ruhig=False):
     """Eine Stange s (Format des Schnittplans) ab x0 [px], Balken oben yb, Höhe hb, Maßstab m [px/mm] zeichnen:
     Endbeschnitt grau, Teile in Positionsfarbe mit schrägen Schnittkanten (Gehrung), Gehrungen ineinander grün,
     gemeinsamer Schnitt als blaues Dreieck, getrennte Schnitte als dunkle Schnittfuge, Schweißnaht rot, Rest grün
     (verwertbar) bzw. rot schraffiert (Verschnitt) bzw. hellgrau (unbekannt), Greiferrest rot (3D-Greifmaß „3D“).
     Darunter die Maßkette (Endbeschnitt, Teillängen, Rest, Greiferrest in mm) und ein Lineal in Metern.
-    gewaehlt = Platz des hervorgehobenen Teils. Ergebnis: [(QRectF, Teil-Dict, Platz)] der Teile (Treffer)."""
+    gewaehlt = Platz des hervorgehobenen Teils. ruhig: Teilfarben aufgehellt, Ränder in dunkler Teilfarbe (Nesting-
+    Arbeitsplatz, gleiche Palette wie die Abwicklung, Plan M7). Ergebnis: [(QRectF, Teil-Dict, Platz)] der Teile (Treffer)."""
     klein = QFont(schrift) if schrift is not None else QFont()
     klein.setPointSizeF(max(6.5, klein.pointSizeF() - 2))
     p.save()
@@ -192,6 +193,11 @@ def stange_zeichnen(p, s, x0, yb, hb, m, farben, markiert=None, rest_verwertbar=
     for platz, t in enumerate(s["teile"]):
         farbe = farben.get(t["ref"], stil.farbe("#4E79A7")) if isinstance(farben, dict) else stil.farbe("#4E79A7")
         farbe = QColor(farbe)
+        rand = QPen(stil.farbe("#202020"), 1.5)
+        if ruhig:
+            from .nesting_abwicklung_bild import ruhig as aufhellen
+            rand = QPen(stil.farbe(farbe.darker(150).name()), 1.2)
+            farbe = stil.farbe(aufhellen(farbe, 0.45).name())
         if vorher is not None and t["von"] - vorher["bis"] > 0 and (t["von"] - vorher["bis"]) * m >= 1.5:
             p.fillRect(QRectF(x0 + vorher["bis"] * m, yb, (t["von"] - vorher["bis"]) * m, hb), stil.farbe("#3C4650"))
         if t.get("kante_a") or t.get("kante_b"):
@@ -199,7 +205,7 @@ def stange_zeichnen(p, s, x0, yb, hb, m, farben, markiert=None, rest_verwertbar=
             form = QPolygonF([QPointF(x0 + ol * m, yb), QPointF(x0 + or_ * m, yb), QPointF(x0 + ur * m, yb + hb),
                               QPointF(x0 + ul * m, yb + hb)])
             p.setRenderHint(QPainter.Antialiasing, True)
-            p.setPen(QPen(stil.farbe("#202020"), 1.5))
+            p.setPen(rand)
             p.setBrush(farbe)
             p.drawPolygon(form)
             p.setBrush(Qt.NoBrush)
@@ -208,7 +214,7 @@ def stange_zeichnen(p, s, x0, yb, hb, m, farben, markiert=None, rest_verwertbar=
         else:
             r = QRectF(x0 + t["von"] * m, yb, max(1.0, (t["bis"] - t["von"]) * m), hb)
             p.fillRect(r, farbe)
-            p.setPen(QPen(stil.farbe("#202020"), 1.5))
+            p.setPen(rand)
             p.drawLine(r.topLeft(), r.bottomLeft())
             p.drawLine(r.topRight(), r.bottomRight())
         if t.get("material_gespart") and vorher is not None:     # Gehrungen ineinander: beide Kanten grün
