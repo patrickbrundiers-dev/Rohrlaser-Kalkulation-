@@ -49,9 +49,10 @@ from .stammdaten import Feld, kontext_aus
 SPALTEN = ("schluessel", "bezeichnung", "einheit", "menge", "teile", "stangen", "material", "laser", "ruesten",
            "herstell", "herstell_einheit", "preis_einheit", "preis_gesamt", "hinweis")
 MAX_STUFEN = 200
-VERSION = 5          # 2: Bausteine je Stufe und Preisschicht; 3: Stufen mit mehreren Mengenzeilen als ein Auftrag;
-                     # 4: Schnittschema je Stufe; 5: Kalkulation und Zeiten je Stufe (ältere gespeicherte
-                     # Staffelpreise gelten als veraltet und werden einmal neu gerechnet)
+VERSION = 6          # 2: Bausteine je Stufe und Preisschicht; 3: Stufen mit mehreren Mengenzeilen als ein Auftrag;
+                     # 4: Schnittschema je Stufe; 5: Kalkulation und Zeiten je Stufe; 6: Preis der Stufe = Preis der
+                     # zentralen Kalkulation (Preisschicht des Angebots, alle Einstellungen in der Prüfsumme)
+                     # (ältere gespeicherte Staffelpreise gelten als veraltet und werden einmal neu gerechnet)
 
 PROZENT, EURO = "%", "€/Einheit"
 UMLEGEN, SEPARAT = "umlegen", "separat"
@@ -104,9 +105,19 @@ EINSTELLUNG_FELDER = (
     Feld("meterpreise", "Materialpreis je Abmessung [€/m]"),     # JSON {Abmessung: €/m}
 )
 EINSTELLUNG_FELD = {f.name: f for f in EINSTELLUNG_FELDER}
-# gehen in den Mengenlauf (Kalkulation) ein; die übrigen wirken sofort in der Preisschicht
+# gehen in den Mengenlauf (Kalkulation) ein: seit VERSION 6 alle Kalkulationswerte der Stufe wie im Angebot (Gewinn,
+# Zuschlag Fremdleistung, Faktor Laserzeit, Eilzuschlag …), damit der Preis der Stufe immer der Preis der zentralen
+# Kalkulation ist; nur die Sonderwerte unter „Erweitert“ (STAFFEL_EXTRA) wirken sofort in der Preisschicht
 LAUF_FELDER = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_zeit", "programmierung_kontur", "programmierung_teil",
-               "angebotsaufschlag", "handling_beistellung", "fracht", "skonto", "meterpreise", "laenge_auto")
+               "angebotsaufschlag", "handling_beistellung", "fracht", "skonto", "meterpreise", "laenge_auto",
+               *(f.name for f in KALKULATION if f.name in EINSTELLUNG_FELD and f.name not in (
+                   "ruesten_abmessung", "pauschale_abmessung", "programmierung_zeit", "programmierung_kontur",
+                   "programmierung_teil", "angebotsaufschlag", "handling_beistellung")))
+# Sonderwerte der Staffel, die es im normalen Angebot nicht gibt: sie wirken als Zu- bzw. Abschlag auf den Preis der
+# zentralen Kalkulation (Unterschied der Preisschicht mit und ohne diese Werte, staffeln.stufe_bepreisen)
+STAFFEL_EXTRA = ("mat_zuschlag", "mat_art", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten", "arbeitsgang",
+                 "arbeitsgang_min", "arbeitsgang_satz", "arbeitsgang_eur", "neben_einheit", "neben_pauschal",
+                 "rabatt_proz", "zukauf_ek", "preis_hand")
 # in der Stufe wie im Angebot (Hauptwerte), die übrigen unter „Erweitert“
 HAUPT = ("gewinn", "zuschlag_fremdleistung", "ruesten_abmessung", "pauschale_abmessung", "programmierung_zeit",
          "programmierung_kontur", "angebotsaufschlag", "handling_beistellung", "fracht", "skonto")
@@ -121,6 +132,23 @@ EINST_LAUF = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_zeit",
 EINST_LAENGEN = ("laenge_mindest_eur", "laenge_mindest_anteil", "zuschnitt_verlust", "zuschnitt_puffer", "zuschnitt_kosten",
                  "haendler_mehr_kurz", "haendler_mehr_lang", "haendler_mehr_grenze", "laenge_auto_huellkreis",
                  "laenge_auto", "laenge_vergleich")
+# Einstellungen ohne Einfluss auf die Rechnung (Oberfläche, Texte, Ordner, Nummernkreise, Import): gehören nicht in die
+# Prüfsumme der Mengenläufe, sonst würde z. B. jede neue Angebotsnummer alle Staffeln veralten lassen. Alle übrigen
+# Einstellungen zählen (seit VERSION 6): eine Änderung an Gewinn, Zuschlägen, Gaspreisen, Runden, Verpackung … rechnet
+# die Stufen neu, die Staffel zeigt nie Werte von gestern.
+EINST_NICHT_RECHNEN = ("ansicht", "nav_", "fang_", "letzte_", "_letzte_", "benutzer_", "briefkopf_", "anfrage", "einkauf_",
+                       "_text", "text_", "_betreff", "ordner", "logo", "passwort", "mail", "etikett", "pdf_", "ppease",
+                       "sicherung", "step_", "auslastung", "csv_", "lst_", "nummern_vorrat", "akte_", "archiv",
+                       "datenschutz", "reklamation", "nachfassen", "wiedervorlage", "signatur", "bedingungen", "agb_",
+                       "eigene_domains", "englisch", "_hinweis", "stangenbild_popup", "online_", "erp_",
+                       "preiswaechter", "preisalter", "loeschschutz", "fenster", "spalten", "merker", "dxf_", "blech_dxf",
+                       "staffeln_standard", "angebote_zeitraum", "anfragen_", "rueckfrage_", "auftraege_aktiv",
+                       "lager_aktiv", "fertigung_status", "nachkalk_schwelle", "preisluecke", "rueckmeldung_")
+
+
+def einst_rechnen(einst):
+    """Einstellungen, die in die Prüfsumme der Mengenläufe gehören (alle außer EINST_NICHT_RECHNEN)."""
+    return {n: w for n, w in (einst or {}).items() if not any(t in n for t in EINST_NICHT_RECHNEN)}
 
 
 def txt(v):
@@ -335,6 +363,8 @@ def szenario(schl, menge, positionen):
 def _gemeinsam(kopf, positionen, k, tabellen, einst):
     """Eingaben, die für alle Stufen gleich in den Mengenlauf eingehen."""
     felder = ("maschine", "stange", "fracht", "skonto", "zeitbasis")
+    # Preisschicht des Angebots (Verpackung je Angebot, Neuteile, Zahlungsziel, Kundenregeln) nur, wenn gesetzt
+    preis_felder = ("verpackung", "neuteile", "zahlungsziel", "kundennr", "bg_lose")
     # Frachtfelder nur, wenn gesetzt: ältere Angebote behalten ihre Prüfsumme (keine unnötigen Mengenläufe)
     fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung", "fracht_auto", "fracht_plz", "fracht_land",
                      "fracht_km",
@@ -346,10 +376,10 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
     # Blech-Daten (Richtpreis je Stufe) nur, wenn ein Blechteil aus dem Blech-Editor im Angebot ist
     if "blech" in tabellen and not any(blech.lesen(p.get("technik")) for p in positionen):
         tabellen = {n: w for n, w in tabellen.items() if n != "blech"}
-    return [{f: kopf.get(f) for f in felder + tuple(n for n in fracht_felder if kopf.get(n) is not None)},
+    return [{f: kopf.get(f) for f in felder + tuple(n for n in fracht_felder + preis_felder if kopf.get(n) is not None)},
             [{a: b for a, b in p.items() if a not in ("id", "angebot_id", "nr", "zeile")} for p in positionen],
             [k.profile, k.werkstoffe, k.maschinen, k.oberflaechen], tabellen,
-            {n: einst.get(n) for n in EINST_LAUF + EINST_LAENGEN}, VERSION]
+            einst_rechnen(einst), VERSION]
 
 
 def _hash(daten):
@@ -503,16 +533,49 @@ def _rechnen_alle(kopf, positionen, stufen, k, tabellen, einst, fortschritt=None
 
 
 def stufe_bepreisen(lz, stufe, mz, einst, alle=None, positionen=None):
-    """Preisschicht einer Stufe: jede Mengenzeile mit den Werten der Stufe bepreisen; der Mindestpreis gilt für die
-    ganze Stufe (alle Stückpreise anteilig angehoben), Nebenkosten pauschal nach Anteil am Verkaufspreis."""
+    """Preis jeder Mengenzeile einer Stufe = Preis der zentralen Kalkulation (Master-Prompt Patrick 24.11.2026:
+    „eine Staffelmenge muss exakt so kalkuliert werden wie ein normales Angebot mit derselben Menge“).
+
+    Der Mengenlauf rechnet die Stufe mit rechnen.optimieren und rechnen.kalkulation wie ein Angebot (mit
+    Preisschicht des Angebots: Verpackung, Finanzierung, Rabatt, Runden, Frachtfrei, Mindestauftragswert …); deren
+    Verkaufspreis (bausteine['verkauf']) ist der Preis der Stufe. Die Preisschicht der Staffel (preise) zerlegt ihn in
+    Material, Fertigung, Gemeinkosten, Gewinn … und rechnet die Sonderwerte der Stufe unter „Erweitert“
+    (STAFFEL_EXTRA, Mindestmarge der Staffel), die es im Angebot nicht gibt: als Unterschied der Preisschicht mit und
+    ohne diese Werte, also als Zu- bzw. Abschlag auf den Preis der Kalkulation. Ohne Sonderwerte ist der Preis der
+    Stufe der Preis der Kalkulation bis auf den Cent (tests/test_staffel_wie_angebot.py)."""
+    fertig = _bepreisen(lz, stufe, mz, einst, alle, positionen)
+    neutral = _bepreisen(lz, stufe, mz, einst, alle, positionen, neutral=True)
+    out = []
+    for (x, w, e, anh), (xn, _, _, _) in zip(fertig, neutral):
+        b = x.get("bausteine") or {}
+        if x.get("preis") and xn.get("preis") and isinstance(b.get("verkauf"), (int, float)):
+            # Musterkosten als eigene Zeile stehen in der Kalkulation neben den Teilen (summen: verkauf + einmalig)
+            vk = b["verkauf"] + _zahl(xn["preis"].get("muster_einmalig"))
+            angleich = dict(betrag=vk - xn["preis"]["netto"], gehoben=_zahl(b.get("mindest_angebot")) > 0,
+                            extra=any(_wert(w, n) is not None for n in STAFFEL_EXTRA)
+                            or xn["preis"]["netto"] != x["preis"]["netto"])
+            x = preise_anwenden(x, w, e, alle, positionen, anhebung=anh, angleich=angleich)
+        out.append(x)
+    return out
+
+
+def _bepreisen(lz, stufe, mz, einst, alle=None, positionen=None, neutral=False):
+    """Preisschicht der Staffel für alle Mengenzeilen einer Stufe; der Mindestpreis gilt für die ganze Stufe (alle
+    Stückpreise anteilig angehoben), Nebenkosten pauschal nach Anteil am Verkaufspreis. neutral: ohne die Sonderwerte
+    der Staffel (STAFFEL_EXTRA, Mindestmarge), so wie die Kalkulation des Angebots rechnet.
+    Ergebnis: [(bepreiste Zeile, Werte, Einstellungen, Anhebung auf den Mindestpreis)]."""
     vk = [_zahl((x.get("bausteine") or {}).get("verkauf")) for x in lz]
     summe_vk = sum(vk)
     werte = []
     for x, z, v in zip(lz, mz, vk):
         w = _zusammen(stufe, z)
+        if neutral:
+            w = {n: (None if n in STAFFEL_EXTRA else v_) for n, v_ in w.items()}
         if len(mz) > 1 and _zahl(w.get("neben_pauschal")):
             w = dict(w, neben_pauschal=w["neben_pauschal"] * (v / summe_vk if summe_vk else 1 / len(mz)))
         werte.append(w)
+    if neutral:
+        einst = dict(einst, mindestmarge_staffel="nein")
     ohne = dict(einst, mindestpreis=0)
     erste = [preise_anwenden(x, w, ohne, alle, positionen) for x, w in zip(lz, werte)]
     if rechnen.gewinn_stufen(einst):
@@ -525,13 +588,15 @@ def stufe_bepreisen(lz, stufe, mz, einst, alle=None, positionen=None):
     mindest = _zahl(einst.get("mindestpreis"))
     netto = sum(x["preis"]["ware"] for x in erste if x.get("preis"))      # ab 26.10.2026 Ware, davor Verkaufspreis
     if not (mindest > 0 and 0 < netto < mindest):
-        return [preise_anwenden(x, w, einst, alle, positionen, anhebung=0.0) for x, w in zip(lz, werte)]
+        return [(preise_anwenden(x, w, einst, alle, positionen, anhebung=0.0), w, einst, 0.0) for x, w in zip(lz, werte)]
     faktor = mindest / netto
     neu = rechnen.neue_preisregeln(einst)
-    return [preise_anwenden(x, w, einst, alle, positionen,
-                            anhebung=(e["preis"]["ware"] * (faktor - 1) / (1 - e["preis"]["skonto_anteil"] if neu else 1)
-                                      if e.get("preis") else 0.0))
-            for x, w, e in zip(lz, werte, erste)]
+    out = []
+    for x, w, e in zip(lz, werte, erste):
+        anh = (e["preis"]["ware"] * (faktor - 1) / (1 - e["preis"]["skonto_anteil"] if neu else 1)
+               if e.get("preis") else 0.0)
+        out.append((preise_anwenden(x, w, einst, alle, positionen, anhebung=anh), w, einst, anh))
+    return out
 
 
 def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst, mit_preis=True, stufe=None):
@@ -557,6 +622,15 @@ _RUESTEN = (("Rüsten Maschine", "ruesten_maschine_teil", "Rüstzeit der Maschin
             ("Stangenwechsel", "stangenwechsel_teil", "Stangenwechsel der Stufe, auf alle Teile umgelegt"),
             ("Schweißbaugruppe einmalig", "bg_einmal_ruesten_teil",
              "Rüstzeit und Einmalbeträge der Arbeitsgänge (Vorrichtung …), einmal je Stufe"))
+
+
+# Bausteine der letzten Preisschicht der Kalkulation (preisschicht.FELDER + Preis von Hand je Baugruppe) mit Anzeigename
+PREISSCHICHT = ("mannlos", "neuteil", "regel", "verpackung", "finanzierung", "frachtfrei", "rabatt", "rundung", "preis_hand")
+PREISSCHICHT_NAME = {"mannlos": "Mannlose Laufzeit", "neuteil": "Neuteil-Zuschlag", "regel": "Angebotsregeln (Zuschlag)",
+                     "verpackung": "Verpackung (Stammdaten)", "finanzierung": "Finanzierung", "frachtfrei": "Frachtfrei ab Warenwert",
+                     "rabatt": "Rabatt des Angebots", "rundung": "Preis gerundet", "preis_hand": "Preis von Hand je Baugruppe"}
+# als Kosten (ohne Gewinn) zählen Verpackung und Finanzierung, Frachtfrei mindert die Fracht; die übrigen ändern den Gewinn
+PREISSCHICHT_KOSTEN = ("verpackung", "finanzierung")
 
 
 def _bausteine_teil(kz, idx, summen):
@@ -585,7 +659,11 @@ def _bausteine_teil(kz, idx, summen):
                 muster_getrennt=(summe("muster_getrennt_selbst_teil"), summe("muster_getrennt_zukauf_teil"),
                                  summe("muster_getrennt_fracht_teil")),
                 # Material der Muster für den Gewinn auf Material (Prüfung Kalkulationsbasis 8)
-                muster_mat=(summe("muster_mat_teil"), summe("muster_getrennt_mat_teil")))
+                muster_mat=(summe("muster_mat_teil"), summe("muster_getrennt_mat_teil")),
+                # Preisschicht des Angebots (preisschicht.anwenden: Verpackung, Finanzierung, Rabatt, Runden …), Beträge
+                # ohne Skonto wie dort; der Preis der Stufe ist die Kalkulation (verkauf), diese Teile zeigen woraus
+                preisschicht={n: summe(f"{n}_teil") for n in PREISSCHICHT if abs(summe(f"{n}_teil")) >= 1e-9},
+                mindest_angebot=summe("mindestpreis_teil"))
 
 
 def richtpreis_zeilen(e, p, daten):
@@ -937,12 +1015,15 @@ def gewinn_satz(basis, stufen):
     return rechnen.gewinn_gestaffelt(basis, stufen) / basis if basis > 0 else stufen[0][1]
 
 
-def preise(b, menge, w, anhebung=None):
+def preise(b, menge, w, anhebung=None, angleich=None):
     """Preisschicht: Bausteine b eines Mengenlaufs, Menge der Stufe, Werte w (wirksam). Beträge für die ganze
     Stufe, ungerundet; gerundet sind nur preis_einheit, einmalig, preis_gesamt, mwst und brutto.
     Fehler (Materialpreis fehlt, Rabatt zu groß): dict mit 'fehler' und ohne Preise.
     anhebung: Anhebung auf den Mindestpreis (€, aus stufe_bepreisen für die ganze Stufe); None = Mindestpreis
-    für diese Zeile allein."""
+    für diese Zeile allein.
+    angleich: dict(betrag, gehoben, extra) aus stufe_bepreisen: Unterschied zwischen dem Verkaufspreis der zentralen
+    Kalkulation und dieser Preisschicht ohne Sonderwerte (Preisschicht des Angebots: Verpackung, Rabatt, Runden …);
+    er kommt auf den Preis, so dass ohne Sonderwerte genau der Preis der Kalkulation herauskommt."""
     if b["material_fehlt"] and w["mat_grundpreis"] is None:
         return dict(fehler="Materialpreis fehlt (kein Preis in den Stammdaten oder kein Schnittplan)")
     if b.get("zukauf_fehlt") and w.get("zukauf_ek") is None:
@@ -1019,6 +1100,22 @@ def preise(b, menge, w, anhebung=None):
                if w.get("neu", True) else 0.0)
     mm_netto = mm_ware / (1 - sk)
     netto += mm_netto
+    # Preisschicht des Angebots aus der zentralen Kalkulation (Verpackung, Finanzierung, Rabatt, Runden, Frachtfrei …)
+    ps = {}
+    ps_kosten = ps_gewinn = ps_fracht = rest = 0.0
+    gehoben = bool(anhebung or mm_netto)
+    if angleich is not None:
+        netto += angleich["betrag"]
+        skonto0 += angleich["betrag"] * sk
+        ps = dict(b.get("preisschicht") or {})
+        ps_kosten = sum(v for n, v in ps.items() if n in PREISSCHICHT_KOSTEN)
+        ps_fracht = ps.get("frachtfrei", 0.0)
+        ps_gewinn = sum(v for n, v in ps.items() if n not in PREISSCHICHT_KOSTEN and n != "frachtfrei")
+        rest = angleich["betrag"] * (1 - sk) - sum(ps.values())     # ohne Skonto, Rundung des Mindestpreises u. Ä.
+        if not angleich.get("extra"):
+            gehoben = bool(angleich.get("gehoben"))       # wie das Angebots-PDF: auf den Mindestpreis aufgerundet
+        elif angleich.get("gehoben"):
+            gehoben = True
     einmalig = 0.0
     if w["ruesten"] == SEPARAT:     # Rüsten mit Gemeinkosten, Gewinn und Skonto als einmalige Position
         einmalig = kaufm_runden(r_sum * (1 + w["zuschlag_fertigung"]) * (1 + w["gewinn"]) / (1 - sk), 2)
@@ -1033,7 +1130,7 @@ def preise(b, menge, w, anhebung=None):
     einmalig += muster_einmalig
     # Preiseinheit für Kleinteile (Plan B3): Preis je 100 bzw. 1000 Stück, auf den Cent gerundet
     pe = preiseinheit((netto - einmalig) / menge, w.get("preiseinheit_ab"))
-    preis_pe = (aufrunden((netto - einmalig) / menge * pe) if anhebung or mm_netto
+    preis_pe = (aufrunden((netto - einmalig) / menge * pe) if gehoben
                 else kaufm_runden((netto - einmalig) / menge * pe, 2))
     preis_einheit = preis_pe / pe if pe > 1 else preis_pe
     gesamt = kaufm_runden(preis_pe * menge / pe + einmalig, 2) if pe > 1 else kaufm_runden(preis_einheit * menge + einmalig, 2)
@@ -1045,10 +1142,11 @@ def preise(b, menge, w, anhebung=None):
         preis_pe = ph * pe if pe > 1 else ph
         gesamt = kaufm_runden(ph * menge + einmalig, 2)
     mwst = kaufm_runden(gesamt * w["mwst"], 2)
-    gewinn_gesamt = gew_eff + anhebung * (1 - sk) + mm_ware + hand_ware
-    ware_ende = selbst + gewinn_gesamt
+    gewinn_gesamt = gew_eff + anhebung * (1 - sk) + mm_ware + hand_ware + ps_gewinn + rest
+    selbst_gesamt = selbst + ps_kosten
+    ware_ende = selbst_gesamt + gewinn_gesamt
     marge_ende = gewinn_gesamt / ware_ende if ware_ende else None
-    variabel = m1 + mz + f_sum + b["fremd"] + zk_e + w["neben_einheit"] * menge
+    variabel = m1 + mz + f_sum + b["fremd"] + zk_e + w["neben_einheit"] * menge + ps.get("verpackung", 0.0)
     m_min = w.get("mindestmarge", 0)
     return dict(fehler=None, m_grund=m0, m_verlust=verlust, m_zuschlag=mz, m_gesamt=m1 + mz, fertigung=fert,
                 fert_gesamt=f_sum, ruesten=b["ruesten"], ruest_gesamt=r_sum, gk_fertigung=gk_f, fremd=b["fremd"],
@@ -1058,8 +1156,11 @@ def preise(b, menge, w, anhebung=None):
                 deckungsbeitrag=ware_ende - variabel, db_quote=(ware_ende - variabel) / ware_ende if ware_ende else None,
                 gewinn_gesamt=gewinn_gesamt, preis_berechnet=berechnet, preis_hand=w.get("preis_hand"),
                 unter_mindestmarge=bool(m_min) and marge_ende is not None and marge_ende < m_min - 1e-9,
-                pauschalen=b["pauschalen"],
-                programmierung=b["programmierung"], angebotsaufschlag=b["angebotsaufschlag"], fracht=b["fracht"],
+                pauschalen=b["pauschalen"], preisschicht=ps, preisschicht_summe=sum(ps.values()), angleich_rest=rest,
+                selbst_gesamt=selbst_gesamt, angleich=angleich["betrag"] if angleich is not None else None,
+                angleich_extra=bool(angleich and angleich.get("extra")),
+                gk_gesamt=gk_f + gk_fl + ge * w["zuschlag_fertigung"] + gf * w["zuschlag_fremdleistung"],
+                programmierung=b["programmierung"], angebotsaufschlag=b["angebotsaufschlag"], fracht=b["fracht"] + ps_fracht,
                 zukauf_einstand=zk_e, zukauf_aufschlag=zk_a,
                 skonto=skonto0, mindest_anhebung=anhebung, netto=netto, einmalig=einmalig,
                 bg_einmalig=bg_einmalig, muster_einmalig=muster_einmalig, preiseinheit=pe, preis_pe=preis_pe, muster_umlage=(ms + mz_) and
@@ -1067,7 +1168,7 @@ def preise(b, menge, w, anhebung=None):
                 preis_gesamt=gesamt, mwst=mwst, brutto=kaufm_runden(gesamt + mwst, 2))
 
 
-def preise_anwenden(z, stufe, einst, alle=None, positionen=None, anhebung=None):
+def preise_anwenden(z, stufe, einst, alle=None, positionen=None, anhebung=None, angleich=None):
     """Zeile eines Mengenlaufs mit den Werten der Stufe bepreisen (ohne neue Optimierung)."""
     z = dict(z)
     w = wirksam(stufe, einst)
@@ -1083,7 +1184,7 @@ def preise_anwenden(z, stufe, einst, alle=None, positionen=None, anhebung=None):
     if fehl:
         hinweis.insert(0, "FEHLER: " + fehl[0][1])
     else:
-        p = preise(z["bausteine"], z["menge"], w, anhebung)
+        p = preise(z["bausteine"], z["menge"], w, anhebung, angleich)
         if p["fehler"]:
             hinweis.insert(0, "FEHLER: " + p["fehler"])
         else:
@@ -1096,6 +1197,54 @@ def preise_anwenden(z, stufe, einst, alle=None, positionen=None, anhebung=None):
                 hinweis.append(f"Mindestmarge {rechnen.zahl(100 * p['mindestmarge'], 1)} %: Preis angehoben")
     z["hinweis"] = "; ".join(hinweis) or None
     return z
+
+
+# Übersicht je Staffel (Master-Prompt 24.11.2026, Punkt 4): Fertigung und Rüsten nach Maschine und Personal
+MASCHINE = ("Laser schneiden", "Schneidgas", "Gewinde", "Ausschuss", "Rüsten Maschine", "Rüsten je Abmessung",
+            "Stangenwechsel")
+UEBERSICHT = (("herstell", "Herstellkosten gesamt [€]", "Selbstkosten der Stufe: Material, Maschine, Personal, Zusatz und "
+                                                          "Gemeinkosten (ohne Gewinn, Fracht und Skonto)"),
+              ("material", "Material [€]", "Stangen inkl. Verschnitt nach dem Schnittplan der Stufe, Verlust, Zuschlag"),
+              ("maschine", "Maschine [€]", "Laserzeit, Schneidgas, Gewinde, Rüsten Maschine und je Abmessung, Stangenwechsel"),
+              ("personal", "Personal [€]", "Weitere Arbeitsschritte, Schweißen, Qualität, Handling, Arbeitsgang der Stufe"),
+              ("zusatz", "Zusatz [€]", "Zusatzarbeiten, Fremdleistungen, Zukaufteile, Pauschalen, Programmierung, "
+                                     "Angebotsaufschlag, Muster, Verpackung, Finanzierung, Nebenkosten"),
+              ("gemeinkosten", "Gemeinkosten [€]", "Zuschlag Fertigung (+ Eilzuschlag) und Zuschlag Fremdleistung"),
+              ("gewinn", "Gewinn [€]", "Gewinn inkl. Mindestpreis, Rabatt und Rundung des Angebots"),
+              ("fracht_skonto", "Fracht + Skonto [€]", "Fracht ohne Gewinn und eingerechnetes Skonto"),
+              ("netto", "Netto gesamt [€]", "Gesamtpreis netto der Mengenzeile"),
+              ("netto_einheit", "Netto je Einheit [€]", "Verkaufspreis netto je Stück bzw. Satz"),
+              ("db", "Deckungsbeitrag [€]", "Warenwert − variable Kosten (Material, Fertigung, Fremd, Zukauf, Verpackung)"),
+              ("marge", "Marge", "Gewinn ÷ Warenwert (ohne Fracht und Skonto)"),
+              ("gegenprobe", "Gegenprobe", "Preis der Stufe gegen den Preis der zentralen Kalkulation mit derselben Menge"))
+
+
+def uebersicht(z):
+    """Werte einer bepreisten Staffelzeile für die Übersicht (UEBERSICHT), Beträge für die ganze Mengenzeile; None
+    ohne Preis. Material + Maschine + Personal + Zusatz + Gemeinkosten = Herstellkosten gesamt; + Gewinn + Fracht und
+    Skonto = Netto gesamt (bis auf die Rundung des Stückpreises)."""
+    p = z.get("preis") or {}
+    if not p or not isinstance(z.get("preis_einheit"), (int, float)):
+        return None
+    alle = list(p.get("fertigung") or ()) + list(p.get("ruesten") or ())
+    maschine = sum(x for n, x, _ in alle if n in MASCHINE)
+    personal = sum(x for n, x, _ in alle if n not in MASCHINE and not n.startswith("Zusatzarbeiten"))
+    herstell = p.get("selbst_gesamt", p.get("selbst")) or 0.0
+    material, gk = p.get("m_gesamt") or 0.0, p.get("gk_gesamt", (p.get("gk_fertigung") or 0) + (p.get("gk_fremd") or 0))
+    zusatz = herstell - material - maschine - personal - gk
+    gewinn = p.get("gewinn_gesamt", p.get("gewinn")) or 0.0
+    netto = z.get("preis_gesamt") or 0.0
+    if p.get("angleich_extra"):
+        probe = "mit Sonderwerten der Stufe (Erweitert)"
+    elif p.get("preis_hand") is not None:
+        probe = "Preis von Hand"
+    elif p.get("angleich") is not None:
+        probe = "= Angebotskalkulation"
+    else:
+        probe = ""
+    return dict(herstell=herstell, material=material, maschine=maschine, personal=personal, zusatz=zusatz,
+                gemeinkosten=gk, gewinn=gewinn, fracht_skonto=netto - herstell - gewinn, netto=netto,
+                netto_einheit=z["preis_einheit"], db=p.get("deckungsbeitrag"), marge=p.get("marge"), gegenprobe=probe)
 
 
 def einsparung(zeilen):
