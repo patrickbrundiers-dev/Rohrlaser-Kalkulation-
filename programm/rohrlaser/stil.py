@@ -526,8 +526,11 @@ def anwenden(app, name="Hell", schrift=100, dichte="normal"):
     app.setPalette(palette(_thema))
     _farben_in_texten()
     if _filter is None:
+        from PySide6.QtCore import QEvent
+
+        from . import ereignis_verteiler
         _filter = _TexteBeimZeigen()
-        app.installEventFilter(_filter)
+        ereignis_verteiler.anmelden(_filter, (QEvent.Polish,), app)
     try:
         prozent = max(90, min(150, int(schrift or 100)))
     except (TypeError, ValueError):
