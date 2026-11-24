@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.466", "<b>Update-Paket bauen</b>: Das Werkzeug für das Online-Update brach auf Windows nach dem fertigen "
+                "Paket ab, wenn im Änderungstext ein Sonderzeichen stand, das die Windows-Konsole nicht darstellen "
+                "kann (z. B. ein Pfeil). Jetzt erscheint so ein Zeichen in der Ausgabe als Ersatztext und das "
+                "Paket wird fertig gebaut. Am Programm selbst ändert sich nichts.",
+     "Update-Paket: kein Abbruch mehr bei Sonderzeichen im Änderungstext (Windows-Konsole)"],
     ["0.9.465", "<b>Keine Hänger mehr nach dem ERP-Einkauf</b> ([[erp_preise]]): Mit vielen eingelesenen Käufen "
                 "hat das Programm bei jedem Klick auf <i>Optimieren</i>, <i>Material …</i>, <i>Übernehmen</i>, auf "
                 "der Seite Material und im STEP-Import alle EK-Artikel neu erkannt (rund 9 Sekunden je Klick, beim "
@@ -34,7 +39,7 @@ NEUERUNGEN = [
                 "noch einmal. <b>Schweißbaugruppen-Editor</b>: das 3D-Modell mit Kanten wird beim Öffnen nur noch "
                 "einmal gebaut statt zweimal. Für das Fenster <i>Schneidweg berechnen</i> und das 3D-Bild stehen "
                 "neue Messabschnitte im Zeitwächter (Supportpaket zeigt die Ursache).",
-     "Hänger behoben: Optimieren/Material nach ERP-Import (87 s → unter 1 s), Programmstart, BG-Editor öffnen"],
+     "Hänger behoben: Optimieren/Material nach ERP-Import (87 s -> unter 1 s), Programmstart, BG-Editor öffnen"],
     ["0.9.464", "<b>BLM-Programme einlesen: ARTUBE und BPF</b> ([[blm_programm]]): ArTube-Projekte (.artube) und "
                 "Teileprogramme für BLM/Adige-Rohrlaser (.bpf, z. B. LT7/LT8) gehen wie eine STEP-Datei durch den "
                 "STEP-Import – <i>Neue Position → Aus BLM-Programm</i>, Ziehen, Ablagefeld, Ordner, ZIP und Anfragen. "
