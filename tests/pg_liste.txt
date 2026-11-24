@@ -420,3 +420,4 @@ test_anfrage_lernen.py
 test_anfrage_stufe2.py
 test_support_2411.py
 test_generalueberholung_2411.py
+test_staffel_wie_angebot.py
