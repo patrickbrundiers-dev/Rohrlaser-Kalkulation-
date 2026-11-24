@@ -77,7 +77,7 @@ def main(argv=None):
         pos = [dict(p) for p in pos0]
         p = pos[r % len(pos)]
         p["laenge"] = float(p.get("laenge") or 500) + 0.5 * (r + 1)      # neue Eingabe je Runde
-        p["stueck"] = int(p.get("stueck") or 1) + r
+        p["stueck"] = int(p.get("stueck") or 1) + r % 5      # Angebot bleibt gleich groß (sonst wächst es je Runde)
         e = rechnen.einstellungen_angebot(kopf, einst)
         erg = rechnen.optimieren(kopf, pos, k, tab, e)
         kp = dict(kopf, ergebnis=erg)
