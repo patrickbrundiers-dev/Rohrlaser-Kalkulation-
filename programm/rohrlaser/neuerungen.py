@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.480", "<b>Austauschordner 2.0, Paket C</b> ([[austausch]]): STEP-Dateien öffnen mit einem Klick im "
+    ["0.9.481", "<b>Austauschordner 2.0, Paket C</b> ([[austausch]]): STEP-Dateien öffnen mit einem Klick im "
                 "<b>STEP-Viewer</b> des Programms. LST, BPF und ArTube gleichen Namens stehen als <i>Zugehörige "
                 "Programme</i> neben der STEP. Neuer Knopf <b>Dateien im Austausch</b> bei Kunde, Angebot und "
                 "Auftrag, er findet auch Dateien mit der Angebots- oder PPEASE-Nummer im Pfad. Outlook-Mails (MSG, "
@@ -32,6 +32,13 @@ NEUERUNGEN = [
                 "sperrt kein Rest mehr die Datei.",
      "Austausch: STEP-Viewer, zugehörige LST/BPF, Dateien im Austausch bei Kunde/Angebot/Auftrag, Mail-Anhänge, "
      "Rechtetabelle"],
+    ["0.9.480", "<b>STEP-Import: langsame Teile nie halbfertig übernehmen</b> ([[step]]): Ein Teil, das noch gemessen "
+                "wird, lässt sich im Prüfdialog nicht mehr <i>von Hand nachtragen</i> (das gab ein Rohr mit Länge aus "
+                "dem Hüllmaß, aber ohne Bohrungen – z. B. 30 Bohrungen und nur 2 s Laserzeit). Beim Warten auf "
+                "langsame Teile zeigt das Fenster Teile und Wartezeit; <i>Nicht mehr warten …</i> fragt <i>Zurück "
+                "zur Liste</i> oder <i>Ohne diese Teile übernehmen</i>. Ohne sie fehlen diese Teile im Angebot und "
+                "stehen in der Meldung, statt mit falschem Schneidweg übernommen zu werden.",
+                "STEP-Import: noch laufende Teile nie halbfertig übernehmen (kein Rohr ohne Bohrungen mehr)"],
     ["0.9.479", "<b>Generalüberholung, Paket 2: schnellerer Start und flüssigere Bedienung</b>: Das Hauptfenster "
                 "baut die 29 Seiten der Einstellungen erst, wenn Sie eine davon öffnen ([[einstellungen]]); der "
                 "Aufbau des Hauptfensters dauert im Test 1,25 statt 2,1 s. "

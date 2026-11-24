@@ -1610,8 +1610,26 @@ NOCH_IN_MESSUNG = "Messung läuft noch"          # step_messen.NOCH_IN_MESSUNG (
 
 
 def noch_in_messung(m):
-    """Platzhalter eines langsamen Körpers im Zwischenstand der Messung (rückt nach, nachmessung.einsetzen)."""
-    return NOCH_IN_MESSUNG in (m.get("hinweise") or "")
+    """Platzhalter eines langsamen Körpers im Zwischenstand der Messung (rückt nach, nachmessung.einsetzen). Auch ein
+    von Hand nachgetragener Platzhalter (_original) zählt: seine Länge kommt nur aus dem Hüllmaß, Bohrungen und
+    Konturen fehlen noch."""
+    return NOCH_IN_MESSUNG in (m.get("hinweise") or "") \
+        or NOCH_IN_MESSUNG in ((m.get("_original") or {}).get("hinweise") or "")
+
+
+def ohne_nachmessung(messwerte):
+    """Fehler 24.11.2026 (Patrick: „Rohr mit 30 Bohrungen dauerte nur 2 Sekunden“): wird ohne die langsamen Teile
+    übernommen, darf kein halbfertiges Teil ins Angebot. Platzhalter „Messung läuft noch“ (auch von Hand
+    nachgetragene) werden zurückgesetzt und abgewählt; sie stehen nur im Bericht. Ergebnis: ihre Artikelnummern."""
+    weg = []
+    for m in messwerte:
+        if not noch_in_messung(m):
+            continue
+        if m.get("_original"):
+            von_hand_zuruecknehmen(m)
+        m["_uebernehmen"] = False
+        weg.append(str(m.get("artikel") or m.get("datei") or ""))
+    return weg
 AUFGETEILT_BEHALTEN = ("_pfad", "_stueck", "_werkstoff", "_zusatz", "_saetze", "datei", "pfad", "knoten", "struktur")
 
 
