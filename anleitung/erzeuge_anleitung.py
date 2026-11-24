@@ -12728,6 +12728,8 @@ def kapitel_einstellungen(i):
          "auch wenn Windows dunkel eingestellt ist. Der Tastaturfokus ist in Dunkel und Hoher Kontrast blau bzw. "
          "schwarz umrandet. Im Dunkelmodus haben Eingabefelder, Auswahllisten und Häkchenkästchen einen hellen "
          "Rahmen, Hauptknöpfe (z. B. <i>Optimieren</i>, <i>Angebot (PDF)</i>) sind kräftig blau mit weißer Schrift. "
+         "Hellblaue Knöpfe wie <i>Weiter ▸</i> im Arbeitsablauf des Angebots und die gewählte Spaltenansicht (z. B. "
+         "<i>Alle</i>) haben im Dunkelmodus dunkle Schrift, damit sie gut lesbar sind. "
          "Im Stangenbild steht die Positionsnummer in dunkler Schrift auf hellen Teilfarben (Orange, Gelb, Grün) und "
          "in weißer Schrift auf dunklen. Gilt sofort, nur an diesem Arbeitsplatz."],
         ["Ansicht", "Schriftgröße [%] (90 bis 150)",

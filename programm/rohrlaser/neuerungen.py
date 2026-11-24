@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.479", "<b>Generalüberholung, Paket 3: Dunkelmodus besser lesbar</b>: Alle 68 Ansichten (Hauptreiter, "
+                "Reiter des Angebots, alle Einstellungsseiten) wurden in Hell und Dunkel auf Lesbarkeit gemessen. Zwei "
+                "Stellen hatten im Dunkelmodus weiße Schrift auf Hellblau (2,0 bzw. 2,6 : 1): der Knopf <i>Weiter ▸</i> "
+                "im Arbeitsablauf des Angebots und die gewählte Spaltenansicht (<i>Alle</i>, <i>Erfassen</i> …). Sie "
+                "haben jetzt dunkle Schrift (6,9 bzw. 8,8 : 1). Hell und Hoher Kontrast sind unverändert ([[einstellungen]]).",
+     "Generalüberholung 3: Dunkelmodus besser lesbar"],
     ["0.9.478", "<b>Generalüberholung, Paket 2: schnellerer Start und flüssigere Bedienung</b>: Das Hauptfenster "
                 "baut die 29 Seiten der Einstellungen erst, wenn Sie eine davon öffnen ([[einstellungen]]); der "
                 "Aufbau des Hauptfensters dauert im Test 1,25 statt 2,1 s. "

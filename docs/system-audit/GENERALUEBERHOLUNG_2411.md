@@ -166,3 +166,25 @@ Vergleich verzerrt (vorher ohne übersetzte .pyc) und zählt nicht.
 aber nur 2–4 % schneller (die Zeit liegt im Zeichnen der rund 38.000 Stücke je Bild in Qt). Nicht übernommen;
 schneller ginge es nur mit weniger Stücken, und das ändert das Bild. Bleibt als bekannte Einschränkung: ohne
 OpenGL (z. B. Remote-Desktop) braucht ein Standbild eines großen Teils rund 0,8–1,2 s, Drehen selbst bleibt flüssig.
+
+## 8. Paket 3 (Phase 4): Kontrastprüfung aller Ansichten
+
+`werkzeuge/oberflaeche_bilder.py AUSGABE --kontrast` misst in jeder der 68 Ansichten (Hauptreiter, Angebotsreiter,
+alle Einstellungsseiten) und beiden Themes jede sichtbare Beschriftung von Labels und Knöpfen im fertigen Bild:
+Hintergrund = häufigste Farbe im Feld, Schrift = die Farbe mit dem größten Helligkeitsabstand, die oft genug vorkommt
+(Kernpunkte der Buchstaben, Kantenglättung zählt nicht). Kontrast nach WCAG; `kontrast.json` listet alles unter 3 : 1.
+
+| | vorher (0.9.478) | nachher |
+|---|---|---|
+| Funde Hell | 0 | 0 |
+| Funde Dunkel | 10 (2 Stellen) | 0 |
+| „Weiter ▸“ (Arbeitsablauf Angebot), Dunkel | weiß auf #6CA6DE, 2,58 : 1 | #111827 auf #6CA6DE, 6,88 : 1 |
+| gewählte Spaltenansicht („Alle“ …), Dunkel | weiß auf #8BBBE8, 2,02 : 1 | #111827 auf #8BBBE8, 8,76 : 1 |
+
+Ursache: Stylesheets im Programmtext mit `color: white` auf einer Akzentfläche. Die Dunkel-Tabelle setzt die Fläche
+auf Hellblau um, das Wort `white` aber nicht (nur `#FFFFFF` steht in der Tabelle). Jetzt bekommt `color: white` im
+selben Regelblock die lesbare Schrift zur umgesetzten Fläche (`stil.schrift_auf`). Hell und Hoher Kontrast bleiben
+Zeichen für Zeichen gleich; Flächen, die nicht umgesetzt werden (z. B. die Schnellfilter der Anfragen auf #2F6FB3),
+behalten weiße Schrift. Ein erster, gröberer Messlauf meldete 42 Stellen; die übrigen 32 waren Messfehler (dünne
+Schrift, Kantenglättung, leere Flächen neben kurzen Beschriftungen) und sind mit der genaueren Messung weg.
+Prüfung: `tests/test_generalueberholung_2411.py` (mindestens 4,5 : 1, Hell unverändert), `tests/test_themes.py`.

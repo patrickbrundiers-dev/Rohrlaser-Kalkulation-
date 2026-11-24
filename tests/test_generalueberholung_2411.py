@@ -12,6 +12,7 @@ Geprüft:
 Aufruf (PostgreSQL nötig, nicht als root): python werkzeuge/mit_pg.py -- python tests/test_generalueberholung_2411.py
 """
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -299,4 +300,19 @@ ziel.show()
 QApplication.processEvents()
 assert len(alt_a.gesehen) == n_show, alt_a.gesehen                                             # abgemeldet
 ok("Ereignisverteiler: Reihenfolge wie Qt, Verschlucken, nur angemeldete Arten, Abmelden auch beim Löschen")
+
+# ---- Paket 3 (Phase 4): weiße Schrift auf umgesetzter Akzentfläche bleibt im Dunkelmodus lesbar
+for roh in ("QToolButton#weiter { color: white; background: #1F4E78; border: none; }",
+            "QPushButton#ansicht:checked { background: #1F5FAD; color: white; } QPushButton { color: #1F2937; }"):
+    assert stil.umsetzen(roh, "Hell") == roh                                     # Hell Zeichen für Zeichen gleich
+    dunkel = stil.umsetzen(roh, "Dunkel")
+    block = dunkel.split("}")[0]
+    grund = re.search(r"background: (#[0-9A-F]{6})", block).group(1)
+    schrift = re.search(r"(?<![-\w])color: (#[0-9A-Fa-f]{6})", block).group(1)
+    assert stil.kontrast(schrift, grund) >= 4.5, (roh, dunkel, stil.kontrast(schrift, grund))
+assert "color: white" in stil.umsetzen("QToolButton:checked { background: #2F6FB3; color: white; }", "Dunkel")
+assert stil.umsetzen("border-color: white; background: #1F4E78", "Dunkel") == "border-color: white; background: #6CA6DE"
+assert "#E6EAF0" in stil.umsetzen("QToolButton#weiter { color: white; background: #1F4E78; } QLabel { color: #1F2937; }",
+                                  "Dunkel")
+ok("Dunkelmodus: weiße Schrift auf Akzentfläche wird lesbar (mind. 4,5 : 1), Hell unverändert")
 print("Alle Prüfungen bestanden.")
