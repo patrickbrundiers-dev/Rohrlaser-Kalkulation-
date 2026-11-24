@@ -188,3 +188,53 @@ Zeichen für Zeichen gleich; Flächen, die nicht umgesetzt werden (z. B. die Sch
 behalten weiße Schrift. Ein erster, gröberer Messlauf meldete 42 Stellen; die übrigen 32 waren Messfehler (dünne
 Schrift, Kantenglättung, leere Flächen neben kurzen Beschriftungen) und sind mit der genaueren Messung weg.
 Prüfung: `tests/test_generalueberholung_2411.py` (mindestens 4,5 : 1, Hell unverändert), `tests/test_themes.py`.
+
+## 9. Phase 5: Aufräumen und Regression
+
+**Toter Code.** vulture (60 %) meldet 145 Stellen; nach Abzug von Qt- und Bibliotheks-Überschreibungen (`lessThan`,
+`hitButton`, `mimeTypes`, `do_GET`, `handle_starttag` …) und dynamisch aufgerufenen Methoden (`getattr(self, "_w_" + art)`
+in anhang_vorschau, `getattr(self, "_" + art)` in bg_zeit_dialoge) blieben 23 Funktionen ohne jeden Aufrufer in
+Programm, Tests, Werkzeugen und Anleitung. Entfernt sind die 12 reinen Hilfsfunktionen (Texte und Kleinrechnungen,
+die durch neuere Fassungen ersetzt sind): `anfrage_vorab.alter_text`, `eingabe.ist_zahlenfeld`, `export.zip_name`,
+`importprofil._datei_artikel`, `mail_zuordnung.kurz_text`, `nesting.physischer_rest`, `preisschicht.untergrenze_text`,
+`satzgruppen.bg_zelltext`, `teilen.haupt_datei`, `teilen._hinlegen`, `terminplan.haltbar`, `zukauf.ek_gesamt`.
+**Bewusst behalten** (Fachfunktionen, die ein Bedienweg wieder aufrufen kann; „alle Funktionen erhalten“):
+`KundeDialog`, `Datenbank.neu_oeffnen`, `export.profirst_schreiben`, `kunden_daten.naechste_kundennr` (abgeschaltet,
+weil Kundennummern bei Neukunden immer von Hand kommen), `lizenz.hauptadmin_entfernen`, `pg_lokal.verwalter_zugang`,
+`rahmenauftrag.position_entfernen` und `los_stornieren`, `rp_profile.schnitt_aus_messung`,
+`schnitt_explosion.explodieren`, `vorschlaege_mixin.zielpreis_menge`.
+
+**Abhängigkeiten.** pip-audit ohne bekannte Lücken. Neuere Fassungen gibt es nur als Patch (cryptography 50.0.1 →
+50.0.2) bzw. Kleinversion (pypdfium2 5.13.0 → 5.15.2). Nicht angehoben: kein Sicherheitsgrund, und eine neue
+pypdfium2 kann die Vorschaubilder der PDFs ändern. Anheben zusammen mit dem nächsten Windows-Build, dann mit Bildvergleich.
+
+**Regression.** Komplette Testreihe gegen PostgreSQL mit Paket 1–3 und Phase 5: 564 von 567 grün; rot nur die drei
+bekannten Container-Fälle (test_ansicht_gl, test_schnittkoerper: OpenGL über xcb fehlt; test_bedienung_0611: Schrift
+Inter des Containers). Rechenergebnisse: Fingerabdruck aller Positionen, Kalkulationen und Staffeln gleich
+(Systemcheck Abschnitt 7), Lasttest 25 Benutzer ohne Fehler (Abschnitt 6).
+
+## 10. Abschluss
+
+| Bereich | vorher (0.9.466) | nachher (0.9.486) |
+|---|---|---|
+| Hauptfenster mit Startseite aufbauen (Systemcheck) | 3,01 s | 1,23 s |
+| Angebot öffnen (kalt) | 0,56 s | 0,37 s |
+| Datendatei öffnen: Anweisungen / Zeit | 952 / 0,58 s | 346 / 0,31 s |
+| STEP-Import 14 Dateien | 22,4 s | 19,2 s |
+| Lasttest 25 Benutzer, Gesamtzeit | 25,2 s | 16,9 s |
+| Abgleich 25 PCs | 1260 ms | 955 ms |
+| Ereignisfilter an der Anwendung | 7 | 1 |
+| Lesbarkeit: Stellen unter 3 : 1 (Hell / Dunkel) | 0 / 10 | 0 / 0 |
+| Ergebnisse (Fingerabdruck) | – | gleich |
+
+Änderungsprotokoll im Programm: Neuerungen 0.9.472 (Paket 1), 0.9.479 (Paket 2), 0.9.486 (Paket 3 + Phase 5).
+Datenbank: kein Schema-Sprung, keine Umstellung; PostgreSQL je PC mit Abgleich über den gemeinsamen Ordner bleibt
+(Abschnitt 5).
+
+**Bekannte Einschränkungen**
+- Ohne OpenGL (z. B. Remote-Desktop) braucht ein Standbild der Software-3D bei großen Teilen 0,8–1,2 s (B8).
+- Startseite: die Angebotsliste lädt auch die Nachkalkulationsdaten mit; bei sehr vielen Angeboten (über 10.000)
+  merklich. Nicht umgebaut, weil bei den heutigen Datenmengen unter 0,2 s.
+- Die Kontrastprüfung misst Labels und Knöpfe, nicht Tabellenzellen und gezeichnete Flächen (3D, Stangenbild).
+- Die Einstellungsseiten entstehen erst beim ersten Öffnen; Werkzeuge, die alle Felder des Hauptfensters per
+  `findChildren` suchen, müssen `f.einstellungen.findChildren` nutzen (baut alle Seiten).
