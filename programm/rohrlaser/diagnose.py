@@ -65,9 +65,11 @@ def messen(name, eingaben=None):
     gleiche Prüfsumme wie bei einem der letzten Läufe = unnötige Mehrfachberechnung."""
     if eingaben is not None:
         doppelt_pruefen(name, eingaben)
+    from . import leistung      # Median/Perzentile, CPU und Speicher je Schritt (Master-Auftrag 24.11.2026)
     t = time.perf_counter()
     try:
-        yield
+        with leistung.schritt(name):
+            yield
     finally:
         zaehlen(name, time.perf_counter() - t)
 
@@ -152,8 +154,8 @@ def stand():
         haenger = tempo.haenger_anzahl
     except Exception:           # noqa: BLE001
         haenger = None
-    from . import hintergrund
-    return dict(seit_s=time.time() - _start, rechnungen=rech, merker=merker, db=db, fehler=fehler,
+    from . import hintergrund, leistung
+    return dict(seit_s=time.time() - _start, leistung=leistung.stand(), rechnungen=rech, merker=merker, db=db, fehler=fehler,
                 warnungen=warnungen, speicher_mb=speicher, cache=cache, fehlgeschlagen=fehl,
                 hintergrund=hintergrund.laufend(), hintergrund_fertig=hintergrund.beendet(),
                 hintergrund_lang=hintergrund.befunde(), cache_aus=dauermerker.gestoert(), haenger=haenger)
@@ -175,9 +177,10 @@ def zuruecksetzen():
     for m in rechenmerker.alle().values():
         m.treffer = m.neu = 0
         m.dauer_s = 0.0
-    from . import dauermerker, hintergrund
+    from . import dauermerker, hintergrund, leistung
     dauermerker.zaehler_zuruecksetzen()
     hintergrund.zuruecksetzen()
+    leistung.zuruecksetzen()
 
 
 def _z(w, stellen=0):
@@ -283,6 +286,8 @@ def bericht(s=None):
         zeilen.append("(noch nichts gerechnet)")
     zeilen += ["", "„doppelt“ = gleiche Rechnung mit genau denselben Eingaben noch einmal (unnötig);",
                f"„langsam“ = länger als {_z(LANGSAM_S, 1)} s.", ""]
+    from . import leistung      # Entwickleransicht (Master-Auftrag 24.11.2026, Punkt 12)
+    zeilen += leistung.bericht_zeilen(s.get("leistung")) + [""]
     zeilen.append("Merker (vermiedene Doppelrechnungen)            Treffer      neu   Quote  Einträge")
     for m in s["merker"]:
         alle = (m["treffer"] or 0) + (m["neu"] or 0)

@@ -56,7 +56,7 @@ PRIO_FARBE = {"eilt": "#B42318", "hoch": "#A66A00"}
 ERINNERN_AB = 7             # Erinnerung an wartende Anfragen: einmal am Tag ab 7 Uhr
 ERINNERT = "anfragen_erinnert"      # Einstellung je Arbeitsplatz: Tag der letzten Erinnerung
 ORDNER = (("neu", "Neu"), ("in_bearbeitung", "In Bearbeitung"), ("erledigt", "Erledigt"), ("meine", "Meine"),
-          (ak.AUSSORTIERT, "Keine Anfrage"))
+          (ak.AUSSORTIERT, "Keine Anfrage"), (ak.GELOESCHT, "Gelöscht"))
 AMPEL_FARBE = {"grün": "#2F7D4F", "gelb": "#A66A00", "rot": "#B42318"}
 ERLEDIGT_TAGE = 90          # Erledigt zeigt standardmäßig die letzten 90 Tage
 
@@ -293,12 +293,19 @@ class AnfragenSeite(QWidget):
         self.k_keine = QPushButton("Keine Anfrage …")
         self.k_keine.setToolTip("Werbung, Rechnung o. Ä.: mit Grund aussortieren (wird nicht gelöscht)")
         self.k_keine.clicked.connect(lambda: self.aussortieren())
+        self.k_loeschen = QPushButton("Löschen …")      # Patrick 24.11.2026: Anfrage löschen (Ordner „Gelöscht“)
+        self.k_loeschen.setToolTip("Anfrage in den Ordner „Gelöscht“ legen: aus allen Listen heraus, kommt nicht als "
+                                   "neue Anfrage zurück, „Wiederherstellen“ holt sie zurück")
+        self.k_loeschen.clicked.connect(lambda: self.loeschen())
+        self.k_herstellen = QPushButton("Wiederherstellen")
+        self.k_herstellen.setToolTip("Gelöschte Anfrage zurück in ihren alten Ordner")
+        self.k_herstellen.clicked.connect(lambda: self.wiederherstellen())
         self.k_rueckfrage = QPushButton("Rückfrage …")
         self.k_rueckfrage.setToolTip("Antwort an den Kunden in Outlook öffnen, mit den fehlenden Angaben (wird nicht "
                                      "automatisch gesendet); die Anfrage wartet dann auf den Kunden")
         self.k_rueckfrage.clicked.connect(lambda: self.rueckfrage())
         for b in (self.k_notiz, self.k_stand, self.k_rueckfrage, self.k_keine, self.k_zurueck, self.k_erledigt,
-                  self.k_wieder):
+                  self.k_wieder, self.k_loeschen, self.k_herstellen):
             zeile.addWidget(b)
         zeile.addStretch(1)
         rl.addLayout(zeile)
@@ -777,6 +784,7 @@ class AnfragenSeite(QWidget):
         self.zaehler["neu"].setToolTip(f"{warten} Anfrage(n) heute fällig oder überfällig"
                                        if warten else "Neue Anfragen, noch nicht übernommen")
         self.zaehler[ak.AUSSORTIERT].setToolTip("Aussortiert: Werbung, Rechnungen u. Ä. (nichts wird gelöscht)")
+        self.zaehler[ak.GELOESCHT].setToolTip("Gelöschte Anfragen (für alle ausgeblendet, wiederherstellbar)")
         try:
             i = self.f.reiter.indexOf(self)
             if i >= 0:
@@ -951,7 +959,9 @@ class AnfragenSeite(QWidget):
             p = self.phase(a)
             if p not in (ph.NEU, ph.BEARBEITUNG, ph.ERLEDIGT, ph.NICHT_RELEVANT):
                 status = ph.text(p)     # 20.11.2026: Phase statt nur „In Bearbeitung“
-            if a.stand.get("zusammengefuehrt_in"):
+            if a.geloescht:
+                status = "Gelöscht" + (f": {a.stand['geloescht_grund']}" if a.stand.get("geloescht_grund") else "")
+            elif a.stand.get("zusammengefuehrt_in"):
                 status = f"Zusammengeführt in {a.stand['zusammengefuehrt_in']}"
             elif a.aussortiert:
                 status = f"Keine Anfrage: {a.aussortiert}"
@@ -1010,8 +1020,9 @@ class AnfragenSeite(QWidget):
         a = self.akte(nr)
         if a is None:
             return None
-        if self.ordner not in (a.status, None) and not (self.ordner == "meine" and ak.ist_meine(a, self.ich())):
-            self.ordner_waehlen(a.status)
+        ziel = ak.GELOESCHT if a.geloescht else a.status
+        if self.ordner not in (ziel, None) and not (self.ordner == "meine" and ak.ist_meine(a, self.ich())):
+            self.ordner_waehlen(ziel)
         self._gewaehlt = nr
         self.liste_fuellen()
         return a
@@ -1066,6 +1077,11 @@ class AnfragenSeite(QWidget):
         stufe, _f, frist = self.ampeln.get(a.nr) or (None, None, "")
         if frist and not s.get("rueckfrage"):
             zeilen.append(f"<span style='color:{AMPEL_FARBE.get(stufe, '#666')}'>● Antwort {e(frist)}</span>")
+        if a.geloescht:
+            zeilen.append(f"<b style='color:#B42318'>Gelöscht</b> {ak._zeit_text(s['geloescht'])} von "
+                          f"{e(s.get('geloescht_von') or '?')}" + (f": {e(s['geloescht_grund'])}"
+                                                                   if s.get("geloescht_grund") else "")
+                          + " · „Wiederherstellen“ holt sie zurück")
         if a.aussortiert:
             zeilen.append(f"<b>Keine Anfrage:</b> {e(a.aussortiert)}")
         if a.kennzeichen() and not a.aussortiert:
@@ -1212,8 +1228,14 @@ class AnfragenSeite(QWidget):
         self.k_kalkulieren.setVisible(st in (ak.NEU, ak.BEARBEITUNG))
         self.k_zurueck.setVisible(st == ak.BEARBEITUNG)
         self.k_erledigt.setVisible(st == ak.BEARBEITUNG)
-        self.k_wieder.setVisible(st == ak.ERLEDIGT)
+        weg = bool(a and a.geloescht)
+        self.k_wieder.setVisible(st == ak.ERLEDIGT and not weg)
         self.k_keine.setVisible(st == ak.NEU)
+        self.k_loeschen.setVisible(bool(a) and not weg)
+        self.k_herstellen.setVisible(weg)
+        # Löschen: eine neue Anfrage jeder, sonst der Bearbeiter oder ein Admin; Wiederherstellen jeder
+        self.k_loeschen.setEnabled(bool(a) and not lesen and (st == ak.NEU or eigen or not a.bearbeiter))
+        self.k_herstellen.setEnabled(bool(a) and not lesen)
         self.k_rueckfrage.setVisible(st in (ak.NEU, ak.BEARBEITUNG))
         self.k_letztes.setVisible(st in (ak.NEU, ak.BEARBEITUNG) and bool(self.erkennung(a)["wiederholt"]))
         for b in (self.k_uebernehmen, self.k_zuweisen, self.k_kalkulieren, self.k_notiz, self.k_stand,
@@ -1533,8 +1555,39 @@ class AnfragenSeite(QWidget):
                                               gruende.index(vorschlag) if vorschlag in gruende else 0, True)
             if not gut or not grund.strip():
                 return None
-        return self._ausfuehren(lambda abl, a: abl.aussortieren(a, grund),
-                                "Anfrage {nr} als „Keine Anfrage“ aussortiert (" + grund + ").")
+        neu = self._ausfuehren(lambda abl, a: abl.aussortieren(a, grund),
+                               "Anfrage {nr} als „Keine Anfrage“ aussortiert (" + grund + ").")
+        if neu is not None:
+            self._eingang_ablegen(neu)      # 24.11.2026: Originale aus dem Anfrage-Ordner weglegen
+        return neu
+
+    def loeschen(self, grund=None):
+        """Anfrage löschen (Patrick 24.11.2026): nach Rückfrage in den Ordner „Gelöscht“; die Originale im
+        Anfrage-Ordner kommen weg (nach .uebernommen/<Nr>), damit sie nicht wieder als neu erscheinen."""
+        a = self.akte()
+        if a is None:
+            return None
+        if grund is None:
+            if self.f.stumm:
+                return None
+            extra = (f"\n\nVerknüpfte Angebote bleiben erhalten: {', '.join(a.stand['angebote'])}"
+                     if a.stand.get("angebote") else "")
+            grund, gut = QInputDialog.getText(
+                self, "Anfrage löschen", f"{a.nr}: {a.betreff}\n\nDie Anfrage kommt in den Ordner „Gelöscht“ (für "
+                "alle Kollegen), dort kann sie wiederhergestellt werden." + extra + "\n\nGrund (freiwillig):")
+            if not gut:
+                return None
+        neu = self._ausfuehren(lambda abl, x: abl.loeschen(x, grund or ""), "Anfrage {nr} gelöscht (Ordner „Gelöscht“).")
+        if neu is not None:
+            self._eingang_ablegen(neu)
+        return neu
+
+    def wiederherstellen(self):
+        neu = self._ausfuehren(lambda abl, a: abl.wiederherstellen(a), "Anfrage {nr} wiederhergestellt.")
+        if neu is not None:
+            self.ordner_waehlen(neu.status)
+            self.waehlen(neu.nr)
+        return neu
 
     def messung_uebernehmen(self, a):
         """Vormessung der Akte (auch von einem anderen Platz, Akte/_messung) in den eigenen STEP-Zwischenspeicher
@@ -2091,6 +2144,8 @@ class AnfragenSeite(QWidget):
             return None
         self.f.meldung(f"{', '.join(x.nr for x in akten)} in {a.nr} zusammengeführt (rückgängig über "
                        "„Zusammenführung rückgängig“).")
+        for x in akten:                 # 24.11.2026: Originale der weiteren aus dem Anfrage-Ordner weglegen
+            self._eingang_ablegen(x)
         self.neu_laden()
         self.waehlen(a.nr)
         return jid

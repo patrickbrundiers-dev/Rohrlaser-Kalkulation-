@@ -63,7 +63,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 
-from . import VERSION, aenderungsverlauf as verlauf, austausch, bg_zeitlernen, kunden_daten, lernen, lst_lernen, lst_vergleich, onlinepreise, zukauf
+from . import VERSION, aenderungsverlauf as verlauf, austausch, austausch_dateien, bg_zeitlernen, kunden_daten, lernen, lst_lernen, lst_vergleich, onlinepreise, zukauf
 from .angebot import kuerzel_sauber
 from .fracht_daten import FRACHT_TABELLEN
 from .stammdaten import BAUGRUPPEN_VORLAGEN, EINSTELLUNGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, VERWEISE
@@ -82,7 +82,7 @@ ENDUNG = austausch.ENDUNG
 GETEILT = tuple(TABELLEN) + tuple(FRACHT_TABELLEN) + tuple(zukauf.TABELLEN) + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN,
                                                                              POSITIONSVORLAGEN,
                                                                              lernen.GELERNT, bg_zeitlernen.BG_ZEITEN) + onlinepreise.TABELLEN + \
-    (lst_vergleich.ZUORDNUNG, lst_lernen.ENTSCHEIDUNGEN) + kunden_daten.TABELLEN  # Artikel vor Bezug
+    (lst_vergleich.ZUORDNUNG, lst_lernen.ENTSCHEIDUNGEN) + kunden_daten.TABELLEN + austausch_dateien.TABELLEN  # Artikel vor Bezug
 GETEILT_NAME = {t.name: t for t in GETEILT}
 # Verweise über die Zeilen-ID: in der geteilten Datei steht statt der ID die Kennung (uid) der Zielzeile
 ID_VERWEISE = {"zukauf_bezug": {"artikel_id": "zukauf_artikel"}, "zukauf_historie": {"artikel_id": "zukauf_artikel"}}
