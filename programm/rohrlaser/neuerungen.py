@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.473", "<b>Generalüberholung, Paket 2: schnellerer Start und flüssigere Bedienung</b>: Das Hauptfenster "
+                "baut die 29 Seiten der Einstellungen erst, wenn Sie eine davon öffnen ([[einstellungen]]); der "
+                "Aufbau des Hauptfensters dauert im Test 1,25 statt 2,1 s. "
+                "Statt sieben einzelner Ereignisfilter (Darstellung, Mausrad, Enter-Taste, Zeitwächter, Fensterlage, "
+                "Admin-Sperre, Fenstergrößen) gibt es einen gemeinsamen, der jedes Ereignis nur an die Teile gibt, die "
+                "es brauchen: Fenster mit vielen Feldern bauen sich spürbar schneller auf. Alle Rechenergebnisse "
+                "bleiben gleich (Fingerabdruck aller Positionen geprüft).",
+     "Generalüberholung 2: Start und Bedienung schneller"],
     ["0.9.472", "<b>Generalüberholung, Paket 1: schneller und aufgeräumter</b>: Die Datendatei öffnet schneller "
                 "(beim Start rund 600 Datenbank-Anweisungen weniger, 0,6 → 0,3 s im Test), weil die Trigger des "
                 "Änderungsprotokolls stehen bleiben statt bei jedem Öffnen neu angelegt zu werden. Speichern, "

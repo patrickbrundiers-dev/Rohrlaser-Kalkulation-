@@ -12207,7 +12207,9 @@ def kapitel_einstellungen(i):
            "Versand</i>; jede Einstellung steht auf der Seite ihres Themas neben den passenden Stammdaten. Darüber das "
            "<b>Suchfeld</b>: es zeigt nur die Seiten, deren Titel, Spalten oder Einstellungen zum Suchwort passen, und "
            "auf diesen Seiten nur die passenden Einstellungen (z. B. „gewinn“). Enter öffnet den ersten Treffer, "
-           "das × im Feld zeigt wieder alles. Seiten mit 🔒 ändert nur der Admin ([[passwort]]).", kurz=True)
+           "das × im Feld zeigt wieder alles. Seiten mit 🔒 ändert nur der Admin ([[passwort]]). Die Seiten mit "
+           "Einstellungen entstehen erst, wenn Sie sie zum ersten Mal öffnen; so startet das Programm schneller.",
+           kurz=True)
     i.bild("einstellungen_suche", "Einstellungen: Suche nach „gewinn“", hoehe=60 * mm, legende=[
         (1, "<b>Suchfeld</b>"), (2, "Navigation: nur Seiten mit Treffern"),
         (3, "Seite Zuschläge und Preise: nur die passenden Einstellungen")])
