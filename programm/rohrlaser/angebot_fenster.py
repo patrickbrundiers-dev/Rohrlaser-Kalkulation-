@@ -112,6 +112,18 @@ def kopf_zeichen(text):
     t = str(text or "").split(" ")[0]
     return t if t in ("▾", "▸", "│", "└") else ""
 
+
+def _lst_messbar(pfad):
+    """True, wenn die LST genau ein Programm mit einem Teil und einem lesbaren, zum Maschinenweg passenden
+    Schneidweg enthält (dann wird sie wie eine STEP gemessen, step_lst)."""
+    from . import trumpf_programm
+    try:
+        teile = trumpf_programm.lst_lesen(pfad)
+    except (trumpf_programm.TrumpfFehler, OSError, ValueError):
+        return False
+    return len(teile) == 1 and teile[0].get("teile_im_programm") == 1 and bool(teile[0].get("schnittlaenge_material"))
+
+
 class Liste(QAbstractTableModel):
     """Nur-Lese-Tabelle aus dicts. spalten: [(Titel, Schlüssel oder Funktion(zeile), Nachkommastellen, Breite)]."""
 
@@ -6150,6 +6162,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 return 0
             self.db.einstellung_setzen("trumpf_ordner", str(Path(pfade[0]).parent))
         tubx = [p for p in pfade if str(p).lower().endswith(".tubx")]
+        # LST mit genau einem Teil und lesbarem Schneidweg wie eine STEP messen (Patrick 24.11.2026): 3D-Rohr aus
+        # dem Schneidweg, Bohrungen, Konturen, Prüfdialog; Job-Listen und Programme ohne NC bleiben beim Wertepfad
+        tubx += [p for p in pfade if str(p).lower().endswith(".lst") and p not in tubx and _lst_messbar(p)]
         if tubx:        # TUBX wie eine STEP messen (Patrick 20.11.2026): Netz, Bohrungen, Konturen, 3D, Prüfdialog
             stämme = {Path(p).stem.lower() for p in tubx}
             pfade = [p for p in pfade if p not in tubx and Path(p).stem.lower() not in stämme]
@@ -6157,10 +6172,10 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             if not pfade:
                 return len(tubx)
         teile, fehler = tp.lesen(pfade)
-        zeit_an = (self.db.einstellung("trumpf_zeit") or "ja") != "nein"
+        modus = str(self.db.einstellung("trumpf_zeit") or "ja")
         letzter = next((p.get("werkstoff_id") for p in reversed(self.positionen) if p.get("werkstoff_id")), None)
         vorgabe = self.db.einstellung("step_werkstoff") or letzter
-        hinweise, n = [], 0
+        hinweise, klassen, n = [], [], 0
         self.verlauf.pause += 1
         try:
             for t in teile:
@@ -6173,7 +6188,27 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                              einstiche=t["einstiche"])
                 if t["artikel"] != t["programm"]:
                     werte["bezeichnung"] = t["programm"]
-                if zeit_an and t["zeit_s"]:
+                if t.get("enden") or t.get("innen"):     # Konturen je Klasse aus dem Schneidweg der LST
+                    werte["konturen"] = rechnen.konturen_text(t.get("innen") or (), t.get("enden") or ())
+                    m_ = rechnen.maschine(self.kopf, self.k)
+                    if m_ is not None:
+                        grenzen = rechnen.kontur_regel(m_, t.get("wand"))
+                        werte.update(rechnen.konturklassen(t.get("innen") or (), grenzen),
+                                     kontur_grenzen=rechnen.grenzen_text(grenzen))
+                        klassen.append(f"{t['artikel']}: Konturen " + rechnen.klassen_text(werte))
+                daten = {k_: t.get(k_) for k_ in tp._PROGRAMM_FELDER if t.get(k_) not in (None, "")}
+                if daten.get("laser_an_s"):
+                    werte["step_merkmale"] = json.dumps({"programm": daten}, ensure_ascii=False)
+                    if modus == "ja":
+                        klassen.append(f"{t['artikel']}: Zeit aus der LST je Teil: Laser an {daten['laser_an_s']:g} s"
+                                       + (f", Verfahren und Drehen {daten['verfahren_s']:g} s"
+                                          if daten.get("verfahren_s") is not None else "")
+                                       + (f", an der Maschine gemessen {daten['gemessen_s']:g} s"
+                                          if daten.get("gemessen_s") else "")
+                                       + "; dazu berechnet: Nebenzeit, Messen, Entnahme und Beladen")
+                # ja: Laser-an-Zeit = reine Laserzeit, Rest berechnet (rechnen.programm_laserzeit); ohne Laser-an-Zeit
+                # oder ganz: ganze TRUMPF-Zeit je Teil als Schneidzeit von Hand
+                if t["zeit_s"] and (modus == "ganz" or (modus != "nein" and not daten.get("laser_an_s"))):
                     werte["zeit_manuell"] = t["zeit_s"]
                 self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
                 self.positionen.append(dict(werte))
@@ -6186,7 +6221,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         finally:
             self.verlauf.pause -= 1
         bericht = ("Aus TRUMPF-Programm", "\n".join(
-            [f"{t['quelle']}: {t['artikel']} – {tp.text(t)}" for t in teile] + hinweise + fehler))
+            [f"{t['quelle']}: {t['artikel']} – {tp.text(t)}" for t in teile] + hinweise
+            + klassen + fehler))
         if n:
             self.neu_laden()
             text_ = f"{n} Position(en) aus TRUMPF-Programm angelegt"

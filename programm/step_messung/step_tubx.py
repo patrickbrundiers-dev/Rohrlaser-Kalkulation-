@@ -238,7 +238,20 @@ def koerper_bauen(punkte, ix, kreise):
 
 
 def lies_tubx_info(pfad):
-    """TUBX lesen: (Körper, Info) wie step_geometrie.lies_step_info."""
+    """TUBX lesen: (Körper, Info) wie step_geometrie.lies_step_info. Liegt eine gleichnamige LST mit genau einem Teil
+    daneben, wird das Teil aus ihrem Schneidweg gebaut (exakt, step_lst); sonst aus dem Netz."""
+    try:
+        import step_lst
+        lst = step_lst.lst_daneben(pfad)
+        if lst is not None:
+            koerper, info = step_lst.lies_lst_info(lst)
+            if len(koerper) == 1:
+                info["meldungen"].insert(0, f"aus der LST daneben ({Path(str(lst)).name}), genauer als das Netz der TUBX")
+                return koerper, info
+    except (ValueError, OSError) as e:
+        meld_lst = f"LST daneben nicht nutzbar ({e}), Netz der TUBX gemessen"
+    else:
+        meld_lst = None
     teile = inhalt(pfad)
     koerper, meldungen = [], []
     for name, punkte, ix, kreise in teile:
@@ -247,4 +260,6 @@ def lies_tubx_info(pfad):
             meldungen.append(f"{name}: 3D-Modell nicht geschlossen")
         koerper.append(("Volumenkörper" if art != "Flächenmodell offen" else art, form))
     meldungen.append("aus TUBX (TubeCAM): Dreiecksnetz, Bohrungen aus den Modellkreisen exakt, Rundungen als Vieleck")
+    if meld_lst:
+        meldungen.append(meld_lst)
     return koerper, dict(einheit="mm", meldungen=meldungen, baugruppe=len(koerper) > 1, struktur=None, bauteile={})
