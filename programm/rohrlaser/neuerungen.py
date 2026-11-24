@@ -21,13 +21,21 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.475", "<b>Anfragen löschen und Zusammenführen ohne Wiederkehr</b> ([[anfragen_sammeln]]): Nach dem "
+    ["0.9.477", "<b>Anfragen löschen und Zusammenführen ohne Wiederkehr</b> ([[anfragen_sammeln]]): Nach dem "
                 "Zusammenführen und Kalkulieren erschienen die übernommenen Anfragen wieder als neu, weil ihre "
                 "Originale im Anfrage-Ordner liegen blieben. Jetzt kommen sie nach .uebernommen und werden nie neu "
                 "angelegt. Neu ist <i>Löschen …</i> mit dem Ordner <i>Gelöscht</i> und <i>Wiederherstellen</i>. Outlook: Kam dieselbe Mail ein "
                 "zweites Mal (Inhalt schon in der Anfrage), gehörte sie keiner Anfrage, blieb im Eingang liegen und "
                 "wurde nie verschoben. Jetzt wandert sie mit der Anfrage nach In Bearbeitung und Erledigt.",
      "Anfragen löschen; zusammengeführte kommen nicht wieder als neu; Outlook verschiebt auch doppelte Mails"],
+    ["0.9.476", "<b>Rechenkern 2.0, Teil 1: schneller bei genau gleichen Ergebnissen</b>: Staffeln rechnen die "
+                "Schnittzeit je Position nur noch einmal für alle Stufen, denn sie hängt nicht von der Stückzahl ab "
+                "(Staffeln etwa 15–20 % schneller). Beim STEP-Import rechnen die Booleschen "
+                "Operationen auf allen Prozessorkernen (U-Profile mit vielen Konturen etwa 1,3× schneller, alle 126 "
+                "Prüf-STEPs zusammen 11 %). Jede Zahl bleibt gleich. Neu in der Diagnose: <b>Leistung je "
+                "Verarbeitungsschritt</b> mit Median, 95-%-Wert, CPU, Arbeitsspeicher und Anzahl je Schritt "
+                "(STEP-Import mit Teilschritten, Optimieren, Kalkulation, Staffeln, PDF …) ([[diagnose]]).",
+     "Staffeln und STEP-Import schneller (bitgleich); Leistung je Schritt in der Diagnose"],
     ["0.9.474", "<b>Nesting: Stangenabwicklung und 3D auf CAD/CAM-Niveau</b> ([[nesting]]): neue Hauptansicht "
                 "<i>Abwicklung</i> je Materialstange, maßstäblich mit echtem Umfang (Eckradien, Seiten bzw. Grad), "
                 "jedes Teil an seinem Platz aus dem Nesting mit Drehung und Wenden, Gehrungen, Bohrungen, Langlöcher "
