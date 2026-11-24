@@ -121,15 +121,51 @@ def abweichungen(zeilen):
             if z.get("diff_pct") is not None and z.get("ist_s") is not None and not z.get("geometrie")}
 
 
+_CACHE = {}
+
+
+def _stand(db):
+    """Stand der Produktionsdaten und Zuordnungen (ändert sich nur beim Einlesen bzw. Zuordnen)."""
+    a = db.con.execute("SELECT COUNT(*), MAX(gelesen) FROM lst_teile").fetchone()
+    b = db.con.execute(f"SELECT COUNT(*), MAX(am) FROM {lv.ZUORDNUNG.name}").fetchone()
+    return (id(db), tuple(a), tuple(b))
+
+
+def daten(db):
+    """(Teile, Abweichungen) mit Merker je Stand: der Vergleich rechnet die zugeordneten Angebote und läuft deshalb
+    nur nach neuem Einlesen oder Zuordnen erneut."""
+    from . import produktion_lst as pl
+    st = _stand(db)
+    if _CACHE.get("stand") != st:
+        teile = pl.teile(db)
+        zeilen = lv.vergleich(db, teile) if any(t.get("zeiten_gemessen") for t in teile) else []
+        _CACHE.update(stand=st, teile=teile, ab=abweichungen(zeilen))
+    return _CACHE["teile"], _CACHE["ab"]
+
+
 def angebot(db, positionen, teile=None, zeilen=None):
     """Bewertung je Laserposition eines Angebots: [(Position, Bewertung)]."""
-    from . import produktion_lst as pl
-    teile = teile if teile is not None else pl.teile(db)
-    if zeilen is None:
-        zeilen = lv.vergleich(db, teile) if any(t.get("zeiten_gemessen") for t in teile) else []
-    ab = abweichungen(zeilen)
+    if teile is None and zeilen is None:
+        teile, ab = daten(db)
+    else:
+        from . import produktion_lst as pl
+        teile = teile if teile is not None else pl.teile(db)
+        ab = abweichungen(zeilen or [])
     k = db.kontext()
     return [(p, bewertung(p, k, teile, ab)) for p in positionen if p.get("profil_id")]
+
+
+def kurz(b):
+    """'gut (5 gemessene vergleichbare Teile, ±8 %)' für Listen und KI."""
+    st = next(x["stufe"] for x in b["bereiche"] if x["bereich"] == "Bearbeitungszeit")
+    if b["gemessen"]:
+        t = f"{b['gemessen']} gemessene vergleichbare Teile" + (f", ±{b['abweichung_pct']:.1f} %"
+                                                                  if b["abweichung_pct"] is not None else "")
+    elif b["cam"]:
+        t = f"{b['cam']} vergleichbare Teile nur mit CAM-Zeit"
+    else:
+        t = "keine vergleichbaren Maschinendaten"
+    return f"{st} ({t})".replace(".", ",")
 
 
 def genauigkeit_nach(ergebnisse, merkmal):

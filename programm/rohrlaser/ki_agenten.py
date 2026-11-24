@@ -488,7 +488,34 @@ class ProduktionsKI(Agent):
         t = einsichten.nachkalk_hinweis(ctx.db, ctx.kopf, ctx.positionen, ohne_id=ctx.angebot_id)
         if t:
             out.append(self.b(HINWEIS, t, quelle="Nachkalkulation ähnlicher Aufträge", ziel="kalkulation"))
+        out += self._datenbasis(ctx)
         return out
+
+    def _datenbasis(self, ctx):
+        """Genauigkeitsbewertung je Laserposition aus den Maschinendaten (Produktionsdaten-Intelligenz 24.11.2026):
+        wie viele vergleichbare LST/BPF-Teile es gibt und wie genau die Zeit bei ihnen war; nie höher als belegt."""
+        from . import produktion_genauigkeit as pg
+        try:
+            bw = pg.angebot(ctx.db, ctx.positionen)
+        except Exception:       # noqa: BLE001 – ohne Produktionsdaten-Tabellen (alter Stand) kein Befund
+            protokoll.warnung("ki_agenten: Datenbasis Produktionsdaten nicht lesbar")
+            return []
+        if not bw:
+            return []
+        n_gem = sum(b["gemessen"] for _, b in bw)
+        ohne = [str(p.get("pos") or "?") for p, b in bw if not b["vergleichbar"]]
+        teile = [f"Pos. {p.get('pos') or '?'}: {pg.kurz(b)}" for p, b in bw[:6]]
+        out = [self.b(INFO, "Datenbasis der Bearbeitungszeit (Maschinendaten): " + "; ".join(teile)
+                      + (" …" if len(bw) > 6 else ""), quelle="Produktionsdaten-Intelligenz", ziel="lernsystem",
+                      zahlen=dict(gemessen=n_gem, positionen=len(bw)))]
+        if ohne and len(ohne) == len(bw):
+            out.append(self.b(HINWEIS, "Für keine Position gibt es vergleichbare Maschinendaten: die Zeiten sind "
+                              "reine Rechnung. Gelaufene LST-Dateien einlesen verbessert die Datenbasis.",
+                              quelle="Produktionsdaten-Intelligenz", ziel="lernsystem"))
+        return out
+
+    def _maschinendaten(self, db):
+        return _maschinendaten_befunde(self, db)
 
     def uebersicht(self, db, heute=None):
         from . import ki_lernhistorie
@@ -499,12 +526,40 @@ class ProduktionsKI(Agent):
                               f"{_z(a['soll'])} € ({'+' if a['prozent'] > 0 else ''}{_z(a['prozent'], 1)} %), "
                               f"größte Abweichung: {a['groesste']}.", quelle="Nachkalkulation",
                               zahlen=dict(prozent=round(a["prozent"], 1))))
+        out += self._maschinendaten(db)
         from . import kostentreiber
         k = kostentreiber.auswertung(db, heute)
         for z in [z for z in k.get("abmessungen") or () if z.get("abweichung") is not None][:3]:
             out.append(self.b(HINWEIS, f"{z['name']}: Laufzeit Ist {_z(100 * z['abweichung'], 0)} % gegen Soll "
                               f"({z['n_ist']} Aufträge mit Ist-Zeit).", quelle="Kostentreiber"))
         return out
+
+
+def _maschinendaten_befunde(agent, db):
+    """Ursachen der Zeitabweichung über alle zugeordneten Maschinendaten und Zeitmodelle je Konturklasse."""
+    from . import lst_vergleich, produktion_abgleich, produktion_lst, produktion_zeitmodell
+    out = []
+    try:
+        teile = produktion_lst.teile(db)
+        if not teile:
+            return []
+        zeilen = lst_vergleich.vergleich(db, teile)
+        erg = produktion_abgleich.auswerten(db, zeilen)
+    except Exception:       # noqa: BLE001
+        protokoll.warnung("ki_agenten: Maschinendaten nicht auswertbar")
+        return []
+    _, urs = produktion_abgleich.zusammenfassung(erg)
+    for u, d in sorted(urs.items(), key=lambda x: -abs(x[1]["median_s"]))[:3]:
+        if d["n"] >= 3:
+            out.append(agent.b(HINWEIS, f"Maschinendaten: häufigste Ursache der Zeitabweichung „{u}“, im Mittel "
+                               f"{_z(d['median_s'], 1)} s je Teil ({d['n']} Teile).", quelle="Produktionsdaten-Abgleich",
+                               ziel="lernsystem", zahlen=dict(median_s=d["median_s"], n=d["n"])))
+    for m in produktion_zeitmodell.modelle(teile, [e["zeile"] for e in erg]):
+        if m["status"] == "ok":
+            out.append(agent.b(INFO, "Zeitmodell je Konturklasse: " + produktion_zeitmodell.text(m),
+                               quelle="Produktionsdaten-Zeitmodell", ziel="lernsystem",
+                               zahlen=dict(n=m["n"], programme=m["programme"])))
+    return out
 
 
 class LernKI(Agent):
