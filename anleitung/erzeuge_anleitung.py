@@ -5277,7 +5277,7 @@ def kapitel_step(i):
         ["<b>Datei</b> (sofort)", "Format (AP203, AP214, AP242), Einheit, Baugruppen, Bauteile, Körper, Flächen, "
          "vermutete Normteile und geschätzte Messzeit: gelesen aus dem Text der Datei, bevor die Messung fertig ist"],
         ["<b>Bauteilbaum</b>", "alle Körper nach Rohr/Profil, Blech, Dreh-/Frästeil, Normteil/Zukaufteil und nicht "
-         "messbar; Doppelklick = Einzelteil, Rechtsklick → <i>Art ändern</i>"],
+         "messbar; Doppelklick oder Rechtsklick → <i>Einzelteil zeigen</i> = Einzelteil, Rechtsklick → <i>Art ändern</i>"],
         ["<b>3D-Ansicht</b>", "dieselbe Ansicht wie in allen 3D-Fenstern: drehen, zoomen, verschieben, Blick "
          "(vorn, oben, Seite, Isometrie), perspektivisch oder orthografisch, Darstellungen (Schattiert, Mit Kanten, "
          "Drahtgitter, Durchsichtig, Technisch …), Auswahl von Körper, Fläche, Kante, Messen (Abstand, Winkel, Ø, "
