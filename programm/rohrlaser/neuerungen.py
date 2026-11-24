@@ -32,6 +32,20 @@ NEUERUNGEN = [
                 "<i>Experte</i> mit feinerem 3D-Netz (Messwerte bleiben gleich) und gemessene Ladezeiten. Die "
                 "STEP-Messung liefert dazu je 3D-Linie die Konturnummer; alle Messwerte bleiben bitgleich.",
      "Eigener STEP-Viewer: Konturen farbig mit Berechnungswerten, Erkennung korrigierbar, Experten-Netz"],
+    ["0.9.470", "<b>Nesting-Arbeitsplatz 2.0</b> ([[nesting]]): neuer Aufbau mit Bauteilen, Material und Resten "
+                "links, dem Bild in der Mitte (Bearbeiten 2D, Stangenbild wie in der Optimierung, 3D), Kennzahlen "
+                "rechts und Optimierungsvergleich, Kosten, Berechnungsprotokoll und CSV-Export unten; Bereiche ein- "
+                "und ausblendbar. Teile lassen sich mit der Maus frei auf der Stange, auf eine andere oder eine neue "
+                "Stange ziehen (geprüft, Reihenfolge bleibt so), Stangen auflösen und von Hand verschachteln, mit "
+                "Rückgängig, Wiederholen und Zurücksetzen je Abmessung oder alles. Das Bild zeigt Gehrungen "
+                "ineinander, gemeinsame Schnitte, Schnittfugen, Rest/Verschnitt, Maßkette und Lineal, auch im "
+                "Stangenbild des Angebots. Neue Strategien <i>F Wenigste Stangen</i>, <i>G Geringster Verschnitt</i>, "
+                "<i>H Schnellrechnung</i>; jede Strategie wird technisch geprüft (unzulässige nie empfohlen); die "
+                "Zeile „aktuell“ zeigt den gespeicherten Plan. Schneller: gleiche Zwischenergebnisse je Abmessung "
+                "nur einmal (große Baugruppe 6/12 m 20,6 s → 4,4 s, Ergebnis bitgleich); während der Rechnung "
+                "Live-Stand. Rechtsklick im Stangenbild öffnet die Stange im Arbeitsplatz; der Reiter Optimierung "
+                "schlägt eine bessere Verschachtelung mit gerechnetem Vorteil vor.",
+     "Nesting-Arbeitsplatz 2.0: neuer Aufbau, Teile ziehen, von Hand verschachteln, 3D, Machbarkeit, schneller"],
     ["0.9.469", "<b>Staffelpreise = Angebotskalkulation</b>: Jede Staffelstufe kostet jetzt Cent für Cent so viel wie "
                 "ein normales Angebot mit derselben Menge. Bisher fehlten in den Staffeln Rabatt, Verpackung, "
                 "Finanzierung, Runden und Frachtfrei des Angebots (Staffel z. B. 4,7 % teurer als das Angebot bei "
