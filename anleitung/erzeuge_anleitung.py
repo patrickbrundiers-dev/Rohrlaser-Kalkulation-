@@ -7984,7 +7984,7 @@ def kapitel_staffeln(i):
            "Lieferlängen sind dieselben wie im Angebot; mit <b>Lieferlänge je Stufe wählen</b> = ja (unter "
            "Erweitert) nimmt die Stufe die empfohlene Lieferlänge für ihre Mengen ([[lieferlaengen]]), bei großen "
            "Mengen also z. B. 12 m.")
-    i.text("Das Fenster einer Stufe ist aufgebaut und wird bedient wie ein eigenes Angebot (seit 0.9.468): oben "
+    i.text("Das Fenster einer Stufe ist aufgebaut und wird bedient wie ein eigenes Angebot (seit 0.9.469): oben "
            "der Kopf der Stufe, darunter dieselben Reiter wie im Angebot – <b>Positionen</b>, <b>Kalkulation</b> "
            "(Kalkulation, Zeiten &amp; Arbeitskosten), <b>Schnittplan</b> (Stangen), <b>Einstellungen</b> "
            "(Einstellungen, Materialpreise, Wirksame Werte) und <b>Übersicht</b> – und unten die Summenzeile.",
