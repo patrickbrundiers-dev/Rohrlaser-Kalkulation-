@@ -32,6 +32,9 @@ STEP_ENDUNGEN = (".step", ".stp")
 IGES_ENDUNGEN = (".igs", ".iges")
 BLM_ENDUNGEN = (".artube", ".bpf")      # BLM/Adige ArTube-Projekt und Teileprogramm (step_messung/step_blm.py)
 CAD_ENDUNGEN = STEP_ENDUNGEN + IGES_ENDUNGEN + (".tubx",) + BLM_ENDUNGEN    # TUBX (#593) und BLM messen wie STEP
+# TRUMPF-LST misst der STEP-Import aus dem Schneidweg (step_messung/step_lst.py, 24.11.2026); einzeln gewählt oder
+# abgelegt geht sie über „Aus TRUMPF-Programm“ (trumpf_programm), dort wird sie bei einem Teil ebenfalls gemessen
+LST_ENDUNG = ".lst"
 ZIP_ENDUNGEN = (".zip",)
 # Herstellerformate: Name für die Meldung
 NATIV = {
@@ -257,9 +260,12 @@ def vorbereiten(pfade, basis=None):
 
 def blm_doppelte(dateien):
     """BPF-Dateien, deren ArTube-Projekt (gleicher Name, gleicher Ordner) auch in der Liste steht: die ARTUBE liest das
-    BPF daneben selbst (Teil nur einmal messen)."""
-    artube = {(Path(p).parent, Path(p).stem.lower()) for p in dateien if Path(p).suffix.lower() == ".artube"}
-    return [p for p in dateien if Path(p).suffix.lower() == ".bpf" and (Path(p).parent, Path(p).stem.lower()) in artube]
+    BPF daneben selbst (Teil nur einmal messen). Ebenso LST-Dateien neben ihrer TUBX (die TUBX liest die LST)."""
+    def paare(endung):
+        return {(Path(p).parent, Path(p).stem.lower()) for p in dateien if Path(p).suffix.lower() == endung}
+    artube, tubx = paare(".artube"), paare(".tubx")
+    return [p for p in dateien if (Path(p).suffix.lower() == ".bpf" and (Path(p).parent, Path(p).stem.lower()) in artube)
+            or (Path(p).suffix.lower() == LST_ENDUNG and (Path(p).parent, Path(p).stem.lower()) in tubx)]
 
 
 def fehler_zeilen(vorbereitung, vorlage=None):
