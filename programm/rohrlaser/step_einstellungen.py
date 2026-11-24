@@ -55,9 +55,13 @@ def mess_argumente(db):
     # Erkennung aus ist: dann bleiben sie Fertigungsteile und brauchen die volle Messung
     if (db.einstellung("step_zukauf_begriffe") or "ja") != "ja":
         args.append("--normteile-voll")
-    if (db.einstellung("step_cache") or "ja") == "ja":
+    from .stammdaten import STEP_CACHE_WAHL
+    cache = db.einstellung("step_cache") or "ja"
+    if cache in STEP_CACHE_WAHL[:2]:
         args += ["--cache", str(cache_ordner(db)), "--cache-mb", f"{_zahl(db, 'step_cache_mb', 500):g}",
                  "--kennung", VERSION]
+        if cache == STEP_CACHE_WAHL[1]:     # CAD-Kern 3.0: auch gelesene Körper merken (step_lesecache.py)
+            args.append("--lesecache")
     return args
 
 

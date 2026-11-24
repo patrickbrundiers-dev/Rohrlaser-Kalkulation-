@@ -1349,6 +1349,7 @@ class Einstellung:
 
 
 # Strategien der Verschachtelung (nesting.STRATEGIEN), erste Stelle = Kennbuchstabe
+STEP_CACHE_WAHL = ("ja", "ja, mit gelesenen Körpern", "nein")     # Einstellung step_cache (CAD-Kern 3.0)
 NESTING_AUSWAHL = ("bisher", "A Minimaler Materialverbrauch", "B Geringste Materialkosten",
                    "C Maximale Reststückverwertung", "D Schnellste Fertigung", "E Ausgewogen")
 
@@ -1772,8 +1773,10 @@ EINSTELLUNGEN = (
                 "ganz", 0, 0, 64),
     Einstellung("step_zeitlimit", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper vereinfacht gemessen)",
                 "STEP-Import", "ganz", 600, 0, 3600),
+    # CAD-Kern 3.0 (24.11.2026): dritte Wahl „ja, mit gelesenen Körpern“ (step_lesecache, große Baugruppen lesen beim
+    # zweiten Mal in Sekunden statt Minuten; Werte können in der letzten Stelle abweichen, daher nicht Vorgabe)
     Einstellung("step_cache", "Messung: Zwischenspeicher (gleiche Datei nicht neu messen)", "STEP-Import", "auswahl",
-                "ja", auswahl="janein"),
+                "ja", auswahl="stepcache"),
     Einstellung("step_cache_mb", "Messung: Zwischenspeicher höchstens [MB]", "STEP-Import", "ganz", 500, 10, 100000),
     # Toleranzen der Erkennung (Vorgaben = bisher feste Werte)
     Einstellung("step_tol_profil", "Toleranz Profil aus den Stammdaten ± [mm]", "STEP-Import", "zahl", 0.15, 0, 5),
@@ -2460,7 +2463,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(n for n, z in self.profile.items() if not _archiviert(z)), "janein": ["ja", "nein"], "trumpfzeit": ["ja", "ganz", "nein"], "programmeinstiche": ["enthalten", "eigen"], "nesting": list(NESTING_AUSWAHL), "kundentyp": ["Firma", "Privatkunde", "Händler", "Lieferant"], "kundenstatus": ["Aktiv", "Inaktiv", "Gesperrt"], "waehrung": ["EUR", "CHF", "USD", "GBP", "PLN", "CZK"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(n for n, z in self.profile.items() if not _archiviert(z)), "janein": ["ja", "nein"], "stepcache": list(STEP_CACHE_WAHL), "trumpfzeit": ["ja", "ganz", "nein"], "programmeinstiche": ["enthalten", "eigen"], "nesting": list(NESTING_AUSWAHL), "kundentyp": ["Firma", "Privatkunde", "Händler", "Lieferant"], "kundenstatus": ["Aktiv", "Inaktiv", "Gesperrt"], "waehrung": ["EUR", "CHF", "USD", "GBP", "PLN", "CZK"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"], "sd_quelle": list(SD_QUELLEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),

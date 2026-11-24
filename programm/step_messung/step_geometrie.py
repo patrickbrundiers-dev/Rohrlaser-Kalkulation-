@@ -4785,6 +4785,7 @@ def _beruehrende_anbauteile(teile, koerper, netz, rahmen=None):
     andere = [(t, k) for t, (art, k) in zip(teile, koerper) if art != "Flächenmodell offen" and
               not _ist_rohr(t) and (t.bauteiltyp in ("Blech", "Blech gekantet") or
                                     t.profilform in ("Rundstahl", "Vierkantstahl", ""))]
+    huellen = {}
     for t, k in rohre:
         if not andere:
             break
@@ -4792,9 +4793,11 @@ def _beruehrende_anbauteile(teile, koerper, netz, rahmen=None):
         rb = Bnd_Box()
         BRepBndLib.Add_s(solid, rb, False)
         rb.Enlarge(max(ANBAU_KONTAKT, NAHT_SPALT))
-        for ta, ka in andere:
-            kb = Bnd_Box()
-            BRepBndLib.Add_s(ka, kb, False)
+        for ia, (ta, ka) in enumerate(andere):
+            kb = huellen.get(ia)
+            if kb is None:      # CAD-Kern 3.0: Hülle je Körper einmal (bisher für jedes Rohr neu, Rohre × Teile)
+                kb = huellen[ia] = Bnd_Box()
+                BRepBndLib.Add_s(ka, kb, False)
             if rb.IsOut(kb):
                 continue
             if getattr(t, "_rahmen", None) is None:
@@ -5233,25 +5236,46 @@ def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None, stand=None):
         bb.Enlarge(max(NAHT_KONTAKT, NAHT_SPALT))
         boxen.append(bb)
     out, paare = [], 0
-    for i in range(len(koerper_)):
-        for j in range(i + 1, len(koerper_)):
-            if boxen[i].IsOut(boxen[j]):
-                continue
-            paare += 1
-            if paare > NAHT_PAARE_MAX:
-                if stand is not None:
-                    stand["vollstaendig"] = False
-                return out
-            (ta, ka), (tb, kb) = koerper_[i], koerper_[j]
-            try:
-                k_ = _naht_paar(ta, ka, tb, kb, struktur, rahmen)
-            except Exception as f:  # ein Paar darf die übrigen Nahtkandidaten nie verhindern (Patrick 04.11.2026)
-                if stand is not None:
-                    stand.setdefault("fehler", []).append(f"Körper {ta.koerper}/{tb.koerper}: {f or type(f).__name__}")
-                continue
-            if k_ is not None:
-                out.append(k_)
+    for i, j in _ueberlappende_paare(boxen):
+        paare += 1
+        if paare > NAHT_PAARE_MAX:
+            if stand is not None:
+                stand["vollstaendig"] = False
+            return out
+        (ta, ka), (tb, kb) = koerper_[i], koerper_[j]
+        try:
+            k_ = _naht_paar(ta, ka, tb, kb, struktur, rahmen)
+        except Exception as f:  # ein Paar darf die übrigen Nahtkandidaten nie verhindern (Patrick 04.11.2026)
+            if stand is not None:
+                stand.setdefault("fehler", []).append(f"Körper {ta.koerper}/{tb.koerper}: {f or type(f).__name__}")
+            continue
+        if k_ is not None:
+            out.append(k_)
     return out
+
+
+def _ueberlappende_paare(boxen, rand=1e-6):
+    """Alle Paare (i, j), i < j, deren Hüllquader sich überlappen (not boxen[i].IsOut(boxen[j])), in derselben
+    Reihenfolge wie die doppelte Schleife über i und j (CAD-Kern 3.0, räumliche Suche). Statt n²/2 Vergleichen in
+    Python: nach der x-Lage sortiert nur Quader prüfen, die sich in x überschneiden (Sweep), dann je Paar wie bisher
+    exakt mit IsOut. rand: Sicherheitszuschlag der Vorauswahl, entscheidend bleibt IsOut."""
+    lage = []
+    for i, b in enumerate(boxen):
+        if b.IsVoid():
+            continue                    # leere Hülle: IsOut ist immer wahr
+        a, e = b.CornerMin(), b.CornerMax()       # mit Zuschlag (Gap) wie IsOut
+        x0, y0, z0, x1, y1, z1 = a.X(), a.Y(), a.Z(), e.X(), e.Y(), e.Z()
+        lage.append((x0, x1, y0, y1, z0, z1, i))
+    lage.sort()
+    paare, aktiv = [], []
+    for x0, x1, y0, y1, z0, z1, i in lage:
+        aktiv = [a for a in aktiv if a[1] >= x0 - rand]
+        for a in aktiv:
+            if a[2] <= y1 + rand and y0 <= a[3] + rand and a[4] <= z1 + rand and z0 <= a[5] + rand:
+                paare.append((min(i, a[6]), max(i, a[6])))
+        aktiv.append((x0, x1, y0, y1, z0, z1, i))
+    paare.sort()
+    return [(i, j) for i, j in paare if not boxen[i].IsOut(boxen[j])]
 
 
 ERREICH_WEG = 150.0         # mm: so weit muss der Brenner vom Nahtpunkt aus frei sein (Brennerlänge, Plan V3)
@@ -5681,14 +5705,27 @@ class Gelesen:
 def datei_lesen(pfad, name=None):
     """STEP-Datei lesen (lies_step_info) und gleiche Körper suchen. Wirft ValueError, wenn sie nicht lesbar ist."""
     import os
-    koerper, info = lies_step_info(pfad)
+    import step_lesecache       # CAD-Kern 3.0: gelesene und geheilte Körper merken (Einlesen ist fast nur Heilung)
     einzeln = os.environ.get("STEP_MESSEN_EINZELN")         # nur für Tests: jeden Körper selbst messen
+    if not einzeln:
+        gemerkt = step_lesecache.laden(pfad)
+        if gemerkt is not None:
+            koerper, info, gleich, gedreht = gemerkt
+            return Gelesen(name or _Path(pfad).stem, koerper, info, gleich, gedreht)
+    koerper, info = lies_step_info(pfad)
     if einzeln:
         return Gelesen(name or _Path(pfad).stem, koerper, info, {})
     uhr = time.monotonic()
     gleich = _instanzen(koerper)
     gedreht = _gedrehte(koerper, gleich)
     info.setdefault("phasen", {}).update(kopien_s=time.monotonic() - uhr, verschoben=len(gleich), gedreht=len(gedreht))
+    if step_lesecache.merken(pfad, koerper, info, gleich, gedreht):
+        # gleich die gemerkten Körper messen: erstes und jedes weitere Lesen (und alle Messprozesse) rechnen dann mit
+        # derselben Form bis aufs letzte Bit (step_lesecache, Abschnitt „Bitgleichheit“)
+        gemerkt = step_lesecache.laden(pfad)
+        if gemerkt is not None:
+            phasen = dict(info.get("phasen") or {}, lesecache_s=gemerkt[1]["phasen"]["lesecache_s"])
+            koerper, info = gemerkt[0], dict(gemerkt[1], phasen=phasen)
     return Gelesen(name or _Path(pfad).stem, koerper, info, gleich, gedreht)
 
 
@@ -5696,11 +5733,12 @@ def _instanzen(koerper):
     """Körper, die nur verschobene Kopien eines früheren sind (dieselbe Geometrie im CAD, z. B. 8 gleiche Stützen
     einer Baugruppe): {Nummer: (Nummer des Vorbilds, Verschiebung (x, y, z))}. Gedrehte oder gespiegelte Kopien
     werden einzeln gemessen, weil die Messung Ende A und die Lage der Konturen nach der Lage im Raum wählt."""
-    gleich, vorbilder = {}, []
+    gleich, vorbilder = {}, {}
     for nr, (art, k) in enumerate(koerper, start=1):
         if art != "Volumenkörper":
             continue
-        for vnr, vk in vorbilder:
+        fach = vorbilder.setdefault(_teilform(k), [])
+        for vnr, vk in fach:
             if not k.IsPartner(vk):
                 continue
             rel = k.Location().Transformation().Multiplied(vk.Location().Transformation().Inverted())
@@ -5711,8 +5749,15 @@ def _instanzen(koerper):
                 gleich[nr] = (vnr, (v.X(), v.Y(), v.Z()))
                 break
         else:
-            vorbilder.append((nr, k))
+            fach.append((nr, k))
     return gleich
+
+
+def _teilform(k):
+    """Fach für die Kopiensuche (CAD-Kern 3.0): Streuwert der gemeinsamen Geometrie (TShape, ohne Lage und
+    Orientierung). Nur Körper im selben Fach können Partner sein (IsPartner prüft danach wie bisher); bisher wurde
+    jeder Körper mit jedem früheren verglichen (n² Vergleiche, 10.000 Körper ≈ 50 Mio. Aufrufe)."""
+    return hash(k.Located(TopLoc_Location()))
 
 
 GEDREHT_UEBERNEHMEN = ("Blech", "Blech gekantet", "Drehteil", "Frästeil")
@@ -5724,11 +5769,12 @@ def _gedrehte(koerper, gleich):
     12 Zahlen: Zeilen der Drehung mit Verschiebung)}. Ohne verschobene Kopien (gleich) und ohne Spiegelungen.
     Bleche, Kantteile, Dreh- und Frästeile (GEDREHT_UEBERNEHMEN) übernehmen die Messung des Vorbilds (uebertragbar);
     Rohre und Profile werden weiter selbst gemessen (Ende A und Konturen nach der Lage im Raum)."""
-    out, vorbilder = {}, []
+    out, vorbilder = {}, {}
     for nr, (art, k) in enumerate(koerper, start=1):
         if art != "Volumenkörper" or nr in gleich:
             continue
-        for vnr, vk in vorbilder:
+        fach = vorbilder.setdefault(_teilform(k), [])
+        for vnr, vk in fach:
             if not k.IsPartner(vk):
                 continue
             rel = k.Location().Transformation().Multiplied(vk.Location().Transformation().Inverted())
@@ -5742,7 +5788,7 @@ def _gedrehte(koerper, gleich):
             out[nr] = (vnr, tuple(zeilen[0] + [v.X()] + zeilen[1] + [v.Y()] + zeilen[2] + [v.Z()]))
             break
         else:
-            vorbilder.append((nr, k))
+            fach.append((nr, k))
     return out
 
 

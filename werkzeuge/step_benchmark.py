@@ -114,7 +114,8 @@ def _starten(befehl, umgebung, zeitlimit):
     return rc, time.perf_counter() - t0, cpu, ram, "".join(ausgabe)
 
 
-def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600, erwartung=None):
+def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600, erwartung=None, lesecache=None,
+         lesecache_ab=None):
     baum, ergebnis = Path(baum), Path(ergebnis)
     messen = baum / "programm" / "step_messung" / "step_messen.py"
     if not messen.exists():
@@ -123,6 +124,10 @@ def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600, erwa
     liste = dateien(pfade)
     basis = Path(os.path.commonpath([str(p.resolve().parent) for p in liste])) if liste else Path(".")
     umgebung = dict(os.environ, PYTHONHASHSEED="0", PYTHONDONTWRITEBYTECODE="1")
+    if lesecache:       # Lese-Zwischenspeicher (step_lesecache) ohne Ergebnis-Zwischenspeicher: Messung läuft voll
+        umgebung["STEP_LESECACHE"] = str(Path(lesecache).resolve())
+        if lesecache_ab is not None:
+            umgebung["STEP_LESECACHE_AB"] = str(lesecache_ab)
     werte = {}
     for p in liste:
         n = _name(p, basis)
@@ -271,6 +276,8 @@ def main(argv=None):
     a.add_argument("pfade", nargs="+")
     a.add_argument("--prozesse", type=int, default=0)
     a.add_argument("--zeitlimit", type=int, default=600)
+    a.add_argument("--lesecache", help="Ordner des Lese-Zwischenspeichers (step_lesecache), Messung ohne Ergebnis-Cache")
+    a.add_argument("--lesecache-ab", type=float, help="Lese-Zwischenspeicher schon ab so vielen Sekunden Lesedauer")
     a.add_argument("--erwartung", help="JSON {Dateiname: {Körpernummer: Art}} für die Trefferquote der Erkennung")
     s = sub.add_parser("suite")
     s.add_argument("ergebnis")
@@ -283,7 +290,8 @@ def main(argv=None):
     x = ap.parse_args(argv)
     if x.befehl == "lauf":
         erw = json.loads(Path(x.erwartung).read_text(encoding="utf-8")) if x.erwartung else None
-        lauf(x.baum, x.ergebnis, x.pfade, x.prozesse, x.zeitlimit, erwartung=erw)
+        lauf(x.baum, x.ergebnis, x.pfade, x.prozesse, x.zeitlimit, erwartung=erw, lesecache=x.lesecache,
+             lesecache_ab=x.lesecache_ab)
         return 0
     if x.befehl == "suite":
         print(suite(x.ergebnis, x.bericht))
