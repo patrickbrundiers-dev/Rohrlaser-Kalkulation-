@@ -789,7 +789,8 @@ class NestingDialog(QDialog):
             try:
                 self._db.einstellung_setzen(ANSICHT_EINSTELLUNG, name)
             except Exception:       # noqa: BLE001 – nur lesen: Ansicht nicht merken
-                pass
+                from . import protokoll
+                protokoll.warnung("Nesting: Ansicht nicht gemerkt")
         self._nebenansichten()
 
     def _stange_nr(self):
