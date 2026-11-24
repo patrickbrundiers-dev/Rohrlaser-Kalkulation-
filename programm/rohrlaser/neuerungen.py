@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.477", "<b>Rechenkern 2.0, Teil 2: Import robuster, Speicher sparsamer</b>: Ist in einer STEP-Baugruppe ein "
+    ["0.9.482", "<b>Rechenkern 2.0, Teil 2: Import robuster, Speicher sparsamer</b>: Ist in einer STEP-Baugruppe ein "
                 "Körper beschädigt, fehlt er nicht mehr still: bei jedem Körper steht <i>STEP-Leser meldet: 1 von 48 "
                 "Volumenkörpern der Datei nicht lesbar (beschädigt?) …</i>, die übrigen Körper werden wie bisher "
                 "gemessen ([[step]]). Stürzt das Lesen einer stark beschädigten Datei ab, sagt die Meldung jetzt, "
