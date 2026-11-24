@@ -9,6 +9,7 @@ größten Arbeitsspeicher (Spitze eines Messprozesses). Der Vergleich zweier Lä
 Aufruf:
     python werkzeuge/step_benchmark.py lauf BAUM ERGEBNIS DATEI_ODER_ORDNER … [--prozesse 0] [--zeitlimit 600]
     python werkzeuge/step_benchmark.py vergleich ERGEBNIS_ALT ERGEBNIS_NEU [--toleranz 0] [--bericht DATEI.md]
+                                             [--ohne FELD …]   (neue Felder nicht vergleichen)
     python werkzeuge/step_benchmark.py suite ERGEBNIS [--bericht DATEI.md]
 
 lauf hält je Datei außerdem fest: STEP-Schema (AP203/AP214/AP242) und Größenklasse, Zeit je Schritt (lesen,
@@ -144,25 +145,25 @@ def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600, erwa
     return werte
 
 
-def unterschiede(a, b, toleranz=0.0, pfad=""):
+def unterschiede(a, b, toleranz=0.0, pfad="", ohne=()):
     """Alle Unterschiede zweier JSON-Werte als [(Pfad, alt, neu)]; Zahlen gelten bei |a−b| ≤ toleranz·max(1,|a|,|b|)
     als gleich (toleranz 0 = bitgleich). Flüchtige Felder (Zeitpunkt, Version) zählen nicht."""
     out = []
     if isinstance(a, dict) and isinstance(b, dict):
         for k in sorted(set(a) | set(b), key=str):
-            if k in FLUECHTIG:
+            if k in FLUECHTIG or k in ohne:
                 continue
             if k not in a:
                 out.append((f"{pfad}.{k}", "—", b[k]))
             elif k not in b:
                 out.append((f"{pfad}.{k}", a[k], "—"))
             else:
-                out.extend(unterschiede(a[k], b[k], toleranz, f"{pfad}.{k}"))
+                out.extend(unterschiede(a[k], b[k], toleranz, f"{pfad}.{k}", ohne))
     elif isinstance(a, list) and isinstance(b, list):
         if len(a) != len(b):
             out.append((f"{pfad}[Anzahl]", len(a), len(b)))
         for i, (x, y) in enumerate(zip(a, b)):
-            out.extend(unterschiede(x, y, toleranz, f"{pfad}[{i}]"))
+            out.extend(unterschiede(x, y, toleranz, f"{pfad}[{i}]", ohne))
     elif isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool) \
             and not isinstance(b, bool):
         if a != b and abs(a - b) > toleranz * max(1.0, abs(a), abs(b)):
@@ -179,7 +180,7 @@ def _lade(p):
         return {"_fehler": f"{type(e).__name__}: {e}"}
 
 
-def vergleich(alt, neu, toleranz=0.0, bericht=None):
+def vergleich(alt, neu, toleranz=0.0, bericht=None, ohne=()):
     """Messwerte und Zeiten zweier Läufe vergleichen; Ergebnis dict(gleich, anders, fehlt, zeilen, faktor)."""
     alt, neu = Path(alt), Path(neu)
     za, zn = _lade(alt / "benchmark.json"), _lade(neu / "benchmark.json")
@@ -191,7 +192,7 @@ def vergleich(alt, neu, toleranz=0.0, bericht=None):
         if not q.exists():
             fehlt.append(p.name)
             continue
-        u = unterschiede(_lade(p), _lade(q), toleranz)
+        u = unterschiede(_lade(p), _lade(q), toleranz, ohne=set(ohne))
         (anders.__setitem__(p.name, u) if u else gleich.append(p.name))
         n = p.name[:-5]
         a, b = za.get(n) or {}, zn.get(n) or {}
@@ -279,6 +280,8 @@ def main(argv=None):
     v.add_argument("alt")
     v.add_argument("neu")
     v.add_argument("--toleranz", type=float, default=0.0)
+    v.add_argument("--ohne", nargs="*", default=[], help="Felder ohne Vergleich, z. B. neue Felder eines neueren "
+                   "Ergebnisformats (geometriepruefung genauigkeit schema_version)")
     v.add_argument("--bericht")
     x = ap.parse_args(argv)
     if x.befehl == "lauf":
@@ -288,7 +291,7 @@ def main(argv=None):
     if x.befehl == "suite":
         print(suite(x.ergebnis, x.bericht))
         return 0
-    e = vergleich(x.alt, x.neu, x.toleranz, x.bericht)
+    e = vergleich(x.alt, x.neu, x.toleranz, x.bericht, x.ohne)
     print(f"gleich {e['gleich']}, anders {len(e['anders'])}, fehlen {len(e['fehlt'])}; "
           f"Summe {e['alt_s']} s -> {e['neu_s']} s (Faktor {e['faktor']})")
     for n, u in e["anders"].items():

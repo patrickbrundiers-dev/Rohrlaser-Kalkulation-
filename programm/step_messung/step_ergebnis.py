@@ -154,11 +154,19 @@ Versionen von SCHEMA_VERSION:
 - 1.30 (19.11.2026): Flächenkatalog im 3D-Netz (Messplan M3): "fk" = je STEP-Fläche {a: Ebene/Zylinder/Kegel/Kugel/
   Torus/Freiform, f: Fläche [mm²], r, r2, w}, "tf" = je Art und Dreieck die Nummer in "fk". Lageunabhängig; das
   Programm misst damit Ø, Radien und Flächen von STEP-Teilen exakt. Felder aus 1.29 unverändert.
+- 1.31 (24.11.2026): Geometrieprüfung (step_qualitaet, Master-Auftrag CAD-Importkern): je Körper "geometriepruefung"
+  {status korrekt/unsicher/reparierbar/fehlerhaft, toleranz {max, mittel, punkte, kanten, flaechen, stufe
+  fein/normal/grob/kritisch}, offene_kanten, falsch_orientiert, freiform_flaechen, flaechen, fehler {Code: Anzahl},
+  hinweise, reparatur {klasse 1/2/3, text, vorher, nachher, abweichung, genauigkeit_mm, max_toleranz_mm} oder null,
+  eingelesen, cad_referenz {status bestätigt/prüfen/abweichung, volumen_rel, flaeche_rel, schwerpunkt_mm, quelle},
+  doppelt_zu, gemessen_mit_reparatur}; je Datei "genauigkeit" {schema, system, einheit, faktor_mm, unsicherheit_mm,
+  cad_pruefwerte, status {Status: Anzahl}, toleranz_max, toleranz_stufe, reparaturen {Klasse: Anzahl}, cad_abgleich,
+  doppelte_koerper}. Messwerte unverändert (die Messung rechnet mit dem Körper wie gelesen). Felder aus 1.30 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.30"
+SCHEMA_VERSION = "1.31"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Flachoval", "Halbflachoval", "Elliptisch", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -270,6 +278,7 @@ def koerper(t):
         "art_grund": t.art_grund or None,
         "arten": ({gr: {k: v for k, v in koerper(a).items() if k != "nr"} for gr, a in (t.arten or {}).items()}
                   | {gr: {"grund": gd} for gr, gd in (t.arten_grund or {}).items()}) or None,
+        "geometriepruefung": t.qualitaet,
     }
 
 
@@ -279,7 +288,7 @@ def datei(name, teile=None, fehler=None):
         return {"datei": name, "importstatus": "nicht lesbar", "fehler": fehler, "einheit_datei": None,
                 "einheit_ausgabe": "mm", "meldungen": [], "warnungen": [], "baugruppe": None, "struktur": None, "nahtkandidaten": [],
                 "ohne_naht": [],
-                "anzahl_koerper": 0, "koerper": []}
+                "anzahl_koerper": 0, "genauigkeit": None, "koerper": []}
     meldungen = teile[0].meldungen
     leer = [h for t in teile if not t.koerper for h in t.hinweise]     # z. B. "Kein Körper … in der Datei"
     return {
@@ -295,6 +304,7 @@ def datei(name, teile=None, fehler=None):
         "nahtkandidaten": list(teile[0].naehte or []),
         "ohne_naht": list(teile[0].ohne_naht) if teile[0].ohne_naht is not None else None,
         "anzahl_koerper": len([t for t in teile if t.koerper]),
+        "genauigkeit": teile[0].pruefung_datei,
         "koerper": [koerper(t) for t in teile if t.koerper],
     }
 

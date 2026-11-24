@@ -64,11 +64,13 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "pruefstatus", "netz", "bauteiltyp", "blech", "stegdicke", "flanschdicke", "normprofil",
            "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "senkungen", "fliessloecher", "anbauteile",
            "trennung", "gravur_anbau", "kammern", "kontur_umfang", "verbund", "bauteil", "pfad", "knoten", "ersatz",
-           "biegerohr", "knick_schenkel", "offene_seite", "drehfraes", "art_grund", "arten", "geschlossen", "alternative", "fehler"]
+           "biegerohr", "knick_schenkel", "offene_seite", "drehfraes", "art_grund", "arten", "geschlossen", "alternative", "pruefung", "pruefung_datei", "fehler"]
+# Spalten "pruefung" / "pruefung_datei" (STEP-Messung 1.31, step_qualitaet): Geometrieprüfung des Körpers bzw. Kennzahlen der
+# Datei als JSON wie "geometriepruefung" / "genauigkeit" im JSON-Ergebnis; leer = nicht geprüft
 # Spalte "alternative": Grenzfall Flachstahl/Blech bzw. Profil/Kantteil, das Teil in der anderen Art gemessen, bzw.
 # bei abgetrennten Anbauteilen die Messung ohne Trennung, als JSON {Spalte: Wert} mit den Messwerten (ohne Datei, Artikel, Körper, Netz); leer = keine Alternative
 OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "bauteil", "pfad", "knoten", "geschlossen", "alternative",
-                    "fehler", "arten")
+                    "fehler", "arten", "pruefung", "pruefung_datei")
 # Spalte "geschlossen": offen gezeichnetes Quadrat-/Rechteckrohr (step_offenes_rohr), das Teil als Rohr mit Stegen
 # gemessen, JSON {Spalte: Wert} wie "alternative"; leer = kein offenes Rohr
 # Spalte "offene_seite": offen gezeichnetes Rohr als Rohr gemessen (in "geschlossen" bzw. nach dem Umschalten), JSON
@@ -260,7 +262,9 @@ def _zeile(t, name, artikel, netz):
             _knick_schenkel(t),
             json.dumps(t.offene_seite, ensure_ascii=False, separators=(",", ":")) if t.offene_seite else "",
             json.dumps(t.drehfraes, ensure_ascii=False, separators=(",", ":")) if t.drehfraes else "",
-            _text(t.art_grund), "", "", "", ""])
+            _text(t.art_grund), "", "", "",
+            json.dumps(t.qualitaet, ensure_ascii=False, separators=(",", ":")) if t.qualitaet else "",
+            json.dumps(t.pruefung_datei, ensure_ascii=False, separators=(",", ":")) if t.pruefung_datei else "", ""])
 
 
 def _knick_schenkel(t):
