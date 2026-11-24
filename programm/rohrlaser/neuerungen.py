@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.474", "<b>Austauschordner 2.0</b> ([[austausch]]): neue Seite <b>Austausch</b> unter Arbeiten, der "
+    ["0.9.475", "<b>Austauschordner 2.0</b> ([[austausch]]): neue Seite <b>Austausch</b> unter Arbeiten, der "
                 "gemeinsame Ordner als Datei- und Projektverwaltung im Programm. Liste oder Kacheln mit Vorschau, "
                 "Suche über alle Bereiche (auch Kommentare und Dateiinhalt), Filter nach Typ, Mitarbeiter, Kunde, "
                 "Status und Zeitraum, Favoriten, zuletzt verwendet, gespeicherte Suchen. Hochladen per Knopf oder "
