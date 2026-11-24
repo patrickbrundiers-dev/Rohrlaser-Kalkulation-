@@ -146,6 +146,18 @@ Größte Einzelgewinne: K08 U80x40x4 16,5 → 1,1 s, K07 15,9 → 1,2 s, K06 10,
 T06 QR40 mit Langlöchern 0,98 → 0,35 s. Genauigkeit: 123/124 Dateien gleich, I10 siehe Abschnitt 4. RAM und CPU je
 Prozess: siehe `docs/performance/abwicklungskern_2411.md` (step_benchmark, eigene Prozesse).
 
+**Eigene Prozesse wie STEP-Import.exe** (`RL_ABWICKLUNGSKERN=aus|an python werkzeuge/step_benchmark.py lauf …
+--prozesse 1`, 55 Dateien aus step, step_konturen, step_offen, step_profile, step_regression, step_rp,
+step_importengine, nacheinander): Dauer **249,8 s → 140,6 s (1,78)**, CPU-Zeit 246,7 s → 157,4 s, RAM-Spitze je
+Prozess 287 MB → 287 MB (Mittel 285 MB, unverändert). Der JSON-Vergleich ungerundet (Toleranz 1e-4) zeigt Unterschiede
+nur bei:
+- Lage der Wandstärke-Messstellen (z, Seite): andere Schnittlagen, gleiche Werte (±0,001 mm),
+- Stützpunkten der Umrisse für die Darstellung (meist ≤ 0,2 mm, bei anderer Punktzahl verschoben gezählt),
+- I10 (Fehlerbehebung, oben),
+- P02 Variante „aus dem Rohr“: Schwenkwinkel von Ende A 30,0° → 11,7°. Dieses „Ende“ umfasst dort das ganze Fenster
+  (1.478 mm Schnitt), der Winkel ist schon bisher nicht aussagekräftig. Der Schneidweg ist gleich. Bleibt als Punkt für
+  Stufe 3.
+
 Abnahmekriterien: 1 Beschleunigung nachgewiesen. 2 und 3: Genauigkeit gleich, Schnittwege innerhalb 0,01 mm. 4 Rückfall
 automatisch in 41 Fällen geprüft. 5 Modus aus = bisheriger Code, die bestehenden Tests unverändert. 6 Große Dateien:
 I05 Baugruppe 48 Teile 11,7 → 10,5 s, gleich. Echte große Baugruppen (MASTER TOWER, Pizza-Ofen) liegen hier nicht vor.
