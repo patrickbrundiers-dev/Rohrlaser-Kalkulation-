@@ -66,8 +66,8 @@ for name, datei, k, prozesse, teilen_ab, kopien in (("verteilt", GESTELL, 1, 3, 
        f"{gesamt:.0f} s, die übrigen Teile gleich")
 
 # ------------------------------------------------------------------ Prüfdialog mit Nachmessung
-from PySide6.QtCore import QProcess  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtCore import QProcess, Qt  # noqa: E402
+from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
 
 from rohrlaser import nachmessung  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
@@ -106,6 +106,79 @@ k3 = next(m for m in mw if str(m["koerper"]) == "3")
 assert k3["profilform"] == "Quadratrohr" and k3["_stueck"] == 7 and k3.get("_netz"), k3
 assert "2 langsame(s) Teil(e) nachgemessen" in d.nachmess_info.text(), d.nachmess_info.text()
 ok("OK wartet auf das langsame Teil, es rückt nach (Messwerte, 3D, Stückzahl aus dem Dialog bleibt)")
+nach.beenden()
+
+# ------------------------------------------------------------------ Fehler 24.11.2026: Nachtragen + nicht mehr warten
+# Patrick: „Profile nachtragen … 2 Steps langsam … abbrechen … Rohr mit 30 Bohrungen dauerte nur 2 Sekunden“. Der
+# Platzhalter stand unter „Nicht übernehmbar“ mit „Von Hand nachtragen“; der Nachtrag (Länge aus dem Hüllmaß, ohne
+# Bohrungen) ging beim Abbrechen ins Angebot.
+
+
+def dialog_mit_platzhalter(name):
+    p_ = QProcess()
+    e_ = p_.processEnvironment()
+    for k_, v in umgebung(RAHMEN, 3, 99).items():
+        e_.insert(k_, v)
+    p_.setProcessEnvironment(e_)
+    b_ = befehl(name, RAHMEN, 1)
+    p_.start(b_[0], b_[1:])
+    zw_ = TMP / f"{name}.txt.zwischen"
+    while not zw_.exists() and p_.state() != QProcess.NotRunning:
+        app.processEvents()
+        time.sleep(0.1)
+    time.sleep(0.3)
+    assert p_.state() != QProcess.NotRunning, "Messung schon fertig"
+    n_ = nachmessung.Nachmessung(p_, TMP / f"{name}_ordner", TMP / f"{name}.txt", TMP / f"{name}_n",
+                                 TMP / f"{name}.json")
+    mw_ = step.struktur_anhaengen(step.lade_netze(step.lies_messwerte(zw_), TMP / f"{name}_n"),
+                                  Path(str(TMP / f"{name}.json") + ".zwischen"))
+    d_ = StepPruefDialog(None, mw_, k, "S235-10219", 1, nachmessung=n_)
+    d_.show()
+    app.processEvents()
+    return d_, n_, mw_
+
+
+d, nach, mw = dialog_mit_platzhalter("abbruch")
+platz = [i for i, m in enumerate(mw) if step.noch_in_messung(m)]
+assert len(platz) == 2, platz
+zeilen_platz = [g.child(n) for g in d.fehler_gruppen.values() for n in range(g.childCount())
+                if g.child(n).data(1, Qt.UserRole) in platz]
+assert len(zeilen_platz) == 2 and all(z.childCount() == 0 for z in zeilen_platz), "kein Nachtragen am Platzhalter"
+assert d.von_hand(platz[0], "Quadratrohr", "QR 40x40x3") is None
+ok("Platzhalter „Messung läuft noch“: kein „Von Hand nachtragen“ (Länge aus dem Hüllmaß wäre ohne Bohrungen)")
+
+# alter Stand (vor dem Fix nachgetragen): Nachtrag zählt weiter als „Messung läuft noch“
+assert step.von_hand(mw[platz[0]], "Quadratrohr", "QR 40x40x3", k.profile)
+assert step.noch_in_messung(mw[platz[0]]) and mw[platz[0]]["_uebernehmen"] is True
+d._baum_fuellen()
+nach.warten = lambda *a, **kw: False        # „Nicht mehr warten …“
+d.ohne_langsame = False                     # Frage: „Zurück zur Liste (weiter messen)“
+d.accept()
+assert d.result() != QDialog.Accepted and nach.laeuft(), "zurück zur Liste: nicht übernommen, Messung läuft weiter"
+ok("Nicht mehr warten → „Zurück zur Liste“: nichts übernommen, die Messung läuft weiter")
+d.ohne_langsame = True                      # Frage: „Ohne diese Teile übernehmen“
+d.accept()
+assert d.result() == QDialog.Accepted
+assert sorted(d.nicht_gemessen) == sorted(str(mw[i]["artikel"]) for i in platz), d.nicht_gemessen
+for i in platz:
+    assert mw[i]["_uebernehmen"] is False and not mw[i].get("profilform") and not mw[i].get("_original"), mw[i]
+k_ = Datenbank(TMP / "b.db").kontext()
+erg = step.uebernehmen(mw, [], k_, [], None)
+arts = {p.get("artikel") for p in erg["positionen"]}
+assert not arts & set(d.nicht_gemessen), arts
+ok("Ohne diese Teile übernehmen: Platzhalter (auch nachgetragene) kommen nicht ins Angebot, nur in den Bericht")
+nach.beenden()
+
+# Messung kommt nach einem (alten) Nachtrag doch noch: die Messung ersetzt den Nachtrag ganz
+d, nach, mw = dialog_mit_platzhalter("nachtrag")
+platz = [i for i, m in enumerate(mw) if step.noch_in_messung(m)]
+step.von_hand(mw[platz[0]], "Rechteckrohr", "RR 60x40x3", k.profile)
+nach.proz.waitForFinished(120000)
+assert d.nachmessung_pruefen() == 2
+m3 = mw[platz[0]]
+assert m3["profilform"] == "Quadratrohr" and not m3.get("_original") and m3.get("_profil") is None, m3.get("_profil")
+assert float(m3["schneidweg"]) > 300 and m3.get("_netz"), m3["schneidweg"]
+ok("Nachtrag vor dem Ende der Messung: die Messung ersetzt ihn (Profil, Konturen, Schneidweg aus der STEP)")
 nach.beenden()
 db.con.close()
 print("Langsame Teile im Hintergrund: alle Tests bestanden.")
