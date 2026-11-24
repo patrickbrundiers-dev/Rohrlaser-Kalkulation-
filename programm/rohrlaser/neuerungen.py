@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.478", "<b>Generalüberholung, Paket 2: schnellerer Start und flüssigere Bedienung</b>: Das Hauptfenster "
+    ["0.9.479", "<b>Generalüberholung, Paket 2: schnellerer Start und flüssigere Bedienung</b>: Das Hauptfenster "
                 "baut die 29 Seiten der Einstellungen erst, wenn Sie eine davon öffnen ([[einstellungen]]); der "
                 "Aufbau des Hauptfensters dauert im Test 1,25 statt 2,1 s. "
                 "Statt sieben einzelner Ereignisfilter (Darstellung, Mausrad, Enter-Taste, Zeitwächter, Fensterlage, "
