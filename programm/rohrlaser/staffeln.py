@@ -549,7 +549,9 @@ def stufe_bepreisen(lz, stufe, mz, einst, alle=None, positionen=None):
     for (x, w, e, anh), (xn, _, _, _) in zip(fertig, neutral):
         b = x.get("bausteine") or {}
         if x.get("preis") and xn.get("preis") and isinstance(b.get("verkauf"), (int, float)):
-            angleich = dict(betrag=b["verkauf"] - xn["preis"]["netto"], gehoben=_zahl(b.get("mindest_angebot")) > 0,
+            # Musterkosten als eigene Zeile stehen in der Kalkulation neben den Teilen (summen: verkauf + einmalig)
+            vk = b["verkauf"] + _zahl(xn["preis"].get("muster_einmalig"))
+            angleich = dict(betrag=vk - xn["preis"]["netto"], gehoben=_zahl(b.get("mindest_angebot")) > 0,
                             extra=any(_wert(w, n) is not None for n in STAFFEL_EXTRA)
                             or xn["preis"]["netto"] != x["preis"]["netto"])
             x = preise_anwenden(x, w, e, alle, positionen, anhebung=anh, angleich=angleich)

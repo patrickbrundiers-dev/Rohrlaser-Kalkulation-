@@ -27,7 +27,10 @@ NEUERUNGEN = [
                 "gleicher Menge). Gewinn, Zuschläge, Gaspreise und alle anderen rechenrelevanten Einstellungen "
                 "rechnen die Stufen neu, nie mehr veraltete Werte. Neu: Unterreiter <b>Übersicht</b> im Reiter "
                 "Staffeln mit Herstellkosten, Material, Maschine, Personal, Zusatz, Gemeinkosten, Gewinn, Netto, "
-                "Deckungsbeitrag, Marge und Gegenprobe je Stufe ([[staffel_wie_angebot]])."],
+                "Deckungsbeitrag, Marge und Gegenprobe je Stufe ([[staffel_wie_angebot]]). Das Fenster einer Stufe "
+                "ist jetzt aufgebaut und wird bedient wie ein eigenes Angebot: Reiter Positionen, Kalkulation, "
+                "Schnittplan, Einstellungen und Übersicht, Summenzeile und <b>Übernehmen und rechnen</b>.",
+     "Staffelpreise rechnen wie das Angebot; Stufenfenster wie ein eigenes Angebot"],
     ["0.9.466", "<b>Update-Paket bauen</b>: Das Werkzeug für das Online-Update brach auf Windows nach dem fertigen "
                 "Paket ab, wenn im Änderungstext ein Sonderzeichen stand, das die Windows-Konsole nicht darstellen "
                 "kann (z. B. ein Pfeil). Jetzt erscheint so ein Zeichen in der Ausgabe als Ersatztext und das "

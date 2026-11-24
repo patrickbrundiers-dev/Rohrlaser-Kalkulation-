@@ -7956,18 +7956,32 @@ def kapitel_staffeln(i):
            "Lieferlängen sind dieselben wie im Angebot; mit <b>Lieferlänge je Stufe wählen</b> = ja (unter "
            "Erweitert) nimmt die Stufe die empfohlene Lieferlänge für ihre Mengen ([[lieferlaengen]]), bei großen "
            "Mengen also z. B. 12 m.")
-    i.bild("staffel_stufe", "Fenster einer Stufe: Einstellungen, Materialpreise und Mengen", hoehe=110 * mm, legende=[
-        (1, "Einstellungen wie im Angebot. Leere Felder zeigen grau den Wert des Angebots."),
+    i.text("Das Fenster einer Stufe ist aufgebaut und wird bedient wie ein eigenes Angebot (seit 0.9.467): oben "
+           "der Kopf der Stufe, darunter dieselben Reiter wie im Angebot – <b>Positionen</b>, <b>Kalkulation</b> "
+           "(Kalkulation, Zeiten &amp; Arbeitskosten), <b>Schnittplan</b> (Stangen), <b>Einstellungen</b> "
+           "(Einstellungen, Materialpreise, Wirksame Werte) und <b>Übersicht</b> – und unten die Summenzeile.",
+           kurz=True)
+    i.bild("staffel_positionen", "Fenster einer Stufe, Reiter Positionen", hoehe=110 * mm, legende=[
+        (1, "<b>Kopf der Stufe</b>: Nummer, Bezeichnung und Stand des letzten Mengenlaufs (Teile, Stangen)."),
+        (2, "Reiter wie im Angebot: Positionen, Kalkulation, Schnittplan, Einstellungen, Übersicht."),
+        (3, "<b>Positionen und Mengen</b>: Häkchen = Satz bzw. Position gehört zur Stufe (neue Stufe: alle "
+            "angehakt; <b>Alle</b> / <b>Keine</b> haken alle an bzw. ab). Mengen in Sätzen bzw. Stück; eine Menge "
+            "eintragen hakt die Zeile an. <b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen "
+            "die angehakten Zeilen. <b>Menge bis</b> ist freiwillig. Rechts stehen wie in der Positionsliste des "
+            "Angebots <b>Preis je Einheit</b> und <b>Gesamt</b> der Stufe."),
+        (4, "<b>Summenzeile</b> wie im Angebot: Material, Herstellkosten, Gewinn, Netto gesamt, Marge und die "
+            "Gegenprobe gegen die Angebotskalkulation."),
+        (5, "<b>Übernehmen und rechnen</b>: Eingaben speichern und die Stufe sofort neu rechnen; das Fenster bleibt "
+            "offen und zeigt den neuen Stand – wie das Angebot nach einer Änderung. <b>OK</b> speichert und "
+            "schließt.")])
+    i.bild("staffel_stufe", "Fenster einer Stufe, Reiter Einstellungen", hoehe=110 * mm, legende=[
+        (1, "Einstellungen wie im Kopf des Angebots. Leere Felder zeigen grau den Wert des Angebots."),
         (2, "<b>Frachtkosten</b>: fester Betrag für die ganze Stufe; leer = Fracht wie im Angebot (mit der Frachtart "
             "<i>berechnet</i> für die Mengen der Stufe)."),
         (3, "<b>Erweitert</b>: Materialzuschlag, Verlust, Grundpreis, Gemeinkosten, Rüsten separat, zusätzlicher "
-            "Arbeitsgang, Nebenkosten, Rabatt und Lieferlänge je Stufe (Tabelle unten)."),
-        (4, "<b>Materialpreis je Abmessung</b> (Profil · Werkstoff): €/m im Angebot grau, daneben der Preis für diese "
-            "Stufe (leer = wie im Angebot). Er gilt für alle Positionen dieser Abmessung in der Stufe."),
-        (5, "<b>Positionen und Mengen</b>: Häkchen = Satz bzw. Position gehört zur Stufe (neue Stufe: alle "
-            "angehakt; <b>Alle</b> / <b>Keine</b> haken alle an bzw. ab). Mengen in Sätzen bzw. Stück; eine Menge "
-            "eintragen hakt die Zeile an. <b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen "
-            "die angehakten Zeilen. <b>Menge bis</b> ist freiwillig.")])
+            "Arbeitsgang, Nebenkosten, Rabatt und Lieferlänge je Stufe."),
+        (4, "Unterreiter <b>Materialpreise</b> (€/m je Abmessung: im Angebot grau, daneben der Preis für diese Stufe, "
+            "leer = wie im Angebot) und <b>Wirksame Werte</b>.")])
     i.text("<b>Standard-Staffeln</b>: Der Knopf legt die Standard-Staffeln an, z. B. für 10 Stück die Stufen 10, 20 "
            "und 50; danach rechnet das Programm sie selbst. Das Angebots-PDF legt keine Stufen an. Die "
            "Faktoren stehen in den Einstellungen, Gruppe Angebot, unter <i>Standard-Staffeln: Faktoren auf die "
@@ -8045,7 +8059,9 @@ def kapitel_staffeln(i):
             "Deckungsbeitrag, Marge, Einsparung zur kleinsten Menge und die <b>Gegenprobe</b>: "
             "„= Angebotskalkulation“ (grün) oder „mit Sonderwerten der Stufe“.",
             "Im Kostenbaum (Unterreiter <i>Kosten</i>) steht die <b>Preisschicht des Angebots</b> als eigene "
-            "Gruppe mit Verpackung, Finanzierung, Rabatt, Rundung usw., wenn sie etwas ausmacht.",
+            "Gruppe, wenn sie etwas ausmacht: Mannlose Laufzeit, Neuteil-Zuschlag, Angebotsregeln (Zuschlag), "
+            "Verpackung (Stammdaten), Finanzierung, Frachtfrei ab Warenwert, Rabatt des Angebots, Preis gerundet und "
+            "Preis von Hand je Baugruppe.",
             "Prüfung: der Test <i>test_staffel_wie_angebot</i> rechnet Abnahme-Angebote, Sätze und Schweißbaugruppen "
             "mit allen Kalkulationsparametern als Angebot und als Staffel und vergleicht jeden Preis auf den Cent.")
     i.abschnitt("Mindestmarge, Kennzahlen und Preis von Hand je Stufe", marke="staffel_mindestmarge")
@@ -8177,27 +8193,29 @@ def kapitel_staffeln(i):
                (4, "<b>Kompakt</b>: das Wichtigste je Bauteil; ohne Häkchen alle Spalten der Kalkulation."),
                (5, "Kalkulation je Bauteil mit den Stückzahlen der Stufe: Profil, Länge, Material, Laserzeit, "
                    "Verkaufspreis je Teil – wie im Angebot.")])
-    i.text("Ein Doppelklick auf eine Stufe zeigt neben den Einstellungen die Reiter <b>Kalkulation</b>, "
-           "<b>Stangen</b>, <b>Zeiten</b> und <b>Wirksame Werte</b> – dieselben Werte wie im Angebot, für die Mengen "
-           "der Stufe.",
+    i.text("Ein Doppelklick auf eine Stufe öffnet sie wie ein eigenes Angebot: <b>Kalkulation</b> mit Zeiten, "
+           "<b>Schnittplan</b>, <b>Einstellungen</b> mit Wirksamen Werten und <b>Übersicht</b> – dieselben Werte wie "
+           "im Angebot, für die Mengen der Stufe.",
            kurz=True)
     i.genauer()
-    i.text("Das Fenster der Stufe hat fünf Reiter. <i>Einstellungen und Mengen</i> ist zum Bearbeiten (siehe "
-           "oben). Die anderen vier zeigen, womit die Stufe gerechnet wurde, aus ihrem letzten Mengenlauf: "
-           "<b>Kalkulation</b> wie der Reiter Kalkulation des Angebots ([[kalkulation]]), <b>Zeiten</b> wie der "
-           "Reiter Zeiten &amp; Arbeitskosten, <b>Stangen</b> wie der Unterreiter Stangen im Reiter Staffeln (siehe "
-           "unten) und <b>Wirksame Werte</b>: je Einstellung der Wert, mit dem die Stufe "
+    i.text("Bearbeitet werden die Reiter <i>Positionen</i> und <i>Einstellungen</i> (siehe oben). Die anderen "
+           "zeigen, womit die Stufe gerechnet wurde, aus ihrem letzten Mengenlauf: <b>Kalkulation</b> wie der "
+           "Reiter Kalkulation des Angebots ([[kalkulation]]), Unterreiter <b>Zeiten &amp; Arbeitskosten</b> wie im "
+           "Angebot, <b>Schnittplan › Stangen</b> wie der Unterreiter Stangen im Reiter Staffeln (siehe unten), "
+           "<b>Übersicht</b> je Satz bzw. Position wie im Reiter Staffeln und <b>Einstellungen › Wirksame Werte</b>: "
+           "je Einstellung der Wert, mit dem die Stufe "
            "rechnet, und ob er aus der Stufe oder aus dem Angebot kommt, dazu Materialpreis €/m und Lieferlänge je "
            "Abmessung und die Stundensätze. Werte der Stufe sind gelb.")
-    i.text("Gewinn und Zuschläge wirken in der Stufe sofort, ohne neuen Mengenlauf. Die Tabelle je Bauteil zeigt "
-           "sie so, wie sie beim Mengenlauf galten; deshalb steht oben der <b>Preis der Stufe</b> mit dem "
-           "Unterschied und seinem Grund. Werte unter <i>Erweitert</i> (Materialzuschlag, Verlust, Nebenkosten …) "
-           "und der Mindestpreis wirken nur im Staffelpreis.")
-    i.bild("staffel_zeiten", "Reiter Zeiten der Stufe", hoehe=80 * mm, legende=[
+    i.text("Gewinn und Zuschläge der Stufe rechnet das Programm wie im Angebot durch die ganze Kalkulation (die "
+           "Stufe wird dafür kurz neu gerechnet; mit <b>Übernehmen und rechnen</b> sofort). Oben steht der "
+           "<b>Preis der Stufe</b> mit dem Unterschied zur Kalkulation und seinem Grund. Nur die Werte unter "
+           "<i>Erweitert</i> (Materialzuschlag, Verlust, Nebenkosten …) und die Mindestmarge der Staffel wirken "
+           "zusätzlich im Staffelpreis.")
+    i.bild("staffel_zeiten", "Reiter Kalkulation › Zeiten & Arbeitskosten der Stufe", hoehe=80 * mm, legende=[
         (1, "Arbeitsschritte der Stufe mit Menge, Rüstzeit, Zeit je Einheit, Gesamtzeit, Stundensatz und Kosten."),
         (2, "Maschinen-, Personal-, Arbeits- und Durchlaufzeit, Arbeitskosten und die Laserzeit je Satz bzw. "
             "Position.")])
-    i.bild("staffel_werte", "Reiter Wirksame Werte der Stufe", hoehe=80 * mm, legende=[
+    i.bild("staffel_werte", "Reiter Einstellungen › Wirksame Werte der Stufe", hoehe=80 * mm, legende=[
         (1, "Wert, mit dem die Stufe rechnet, und seine Quelle (Stufe gelb, sonst Angebot).")])
     i.text("Auch im Reiter <i>Staffeln</i> stehen die Zeiten: die Gruppe <b>Zeiten</b> im Ergebnis zeigt je Stufe "
            "die Laserzeit je Einheit und gesamt und die Maschinen-, Personal-, Arbeits- und Durchlaufzeit der "

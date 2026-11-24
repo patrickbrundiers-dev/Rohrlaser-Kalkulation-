@@ -239,23 +239,27 @@ def _feld_text(f, w):
 
 
 class StufeDialog(QDialog):
-    """Fenster einer Stufe: Einstellungen wie im Angebot (leer = Wert des Angebots, grau angezeigt), Erweitert die
-    Sonderwerte der Preisschicht, Materialpreis €/m je Abmessung und die Mengen je Satz bzw. Position (Häkchen =
-    in dieser Stufe; neue Stufe: alle angehakt). Die ganze Stufe wird als ein Auftrag gerechnet."""
+    """Fenster einer Stufe, aufgebaut und bedient wie ein eigenes Angebot (Patrick 24.11.2026): oben der Kopf der
+    Stufe mit dem Stand, darunter die Reiter des Angebots – Positionen (Mengen je Satz bzw. Position, Häkchen = in
+    dieser Stufe, neue Stufe: alle angehakt, dazu der Preis der Stufe), Kalkulation (Kalkulation, Zeiten &
+    Arbeitskosten), Schnittplan (Stangen), Einstellungen (wie im Angebotskopf, leer = Wert des Angebots grau;
+    Erweitert, Materialpreise, Wirksame Werte) und Übersicht – unten die Summenzeile. „Übernehmen und rechnen“
+    speichert und rechnet die Stufe sofort neu, ohne das Fenster zu schließen. Die ganze Stufe wird als ein
+    Auftrag gerechnet."""
 
     def __init__(self, seite, stufe, neu=False):
         super().__init__(seite)
         self.s, self.stufe = seite, dict(stufe)
         a = seite.s
         self.setWindowTitle(f"Stufe {seite.nummer(stufe)} bearbeiten")
-        # Reiter (Patrick 09.11.2026): Einstellungen & Mengen zum Bearbeiten, dazu wie im Angebot die Kalkulation,
-        # die Zeiten und die wirksamen Werte der Stufe aus dem letzten Mengenlauf
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint | Qt.WindowMinimizeButtonHint)
+        # Reiter wie im Angebot (Patrick 24.11.2026: „so wie ein eigenes Angebot bedient und aufgebaut“): Positionen,
+        # Kalkulation, Schnittplan, Einstellungen, Übersicht
         self.reiter = QTabWidget()
         einst_seite = QWidget()
         lay = QVBoxLayout(einst_seite)
-        lay.addWidget(hilfe.Hinweis("Die Stufe wird wie ein eigener Auftrag gerechnet: alle Positionen mit Menge "
-                                    "zusammen optimiert und kalkuliert. Leere Felder (grau) nehmen den Wert des "
-                                    "Angebots. Gleiche Mengen und Werte wie im Angebot ergeben dessen Preise."))
+        lay.addWidget(hilfe.Hinweis("Einstellungen der Stufe wie im Kopf des Angebots. Leere Felder (grau) nehmen den "
+                                    "Wert des Angebots. Gleiche Mengen und Werte wie im Angebot ergeben dessen Preise."))
         self.felder = {}
         form = QGridLayout()
         form.setHorizontalSpacing(8)
@@ -299,15 +303,19 @@ class StufeDialog(QDialog):
             self.preise.setItem(r, 1, w)
             self.preise.setItem(r, 2, e)
         self._tabelle_einrichten(self.preise)
-        lay.addWidget(QLabel("<b>Materialpreis je Abmessung</b> (leer = Preis des Angebots)"))
-        lay.addWidget(self.preise)
+        lay.addStretch(1)
+        preis_seite = QWidget()
+        pl = QVBoxLayout(preis_seite)
+        pl.addWidget(QLabel("<b>Materialpreis je Abmessung</b> (leer = Preis des Angebots)"))
+        pl.addWidget(self.preise, 1)
         # Mengen je Satz bzw. Position
         self.auswahl = staffeln.auswahl(a.positionen)
         da = {staffeln.txt(z.get("schluessel")): z for z in a.stufen if z.get("stufe_id") == stufe.get("id")}
-        self.mengen = QTableWidget(len(self.auswahl), 7)
+        self.mengen = QTableWidget(len(self.auswahl), 9)
         self.mengen.setHorizontalHeaderLabels(["Satz bzw. Position", "Menge im\nAngebot", "Menge ab", "Menge bis",
                                                "Zukauf-EK\n[€/Einheit]", "Preis von Hand\n[€/Einheit]",
-                                               "Grund\n(Preis von Hand)"])
+                                               "Grund\n(Preis von Hand)", "Preis je\nEinheit [€]", "Gesamt [€]"])
+        self.mengen.horizontalHeader().setMinimumHeight(40)
         for c, tipp in ((4, "Einstand der Zukaufteile je Satz bzw. Stück in dieser Stufe (leer = Preis des Angebots). "
                             "Zukaufteile bekommen nur ihren Aufschlag, keinen Gewinn."),
                         (5, "Stückpreis von Hand (leer = berechnet). Wer, wann und der berechnete Preis werden "
@@ -335,8 +343,17 @@ class StufeDialog(QDialog):
                 it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             for c, it in enumerate((t, m, ab, bis, zk, ph, grund)):
                 self.mengen.setItem(r, c, it)
+            for c in (7, 8):                 # Preis der Stufe aus dem letzten Mengenlauf (nur Anzeige)
+                it = QTableWidgetItem("")
+                it.setFlags(Qt.ItemIsEnabled)
+                it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.mengen.setItem(r, c, it)
         self._tabelle_einrichten(self.mengen)
         self.mengen.itemChanged.connect(self._menge_geaendert)
+        pos_seite = QWidget()
+        pos_lay = QVBoxLayout(pos_seite)
+        pos_lay.addWidget(hilfe.Hinweis("Die Stufe wird wie ein eigenes Angebot gerechnet: alle angehakten Sätze und "
+                                        "Positionen mit ihrer Menge zusammen optimiert und kalkuliert."))
         zeile = QHBoxLayout()
         zeile.addWidget(QLabel("<b>Positionen und Mengen</b> in Sätzen bzw. Stück (Häkchen = in dieser Stufe)"), 1)
         for text, an in (("Alle", True), ("Keine", False)):
@@ -349,21 +366,119 @@ class StufeDialog(QDialog):
             b.setToolTip("Menge ab = Menge im Angebot × Faktor für alle Sätze und Positionen")
             b.clicked.connect(lambda _=False, f=faktor: self.mengen_aus_angebot(f))
             zeile.addWidget(b)
-        lay.addLayout(zeile)
-        lay.addWidget(self.mengen, 1)
-        self.reiter.addTab(einst_seite, "Einstellungen und Mengen")
-        self.ergebnis = StufeErgebnis(seite, stufe)
-        for w, text in ((self.ergebnis.kalk_seite, "Kalkulation"), (self.ergebnis.stangen, "Stangen"),
-                        (self.ergebnis.zeiten_seite, "Zeiten"), (self.ergebnis.werte_seite, "Wirksame Werte")):
-            self.reiter.addTab(w, text)
-        self.ergebnis.werte_setzen(self)
+        pos_lay.addLayout(zeile)
+        pos_lay.addWidget(self.mengen, 1)
+        self.ergebnis = e = StufeErgebnis(seite, stufe)
+        self.uebersicht = UebersichtTabelle()
+        ue_seite = QWidget()
+        ul = QVBoxLayout(ue_seite)
+        ul.addWidget(QLabel("<b>Übersicht der Stufe</b> je Satz bzw. Position: Herstellkosten = Material + Maschine + "
+                            "Personal + Zusatz + Gemeinkosten; Gegenprobe gegen die Angebotskalkulation"))
+        ul.addWidget(self.uebersicht, 1)
+        self.reiter.addTab(pos_seite, "Positionen")
+        self.gruppen = {}
+        for titel, seiten in (("Kalkulation", ((e.kalk_seite, "Kalkulation"), (e.zeiten_seite, "Zeiten & Arbeitskosten"))),
+                              ("Schnittplan", ((e.stangen, "Stangen"),)),
+                              ("Einstellungen", ((einst_seite, "Einstellungen"), (preis_seite, "Materialpreise"),
+                                                 (e.werte_seite, "Wirksame Werte")))):
+            g = QTabWidget()
+            g.setDocumentMode(True)
+            for w, t in seiten:
+                g.addTab(w, t)
+            self.gruppen[titel] = g
+            self.reiter.addTab(g, titel)
+        self.reiter.addTab(ue_seite, "Übersicht")
+        # Kopf der Stufe (wie der Angebotskopf) und Summenzeile unten (wie im Angebot)
+        self.kopf = QLabel()
+        self.kopf.setWordWrap(True)
+        self.kopf.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.summenzeile = QLabel()
+        self.summenzeile.setObjectName("summenzeile")
+        self.summenzeile.setWordWrap(True)
+        self.summenzeile.setTextInteractionFlags(Qt.TextSelectableByMouse)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.rechnen_knopf = knoepfe.addButton("Übernehmen und rechnen", QDialogButtonBox.ApplyRole)
+        self.rechnen_knopf.setToolTip("Eingaben speichern und die Stufe sofort neu rechnen – das Fenster bleibt offen, "
+                                      "Kalkulation, Schnittplan und Übersicht zeigen danach den neuen Stand")
+        self.rechnen_knopf.clicked.connect(self.uebernehmen)
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
+        unten = QHBoxLayout()
+        unten.addWidget(self.summenzeile, 1)
+        unten.addWidget(knoepfe)
         aussen = QVBoxLayout(self)
+        aussen.addWidget(self.kopf)
         aussen.addWidget(self.reiter, 1)
-        aussen.addWidget(knoepfe)
-        self.resize(1100, 760)
+        aussen.addLayout(unten)
+        self.anzeigen()
+        self.resize(1200, 800)
+
+    def reiter_titel(self):
+        """Haupt- und Unterreiter wie im Angebot: ["Positionen", "Kalkulation › Kalkulation", …]."""
+        out = []
+        for i in range(self.reiter.count()):
+            w, t = self.reiter.widget(i), self.reiter.tabText(i)
+            if isinstance(w, QTabWidget) and w in self.gruppen.values():
+                out += [f"{t} › {w.tabText(j)}" for j in range(w.count())]
+            else:
+                out.append(t)
+        return out
+
+    def zeigen(self, w):
+        """Reiter (auch Unterreiter) mit dem Widget w nach vorne holen."""
+        for g in self.gruppen.values():
+            if g.indexOf(w) >= 0:
+                g.setCurrentWidget(w)
+                self.reiter.setCurrentWidget(g)
+                return
+        self.reiter.setCurrentWidget(w)
+
+    def anzeigen(self):
+        """Kopf, Preisspalten der Positionen, Übersicht und Summenzeile aus dem letzten Mengenlauf der Stufe."""
+        e = self.ergebnis
+        e.werte_setzen(self)
+        name = self.stufe.get("bezeichnung") or ""
+        self.kopf.setText(f"<span style='font-size:13pt'><b>Stufe {self.s.nummer(self.stufe)}</b>"
+                          f"{' · ' + name if name else ''}</span> · {e.stand.text()}")
+        je = {staffeln.txt(z.get("schluessel")): z for z in e.zeilen}
+        for r, (schl, _, _) in enumerate(self.auswahl):
+            z = je.get(schl) or {}
+            pe, pg = z.get("preis_einheit"), z.get("preis_gesamt")
+            self.mengen.item(r, 7).setText(_z(pe) if isinstance(pe, (int, float)) else "")
+            self.mengen.item(r, 8).setText(_z(pg) if isinstance(pg, (int, float)) else "")
+        self.uebersicht.setzen(e.zeilen)
+        werte = [staffeln.uebersicht(z) for z in e.zeilen]
+        werte = [u for u in werte if u]
+        if not werte:
+            self.summenzeile.setText("")
+            return
+        summe = {k: sum(u[k] or 0 for u in werte) for k in ("herstell", "material", "gewinn", "netto")}
+        marge = [u["marge"] for u in werte if isinstance(u.get("marge"), (int, float))]
+        proben = {u["gegenprobe"] for u in werte if u.get("gegenprobe")}
+        teile = [f"Material {_z(summe['material'])} €", f"Herstellkosten {_z(summe['herstell'])} €",
+                 f"Gewinn {_z(summe['gewinn'])} €", f"<b>Netto gesamt {_z(summe['netto'])} €</b>"]
+        if len(werte) == 1 and len(marge) == 1:
+            teile.append(f"Marge {_pct(marge[0])}")
+        if proben:
+            teile.append(" · ".join(sorted(proben)))
+        self.summenzeile.setText(" · ".join(teile))
+
+    def uebernehmen(self):
+        """Wie im Angebot: Eingaben übernehmen und die Stufe sofort neu rechnen, das Fenster bleibt offen."""
+        try:
+            werte, preise, mengen = self.werte()
+        except ValueError as e:
+            QMessageBox.warning(self, self.windowTitle(), str(e))
+            return False
+        self.s.stufe_speichern(self.stufe["id"], werte, preise, mengen)
+        if self.s.anzahl_veraltet():
+            self.s.rechnen(alle=False)
+        neu = next((x for x in self.s.modell.daten if x.get("id") == self.stufe.get("id")), None)
+        if neu is not None:
+            self.stufe = dict(neu)
+        self.ergebnis.neu_laden(self.stufe)
+        self.anzeigen()
+        return True
 
     @staticmethod
     def _tabelle_einrichten(t):
@@ -548,12 +663,7 @@ class StufeErgebnis:
         from .angebot_fenster import Liste, _breiten, _tabelle
         from .angebot_spalten import KALK_SPALTEN, KOMPAKT_SPALTEN
         self.s, self.stufe = seite, stufe
-        sid = stufe.get("id")
-        self.zeilen = [z for z in seite.zeilen if sid is not None and z.get("stufe") == sid]
-        self.kalk = next((k for k in (staffeln.kalkulation_der_zeile(seite.zeilen, z) for z in self.zeilen) if k),
-                         None)
-        self.schema = next((sch for sch in (staffeln.schema_der_zeile(seite.zeilen, z) for z in self.zeilen) if sch),
-                           None)
+        self._daten_holen()
         stand = self._stand()
         # ---- Kalkulation
         self.kalk_seite = QWidget()
@@ -605,7 +715,9 @@ class StufeErgebnis:
         # ---- Zeiten
         self.zeiten_seite = QWidget()
         zl = QVBoxLayout(self.zeiten_seite)
-        zl.addWidget(QLabel(stand))
+        self.stand_zeiten = QLabel(stand)
+        self.stand_zeiten.setWordWrap(True)
+        zl.addWidget(self.stand_zeiten)
         quer = QHBoxLayout()
         from .zeiten_seite import SPALTEN as ZEIT_SPALTEN
         self.zeiten = QTableWidget(0, len(ZEIT_SPALTEN))
@@ -636,6 +748,23 @@ class StufeErgebnis:
         self.werte.setColumnWidth(1, 220)
         self.werte.setEditTriggers(QAbstractItemView.NoEditTriggers)
         wl.addWidget(self.werte, 1)
+        self.fuellen()
+
+    def _daten_holen(self):
+        seite, sid = self.s, self.stufe.get("id")
+        self.zeilen = [z for z in seite.zeilen if sid is not None and z.get("stufe") == sid]
+        self.kalk = next((k for k in (staffeln.kalkulation_der_zeile(seite.zeilen, z) for z in self.zeilen) if k),
+                         None)
+        self.schema = next((sch for sch in (staffeln.schema_der_zeile(seite.zeilen, z) for z in self.zeilen) if sch),
+                           None)
+
+    def neu_laden(self, stufe):
+        """Nach „Übernehmen und rechnen“: Mengenlauf der Stufe neu holen und alle Seiten neu füllen."""
+        self.stufe = stufe
+        self._daten_holen()
+        stand = self._stand()
+        self.stand.setText(stand)
+        self.stand_zeiten.setText(stand)
         self.fuellen()
 
     def _stand(self):
