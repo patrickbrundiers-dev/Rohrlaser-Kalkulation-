@@ -25,7 +25,7 @@ GRUPPEN = (
     ("Schweißen und Konstruktion", ("e_schweissen", "e_knick_steck", "schweissverfahren", "schweiss_kennwerte",
                                     "schweiss_faktoren", "schweiss_regeln")),
     ("Kunden", ("kundenvorgaben",)),
-    ("Import", ("e_step", "e_dxf", "importprofile")),
+    ("Import", ("e_step", "e_step_ablauf", "e_dxf", "importprofile")),
     ("Fertigung und Versand", ("e_lager", "e_fertigung", "e_auslastung", "e_versand")),
     ("Fracht", ("fracht_zonen", "fracht_tarife", "fracht_lht", "fracht_zuschlaege", "fracht_dienstleister",
                 "fracht_historie")),

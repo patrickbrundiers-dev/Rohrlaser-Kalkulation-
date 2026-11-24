@@ -27,6 +27,15 @@ NEUERUNGEN = [
                 "im Arbeitsablauf des Angebots und die gewählte Spaltenansicht (<i>Alle</i>, <i>Erfassen</i> …). Sie "
                 "haben jetzt dunkle Schrift (6,9 bzw. 8,8 : 1). Hell und Hoher Kontrast sind unverändert ([[einstellungen]]).",
      "Generalüberholung 3: Dunkelmodus besser lesbar"],
+    ["0.9.481", "<b>Schnellimport STEP (ohne 3D), optional</b> ([[step]]): neuer Importmodus <i>Schnellkalkulation</i> "
+                "neben dem vollständigen CAD-Import. Gleiche Messung und genau gleiche Kalkulation, aber statt des "
+                "Prüfdialogs mit 3D eine kompakte Ergebnisübersicht (Schneidweg, Konturen, Einstiche, Bearbeitungen, "
+                "Zusatzarbeiten, Genauigkeit je Teil, Kalkulationsstatus); 3D lässt sich später je Position per "
+                "Rechtsklick <i>3D aus STEP nachladen …</i> holen. Spart bis 68 % Arbeitsspeicher, aber nur etwa 5 % "
+                "Zeit, deshalb ist er eine Funktion und standardmäßig aus (Einstellungen → Funktionen → "
+                "<i>Schnellimport STEP (ohne 3D)</i>, danach Seite <i>STEP-Import: Schnellimport</i>). Die "
+                "Kantteil-Gegenprobe ist in beiden Modi 35 % schneller (gleiche Ergebnisse).",
+                "Schnellimport STEP ohne 3D als optionale Funktion (Vorgabe aus), Kantteil-Gegenprobe schneller"],
     ["0.9.480", "<b>STEP-Import: langsame Teile nie halbfertig übernehmen</b> ([[step]]): Ein Teil, das noch gemessen "
                 "wird, lässt sich im Prüfdialog nicht mehr <i>von Hand nachtragen</i> (das gab ein Rohr mit Länge aus "
                 "dem Hüllmaß, aber ohne Bohrungen – z. B. 30 Bohrungen und nur 2 s Laserzeit). Beim Warten auf "

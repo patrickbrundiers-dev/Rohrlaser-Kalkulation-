@@ -5175,6 +5175,54 @@ def kapitel_step(i):
                                                            "übernommene Teil bekommt, z. B. Feuerverzinken"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_importprofile", "Einstellungen, Importprofile (STEP): je Kunde eine Zeile", hoehe=70 * mm)
+    i.abschnitt("Schnellimport: Schneidweg & Zusatzarbeiten ohne 3D", marke="schnellimport")
+    i.text("Seit 0.9.481 gibt es zwei Importmodi. <b>Vollständiger CAD-Import</b> ist der bisherige Weg: Messung, "
+           "Prüfdialog mit 3D-Ansicht, jede Position bekommt den STEP-Körper für 3D-Ansicht und 3D-Editor. "
+           "<b>Schneidweg &amp; Zusatzarbeiten (Schnellkalkulation)</b> misst genauso (dieselbe Messung, dieselben "
+           "Schneidwege, dieselben Werte bis auf die letzte Stelle), baut aber keinen editierbaren 3D-Körper: "
+           "gespeichert werden nur die Linienzüge der Konturen. Statt des Prüfdialogs erscheint eine kompakte "
+           "Ergebnisübersicht, danach rechnet die Kalkulation wie immer. Der Schnellimport ist <b>optional</b> und "
+           "ab Werk ausgeschaltet: <i>Einstellungen → Funktionen → Schnellimport STEP (ohne 3D)</i>. Aus heißt: "
+           "jeder Import ist vollständig, ohne Frage nach dem Modus; die Seite <i>STEP-Import: Schnellimport</i> "
+           "und „3D aus STEP nachladen …“ sind ausgeblendet. Er spart vor allem Arbeitsspeicher (bis 68 %) und den "
+           "Prüfdialog, an Rechenzeit nur etwa 5 %.", kurz=True)
+    i.liste("<b>Modus wählen</b> (Funktion an): nach der Dateiwahl fragt das Fenster <b>STEP-Import: Importmodus</b>. Das Häkchen "
+            "<i>Als Vorgabe für neue Importe merken</i> speichert die Wahl. Unter <i>Einstellungen → STEP-Import: "
+            "Schnellimport → Importmodus</i> stehen <i>STEP-Import: Importmodus als Vorgabe (vollständig oder "
+            "Schnellkalkulation)</i> und <i>STEP-Import: bei jedem Import nach dem Importmodus fragen</i> (nein = "
+            "immer die Vorgabe). „Art ändern …“ und "
+            "das Ersetzen einer Position messen immer vollständig.",
+            "<b>Ergebnisübersicht</b> (Fenster <i>Schnellkalkulation</i>): je Teil Art / Profil / Werkstoff "
+            "(Vorbelegung wie im Prüfdialog), Wand, Länge, "
+            "Schneidweg, Konturen, Einstiche, Anfahrten (je Einstich eine, so rechnet auch die Kalkulation), "
+            "Schnittarten der Enden (gerade, Gehrung, Schrägschnitt), Bearbeitungen (Bohrungen, Langlöcher, "
+            "Ausschnitte …), Zusatzarbeiten (Senkungen, Fließlöcher, Gewinde-Vorschlag, Fasen, Gravuren, nicht "
+            "laserbare Sackbohrungen) und die <b>Genauigkeit</b>. Oben die Summen und der "
+            "<b>Kalkulationsstatus</b>. Der Haken in der ersten Spalte entscheidet, welche Teile übernommen werden.",
+            "<b>Genauigkeit</b> in vier Stufen: <font color='#2e7d32'>Sicher erkannt</font> (Ampel grün, "
+            "3D-Gegenprobe bestanden), <font color='#558b2f'>Wahrscheinlich erkannt</font> (grün, aber ohne "
+            "vergleichbare Gegenprobe), <font color='#f9a825'>Nicht eindeutig erkannt</font> (gelb, Hinweise), "
+            "<font color='#c62828'>Manuelle Prüfung erforderlich</font> (rot, Fehler, Gegenprobe abweichend oder "
+            "Blech mit Prüfstatus). Der Tooltip der Spalte nennt die Gründe.",
+            "<b>Kalkulationsstatus</b>: <i>Daten vollständig</i> (alle gewählten Teile sicher), <i>Daten teilweise "
+            "erkannt</i> (wahrscheinlich oder nicht eindeutig) oder <i>Manuelle Ergänzung erforderlich</i>.",
+            "<b>Zusatzarbeiten</b> werden nie erfunden: nur was die Messung findet, steht in der Übersicht und "
+            "erscheint wie gewohnt als gelber Vorschlag an der Position. Weitere Arbeiten über Rechtsklick → "
+            "<i>Zusatzarbeiten …</i> bzw. <i>Zusatzarbeit hinzufügen</i>; sie rechnen in der gewohnten "
+            "Zusatzarbeiten-Kalkulation.",
+            "<b>In die Kalkulation übernehmen</b> legt die Positionen an, <b>Vollständig importieren (mit 3D) …</b> "
+            "misst neu im vollständigen Modus und öffnet den Prüfdialog.",
+            "<b>Gespeichert</b> wird an jeder Position: Importmodus, STEP-Datei, Körper, Programmversion, Zeitpunkt, "
+            "Genauigkeit, Status und die Erkennung (Schneidweg, Konturen, Einstiche, Bearbeitungen, Zusatzarbeiten).",
+            "<b>Später auf vollständig wechseln</b>: Rechtsklick auf die Position → <b>3D aus STEP nachladen …</b>. "
+            "Die Datei wird vollständig gemessen, nur der 3D-Körper wird gespeichert; Werte, Kalkulation und "
+            "Zusatzarbeiten der Position bleiben gleich. Weicht die neue Messung ab (andere Programmversion), "
+            "steht das im Bericht.")
+    i.text("<b>Wie viel schneller?</b> Ehrlich gemessen: Die Messung selbst (Geometrie, Booleans, Schneidweg) ist "
+           "in beiden Modi dieselbe Rechnung, denn sie muss exakt bleiben. Der Schnellmodus spart den Aufbau des "
+           "Dreiecksnetzes (je nach Datei 2 bis 13 % der Zeit), etwa 90 % der gespeicherten 3D-Daten, Arbeitsspeicher "
+           "bei großen Dateien (z. B. 440 → 354 MB) und vor allem die Zeit im Prüfdialog. Gemessene Zahlen stehen "
+           "in <i>docs/performance/schnellimport_2411.md</i> (Werkzeug <i>werkzeuge/schnellimport_vergleich.py</i>).")
     i.abschnitt("Importanalyse: Kategorien, Konfidenz, Merkmale, ZIP", marke="importanalyse")
     i.text("Seit 0.9.425 (Importengine nach dem Vergleich mit Laserhub) zeigt der Prüfdialog oben eine "
            "<b>Schrittleiste</b>: ① Import › ② Analyse › ③ Ergebnis › ④ Kontrolle › ⑤ Korrektur › ⑥ Kalkulation, "
