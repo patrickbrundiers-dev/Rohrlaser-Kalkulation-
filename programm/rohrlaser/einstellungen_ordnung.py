@@ -63,8 +63,6 @@ SEITEN = (
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
           (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
            _a("Anfragen", "anfragen_ohne_step anfragen_nachfassen_tage"),
-           # von „STEP-Import“ hierher (Abwicklungskern 24.11.2026): dort ist die Höchstzahl je Seite erreicht
-           _a("STEP-Dateien", "step_kopieren step_vorschau"),
            _a("PPEASE-Ablage (Dokumente je PPEASE-Angebotsnummer)", "ppease_ordner ppease_jahresordner ppease_ordnername "
                                                                     "ppease_praefix ppease_nummer_muster ppease_kategorien"),
            _a("CSV-Export", "csv_format csv_satz_zeile"),
@@ -173,11 +171,13 @@ SEITEN = (
     Seite("e_knick_steck", "Knickrahmen und Steckverbindung", ALLE_PLAETZE,
           (_a("Knickrahmen", "knick_z knick_freistich knick_k"),
            _a("Steckverbindung", "steck_anzahl steck_nase_min steck_nase_rand steck_spiel steck_ueberstand "
-                                 "steck_marke"))),
+                                 "steck_marke"),
+           # von „STEP-Import“ hierher (Abwicklungskern 24.11.2026): dort ist die Höchstzahl je Seite erreicht
+           _a("Biegerohr", "biegerohr_faktor"))),
     Seite("e_step", "STEP-Import", ALLE_PLAETZE,
-          (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_zukauf_begriffe step_benennung step_werkstoff werkstoff_gleichnamen "
-                           "biegerohr_faktor"),
+          (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_zukauf_begriffe step_benennung step_werkstoff werkstoff_gleichnamen"),
            _a("Bohrungen", "bohren_laser fliessloch_laser bohr_gewinde_gaenge bohr_flowdrill_min bohr_flowdrill_faktor"),
+           _a("Dateien", "step_kopieren step_vorschau"),
            _a("TRUMPF-Programme (LST/TUBX)", "trumpf_zeit programmzeit_einstiche lst_ordner"),
            _a("Toleranzen", "step_tol_profil step_tol_gleich step_tol_kernloch step_flach_laenge "
                             "step_gekantet_anteil step_zeitlimit step_abwicklungskern", True))),

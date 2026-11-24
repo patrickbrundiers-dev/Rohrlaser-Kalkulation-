@@ -4438,7 +4438,7 @@ def kapitel_step(i):
             "Außen-Ø und Wand kommen aus den Radien.",
             "<b>Gestreckte Länge</b> = Summe der Geraden + Faktor × Summe der Bögen (Radius × Winkel). Der Faktor ist "
             "die Lage der neutralen Faser, Vorgabe 1,0 = Rohrmitte. Einstellung <i>Biegerohr: Faktor neutrale Faser "
-            "für die gestreckte Länge (1,0 = Rohrmitte)</i> auf der Seite STEP-Import ([[einstellungen]]); er gilt beim "
+            "für die gestreckte Länge (1,0 = Rohrmitte)</i> auf der Seite Knickrahmen und Steckverbindung → Biegerohr ([[einstellungen]]); er gilt beim "
             "Übernehmen.",
             "<b>Konturen</b>: Lage x ab Ende A am gestreckten Rohr, Winkel um die Rohrachse (0° = Innenseite der "
             "ersten Biegung). Liegt eine Kontur in einem Bogen, meldet die Fertigungsprüfung <i>Kontur in der "
