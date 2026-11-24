@@ -89,7 +89,7 @@ Fäden. Der Parallelmodus der Booleschen Operationen verteilt intern nur die Sch
 Operation (OCCT verbindet sie danach in fester Reihenfolge) – daher dasselbe Ergebnis. Bekannte Abstürze beim
 gleichzeitigen Lesen mehrerer STEP-Dateien in Fäden (OCCT-Forum, 7.9.0) betreffen uns nicht (ein Leser je Prozess).
 
-## 4. Umgesetzt in Teil 1 (0.9.474, kein Schema-Sprung)
+## 4. Umgesetzt in Teil 1 (0.9.476, kein Schema-Sprung)
 
 | Nr. | Änderung | Datei | Nachweis |
 |---|---|---|---|

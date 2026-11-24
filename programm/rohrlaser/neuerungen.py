@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.474", "<b>Rechenkern 2.0, Teil 1: schneller bei genau gleichen Ergebnissen</b>: Staffeln rechnen die "
+    ["0.9.476", "<b>Rechenkern 2.0, Teil 1: schneller bei genau gleichen Ergebnissen</b>: Staffeln rechnen die "
                 "Schnittzeit je Position nur noch einmal für alle Stufen, denn sie hängt nicht von der Stückzahl ab "
                 "(Staffeln etwa 15–20 % schneller). Beim STEP-Import rechnen die Booleschen "
                 "Operationen auf allen Prozessorkernen (U-Profile mit vielen Konturen etwa 1,3× schneller, alle 126 "
