@@ -301,8 +301,10 @@ class GLFlaeche(QOpenGLWidget):
     def paintGL(self):
         if self.fehler:
             return
+        from . import tempo           # Supportpaket 24.11.2026: Abschnitt im Zeitwächter (Puffer laden, Kanten)
         try:
-            self._zeichnen()
+            with tempo.abschnitt("3D: Bild zeichnen (OpenGL)"):
+                self._zeichnen()
         except Exception as e:  # z. B. Treiberfehler: zurück zu QPainter
             self._fehler(e)
             return

@@ -508,6 +508,7 @@ def _jetzt():
 
 def speichern(db, liste, datei=""):
     """Käufe in erp_kaeufe; gleiche Käufe (Datum, Artikel, Menge, Preis) nur einmal. Ergebnis: Anzahl neu."""
+    _KAEUFE_STAND[0] += 1
     zaehlen = "SELECT COUNT(*) FROM erp_kaeufe"
     vorher = db.con.execute(zaehlen).fetchone()[0]
     with db.con:
@@ -525,8 +526,28 @@ def speichern(db, liste, datei=""):
     return db.con.execute(zaehlen).fetchone()[0] - vorher
 
 
+_KAEUFE = {}            # gespeicherte(): {id(db): (Stand, Käufe)}; Stand = Anzahl, größte ID, eigene Änderungen
+_KAEUFE_STAND = [0]     # zählt speichern() und kauf_rechnen() in diesem Programmlauf
+
+
 def gespeicherte(db):
-    """Alle gespeicherten Käufe (dict mit datum als date), älteste zuerst."""
+    """Alle gespeicherten Käufe (dict mit datum als date), älteste zuerst. Gemerkt, solange Anzahl, größte ID und
+    die eigenen Änderungen (speichern, kauf_rechnen) gleich sind (Supportpaket 24.11.2026: die Seite Material las
+    die 30.000 Käufe bei jedem Aufbau fünfmal); jede Ausgabe ist eine eigene Kopie."""
+    try:
+        n, groesste = db.con.execute("SELECT COUNT(*), MAX(id) FROM erp_kaeufe").fetchone()
+    except Exception:           # noqa: BLE001  (Datei ohne Tabelle: wie bisher den Fehler beim Lesen zeigen)
+        return _gespeicherte_lesen(db)
+    stand = (n, groesste, _KAEUFE_STAND[0], getattr(db, "pfad", None))
+    e = _KAEUFE.get(id(db))
+    if e is None or e[0] != stand or e[2] is not db:
+        e = (stand, _gespeicherte_lesen(db), db)
+        _KAEUFE.clear()
+        _KAEUFE[id(db)] = e
+    return [dict(z) for z in e[1]]
+
+
+def _gespeicherte_lesen(db):
     out = []
     for r in db.con.execute("SELECT * FROM erp_kaeufe ORDER BY datum, id"):
         z = dict(r)
@@ -541,6 +562,7 @@ def gespeicherte(db):
 
 def kauf_rechnen(db, kauf_id, rechnen):
     """Ausreißer von Hand: rechnen True = immer mitrechnen, False = nie, None = automatisch (3a)."""
+    _KAEUFE_STAND[0] += 1
     with db.con:
         db.con.execute("UPDATE erp_kaeufe SET rechnen=? WHERE id=?",
                        (None if rechnen is None else int(bool(rechnen)), kauf_id))

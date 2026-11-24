@@ -2386,11 +2386,45 @@ class Kontext:
     schweissverfahren: tuple = ()     # Namen der Schweißverfahren (Auswahl in den Schweiß-Kennwerten)
     qualitaetsstufen: tuple = ()      # Namen der aktiven Qualitätsstufen (Auswahl in der Position, Plan X4)
 
+    _merk: dict = field(default_factory=dict, init=False, repr=False, compare=False)    # Auswahllisten (_marke)
+
+    def _marke(self):
+        """Stand der Nachschlagewerte: gleiche Tabellen-Objekte mit gleicher Länge = gleiche Auswahllisten."""
+        return tuple((id(d), len(d)) for d in (self.profile, self.werkstoffe, self.maschinen, self.oberflaechen,
+                                               self.stundensaetze, self.listen)) + \
+            tuple(id(x) for x in (self.profilformen, self.kategorien, self.zukauf_kategorien,
+                                  self.zukauf_lieferanten, self.materialgruppen, self.mail_vorlagen,
+                                  self.schweissverfahren, self.qualitaetsstufen))
+
+    def _gemerkt(self, quelle):
+        """(Gruppen, Menge aller Werte) aus dem Merker. Supportpaket 24.11.2026: die Prüfspalte jeder Stammdaten-
+        Tabelle baute je Zeile und Auswahlfeld alle Auswahllisten neu (sortierte Profil-Liste je Zeile), beim
+        Programmstart mit vielen Profilen viele Sekunden."""
+        marke = self._marke()
+        if self._merk.get("") != marke:
+            self._merk.clear()
+            self._merk[""] = marke
+        e = self._merk.get(quelle)
+        if e is None:
+            g = self._gruppiert_bauen(quelle)
+            e = self._merk[quelle] = (g, {w for _, werte in g for w in werte})
+        return e
+
     def auswahl(self, quelle):
-        return [w for _, werte in self.gruppiert(quelle) for w in werte]
+        return [w for _, werte in self._gemerkt(quelle)[0] for w in werte]
+
+    def in_auswahl(self, quelle, wert):
+        """Steht wert in der Auswahlliste quelle? (schnell, für die Prüfspalte)"""
+        try:
+            return wert in self._gemerkt(quelle)[1]
+        except TypeError:           # nicht hashbarer Wert
+            return wert in self.auswahl(quelle)
 
     def gruppiert(self, quelle):
         """Auswahlliste in Gruppen [(Überschrift oder None, [Werte])]: Werkstoffe und Oberflächen nach Kategorie."""
+        return [(g, list(werte)) for g, werte in self._gemerkt(quelle)[0]]
+
+    def _gruppiert_bauen(self, quelle):
         if quelle in ("werkstoff", "oberflaeche"):
             zeilen = self.werkstoffe if quelle == "werkstoff" else self.oberflaechen
             reihe = {kat: i for i, kat in enumerate(self.kategorien)}
@@ -2519,7 +2553,8 @@ def pruefen(t, z, k):
         if w is not None and f.art in ("zahl", "ganz") and (
                 (f.von is not None and w < f.von) or (f.bis is not None and w > f.bis)):
             return f"FEHLER: {f.titel} außerhalb {zahl_als_text(f.von)}–{zahl_als_text(f.bis)}"
-        if w not in (None, "") and f.art == "auswahl" and w not in k.auswahl(f.auswahl):
+        if w not in (None, "") and f.art == "auswahl" and not (
+                k.in_auswahl(f.auswahl, w) if hasattr(k, "in_auswahl") else w in k.auswahl(f.auswahl)):
             return f"FEHLER: {f.titel} unbekannt"
     if t is ZUSATZARBEITEN:
         if z.get("art") == "s/Stück":

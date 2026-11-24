@@ -2082,7 +2082,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                                    step_k: ("Ausgabe", "Ausgabe"), stl_k: ("Ausgabe", "Ausgabe")})
         tastatur.enter_sperren(self)        # Enter nach einer Eingabe schließt das Fenster nicht
         self.aktualisieren()
-        self.baum_aufbauen()
+        # Supportpaket 24.11.2026: der Rahmen hat den Baum samt 3D schon gebaut (_rahmen_bauen → auffrischen →
+        # _baum_nachziehen); ein zweites baum_aufbauen baute das ganze 3D-Modell mit Kanten noch einmal (Öffnen
+        # bis 13 s). Neu nur, wenn sich Teile, Unterbaugruppen oder Nähte seitdem geändert haben.
+        self._baum_nachziehen()
         if self.vk_auto.isChecked() and not nur_lesen:
             self.vorkalkulation()
         self.vorschlaege_info_neu()

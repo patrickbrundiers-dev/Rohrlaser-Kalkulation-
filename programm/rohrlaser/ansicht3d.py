@@ -866,6 +866,11 @@ class Modell:
         return self._ebenen
 
     def _kanten_rechnen(self, grenze=KANTEN_WINKEL):
+        from . import tempo           # Supportpaket 24.11.2026: Abschnitt im Zeitwächter (nur Oberfläche)
+        with tempo.abschnitt("3D: Kanten rechnen"):
+            return self._kanten_rechnen_roh(grenze)
+
+    def _kanten_rechnen_roh(self, grenze=KANTEN_WINKEL):
         """Körperkanten und glatte Übergänge (für Umrisslinien) suchen: (kanten, glatte, klassen). grenze: cos des
         Erkennungswinkels (Einstellung Kantenwinkel): flachere Übergänge sind keine Kante, Netzdreiecke in einer
         Fläche nie. klassen je Kante: KANTE_AUSSEN oder KANTE_INNEN (nur Innenwand: Innenecken, Lochränder innen,
@@ -2933,8 +2938,10 @@ class Ansicht3D(QWidget):
         if self._gl is not None:        # zeichnet die OpenGL-Fläche (mit _beschriften)
             return
         p = QPainter(self)
+        from . import tempo
         try:
-            self._malen(p)
+            with tempo.abschnitt("3D: Bild zeichnen (ohne OpenGL)"):
+                self._malen(p)
         except Exception as e:      # noqa: BLE001 – V1: ein Fehler beim Zeichnen beendet nie das Programm
             self._bild, self._fehler = None, f"Zeichnen gescheitert ({type(e).__name__}: {e})"
             hintergrund_malen(p, self.rect())

@@ -7,7 +7,10 @@ Ausdrücken durch. Geprüft:
 - ein neues Profil (neuer Kontext) wird sofort erkannt, der Merker liefert nichts Altes,
 - profil_finden mit Vorfilter findet dasselbe wie vorher (längste wörtliche Profil-ID gewinnt),
 - die Prüfliste ERP-Artikel legt Auswahlfelder erst beim Wählen der Zeile an; setzen() und Merken gehen weiter,
-- Tempo: zweiter Aufruf von artikel() mit 2.000 Käufen deutlich schneller als der erste.
+- Tempo: zweiter Aufruf von artikel() mit 2.000 Käufen deutlich schneller als der erste,
+- gespeicherte() aus dem Merker, neu nach speichern() und kauf_rechnen(),
+- Auswahllisten der Prüfspalte (Kontext.auswahl/in_auswahl) gemerkt, neue/archivierte Profile sofort richtig,
+- Schweißbaugruppen-Editor baut das 3D-Modell beim Öffnen nur einmal.
 
 Aufruf: python tests/test_support_2411.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -111,4 +114,78 @@ assert E.zuordnungen(db)[schraube]["ignorieren"] == 1
 r = next(i for i, a in enumerate(d.artikel) if a["schluessel"] == schraube)
 assert t.item(r, 5).text() == "– überspringen –" and d.artikel[r]["hinweis"] == "übersprungen (gemerkt)"
 ok("Prüfliste: Text statt Auswahlfelder, Felder beim Wählen der Zeile, Überspringen wird gemerkt")
+
+# ------------------------------------------------------------------ gespeicherte() mit Merker
+g1 = E.gespeicherte(db)
+g1[0]["preis"] = -1
+assert E.gespeicherte(db)[0]["preis"] != -1 and len(E.gespeicherte(db)) == len(g1)
+E.speichern(db, [dict(kaeufe[0], datum=HEUTE, menge=999, preis=1.5)], "neu.csv")
+g2 = E.gespeicherte(db)
+assert len(g2) == len(g1) + 1 and any(k["menge"] == 999 for k in g2)
+kid = next(k["id"] for k in g2 if k["menge"] == 999)
+E.kauf_rechnen(db, kid, False)
+assert next(k for k in E.gespeicherte(db) if k["id"] == kid)["rechnen"] == 0
+ok("gespeicherte(): Merker mit eigener Kopie, neu nach speichern() und kauf_rechnen()")
+
+# ------------------------------------------------------------------ Auswahllisten der Prüfspalte
+from rohrlaser import stammdaten as S  # noqa: E402
+
+k4 = db.kontext()
+liste = k4.auswahl("profil")
+assert liste == sorted(n for n, z in k4.profile.items() if not S._archiviert(z))
+liste.append("XYZ")
+assert "XYZ" not in k4.auswahl("profil") and not k4.in_auswahl("profil", "XYZ")
+assert k4.in_auswahl("janein", "ja") and not k4.in_auswahl("janein", "vielleicht")
+k5 = S.Kontext(profile={"RR 10x1": dict(profil_id="RR 10x1")})
+assert k5.auswahl("profil") == ["RR 10x1"]
+k5.profile["RR 12x1"] = dict(profil_id="RR 12x1")
+assert k5.in_auswahl("profil", "RR 12x1")
+k5.profile = {"RR 10x1": dict(profil_id="RR 10x1", archiviert="ja")}
+assert k5.auswahl("profil") == []
+z = dict(next(iter(db.zeilen("preise")), {}) or {})
+if z.get("profil_id"):
+    assert not S.pruefen(S.PREISE, z, k4).endswith("unbekannt")
+    assert S.pruefen(S.PREISE, dict(z, profil_id="GIBT ES NICHT"), k4).endswith("unbekannt")
+ok("Auswahllisten gemerkt je Stand: Kopie je Aufruf, neue und archivierte Profile sofort richtig")
+
+# ------------------------------------------------------------------ Schweißbaugruppe: 3D beim Öffnen einmal
+sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
+import step_messen  # noqa: E402
+
+from rohrlaser import step  # noqa: E402
+from rohrlaser.angebot import BAUGRUPPE  # noqa: E402
+from rohrlaser.baugruppe_dialog import BaugruppeDialog  # noqa: E402
+
+t2 = tmp / "bg"
+t2.mkdir()
+step_messen.main(["--ausgabe", str(t2 / "m.txt"), "--json", str(t2 / "m.json"), "--netze", str(t2 / "netze"),
+                  str(HIER / "step_struktur" / "S03_Rahmen_geschweisst.step")])
+mw = step.struktur_anhaengen(step.lade_netze(step.lies_messwerte(t2 / "m.txt"), t2 / "netze"), t2 / "m.json")
+for x in mw:
+    x.update(_saetze=1, _stueck=1, _baugruppe=True, _uebernehmen=True)
+db2 = Datenbank(t2 / "b.db")
+erg = step.uebernehmen(mw, [], db2.kontext(), db2.zeilen("gewinde"), None, "S235-10219", None, neue_profile=True,
+                       zukauf_liste=[])
+db2.profile_anlegen(erg["profile"])
+a2 = db2.angebot_neu(dict(kunde="Test", maschine="T11"))
+for q in erg["positionen"]:
+    netz = q.pop("_netz", None)
+    q.pop("_zukauf", None)
+    pid = db2.position_neu(a2, q)
+    if netz:
+        db2.netz_speichern(pid, netz)
+positionen = db2.positionen(a2)
+bgp = next(q for q in positionen if q.get("art") == BAUGRUPPE)
+gezeigt = []
+_alt = BaugruppeDialog.zeige_3d
+BaugruppeDialog.zeige_3d = lambda self, *a, **kw: gezeigt.append(1) or _alt(self, *a, **kw)
+try:
+    d = BaugruppeDialog(None, bgp, positionen, db2.tabellen(), {"Schweißen": 75.0}, db=db2, netze=db2.netze(a2),
+                        profile=db2.kontext().profile)
+finally:
+    BaugruppeDialog.zeige_3d = _alt
+assert d.ansicht3d is not None and len(gezeigt) == 1, gezeigt
+assert d.ansicht3d.ansicht.modell is not None
+d.reject()
+ok("Schweißbaugruppen-Editor: 3D-Modell beim Öffnen einmal gebaut (vorher zweimal)")
 print("Alle Prüfungen bestanden.")

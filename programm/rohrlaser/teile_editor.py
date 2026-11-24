@@ -259,6 +259,11 @@ class EditorRahmen(QObject):
 
     def __init__(self, dialog, art):
         super().__init__(dialog)
+        from . import tempo           # Supportpaket 24.11.2026: Abschnitt im Zeitwächter
+        with tempo.abschnitt("Editor: Rahmen und 3D aufbauen"):
+            self._init(dialog, art)
+
+    def _init(self, dialog, art):
         self.d, self.art = dialog, art
         self.merkmale, self.befunde, self.gewaehlt = [], [], None
         self._still = False
