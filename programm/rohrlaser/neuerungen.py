@@ -33,7 +33,8 @@ NEUERUNGEN = [
                 "Maßpfeile; 3D zoomt auf das gewählte Teil und zeigt Positionsschilder; Koordinatentabelle und Bild "
                 "verbunden, Abwicklung als PDF/DXF; Infokarten mit Teilvorschau; Stangenliste mit Belegungsbalken. "
                 "Verschnitt zwischen den Teilen (Gehrungsdreiecke, Fugen) rot in Abwicklung und 3D, mit Fläche und "
-                "gleichwertiger Länge je Stange.",
+                "gleichwertiger Länge je Stange. Der 1. Schnitt (Besäumschnitt, Endbeschnitt) ist in Abwicklung, 3D, "
+                "Koordinatentabelle und DXF eingezeichnet.",
      "Nesting: Abwicklung je Stange, 3D mit echten STEP-Teilen, Technische Ansicht, moderne Ansichten, PDF/DXF."],
     ["0.9.470", "<b>Nesting-Arbeitsplatz 2.0</b> ([[nesting]]): neuer Aufbau mit Bauteilen, Material und Resten "
                 "links, dem Bild in der Mitte (Bearbeiten 2D, Stangenbild wie in der Optimierung, 3D), Kennzahlen "

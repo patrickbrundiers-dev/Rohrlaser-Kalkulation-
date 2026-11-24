@@ -109,8 +109,12 @@ assert d["teile"][0]["konturen"][0]["seite"] == "oben" and d["teile"][0]["kontur
 assert d["teile"][1]["konturen"][0]["seite"] != "oben"        # um 90° gedreht: Bohrung auf einer anderen Seite
 assert abs(d["teile"][0]["konturen"][0]["x"] - (10 + 100)) < 0.5      # Bohrung bei x = 100 am Teil
 z = na.koordinaten(d)
+assert z[0]["art"] == "1. Schnitt (Besäumen)" and z[0]["teil"] == "Stange" and z[0]["x"] == 10   # Besäumschnitt
+z = z[1:]
 assert [r["art"] for r in z[:4]] == ["Schnitt Anfang", "Kontur", "Kontur", "Schnitt Ende"]
 assert z[0]["x"] == 10 and z[3]["x"] == 510
+dx = na.dxf_elemente(d)
+assert any(e[0] == "TEXT" and str(e[-1]).startswith("1. Schnitt Besäumen") for e in dx)
 g = na.stange(stange_aus(pos, [(2, 400)]), pos, lambda p: prof, {})
 assert g["teile"][0]["konturen"][0]["gravur"]
 gz = na.stange(stange_aus(pos, [(1, 800)]), pos, lambda p: prof, {})
@@ -187,6 +191,7 @@ for n in ("bemassung", "schnitte", "konturen", "reste", "raster"):
     a.ebene(n, False)
     a.grab()
     a.ebene(n, True)
+assert "1. Schnitt (Besäumschnitt) bei x 10" in a.bereich_text("end", 0, 10)
 x, q = 10 + 250, d["umfang"] / 2
 mm = a.mm_bei(a.pkt(x, q))
 assert abs(mm[0] - x) < 1 and abs(mm[1] - q) < 1, mm

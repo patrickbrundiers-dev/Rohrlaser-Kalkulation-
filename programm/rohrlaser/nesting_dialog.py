@@ -864,7 +864,7 @@ class NestingDialog(QDialog):
                          (f"{rechnen.zahl(z['winkel'], 1)} / {z['seite']}" if z["winkel"] is not None else ""))
                 for c, txt in enumerate(werte):
                     self.koord.setItem(r, c, QTableWidgetItem(txt))
-                nr = int(str(z["teil"]).split(":")[0]) - 1
+                nr = int(str(z["teil"]).split(":")[0]) - 1 if ":" in str(z["teil"]) else None
                 self._koord_zeilen.append((nr, z["x"] if z["x_bis"] is None else (z["x"] + z["x_bis"]) / 2,
                                            z["t"] if z["t"] is not None else d["umfang"] / 2))
         self.koord.blockSignals(False)
@@ -893,6 +893,10 @@ class NestingDialog(QDialog):
             farben = {r: f.name() for r, f in self.bild.farben.items()}
             self.drei_d.ansicht.schilder = [(x["mitte"], f"{x['nr']}: {x['pos']}", farben.get(x["ref"], "#4E79A7"))
                                             for x in self.drei_d_info if x.get("mitte")]
+            if float(s.get("end") or 0) > 0.05 and self.drei_d_info:     # 1. Schnitt am Stangenanfang
+                h = self.drei_d_info[0]["mitte"][1]
+                self.drei_d.ansicht.schilder.append(((0.0, -h, float(s["end"])),
+                                                     f"1. Schnitt · Besäumen {rechnen.zahl(s['end'], 0)} mm", "#3C4650"))
             self._drei_d_stand = stand
         self._drei_d_einpassen()
 
@@ -977,7 +981,7 @@ class NestingDialog(QDialog):
                   ("Verschnitt zwischen Teilen", f"{z(k['zwischen_mm'], 1)} mm Rohrlänge "
                    f"({z(k['zwischen_flaeche'] / 100, 0)} cm², inkl. Fugen und Gehrungsdreiecke)"
                    if k.get("zwischen_mm") is not None else "—"),
-                  ("Endbeschnitt", f"{z(k['end_mm'], 0)} mm"),
+                  ("Endbeschnitt (1. Schnitt)", f"{z(k['end_mm'], 0)} mm"),
                   ("Rest", f"{z(k['rest_mm'], 0)} mm" + (" (verwertbar)" if self._rest_ok(s) else
                                                          " (Verschnitt)" if k["rest_mm"] > 0 else "")),
                   ("Greiferrest", f"{z(k['greif_mm'], 0)} mm"),
@@ -1030,6 +1034,10 @@ class NestingDialog(QDialog):
         if not (0 <= r < len(self._koord_zeilen)):
             return
         nr, x, t = self._koord_zeilen[r]
+        if nr is None:                  # Zeile der Stange (1. Schnitt): nur die Stelle markieren
+            self.tech.punkt_markiert = (x, t)
+            self.tech.update()
+            return
         self._koord_aktiv = True
         try:
             self.abwicklung_teil(nr)

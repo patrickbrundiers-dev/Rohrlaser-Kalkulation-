@@ -130,7 +130,8 @@ pdf, dxf_ = d.abwicklung_speichern("pdf", str(tmp / "stange.pdf")), d.abwicklung
 assert Path(pdf).stat().st_size > 1000 and Path(dxf_).stat().st_size > 1000
 d.ansicht_setzen(nesting_dialog.DREI_D)
 app.processEvents()
-assert d.drei_d.ansicht.schilder and len(d.drei_d.ansicht.schilder) == len(d.drei_d_info)
+assert d.drei_d.ansicht.schilder and len([x for x in d.drei_d.ansicht.schilder if not x[1].startswith("1. Schnitt")]) == len(d.drei_d_info)
+assert any(x[1].startswith("1. Schnitt") for x in d.drei_d.ansicht.schilder)      # Besäumschnitt im 3D
 t1 = d.abw.daten["teile"][-1]
 d._drei_d_klick({"punkt": (0.0, 0.0, (t1["von"] + t1["bis"]) / 2)})
 assert d.abw.auswahl == len(d.abw.daten["teile"]) - 1 and d.karte_teil.isVisible()

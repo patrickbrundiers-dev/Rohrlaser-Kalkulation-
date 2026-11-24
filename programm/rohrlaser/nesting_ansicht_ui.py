@@ -74,7 +74,7 @@ class StangenDelegate(QStyledItemDelegate):
             p.fillRect(r, stil.farbe(design.BLAU_FLAECHE))
             p.fillRect(QRectF(r.left(), r.top(), 3, r.height()), stil.farbe(design.AKZENT))
         elif option.state & QStyle.State_MouseOver:
-            p.fillRect(r, stil.farbe("#F2F5F8"))
+            p.fillRect(r, stil.farbe("#F1F4F8"))
         p.setPen(stil.farbe(stil.TEXT))
         f = p.font()
         f.setBold(bool(option.state & QStyle.State_Selected))
@@ -97,7 +97,7 @@ class StangenDelegate(QStyledItemDelegate):
 def balken_daten(n, s, farben, rest_ok=None):
     """Daten der Zeile für StangenDelegate aus einer Stange des Schnittplans (stangen_ansicht.bereiche)."""
     from .stangen_ansicht import bereiche
-    farben_art = {"end": "#A6A6A6", "schnitt": "#30363D", "greif": "#E06666"}
+    farben_art = {"end": "#A6A6A6", "schnitt": "#3C4650", "greif": "#E06666"}
     abschnitte, teile = [], 0.0
     for art, von, bis, t in bereiche(s):
         if art == "teil":
@@ -107,7 +107,7 @@ def balken_daten(n, s, farben, rest_ok=None):
         elif art == "rest":
             abschnitte.append((art, von, bis, "#A5D6A7" if rest_ok else "#F0B4B4"))
         else:
-            abschnitte.append((art, von, bis, farben_art.get(art, "#C7CDD4")))
+            abschnitte.append((art, von, bis, farben_art.get(art, "#C5CCD6")))
     laenge = float(s["stange"])
     titel = (f"Reststück {s.get('rest')} – " if s.get("rest") else f"Stange {n + 1} – ") + \
         f"{rechnen.zahl(laenge, 0)} mm"
@@ -171,7 +171,7 @@ class AnteilBalken(QWidget):
             return
         p = QPainter(self)
         r = QRectF(0, 3, self.width() - 1, 10)
-        p.fillRect(r, stil.farbe("#E3E8EE"))
+        p.fillRect(r, stil.farbe("#E3E7EC"))
         a = max(0.0, min(1.0, self.anteil))
         p.fillRect(QRectF(r.left(), r.top(), r.width() * a, r.height()),
                    stil.farbe(design.GRUEN if a >= 0.85 else "#B7791F" if a >= 0.6 else design.ROT))

@@ -260,6 +260,9 @@ def koordinaten(d):
     """Tabelle der technischen Ansicht: [dict(teil, art, text, x, x_bis, t, winkel, seite)] je Schnitt und Kontur,
     x ab Materialanfang [mm], t am Umfang [mm] ab Abwicklungsbeginn, Winkel [°]."""
     out = []
+    if d.get("end", 0) > 0.05:      # 1. Schnitt: Besäumschnitt am Stangenanfang (Endbeschnitt)
+        out.append(dict(teil="Stange", art="1. Schnitt (Besäumen)", text=f"Endbeschnitt {rechnen.zahl(d['end'], 1)} mm",
+                        x=d["end"], x_bis=None, t=None, winkel=None, seite=""))
     for n, t in enumerate(d["teile"], 1):
         name = f"{n}: Pos. {t['pos']}" if t.get("pos") is not None else f"{n}: {t.get('artikel') or ''}"
         out.append(dict(teil=name, art="Schnitt Anfang", text="", x=t["von"], x_bis=None, t=None, winkel=None,
@@ -428,6 +431,8 @@ def dxf_elemente(d):
             elem.append(("TEXT", dxf.TEXT, p(von, -4), 3.0,
                          f"{ {'end': 'Endbeschnitt', 'rest': 'Rest', 'greif': 'Greiferrest', 'schnitt': 'Fuge'}.get(art, art)} "
                          f"{rechnen.zahl(bis - von, 1)}"))
+            if art == "end" and bis > 0.05:
+                elem.append(("TEXT", dxf.TEXT, p(bis, -9), 3.0, f"1. Schnitt Besäumen x {rechnen.zahl(bis, 1)}"))
     for t_, art in d["kanten"]:
         if t_ > 1e-6:
             elem += zug(dxf.HOCH if art == "kante" else dxf.RUNTER, [(0, t_), (L, t_)])

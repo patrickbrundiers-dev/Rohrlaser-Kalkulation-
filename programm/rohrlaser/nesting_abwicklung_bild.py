@@ -34,8 +34,8 @@ def ruhig(farbe, anteil=0.55):
                   int(c.blue() + (255 - c.blue()) * anteil))
 
 
-LEGENDE = (("Teil", "#A9BCD3", None), ("Kontur", "#FDE3E1", "#B42318"), ("Gravur", None, "#2E7D32"),
-           ("Schnittfuge", "#30363D", None), ("Verschnitt zw. Teilen", "#F4B6B6", "#C62828"), ("Rest verwertbar", "#A5D6A7", None), ("Verschnitt", "#F6D5D5", "#E15759"),
+LEGENDE = (("Teil", "#A9BCD3", None), ("Kontur", "#F8D7DA", "#B42318"), ("Gravur", None, "#2E7D32"),
+           ("Schnittfuge", "#3C4650", None), ("Verschnitt zw. Teilen", "#F3B8B2", "#C62828"), ("Rest verwertbar", "#A5D6A7", None), ("Verschnitt", "#FDECEA", "#E15759"),
            ("Endbeschnitt", "#A6A6A6", None), ("Greiferrest", "#E06666", None))
 
 
@@ -183,7 +183,7 @@ class AbwicklungAnsicht(QWidget):
         band = self._rechteck(0, L, 0, U)
         p.save()
         p.setClipRect(QRectF(self.rect()))
-        p.fillRect(band, stil.farbe("#E9EDF1"))
+        p.fillRect(band, stil.farbe("#E9EEF4"))
         self._flaechen, self._bereiche, self._zwischen = [], [], []
         # Bereiche längs aus dem Schnittplan
         for art, von, bis in d["bereiche"]:
@@ -195,12 +195,12 @@ class AbwicklungAnsicht(QWidget):
                 p.fillRect(r, stil.farbe("#E06666"))
             elif art == "schnitt":
                 p.fillRect(r if r.width() >= 1 or self.senkrecht else QRectF(r.left(), r.top(), 1, r.height()),
-                           stil.farbe("#30363D"))
+                           stil.farbe("#3C4650"))
             elif art == "rest" and self.ebenen["reste"]:
                 if self.rest_ok:
                     p.fillRect(r, stil.farbe("#A5D6A7"))
                 else:
-                    p.fillRect(r, stil.farbe("#F6D5D5"))
+                    p.fillRect(r, stil.farbe("#FDECEA"))
                     p.fillRect(r, QBrush(stil.farbe("#E15759"), Qt.BDiagPattern))
         # Verschnitt zwischen den Teilen: Fläche zwischen den Schnittkanten (Gehrungsdreiecke, Fugen)
         p.setRenderHint(QPainter.Antialiasing, True)
@@ -210,7 +210,7 @@ class AbwicklungAnsicht(QWidget):
             if not self.ebenen.get("verschnitt", True):
                 continue
             p.setPen(QPen(stil.farbe("#C62828"), 0.9))
-            p.setBrush(stil.farbe("#F4B6B6"))
+            p.setBrush(stil.farbe("#F3B8B2"))
             p.drawPolygon(poly)
             p.setBrush(QBrush(stil.farbe("#C62828"), Qt.FDiagPattern))
             p.drawPolygon(poly)
@@ -248,7 +248,7 @@ class AbwicklungAnsicht(QWidget):
                     farbe = stil.farbe("#2E7D32") if k["gravur"] else stil.farbe("#B42318")
                     p.setPen(QPen(farbe, 1.5 if self.auswahl == i else 1.2,
                                   Qt.DashLine if k["gravur"] else Qt.SolidLine))
-                    p.setBrush(Qt.NoBrush if k["gravur"] or not k["geschlossen"] else stil.farbe("#FDE3E1"))
+                    p.setBrush(Qt.NoBrush if k["gravur"] or not k["geschlossen"] else stil.farbe("#F8D7DA"))
                     for stueck in sa.kontur_teile(k["punkte"], U):
                         poly = QPolygonF([self.pkt(x, s) for x, s in stueck])
                         r = poly.boundingRect()
@@ -264,7 +264,7 @@ class AbwicklungAnsicht(QWidget):
                         r = QRectF(q.x() + 4, q.y() - 14, p.fontMetrics().horizontalAdvance(txt) + 4, 13)
                         if not any(r.intersects(b) for b in belegt):
                             belegt.append(r)
-                            p.setPen(stil.farbe("#7A1A12"))
+                            p.setPen(stil.farbe("#B42318"))
                             p.drawText(r, Qt.AlignLeft | Qt.AlignVCenter, txt)
         p.setBrush(Qt.NoBrush)
         p.setRenderHint(QPainter.Antialiasing, False)
@@ -299,6 +299,23 @@ class AbwicklungAnsicht(QWidget):
                 for x in (t["von"], t["bis"]):
                     a, b = self.pkt(x, -U * 0.04), self.pkt(x, U * 1.04)
                     p.drawLine(a, b)
+        # 1. Schnitt: Besäumschnitt am Stangenanfang (Ende des Endbeschnitts), immer sichtbar
+        if d.get("end", 0) > 0.05:
+            p.setRenderHint(QPainter.Antialiasing, True)
+            p.setPen(QPen(stil.farbe(stil.TEXT), 2.0))
+            a, b = self.pkt(d["end"], -U * 0.06), self.pkt(d["end"], U * 1.06)
+            p.drawLine(a, b)
+            txt = f"1. Schnitt · Besäumen {_z(d['end'], 0)} mm"
+            breite = p.fontMetrics().horizontalAdvance(txt) + 8
+            q = self.pkt(d["end"], 0)
+            r = (QRectF(q.x() + 4, q.y() - 2, breite, 15) if self.senkrecht else
+                 QRectF(q.x() + 4, q.y() + 3, breite, 15))
+            p.setPen(Qt.NoPen)
+            p.setBrush(stil.farbe("#FFFFFF"))
+            p.drawRoundedRect(r, 3, 3)
+            p.setBrush(Qt.NoBrush)
+            p.setPen(stil.farbe(stil.TEXT))
+            p.drawText(r, Qt.AlignCenter, txt)
         p.setPen(QPen(stil.farbe("#5F6B7A"), 1))
         p.drawRect(band)
         # markierte Stelle (Zeile der Koordinatentabelle)
@@ -449,6 +466,9 @@ class AbwicklungAnsicht(QWidget):
                 f"{_z(z['mm'], 1)} mm Rohrlänge (x {_z(z['x0'], 1)} bis {_z(z['x1'], 1)} mm)")
 
     def bereich_text(self, art, von, bis):
+        if art == "end":
+            return (f"Endbeschnitt {_z(bis - von, 1)} mm: der 1. Schnitt (Besäumschnitt) bei x {_z(bis, 1)} mm "
+                    "schneidet das Stangenende sauber ab")
         name = {"end": "Endbeschnitt", "schnitt": "Schnittfuge", "rest": "Rest" + (" (verwertbar)" if self.rest_ok else
                                                                               " (Verschnitt)"),
                 "greif": "Greiferrest (Einspannbereich)", "teil": "Teil"}.get(art, art)

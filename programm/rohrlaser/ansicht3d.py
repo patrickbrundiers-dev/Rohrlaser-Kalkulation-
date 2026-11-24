@@ -42,7 +42,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("KB", "Blech/Kantteil (Zukauf, nicht gelasert)", "#6F9FD8", None),   # STEP-Prüfdialog: Art Blech
     ("KD", "Dreh-/Frästeil (Zukauf, nicht gelasert)", "#C9A227", None),  # STEP-Prüfdialog: Art Dreh-/Frästeil
     ("NT", "Normteil/Zukaufteil", "#3F4650", None),   # Baugruppe im STEP-Prüfdialog: Schrauben, Muttern … (21.11.2026)
-    ("RS", "Stange: Endbeschnitt, Rest, Greiferrest", "#C7CDD4", None),  # Nesting-Arbeitsplatz 3D (24.11.2026)
+    ("RS", "Stange: Endbeschnitt, Rest, Greiferrest", "#C5CCD6", None),  # Nesting-Arbeitsplatz 3D (24.11.2026)
     ("VS", "Verschnitt zwischen den Teilen", "#E15759", None),  # Nesting 3D: Flächen zwischen den Schnittkanten
     ("B", "Biegelinien", "#2E7D32", "#2E7D32"),
     ("SN", "Schweißnähte", "#1A1A1A", "#1A1A1A"),        # Baugruppen-Ansicht: Nahtgruppen (schwarz: auf allen

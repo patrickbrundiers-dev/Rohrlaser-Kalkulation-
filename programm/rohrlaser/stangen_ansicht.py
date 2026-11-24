@@ -182,7 +182,7 @@ def stange_zeichnen(p, s, x0, yb, hb, m, farben, markiert=None, rest_verwertbar=
             rechteck(rest_von, rest_bis, stil.farbe("#A5D6A7"))
         elif rest_verwertbar is False:
             r = QRectF(x0 + rest_von * m, yb, max(1.0, (rest_bis - rest_von) * m), hb)
-            p.fillRect(r, stil.farbe("#FBE3E4"))
+            p.fillRect(r, stil.farbe("#FDECEA"))
             p.fillRect(r, QBrush(stil.farbe("#E15759"), Qt.BDiagPattern))
     rechteck(0, s["end"], stil.farbe("#A6A6A6"))
     greif = rechteck(rest_bis, s["stange"], stil.farbe("#E06666"))
@@ -199,7 +199,7 @@ def stange_zeichnen(p, s, x0, yb, hb, m, farben, markiert=None, rest_verwertbar=
             rand = QPen(stil.farbe(farbe.darker(150).name()), 1.2)
             farbe = stil.farbe(aufhellen(farbe, 0.45).name())
         if vorher is not None and t["von"] - vorher["bis"] > 0 and (t["von"] - vorher["bis"]) * m >= 1.5:
-            p.fillRect(QRectF(x0 + vorher["bis"] * m, yb, (t["von"] - vorher["bis"]) * m, hb), stil.farbe("#3A3F45"))
+            p.fillRect(QRectF(x0 + vorher["bis"] * m, yb, (t["von"] - vorher["bis"]) * m, hb), stil.farbe("#3C4650"))
         if t.get("kante_a") or t.get("kante_b"):
             ol, or_, ur, ul = rechnen.umriss(t)
             form = QPolygonF([QPointF(x0 + ol * m, yb), QPointF(x0 + or_ * m, yb), QPointF(x0 + ur * m, yb + hb),
