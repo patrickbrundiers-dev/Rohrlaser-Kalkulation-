@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.475", "<b>Austauschordner 2.0</b> ([[austausch]]): neue Seite <b>Austausch</b> unter Arbeiten, der "
+    ["0.9.477", "<b>Austauschordner 2.0</b> ([[austausch]]): neue Seite <b>Austausch</b> unter Arbeiten, der "
                 "gemeinsame Ordner als Datei- und Projektverwaltung im Programm. Liste oder Kacheln mit Vorschau, "
                 "Suche über alle Bereiche (auch Kommentare und Dateiinhalt), Filter nach Typ, Mitarbeiter, Kunde, "
                 "Status und Zeitraum, Favoriten, zuletzt verwendet, gespeicherte Suchen. Hochladen per Knopf oder "
@@ -32,6 +32,14 @@ NEUERUNGEN = [
                 "Archiv, Bearbeitungssperre mit „in Bearbeitung von …“, Übersicht mit Kacheln und einstellbare "
                 "Benachrichtigungen ohne Flut. Ohne Server: Dateien im gemeinsamen Ordner, Angaben über den Abgleich.",
      "Neue Seite Austausch: gemeinsame Dateien mit Zuordnung, Aufgaben, Versionen und Papierkorb"],
+    ["0.9.476", "<b>Rechenkern 2.0, Teil 1: schneller bei genau gleichen Ergebnissen</b>: Staffeln rechnen die "
+                "Schnittzeit je Position nur noch einmal für alle Stufen, denn sie hängt nicht von der Stückzahl ab "
+                "(Staffeln etwa 15–20 % schneller). Beim STEP-Import rechnen die Booleschen "
+                "Operationen auf allen Prozessorkernen (U-Profile mit vielen Konturen etwa 1,3× schneller, alle 126 "
+                "Prüf-STEPs zusammen 11 %). Jede Zahl bleibt gleich. Neu in der Diagnose: <b>Leistung je "
+                "Verarbeitungsschritt</b> mit Median, 95-%-Wert, CPU, Arbeitsspeicher und Anzahl je Schritt "
+                "(STEP-Import mit Teilschritten, Optimieren, Kalkulation, Staffeln, PDF …) ([[diagnose]]).",
+     "Staffeln und STEP-Import schneller (bitgleich); Leistung je Schritt in der Diagnose"],
     ["0.9.474", "<b>Nesting: Stangenabwicklung und 3D auf CAD/CAM-Niveau</b> ([[nesting]]): neue Hauptansicht "
                 "<i>Abwicklung</i> je Materialstange, maßstäblich mit echtem Umfang (Eckradien, Seiten bzw. Grad), "
                 "jedes Teil an seinem Platz aus dem Nesting mit Drehung und Wenden, Gehrungen, Bohrungen, Langlöcher "
