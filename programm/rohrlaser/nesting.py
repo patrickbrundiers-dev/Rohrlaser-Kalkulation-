@@ -37,9 +37,15 @@ from . import optimierung as opt
 
 EPS = 1e-6
 A, B, C, D, E = "A", "B", "C", "D", "E"
+# Nesting-Arbeitsplatz 2.0 (Patrick 24.11.2026): F wenigste Stangen, G geringster Verschnitt, H Schnellrechnung.
+# E (ausgewogen) bewertet weiter nur A … D, damit gespeicherte Angebote mit E bitgleich bleiben.
+F, G, H = "F", "G", "H"
 STRATEGIEN = {A: "Minimaler Materialverbrauch", B: "Geringste Materialkosten", C: "Maximale Reststückverwertung",
-              D: "Schnellste Fertigung", E: "Ausgewogen"}
-KURZ = {A: "wenig Material", B: "günstigster Einkauf", C: "Reste zuerst", D: "schnell fertigen", E: "ausgewogen"}
+              D: "Schnellste Fertigung", E: "Ausgewogen", F: "Wenigste Stangen", G: "Geringster Verschnitt",
+              H: "Schnellrechnung"}
+KURZ = {A: "wenig Material", B: "günstigster Einkauf", C: "Reste zuerst", D: "schnell fertigen", E: "ausgewogen",
+        F: "wenigste Stangen", G: "wenig Verschnitt", H: "schnell gerechnet"}
+REIHE = (A, B, C, D, E, F, G, H)        # Reihenfolge im Vergleich
 SCHWANZ_MAX = 6          # so viele am schwächsten belegte Stangen werden höchstens neu auf Mischungen verteilt
 MISCH_VERSUCHE = 30      # Mischungen je Schwanzgröße, die mit vorrat_planen geprüft werden
 SCHWANZ_RUNDEN = 3       # so oft wird der Schwanz nach einer Verbesserung erneut probiert
@@ -436,8 +442,74 @@ def _kosten_suche(g, laengen, art, einzeln, misch):
     return schwanz(g, start, laengen, kw, verf)
 
 
+# ------------------------------------------------------------------ Zwischenspeicher (Nesting-Arbeitsplatz 2.0)
+# Patrick 24.11.2026: jede Strategie rechnete Einzel- und Mischplan derselben Gruppe neu (große Baugruppe 6/12 m:
+# 7,9 s, davon ~90 % Doppelrechnung). Gemerkt wird das fertige, geprüfte Ergebnis je (Gruppe, Teile, Fertigungswerte,
+# Strategie, Eingaben). Die Gruppe selbst wird mitgehalten, damit ihre Kennung nicht neu vergeben werden kann; die
+# Teile werden über ihre Kennung (id) verglichen. Gleiche Eingaben → dasselbe Ergebnis (bitgleich), nur schneller.
+MERKER_MAX = 256
+_MERKER = {}
+
+
+def merker_leeren():
+    _MERKER.clear()
+
+
+def _gkey(g):
+    return (id(g), tuple(map(id, g.teile)), g.stange, g.endbeschnitt, g.greiferrest, g.kerf, g.abstand, g.ende_bonus,
+            g.querschnitt, g.profil, g.werkstoff, g.oberflaeche)
+
+
+def _skey(stangen):
+    return None if stangen is None else tuple((laenge, tuple((id(t), r) for t, r in f), rest)
+                                              for laenge, f, rest in stangen)
+
+
+def _flach(v):
+    return dict(v) if isinstance(v, dict) else list(v) if isinstance(v, list) else v
+
+
+def _kopie(p):
+    return None if p is None else Plan(p.strategie, list(p.stangen), list(p.uebrig),
+                                       {k: _flach(v) for k, v in p.werte.items()}, p.warum, list(p.schritte))
+
+
+def _grundplaene(g, laengen):
+    """(Einzelpläne je Länge, Mischplan) der Gruppe, gemerkt: dieselben für A, B, C, D (vorher je Strategie neu)."""
+    key = ("grund", _gkey(g), tuple(laengen))
+    if key in _MERKER:
+        einzeln, misch = _MERKER[key][1]
+    else:
+        einzeln = _kandidaten_einzeln(g, laengen)
+        misch = _mischplan(g, laengen, einzeln)
+        if len(_MERKER) >= MERKER_MAX:
+            _MERKER.pop(next(iter(_MERKER)))
+        _MERKER[key] = (g, (einzeln, misch))
+    return {k: list(v) for k, v in einzeln.items()}, (list(misch) if misch is not None else None)
+
+
 def planen(g, strategie, laengen, reste=(), je_beladung=0.0, min_rest=0.0, min_nutz=REST_MIN_NUTZ,
            mehrverschnitt=0.02, bisher=None, gewichte=None, buendeln_an=True):
+    """Wie _plan_mindest, mit Zwischenspeicher (gleiche Eingaben = gleiches, schon geprüftes Ergebnis)."""
+    key = (_gkey(g), strategie, tuple(laengen), tuple(reste), je_beladung, min_rest, min_nutz, mehrverschnitt,
+           _skey(bisher), tuple(sorted((gewichte or {}).items())), buendeln_an)
+    try:
+        hash(key)
+    except TypeError:
+        key = None
+    if key is not None and key in _MERKER:
+        return _kopie(_MERKER[key][1])
+    p = _plan_mindest(g, strategie, laengen, reste, je_beladung, min_rest, min_nutz, mehrverschnitt, bisher, gewichte,
+                      buendeln_an)
+    if key is not None:
+        if len(_MERKER) >= MERKER_MAX:
+            _MERKER.pop(next(iter(_MERKER)))
+        _MERKER[key] = (g, _kopie(p))
+    return p
+
+
+def _plan_mindest(g, strategie, laengen, reste=(), je_beladung=0.0, min_rest=0.0, min_nutz=REST_MIN_NUTZ,
+                  mehrverschnitt=0.02, bisher=None, gewichte=None, buendeln_an=True):
     """Wie _planen; eine Länge mit Mindestabnahme (Laenge.mindest, z. B. Walzlänge vom Werk ab ca. 20 t, Patrick
     23.11.2026) bleibt nur im Plan, wenn er mindestens so viele Stangen dieser Länge braucht, sonst wird ohne sie neu
     gerechnet. Zugeschnittene 12-m-Stangen gibt es hier nicht (nur ladbare Längen, jede Stange ganz gekauft)."""
@@ -464,8 +536,7 @@ def _planen(g, strategie, laengen, reste=(), je_beladung=0.0, min_rest=0.0, min_
     Ergebnis: Plan (geprüft) oder None, wenn keine Länge ausführbar ist."""
     laengen = _laengen_fuer(g, laengen)
     reste = [r for r in reste if verwertbar(g, r.laenge, 0.0, min_nutz)]
-    einzeln = _kandidaten_einzeln(g, laengen)
-    misch = _mischplan(g, laengen, einzeln)
+    einzeln, misch = _grundplaene(g, laengen)
 
     def kz(st, uebrig=()):
         return kennzahlen(g, st, list(uebrig), laengen, reste, je_beladung, min_rest, min_nutz)
@@ -526,6 +597,32 @@ def _planen(g, strategie, laengen, reste=(), je_beladung=0.0, min_rest=0.0, min_
         kw = _kostenwert("eur", laengen)
         st = _beste(kands, lambda st: (len(st), opt.belegungen([f for _, f, _ in st]), _wert(st, kw)))
         return fertig(D, st, "wenigste Beladungen der Maschine, dann wenigste verschiedene Belegungen (Programme)")
+    if strategie in (F, G):
+        kands = [planen(g, s, laengen, reste, je_beladung, min_rest, min_nutz, mehrverschnitt, bisher, gewichte,
+                        buendeln_an) for s in (A, B, D)]
+        kands = [p.stangen for p in kands if p is not None] + list(einzeln.values()) + ([misch] if misch else [])
+        if bisher:
+            kands.append(bisher)
+        kw = _kostenwert("eur", laengen)
+        if not kands:
+            return None
+        if strategie == F:
+            st = _beste(kands, lambda st: (len(st), sum(x for x, _, r in st if not r), _wert(st, kw)))
+            return fertig(F, st, "wenigste Stangen (Beladungen), dann wenigste eingekaufte Millimeter")
+        werte = [(kz(buendeln(g, list(st)) if buendeln_an else list(st))["verschnitt_mm"], st) for st in kands]
+        st = min(werte, key=lambda x: (round(x[0], 6), sum(y for y, _, r in x[1] if not r), _wert(x[1], kw)))[1]
+        return fertig(G, list(st), "geringster nicht verwertbarer Verschnitt (Freiraum auf wenigen Stangen gebündelt, "
+                                   "verwertbare Reststücke zählen nicht als Verschnitt)")
+    if strategie == H:
+        h = _h(g, g.stange)
+        if not h.teile or any(not opt.passt(h, [t]) for t in h.teile):
+            return None
+        st = [(g.stange, opt.anordnen(s, h), "") for s in opt.aufloesen(h, opt.first_fit(h, h.teile))]
+        p = fertig(H, st, "Schnellrechnung: nur First-Fit-Decreasing auf der Stangenlänge des Angebots, ohne "
+                          "Schnittmuster-Suche und ohne Längen mischen")
+        if p is not None:
+            p.werte["untergrenze"] = opt.untergrenze(h)
+        return p
     if strategie == E:
         plaene = [planen(g, s, laengen, reste, je_beladung, min_rest, min_nutz, mehrverschnitt, bisher,
                          buendeln_an=buendeln_an) for s in (A, B, C, D) if s != C or reste]
@@ -569,13 +666,13 @@ def alle(g, laengen, reste=(), je_beladung=0.0, min_rest=0.0, min_nutz=REST_MIN_
     """Alle Strategien einer Gruppe: {Strategie: Plan}; C nur mit Resten. abbruch() → True beendet nach der laufenden
     Strategie (Ergebnis bis dahin)."""
     out = {}
-    for s in (A, B, C, D, E):
+    for s in REIHE:
         if s == C and not reste:
             continue
         if abbruch and abbruch():
             break
         if s == E:
-            kands = [p for p in out.values()]
+            kands = [p for x, p in out.items() if x in (A, B, C, D)]
             if bisher:
                 kands.append(Plan("bisher", bisher, [], kennzahlen(g, bisher, [], _laengen_fuer(g, laengen), reste,
                                                                    je_beladung, min_rest, min_nutz)))
