@@ -3883,7 +3883,7 @@ def abschnitte_profirst_angebot(i):
             "den Eingaben, steht oben ein roter Hinweis.",
             "<b>Während der Rechnung</b> zeigt der Fortschritt Abmessung x von y, geprüfte Pläne, die beste Lösung "
             "bisher (Ausnutzung, Verschnitt, Stangen) und die Dauer; <i>Abbrechen</i> stoppt.",
-            "<b>Export</b>: Schnittplan als CSV (Stange, Platz, Pos., Länge, von/bis, Trennung, Rest) für Excel und "
+            "<b>Export</b>: <i>Schnittplan als CSV speichern …</i> (Stange, Platz, Pos., Länge, von/bis, Trennung, Rest) für Excel und "
             "die Arbeitsvorbereitung.",
             "<b>Reiter Optimierung</b>: Spart die empfohlene Strategie gegen den gespeicherten Plan mindestens 1 € "
             "Einkauf oder eine Stange (und ist zulässig), steht sie als Vorschlag <i>Verschachtelung</i> in der "

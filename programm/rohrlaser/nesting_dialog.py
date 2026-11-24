@@ -866,7 +866,9 @@ class NestingDialog(QDialog):
         k["reste"].setText(", ".join(z(x, 0) for x in w["neue_reste"][:6]) + " mm" if w["neue_reste"] else "keine")
         k["kosten"].setText((f"{z(w['einkauf'])} € Einkauf" if w["einkauf"] is not None else "Preis fehlt")
                             + (f"\n{z(w['eur_teil'])} € je Teil" if w.get("eur_teil") is not None else ""))
-        if basis is not None:
+        if self.uebrig:                         # unvollständiger Plan: keine Einsparung ausweisen
+            k["ersparnis"].setText(f"— ({len(self.uebrig)} Teile nicht eingeplant)")
+        elif basis is not None:
             bw = basis.werte
             name = "gespeichert" if basis.strategie == nv.AKTUELL else "bisher"
             teile = []

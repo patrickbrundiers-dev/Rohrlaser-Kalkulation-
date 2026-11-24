@@ -137,6 +137,7 @@ n_teile = len(st[i0][1])
 d.stange_aufloesen()
 assert len(d.uebrig) == n_teile and len(d.bild.stangen) == len(st) - 1
 assert "nicht eingeplant" in d.kennzahlen.text()
+assert "nicht eingeplant" in d.karten["ersparnis"].text() and "€" not in d.karten["ersparnis"].text()
 d.uebrig_liste.setCurrentRow(0)
 assert d.bild.einsetz_modus
 d.eingesetzt(-1, 0)
