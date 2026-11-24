@@ -749,10 +749,10 @@ def kapitel_start(i):
             "Warnungen. Der 95-%-Wert zeigt, wie lange es in den langsamen Fällen dauert – ein einzelner schneller "
             "Lauf verfälscht ihn nicht. Gemessen wird nur um die Schritte herum; Ergebnisse ändert das nicht.",
             "<b>Schneller ohne andere Ergebnisse (Rechenkern 2.0):</b> Die Staffeln rechnen die Schnittzeit je "
-            "Position nur noch einmal für alle Stufen, weil sie nicht von der Stückzahl abhängt (Staffeln eines "
-            "Angebots mit 200 Positionen und 6 Stufen etwa 4× schneller). Beim STEP-Import rechnen die Booleschen "
-            "Operationen (z. B. beim Schließen offen gezeichneter U-Profile) auf allen Prozessorkernen; die 126 "
-            "Prüf-STEPs messen zusammen etwa 12 % schneller. Alle Werte bleiben auf die letzte Stelle gleich.",
+            "Position nur noch einmal für alle Stufen, weil sie nicht von der Stückzahl abhängt (Staffeln etwa "
+            "15–20 % schneller). Beim STEP-Import rechnen die Booleschen Operationen (z. B. beim Schließen offen "
+            "gezeichneter U-Profile) auf allen Prozessorkernen: U-Profile mit vielen Konturen etwa 1,3× schneller, "
+            "die 126 Prüf-STEPs zusammen 11 %. Alle Werte bleiben auf die letzte Stelle gleich.",
             "<b>Ergebnisprüfung:</b> Nach jeder Kalkulation prüft das Programm das Ergebnis unabhängig von der "
             "Rechnung: jede Zahl muss gültig sein (kein NaN, nicht unendlich). Sonst zeigt der Angebots-Check einen "
             "FEHLER ([[angebots_check]]), das Protokoll eine Warnung und die Diagnose die fehlgeschlagene "

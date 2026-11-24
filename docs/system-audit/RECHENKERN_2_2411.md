@@ -35,7 +35,7 @@ Regressionstests. Profile mit `py-spy` (inkl. Messprozesse und OpenCascade) bzw.
 | 4 | Schweißnaht-/Anbaukörper | step_geometrie._analysiere_naht, step_knickrahmen | I05: Nachbarsuche über Hüllen und Raster ~15 %; seit #617 auf Flächen in der Hülle begrenzt |
 | 5 | Schneidweg, Konturen, Zusatzarbeiten | step_messen, schneidweg.rechnen | aus der Messung; kein eigener Engpass |
 | 6 | Kalkulation je Angebot | rechnen.kalkulation | L (200 Pos.): 0,34 s kalt, 0,03 s warm – kein Engpass |
-| 7 | **Staffeln** | staffeln.rechnen_alle | L mit 6 Stufen: **4,7 s**; je Stufe eine volle Kalkulation, davon ~40 % Schnittzeiten je Position, die jede Stufe neu rechnete, obwohl sie nicht von der Stückzahl abhängen |
+| 7 | **Staffeln** | staffeln.rechnen_alle | L mit 6 Stufen: 1,47 s; je Stufe eine volle Kalkulation; die Schnittzeiten je Position rechnete jede Stufe neu, obwohl sie nicht von der Stückzahl abhängen |
 | 8 | Maschinenvergleich | maschinen_vergleich.vergleich | L: 1,8–4,2 s; je Maschine eigene Schnittzeit (fachlich nötig) |
 | 9 | Optimieren / Nesting | rechnen.optimieren, optimierung.py | L: 0,38 s kalt; XL seit #618 4,6 s; Hilfsprozesse ab 1.500 Teilen |
 | 10 | Datenbank | db_verbindung, datenbank.py | Alltag < 20 ms (PG), Abgleich 25 PCs < 0,5 s (`PERFORMANCE_REPORT.md`); Öffnen/Schreiben im Thread #641 |
@@ -50,7 +50,7 @@ Nutzen ÷ (Aufwand × Risiko).
 | Prio | Engpass | Geschw. | Stabilität | Aufwand | Risiko | Nutzen | Stand |
 |---|---|---|---|---|---|---|---|
 | 1 | Boolesche Operationen auf einem Kern (offene Profile, Anbau, Abwicklung) | hoch | – | klein | gering (Ergebnis geprüft gleich) | hoch | **umgesetzt (B1)** |
-| 2 | Staffeln rechnen die Schnittzeiten je Stufe neu | hoch | – | klein | gering (Feldzugriffe nachgewiesen) | hoch | **umgesetzt (R1)** |
+| 2 | Staffeln rechnen die Schnittzeiten je Stufe neu | mittel | – | klein | gering (Feldzugriffe nachgewiesen) | hoch | **umgesetzt (R1)** |
 | 3 | Kein Monitoring mit Median/Perzentilen, CPU, RAM je Schritt | – | mittel | klein | keins | hoch | **umgesetzt (M1)** |
 | 4 | Benchmarks nur mit Median bzw. einem Lauf | – | – | klein | keins | mittel | **umgesetzt (M2)** |
 | 5 | Ebenenschnitte (`_schnitt`) zur Querschnittsuche: BRepAlgoAPI_Section je Lage | mittel | – | mittel | mittel | mittel | Paket 2 (Untersuchung: Schnitt an Flächen statt am ganzen Körper ist bereits ab 150 Flächen aktiv) |
@@ -76,8 +76,8 @@ Bewusst **nicht** gemacht (verstößt gegen die Regeln oder bringt keine Bitglei
 | OCCT XDE / STEPCAFControl | Baugruppen, Namen, Farben, Ebenen | wie OCCT | nutzen wir für Struktur und Namen | – | behalten |
 | OCCT Shape Healing (ShapeFix, ShapeUpgrade) | Reparatur defekter Flächen | wie OCCT | im Einsatz (umwandeln/heilen) | 8.0.1 behebt Abstürze in ShapeFix_Face | behalten |
 | OCCT BRepMesh | 3D-Netz für Viewer/Editor | wie OCCT | im Einsatz; im Schnellimport entfällt es | parallel möglich | Netz bleibt außerhalb der Kalkulation (Modus A ohne Netz) |
-| Parasolid (Siemens) | sehr robuste Booleans und Healing, Industriestandard | kommerziell (Lizenz + Laufzeitgebühren je Platz) | kompletter Wechsel des Geometriekerns, keine offizielle Python-Anbindung; alle Messfunktionen neu | hoch | **nicht empfohlen** (Aufwand Monate, Ergebnisse wären nicht bitgleich, laufende Kosten) – nur auf Patricks Wunsch weiter prüfen |
-| HOOPS Exchange (Tech Soft 3D) | liest >30 CAD-Formate inkl. nativer (SolidWorks, Inventor, CATIA), PMI | kommerziell, Preis auf Anfrage | nur als zusätzlicher Leser vor OCCT denkbar (Übergabe als B-Rep); C/C++-SDK | Leser schnell, Messung bleibt OCCT | **Empfehlung nur für native Formate**, falls Kunden statt STEP native Dateien schicken – Patricks Entscheidung |
+| Parasolid (Siemens) | sehr robuste Booleans und Healing, Industriestandard | kommerziell (Lizenz + Laufzeitgebühren je Platz) | kompletter Wechsel des Geometriekerns, keine offizielle Python-Anbindung; alle Messfunktionen neu | hoch | **nicht empfohlen**; **Patrick 24.11.2026 18:22 UTC: „Open Cascade bleiben“** – kein Wechsel |
+| HOOPS Exchange (Tech Soft 3D) | liest >30 CAD-Formate inkl. nativer (SolidWorks, Inventor, CATIA), PMI | kommerziell, Preis auf Anfrage | nur als zusätzlicher Leser vor OCCT denkbar (Übergabe als B-Rep); C/C++-SDK | Leser schnell, Messung bleibt OCCT | entfällt (Entscheidung „Open Cascade bleiben“) |
 | STEP Tools (ST-Developer) | sehr genaue AP242-Unterstützung (PMI, Toleranzen) | kommerziell | zusätzlicher Leser, C++ | – | nicht nötig (unsere Messung braucht B-Rep, kein PMI) |
 | CAD Exchanger | Leser/Konverter, intern OCCT-nah | kommerziell | zusätzlicher Leser | – | kein Mehrwert gegenüber OCCT 8.0.1 |
 | numpy / Vektorisierung | schnellere Punkt-/Rastersuchen in Python | BSD | im Messprozess vorhanden, **nicht** im Hauptprogramm (bewusst ausgeschlossen, rohrlaser.spec) | mittel | nur im Messprozess, nur wo bitgleich (Gleitkomma-Reihenfolge!) |
@@ -93,38 +93,70 @@ gleichzeitigen Lesen mehrerer STEP-Dateien in Fäden (OCCT-Forum, 7.9.0) betreff
 
 | Nr. | Änderung | Datei | Nachweis |
 |---|---|---|---|
-| B1 | Boolesche Operationen (Schnitt, Vereinigung, Differenz) im Parallelmodus von OpenCascade, wie es `_schnitt` schon war. Schalter `RL_BOOLESCH_SEQ=1` zur Fehlersuche. | step_messung/step_geometrie.py (`boolesch`, `BOOLESCH_PARALLEL`) | 124 von 124 messbaren Prüf-STEPs bitgleich (2 absichtlich defekte/leere Dateien ohne Messwerte, wie vorher); Test vergleicht JSON, Messtabelle und 3D-Netze eines offenen U-Profils |
-| R1 | Staffeln: die Schnittzeit je Position gilt für alle Stufen (Schlüssel: Position ohne `stueck`/`abruf_basis`, Kopf ohne `KOPF_OHNE_SCHNITTZEIT`, Wand, Stammdaten-Objekte). Schalter `rechnen.SCHNITTZEITEN_TEILEN`. | rechnen.py (`schnittzeiten_teilen`, `_schneidzeit_teile`), staffeln.py | Test verfolgt jeden Feldzugriff der Schnittzeit über S/M/L-Staffeln und die Kontur-Angebote des Regressionstests: nie Stückzahl, nie ausgenommene Kopffelder, nie die ganze Position; Staffeln S/M/L mit/ohne Teilen `repr`-gleich; Regressionstest 20 Angebote unverändert |
+| B1 | Boolesche Operationen (Schnitt, Vereinigung, Differenz) im Parallelmodus von OpenCascade, wie es `_schnitt` schon war. Schalter `RL_BOOLESCH_SEQ=1` zur Fehlersuche. | step_messung/step_geometrie.py (`boolesch`, `BOOLESCH_PARALLEL`) | 126 von 126 Prüf-STEPs bitgleich; Test vergleicht JSON, Messtabelle und 3D-Netze eines offenen U-Profils |
+| R1 | Staffeln: die Schnittzeit je Position gilt für alle Stufen (Schlüssel: Position ohne `stueck`/`abruf_basis`, Kopf ohne `KOPF_OHNE_SCHNITTZEIT`, Wand, Stammdaten-Objekte). Schalter `rechnen.SCHNITTZEITEN_TEILEN`. | rechnen.py (`schnittzeiten_teilen`, `_schneidzeit_teile`), staffeln.py | Test verfolgt jeden Feldzugriff der Schnittzeit über S/M/L-Staffeln und die Kontur-Angebote des Regressionstests: nie Stückzahl, nie ausgenommene Kopffelder, nie die ganze Position; Staffeln S/M/L mit/ohne Teilen `repr`-gleich (L: 1.200 → 204 Schnittzeit-Rechnungen); Regressionstest 20 Angebote unverändert |
 | M1 | Performance-Monitoring je Verarbeitungsschritt: Anzahl, Start/Ende, Median, 90/95/99 %, längster Lauf, CPU-Zeit und -Auslastung, RAM und größter Zuwachs, Zählwerte, Fehler, Warnungen. Erfasst: alle Rechnungen über `diagnose.messen` (Optimieren, Kalkulation, Staffeln, Maschinenvergleich, Nesting-Vergleich), STEP-Import gesamt und 7 Teilschritte aus der ZEITEN-Zeile, PDF Angebot/Werkstatt/Kalkulation/Angebotsakte. Entwickleransicht: Abschnitt im Diagnose-Bericht (Hauptadmin → Diagnose, diagnose.txt im Support-Paket). | rohrlaser/leistung.py (neu), diagnose.py, angebot_fenster.py, pdf.py, akte_pdf.py | tests/test_rechenkern_2411.py (Perzentile = statistics.quantiles inclusive, Fehler, Zählwerte, STEP-Schritte, Bericht) |
 | M2 | Benchmarks mit Median **und** 90/95 % und längstem Lauf: `rechen_benchmark.py lauf --wdh N --wdh-lang N` (auch Staffeln/Maschinenvergleich mehrfach), `step_benchmark.py lauf --wdh N` (prüft zusätzlich, dass jede Wiederholung dieselben Messwerte liefert). | werkzeuge/rechen_benchmark.py, werkzeuge/step_benchmark.py | – |
 
-## 5. Messergebnisse (gleiche Testdaten, gleicher Rechner, nacheinander)
+## 5. Messergebnisse (gleiche Testdaten, gleicher Rechner, alt und neu nacheinander ohne andere Last)
 
-### STEP-Import, 126 Prüf-STEPs (je ein Messprozess, wie `step_benchmark.py lauf --prozesse 1`)
+Vorher = `main` 8131fe69 (0.9.469), nachher = dieser Stand. Erste Messungen mit eingeschaltetem Profiler bzw. neben
+anderen Läufen sind **nicht** verwendet (cProfile macht den Rechenkern etwa 3× langsamer: Staffeln L erschienen dort
+mit 4,7 s statt 1,5 s).
+
+### 5.1 STEP-Import, 126 Prüf-STEPs (je ein Messprozess, `step_benchmark.py lauf --prozesse 1`)
+
+Messwerte **126 von 126 gleich** (Toleranz 0: jede Zahl, jeder Text, jede Liste des JSON).
 
 | Gruppe | Dateien | vorher s | nachher s | Faktor |
 |---|---:|---:|---:|---:|
-| Konturen (K…) | 10 | 69,6 | 56,3 | 1,24 |
-| Profile (P…) | 10 | 36,5 | 29,8 | 1,22 |
-| Offene Profile (OR…) | 4 | 27,1 | 23,0 | 1,18 |
-| Referenz (REF…) | 18 | 40,3 | 35,3 | 1,14 |
-| Bleche | 18 | 30,8 | 27,5 | 1,12 |
-| Importengine (Baugruppen, ZIP …) | 10 | 32,4 | 29,0 | 1,11 |
-| RP-Profile | 6 | 33,8 | 33,4 | 1,01 |
-| **alle 126** | 126 | **366,4** | **322,8** | **1,14** |
+| Konturen (K…) | 10 | 66,4 | 54,7 | 1,21 |
+| Referenz (REF…) | 18 | 41,7 | 35,3 | 1,18 |
+| RP-Profile | 6 | 36,0 | 35,0 | 1,03 |
+| Profile (P…) | 10 | 35,0 | 29,8 | 1,17 |
+| Bleche | 18 | 30,7 | 29,2 | 1,05 |
+| Importengine (Baugruppen, ZIP …) | 10 | 29,7 | 31,3 | 0,95 |
+| Regression | 8 | 27,2 | 25,3 | 1,07 |
+| Offene Profile (OR…) | 4 | 27,2 | 23,7 | 1,15 |
+| Anbau | 11 | 24,0 | 22,3 | 1,07 |
+| Träger | 9 | 16,4 | 14,1 | 1,16 |
+| übrige | 22 | 41,0 | 37,4 | 1,10 |
+| **alle 126** | 126 | **375,3** | **338,0** | **1,11** |
 
-Einzelne: K08 U80x40x4 23,2 → 17,8 s, K07 20,7 → 16,6 s, K06 14,3 → 11,1 s, P01 U50x30x3 13,1 → 9,9 s; Baugruppe
-I05 (48 Körper) zusammen mit drei U-Profilen in 3 Messprozessen 50,7 → 43,8 s. Messwerte 124/124 gleich (Toleranz 0).
+### 5.2 STEP-Import, 10 typische Dateien je 5 Läufe (Median, 95 %)
 
-Median/95 % aus Wiederholungsläufen: siehe Abschnitt 5.3.
+| Datei | Median vorher s | Median nachher s | 95 % vorher s | 95 % nachher s | Faktor (Median) | RAM vorher/nachher MB |
+|---|---:|---:|---:|---:|---:|---|
+| K08 U80x40x4 viele Konturen | 21,37 | 16,69 | 21,82 | 20,04 | 1,28 | 301 / 299 |
+| K06 U60x30x4 Senkung/Fließloch | 13,51 | 10,36 | 13,71 | 10,48 | 1,30 | 301 / 299 |
+| P01 U50x30x3 | 12,53 | 9,81 | 12,85 | 10,35 | 1,28 | 301 / 298 |
+| OR2 offenes U mit Laschen | 11,06 | 9,00 | 11,70 | 9,25 | 1,23 | 301 / 298 |
+| I05 Baugruppe 48 Teile | 13,15 | 13,25 | 14,05 | 13,65 | 0,99 | 302 / 300 |
+| RP04 Sonderprofil | 5,81 | 5,61 | 6,09 | 5,68 | 1,04 | 302 / 298 |
+| T02 Rundrohr mit Bohrungen | 1,79 | 1,64 | 1,81 | 1,76 | 1,09 | 302 / 298 |
+| R05 Freiform | 6,71 | 6,48 | 6,76 | 7,01 | 1,03 | 302 / 299 |
+| B14 Rohr mit 2 Blechen | 2,13 | 2,09 | 2,18 | 2,31 | 1,02 | 302 / 298 |
+| A07 Gehrung mit Anbau | 2,41 | 2,31 | 2,44 | 2,48 | 1,04 | 302 / 299 |
+| **Summe** | **90,5** | **77,2** | | | **1,17** | |
 
-### 5.2 Rechenkern (Testangebote, PostgreSQL wie im Programm)
+Alle Wiederholungen lieferten dieselben Messwerte (reproduzierbar), alt gegen neu 10/10 gleich. Gewinn vor allem bei
+offenen U-Profilen (Boolesche Operationen); bei Rohren mit Bohrungen, Blechen und Baugruppen bestimmen der Start des
+Messprozesses, das Lesen und die Ebenenschnitte die Zeit (Paket 2). CPU-Auslastung des Messprozesses bei U-Profilen
+jetzt ~1,5 statt 1,0 (mehrere Kerne).
 
-Siehe Abschnitt 5.3 (Läufe nacheinander, jeweils Median und 95 %).
+### 5.3 Rechenkern, Testangebote S/M/L je 7 Läufe (PostgreSQL wie im Programm, alle Fingerabdrücke gleich)
 
-### 5.3 Wiederholungsläufe mit Median und 95 %
+| Messung | Median vorher s | Median nachher s | 95 % vorher s | 95 % nachher s | Faktor |
+|---|---:|---:|---:|---:|---:|
+| Staffeln L (200 Pos., 6 Stufen) | 1,47 | 1,24 | 1,53 | 1,29 | 1,18 |
+| Staffeln M (50 Pos.) | 0,44 | 0,36 | 0,50 | 0,44 | 1,22 |
+| Staffeln S (5 Pos.) | 0,12 | 0,11 | 0,17 | 0,12 | 1,11 |
+| Kalkulation kalt L | 0,31 | 0,31 | 0,37 | 0,37 | 1,00 |
+| Optimieren kalt L | 0,40 | 0,37 | 0,45 | 0,41 | 1,07 (Schwankung) |
+| Maschinenvergleich L | 1,75 | 1,79 | 1,82 | 1,90 | 0,98 (unverändert) |
 
-(wird mit den Werten der ruhigen Läufe ergänzt)
+Arbeitsspeicher gleich (L: 106 / 106 MB). Kalkulation, Optimieren und Maschinenvergleich sind unverändert (nicht
+angefasst; Unterschiede ±7 % sind Schwankung).
 
 ## 6. Plan der nächsten Pakete
 
