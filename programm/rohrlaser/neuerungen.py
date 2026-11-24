@@ -21,6 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.468", "<b>Nesting-Arbeitsplatz 2.0</b> ([[nesting]]): neuer Aufbau mit Bauteilen, Material und Resten "
+                "links, dem Bild in der Mitte (Bearbeiten 2D, Stangenbild wie in der Optimierung, 3D), Kennzahlen "
+                "rechts und Optimierungsvergleich, Kosten, Berechnungsprotokoll und CSV-Export unten; Bereiche ein- "
+                "und ausblendbar. Teile lassen sich mit der Maus frei auf der Stange, auf eine andere oder eine neue "
+                "Stange ziehen (geprüft, Reihenfolge bleibt so), Stangen auflösen und von Hand verschachteln, mit "
+                "Rückgängig, Wiederholen und Zurücksetzen je Abmessung oder alles. Das Bild zeigt Gehrungen "
+                "ineinander, gemeinsame Schnitte, Schnittfugen, Rest/Verschnitt, Maßkette und Lineal, auch im "
+                "Stangenbild des Angebots. Neue Strategien <i>F Wenigste Stangen</i>, <i>G Geringster Verschnitt</i>, "
+                "<i>H Schnellrechnung</i>; jede Strategie wird technisch geprüft (unzulässige nie empfohlen); die "
+                "Zeile „aktuell“ zeigt den gespeicherten Plan. Schneller: gleiche Zwischenergebnisse je Abmessung "
+                "nur einmal (große Baugruppe 6/12 m 20,6 s → 4,4 s, Ergebnis bitgleich); während der Rechnung "
+                "Live-Stand. Rechtsklick im Stangenbild öffnet die Stange im Arbeitsplatz; der Reiter Optimierung "
+                "schlägt eine bessere Verschachtelung mit gerechnetem Vorteil vor.",
+     "Nesting-Arbeitsplatz 2.0: neuer Aufbau, Teile ziehen, von Hand verschachteln, 3D, Machbarkeit, schneller"],
     ["0.9.467", "<b>12 m nur noch mit echtem Kostenvorteil</b> ([[lieferlaengen]]): Eine zentrale Entscheidung "
                 "vergleicht 6 m, andere Lieferlängen und 12 m mit Zuschnitt über die Gesamtkosten (Material, "
                 "Beladungen, Zuschnitt, Handhabung langer Stangen, verwertbare Reste nur mit Lager und Reststücken). "

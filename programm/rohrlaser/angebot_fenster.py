@@ -10225,8 +10225,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             faelle = nachkalkulation.faelle_laserzeit_teil(self.db)
         except Exception:       # noqa: BLE001 – ohne Nachkalkulation keine Schneiddaten-Vorschläge
             faelle = []
+        try:        # Verschachtelung je Abmessung (Nesting 2.0): nur beim vollen Rechnen, Zwischenspeicher je Gruppe
+            nesting = self.nesting_vergleich() if maschinen else None
+        except Exception:       # noqa: BLE001 – ohne Strategievergleich keine Verschachtelungs-Vorschläge
+            nesting = None
         return ov.alle(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst,
-                       self.db.einstellungen(), zeilen, self.varianten_gruppen(), liste, faelle)
+                       self.db.einstellungen(), zeilen, self.varianten_gruppen(), liste, faelle, nesting)
 
     def warum_teurer(self, i=None, j=None, zeigen=True):
         """KI-002 Weg A: „Warum ist Position i teurer als Position j?“ regelbasiert aus dem Rechenweg
@@ -10301,6 +10305,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             self.db.laengenwahl_speichern(neu, wahl)
         elif a["typ"] == "maschine":
             self.db.angebot_aendern(neu, "maschine", a["maschine"])
+        elif a["typ"] == "nesting":         # Nesting 2.0: Strategie je Abmessung, Belegung von Hand entfällt dort
+            na = self.db.angebot(neu)
+            wahl, hand = dict(na.get("nesting") or {}), dict(na.get("stangen_hand") or {})
+            wahl[a["schluessel"]] = a["strategie"]
+            hand.pop(a["schluessel"], None)
+            self.db.nesting_speichern(neu, wahl, hand)
         nummer = self.db.angebot(neu)["nummer"]
         if hasattr(self.f, "angebot_oeffnen"):
             self.f.angebot_oeffnen(neu)

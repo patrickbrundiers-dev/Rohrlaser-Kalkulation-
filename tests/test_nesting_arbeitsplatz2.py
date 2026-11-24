@@ -195,6 +195,17 @@ print("OK     Sprung aus dem Stangenbild: Abmessung, gespeicherter Plan, Stange 
 assert s.nesting_arbeitsplatz(dialog=lambda d: (d.alles_zuruecksetzen(), True)[-1])
 assert not db.angebot(aid)["stangen_hand"]
 print("OK     Alles zurücksetzen entfernt die Belegung von Hand")
+# Reiter Optimierung: Verschachtelungs-Vorschlag mit gerechnetem Vorteil, Übernehmen als neue Fassung
+from rohrlaser import optimierungsvorschlaege as ov  # noqa: E402
+vs = ov.verschachtelung(s.nesting_vergleich())
+assert vs and all(x["art"] == ov.VERSCHACHTELUNG and x["aktion"]["typ"] == "nesting" for x in vs), vs
+assert all(x["kosten"] is None or x["kosten"] >= ov.NESTING_MIN_EUR - 1e-9 for x in vs)
+alle_v = s.optimierung_vorschlaege(maschinen=True)
+assert any(x["art"] == ov.VERSCHACHTELUNG for x in alle_v), [x["art"] for x in alle_v]
+neu = s.vorschlag_uebernehmen(vs[0])
+assert db.angebot(neu)["nesting"] == {vs[0]["aktion"]["schluessel"]: vs[0]["aktion"]["strategie"]}
+assert not db.angebot(aid)["nesting"] or db.angebot(aid)["nesting"] != db.angebot(neu)["nesting"]
+print("OK     Optimierung: Verschachtelungs-Vorschlag, als neue Fassung übernommen")
 fenster.close()
 db.schliessen()
 print("Alle Tests OK")
