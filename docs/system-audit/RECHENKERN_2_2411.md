@@ -53,8 +53,8 @@ Nutzen ÷ (Aufwand × Risiko).
 | 2 | Staffeln rechnen die Schnittzeiten je Stufe neu | mittel | – | klein | gering (Feldzugriffe nachgewiesen) | hoch | **umgesetzt (R1)** |
 | 3 | Kein Monitoring mit Median/Perzentilen, CPU, RAM je Schritt | – | mittel | klein | keins | hoch | **umgesetzt (M1)** |
 | 4 | Benchmarks nur mit Median bzw. einem Lauf | – | – | klein | keins | mittel | **umgesetzt (M2)** |
-| 5 | Ebenenschnitte (`_schnitt`) zur Querschnittsuche: BRepAlgoAPI_Section je Lage | mittel | – | mittel | mittel | mittel | Paket 2 (Untersuchung: Schnitt an Flächen statt am ganzen Körper ist bereits ab 150 Flächen aktiv) |
-| 6 | Maschinenvergleich: Schnittzeiten je Maschine, Optimieren je Maschine | mittel | – | mittel | mittel | mittel | Paket 2 (gleiches Muster wie R1 für Felder, die nicht von der Maschine abhängen, nur mit Nachweis) |
+| 5 | Ebenenschnitte (`_schnitt`) zur Querschnittsuche: BRepAlgoAPI_Section je Lage | gering | – | mittel | mittel | gering | **Paket 2 untersucht: nur 1,6 % der Zeit (K08), Flächenfilter ab 150 Flächen besteht schon – kein Umbau** |
+| 6 | Maschinenvergleich: Schnittzeiten je Maschine, Optimieren je Maschine | gering | – | mittel | mittel | gering | **Paket 2 untersucht: alle Teile der Schnittzeit lesen die Maschine; Schneidfolge und Schnittpläne sind schon je Eingabe gemerkt – nichts bitgleich teilbar** |
 | 7 | Mehrere Messprozesse × Parallelmodus: Überbelegung der Kerne | gering | gering | klein | gering | gering | beobachten (I05 mit 3 Prozessen trotzdem 14 % schneller) |
 | 8 | STEP-Leser selbst (Datei lesen/übertragen) | gering–mittel | – | – | – | gering | OCCT 8.0 bringt hier schon bis 75 % gegenüber 7.7 (wir sind auf 8.0.1) |
 | 9 | Datenbank für 10–25 Benutzer | – | mittel | groß | hoch | – | bleibt: PostgreSQL je PC + Abgleich über Ordner (gemessen bis 25 PCs < 0,5 s); keine Architekturänderung ohne Freigabe |
@@ -167,3 +167,36 @@ angefasst; Unterschiede ±7 % sind Schwankung).
 | 4 | Fehlerresistenz Import: ein defekter Körper bricht die Baugruppe nicht ab (heute schon je Körper isoliert gemessen, mit Zeitlimit); Prüfung mit beschädigten Test-STEPs, Endlosschleifen-Schutz je Schritt | 3 + 11 |
 | 5 | Zentrale Kalkulation: Liste aller Stellen, die Preise/Zeiten außerhalb von `rechnen.kalkulation` rechnen (Staffeln seit #636 schon zentral; Rahmenaufträge, Nachkalkulation, Schweißbaugruppen prüfen), doppelte Logik entfernen nur mit Regressionstest bitgleich | 5 |
 | 6 | Last- und Speichertests (große Baugruppen, 10.000 Angebote, viele Benutzer über den Austauschordner), Abschlussbericht mit Vorher/Nachher | 6 |
+
+## 7. Paket 2: Untersuchung und Ergebnis (24.11.2026)
+
+Gemessen mit py-spy (Stichproben, alle Fäden) und cProfile; Zeiten ohne Profiler aus den Benchmarks.
+
+**Maschinenvergleich L (200 Positionen, 3 Maschinen, 1,75 s):** je Maschine einmal optimieren und kalkulieren.
+In der Kalkulation steckt die Zeit in `_schneidzeit_teile_rechnen` (Schneiddaten, Vorschübe, Dynamik mit Last,
+Ecken, Leerwege, Kopfweg, Beladung). Jeder dieser Schritte liest die Maschine (`m`, Beschleunigung, Eilgang,
+Drehzahl, Kopfhub). Was nicht von der Maschine abhängt (Lage der Konturen, Anzahl), kostet unter 1 %. Die
+teuren Teile sind schon gemerkt: Schneidfolge je Eingabe (`dynamik._FOLGE_MERK` + Angebots-Cache), Schnittpläne je
+Gruppe (`optimierung.gemerkt`), der ganze Vergleich je Eingabe (`maschinen_vergleich._MERK`). Fäden bringen nichts
+(GIL), Hilfsprozesse sind nicht bitgleich beweisbar (Hash-Reihenfolge, siehe oben). **Ergebnis: kein Umbau.**
+
+**STEP-Messung, langsamste Datei K08 (U-Profil 80×40×4, 17 s):** 92 % im Schließen des offenen Profils
+(`step_offenes_rohr._kasten_schliessen`), davon ~48 % Boolesche Operationen (seit B1 parallel), 27 % die Messung
+des geschlossenen Profils, 20 % die Ringe an den Enden (drei verschiedene Ringe: Steg 2 mm, Prüfring 0,3 mm,
+Anzeige-Ring – verschiedene Eingaben, nichts doppelt). Die Querschnittsuche `_schnitt` hat nur 1,6 %.
+Geprüft: OCP gibt während `Build()` den GIL nicht frei (zwei Booleans in zwei Fäden: 21,1 s statt 18,7 s
+nacheinander) – Booleans in Fäden parallel bringen nichts.
+
+Umgesetzt: In `_kasten_schliessen` lief die Vereinigung Körper ∪ ergänzte Wände ein zweites Mal mit genau denselben
+Eingaben; jetzt wird das Ergebnis `voll` von oben verwendet. 126 von 126 Prüf-STEPs bitgleich. Der Gewinn
+(~1 % bei Profilen mit Fenster) liegt in der Messschwankung, daher keine Tempo-Angabe.
+
+Baugruppe I05 (48 Körper): im Programm (mit Zeitlimit) wird die Datei auf 3 Messprozesse verteilt, 7,1 s statt
+13–15 s im Benchmark mit `--prozesse 1` – kein Engpass.
+
+**Folgerung:** Nach B1 und R1 gibt es in Rechenkern und STEP-Messung keine großen bitgleichen Gewinne mehr ohne einen
+anderen Geometriekern (Patrick 24.11.: „Open Cascade bleiben“). Paket 5 (zentrale Kalkulation) ist mit dieser
+Untersuchung erledigt: alle 40+ Stellen, die Preise brauchen, rufen `rechnen.kalkulation`; Staffeln (#636) und
+Rahmenaufträge (`rahmen_kalk`, über `staffeln.stufe_lauf`/`marge_anhebung`) und die Baugruppen-Kostenübersicht
+(`bg_kosten`) rechnen nichts selbst; Dreh-/Frästeil-Richtpreise sind EK-Vorschläge für Zukaufteile (gewollt eigene
+Rechnung). Weiter mit Paket 4 (Fehlerresistenz des Imports) und Paket 6 (Last/Speicher).

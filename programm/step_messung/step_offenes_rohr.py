@@ -709,7 +709,9 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
             # offenen Lagen ist flacher, die Wand wäre sonst Kontur, STEP 553591)
             quer_k = _quer_vom_ende(e, d) or quer_k
         else:
-            mit_ringen = _vereinen(_vereinen(solid, teile, e["ax3"]), ringe, e["ax3"], False) if ringe and f else None
+            # voll = _vereinen(solid, teile, e["ax3"]) von oben: gleiche Eingaben, gleicher Körper (Rechenkern 2.0,
+            # Paket 2: die Vereinigung lief hier ein zweites Mal)
+            mit_ringen = _vereinen(voll, ringe, e["ax3"], False) if ringe and f else None
             zu = _ausschneiden(mit_ringen, f[0], e["ax3"]) if mit_ringen is not None else None
         if zu is None or quer_k is None:
             return False
