@@ -3863,8 +3863,48 @@ def abschnitte_profirst_angebot(i):
             "Machbarkeit); unten <i>Optimierungsvergleich</i>, <i>Kosten je Position</i>, "
             "<i>Berechnungsprotokoll</i> und <i>Export</i>. Die Knöpfe <b>Links</b>, <b>Rechts</b>, <b>Unten</b> "
             "blenden Bereiche aus, die Teiler ändern die Größe. Hell und dunkel wie das Programm.",
-            "<b>Ansichten</b> aus denselben Daten: <i>Bearbeiten (2D)</i>, <i>Stangenbild wie Optimierung</i> und "
-            "<i>3D</i> (gewählte Stange als Rohr, ziehen = drehen, Mausrad = Zoom, Doppelklick = zurück).",
+            "<b>Ansichten</b> aus denselben Nesting-Daten, oben als Umschalter mit Symbolen (Strg+1 bis Strg+5; "
+            "die zuletzt benutzte bleibt gemerkt): <i>Abwicklung</i>, <i>3D</i>, <i>Technisch</i>, <i>Alle "
+            "Stangen</i> (Bearbeiten, Teile ziehen) und <i>Stangenbild</i> wie in der Optimierung. Links im Reiter "
+            "<i>Stangen</i> jede Stange mit Länge, Teilen, Ausnutzung und einem kleinen Belegungsbalken (Teile in "
+            "Farbe, Rest grün bzw. rot); über der Abwicklung das Feld „Stange 1 von 3“; Pfeiltasten, <b>Bild "
+            "auf/ab</b> oder ◀ ▶ blättern.",
+            "<b>Abwicklung</b> der gewählten Stange maßstäblich: Länge waagerecht (Knopf <i>Senkrecht</i> dreht), "
+            "quer der echte Umfang der Außenhaut mit Eckradien (Seiten oben, vorne, unten, hinten bzw. Grad beim "
+            "Rundrohr, Radiusübergänge gestrichelt, Schweißnaht). Jedes Teil liegt genau dort, wo das Nesting es "
+            "plant, mit seiner Drehung (Konturen an der richtigen Stelle am Umfang) und gewendet, wenn Ende B vorn "
+            "liegt; Gehrungen und Schrägschnitte als echte Schnittkanten, Bohrungen, Langlöcher, Ausschnitte und "
+            "Gravuren wie im Teile-Editor. Dazu Endbeschnitt, Schnittfugen, Rest (grün verwertbar, rot Verschnitt) "
+            "und Greiferrest, Kettenmaß mit Maßpfeilen und Gesamtmaß, feines Raster und eine kleine Legende. Der "
+            "<b>Verschnitt zwischen den Teilen</b> (Fläche zwischen den Schnittkanten benachbarter Teile, z. B. die "
+            "Dreiecke bei Gehrungen, mit den Schnittfugen) ist rot schraffiert; Maus darüber bzw. Klick nennt "
+            "Fläche in cm² und die gleichwertige Rohrlänge, rechts steht die Summe je Stange; im 3D sind dieselben "
+            "Stücke rot. Der <b>1. Schnitt</b> (Besäumschnitt am Stangenanfang, Ende des Endbeschnitts, z. B. "
+            "10 mm) ist als kräftige Linie mit Schild <i>1. Schnitt · Besäumen</i> eingezeichnet, im 3D beschriftet "
+            "und steht als erste Zeile in der Koordinatentabelle der technischen Ansicht und in der DXF. Die "
+            "Teile haben ruhige Farben (dieselben wie im 3D und unter <i>Alle Stangen</i>); unter der Maus wird ein "
+            "Teil hervorgehoben und ein Tooltip nennt Pos., Länge und Lage, das gewählte Teil hat einen blauen "
+            "Rand. Menü <i>Ebenen</i>: Bemaßung, Schnittpositionen, Konturen, Reste markieren, Seiten/Winkel ein- "
+            "und ausblenden; <i>Senkrecht</i> (Taste S), <i>Umfang 1:1</i> (Umfang im Längenmaßstab), "
+            "<i>Messen</i> (Taste M, zwei Punkte: Abstand längs und am Umfang). Mausrad = Zoom an der Maus, "
+            "ziehen = verschieben, Doppelklick bzw. F = ganze Stange. Klick auf ein Teil: rechts seine Daten; "
+            "Rechtsklick: <i>Zur Position</i>, <i>Gleiche Teile hervorheben</i>, <i>Im 3D zeigen</i>.",
+            "<b>3D</b>: die echten Bauteile auf der Stange, gelegt und gedreht nach dem Nesting. Hat die Position "
+            "ein STEP-Netz, wird es gezeigt, sonst das Rohr aus den Eingaben (wie im Teile-Editor). Passt ein "
+            "STEP-Netz nicht zur Teillänge, wird nichts gestreckt: das Teil kommt aus den Eingaben und der Grund "
+            "steht unter dem Bild. Endbeschnitt, Rest und Greiferrest grau und halb durchsichtig, über jedem Teil "
+            "ein Schild mit Nummer und Pos. Das 3D zeigt zuerst das gewählte Teil groß (ohne Wahl die ersten "
+            "1,5 m); <i>Ganze Stange</i> zeigt alles, <i>Auf Teil</i> holt das gewählte Teil zurück. Klick auf ein "
+            "Teil wählt es in allen Ansichten.",
+            "<b>Technisch</b>: dieselbe Abwicklung mit Koordinaten an jedem Schnitt und jeder Kontur und darunter "
+            "eine Tabelle (Teil, Art, Kontur, x von/bis ab Materialanfang, Lage am Umfang, Winkel/Seite). Klick "
+            "auf eine Zeile markiert die Stelle im Bild (Fadenkreuz), Klick auf ein Teil wählt seine Zeilen. "
+            "<b>PDF</b> speichert die Abwicklung der Stange maßstäblich auf A4 quer, <b>DXF</b> als Zeichnung (x "
+            "längs, y Umfang in mm, Layer wie die Rohrabwicklung).",
+            "<b>Infopanel</b> rechts als Karten unter den Kennzahlen: Stange mit Ausnutzungsbalken (Profil, Wand, "
+            "Werkstoff, Länge, Gewicht, Teile, Verbrauch, Schnittfugen, Endbeschnitt, Rest, Greiferrest, "
+            "Materialkosten) und das gewählte Teil mit kleiner 3D-Vorschau (Position, Bezeichnung, STEP oder "
+            "Eingaben, Länge, Lage auf der Stange, Umfangslage, Drehwinkel, gewendet, Anzahl Konturen).",
             "<b>Bild</b> wie das Stangenbild: Gehrungen schräg, Gehrungen ineinander grün, gemeinsamer Schnitt als "
             "blaues Dreieck, Schnittfugen, Schweißnaht, verwertbarer Rest grün, Verschnitt rot schraffiert, "
             "Greiferrest; darunter Maßkette und Lineal. Strg + Mausrad zoomt, mittlere Maustaste verschiebt. Auch "
@@ -5314,6 +5354,50 @@ def kapitel_step(i):
             "--json ergebnis.json Ordner</i>.")
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "
            "Grenzen liegen, steht im Anhang ([[step_messung]]).")
+    i.abschnitt("STEP-Viewer", marke="step_viewer")
+    i.text("<i>Datei → STEP-Viewer (Datei ansehen und prüfen) …</i> (Strg+Umschalt+O, auch in <i>Meine "
+           "Werkzeugleiste</i>) öffnet eine STEP-, IGES-, TUBX- oder BLM-Datei <b>ohne Angebot</b>. Im Angebot: "
+           "Rechtsklick auf eine Position → <i>Im STEP-Viewer öffnen …</i> zeigt die STEP-Datei, aus der sie stammt. "
+           "Der Viewer misst die Datei mit derselben STEP-Messung und denselben Einstellungen wie der Import; die "
+           "Werte sind also genau die, die eine Position übernimmt.", kurz=True)
+    i.genauer()
+    i.tabelle(["Bereich", "Inhalt"], [
+        ["<b>Datei</b> (sofort)", "Format (AP203, AP214, AP242), Einheit, Baugruppen, Bauteile, Körper, Flächen, "
+         "vermutete Normteile und geschätzte Messzeit: gelesen aus dem Text der Datei, bevor die Messung fertig ist"],
+        ["<b>Bauteilbaum</b>", "alle Körper nach Rohr/Profil, Blech, Dreh-/Frästeil, Normteil/Zukaufteil und nicht "
+         "messbar; Doppelklick oder Rechtsklick → <i>Einzelteil zeigen</i> = Einzelteil, Rechtsklick → <i>Art ändern</i>"],
+        ["<b>3D-Ansicht</b>", "dieselbe Ansicht wie in allen 3D-Fenstern: drehen, zoomen, verschieben, Blick "
+         "(vorn, oben, Seite, Isometrie), perspektivisch oder orthografisch, Darstellungen (Schattiert, Mit Kanten, "
+         "Drahtgitter, Durchsichtig, Technisch …), Auswahl von Körper, Fläche, Kante, Messen (Abstand, Winkel, Ø, "
+         "Radius, Wandstärke mit <i>Teil messen</i>), Schnitt und Explosion ([[ansicht_3d_bedienung]])"],
+        ["<b>Erkennung</b>", "Art, Profiltyp, Profil-ID, Abmessungen, Wandstärke, Länge, Schneidweg, Einstiche, "
+         "Innenkonturen, Gravur, Bohrungen, Gehrungen, Normteil mit Grund, Volumen, Oberfläche, Hüllquader, "
+         "Sicherheit der Erkennung, Warnungen; in der Gesamtansicht die Zusammenfassung der Datei"],
+        ["<b>Konturen</b>", "jede Kontur mit Art, Maß, Lage, Schnittlänge und Einstich; darunter Gesamtschneidweg, "
+         "Einstiche und Summe der Konturen. Eine Kontur in der Liste <b>oder im 3D anklicken</b> zeigt ihre "
+         "Berechnungswerte (Schnittlänge, Einstich, Schwenkwinkel, Anteil am Schneidweg) und hebt sie hervor"],
+        ["<b>Leistung</b>", "gemessene Zeiten: Kopf lesen, Messung (Einlesen, Analyse, Abschluss), Netze laden, "
+         "Modell aufbauen und zeichnen, Zeit bis zum ersten 3D-Bild, Zahl der Dreiecke"]], [32, 138])
+    i.liste("<b>Konturen nach Art</b> färbt Bohrungen, Langlöcher, Rechtecke/Ausschnitte, Sonderkonturen, gerade "
+            "Enden, Gehrungen/Schrägschnitte, Gravuren und nicht gelaserte Konturen (Sackbohrung, Fließloch) mit "
+            "Legende. <b>Nur Rohrlaser-Teile</b> blendet in der Gesamtansicht Normteile, Bleche und Dreh-/Frästeile "
+            "aus, im Einzelteil Anbauteile und Innenwand. <b>Dunkel</b> schaltet einen dunklen CAD-Hintergrund ein "
+            "(nur solange der Viewer offen ist; im dunklen Programm-Design ist die Ansicht ohnehin dunkel).",
+            "<b>Gegenprobe:</b> Die Spalte <i>Linie 3D</i> ist die Länge der Konturlinien im 3D-Bild, unabhängig "
+            "von der Messung zusammengezählt; ✓ heißt: sie passt zur Schnittlänge (2 %, mindestens 0,5 mm). Bei "
+            "offenen Profilen zählt eine Seite der Wand, Bohrungen im Rundrohr zeigen <i>✓ 2D-Schnitt</i> (der "
+            "Laser schneidet außen länger als konstruiert, gerechnet wird der 2D-Schnitt). Senkungen, Fließlöcher und "
+            "Gewinde vergleicht sie nicht (die Linie ist der Rand, geschnitten wird das Kernloch).",
+            "<b>Analysestufe:</b> <i>Standard</i> misst wie der Import. <i>Experte</i> rechnet dazu ein feineres "
+            "3D-Netz (Abweichung ein Viertel, feinere Rundungen) für genaueres Messen und Ansehen; alle Messwerte "
+            "bleiben gleich. Den Schnellmodus (nur Kalkulationsdaten) wählt man beim Import.",
+            "<b>Art ändern:</b> Rechtsklick im Baum oder Feld <i>Art</i> unter der Erkennung: Rohr/Profil, Blech, "
+            "Dreh-/Frästeil (wenn gemessen) oder Normteil/Zukaufteil. Mit dem Haken <i>Korrekturen für künftige "
+            "Importe merken</i> (Vorgabe an) gilt die Wahl beim nächsten Import desselben Teils wie im Prüfdialog "
+            "([[lernen]]).",
+            "<b>Ins Angebot übernehmen …</b> liest die Datei in das geöffnete Angebot (sonst als neues Angebot) mit "
+            "dem üblichen Prüfdialog; die Messung kommt aus dem Zwischenspeicher. Der Viewer selbst ändert kein "
+            "Angebot. <i>Werte kopieren</i> legt Erkennung und Konturen als Tabelle in die Zwischenablage.")
 
 
 def kapitel_optimieren(i):

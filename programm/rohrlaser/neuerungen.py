@@ -32,6 +32,32 @@ NEUERUNGEN = [
                 "Archiv, Bearbeitungssperre mit „in Bearbeitung von …“, Übersicht mit Kacheln und einstellbare "
                 "Benachrichtigungen ohne Flut. Ohne Server: Dateien im gemeinsamen Ordner, Angaben über den Abgleich.",
      "Neue Seite Austausch: gemeinsame Dateien mit Zuordnung, Aufgaben, Versionen und Papierkorb"],
+    ["0.9.474", "<b>Nesting: Stangenabwicklung und 3D auf CAD/CAM-Niveau</b> ([[nesting]]): neue Hauptansicht "
+                "<i>Abwicklung</i> je Materialstange, maßstäblich mit echtem Umfang (Eckradien, Seiten bzw. Grad), "
+                "jedes Teil an seinem Platz aus dem Nesting mit Drehung und Wenden, Gehrungen, Bohrungen, Langlöcher "
+                "und Gravuren an der richtigen Stelle am Umfang, Endbeschnitt, Schnittfugen, Rest und Greiferrest. "
+                "Zoom, Messen, Ebenen ein/aus, waagerecht/senkrecht, Umfang 1:1. <i>3D</i> zeigt die echten "
+                "STEP-Teile auf der Stange (sonst aus den Eingaben, nie gestreckt), <i>Technisch</i> die Koordinaten "
+                "jedes Schnitts und jeder Kontur. Links die Stangenliste zum Blättern, rechts Infopanel für Stange "
+                "und Teil; die letzte Ansicht bleibt gemerkt. Modern gestaltet: Umschalter mit Symbolen (Strg+1–5), "
+                "Ebenen-Menü, ruhige Teilfarben in allen Ansichten, Hervorhebung mit Tooltip, Raster, Legende, "
+                "Maßpfeile; 3D zoomt auf das gewählte Teil und zeigt Positionsschilder; Koordinatentabelle und Bild "
+                "verbunden, Abwicklung als PDF/DXF; Infokarten mit Teilvorschau; Stangenliste mit Belegungsbalken. "
+                "Verschnitt zwischen den Teilen (Gehrungsdreiecke, Fugen) rot in Abwicklung und 3D, mit Fläche und "
+                "gleichwertiger Länge je Stange. Der 1. Schnitt (Besäumschnitt, Endbeschnitt) ist in Abwicklung, 3D, "
+                "Koordinatentabelle und DXF eingezeichnet.",
+     "Nesting: Abwicklung je Stange, 3D mit echten STEP-Teilen, Technische Ansicht, moderne Ansichten, PDF/DXF."],
+    ["0.9.473", "<b>Eigener STEP-Viewer</b> ([[step_viewer]]): <i>Datei → STEP-Viewer</i> (Strg+Umschalt+O) oder "
+                "Rechtsklick auf eine Position → <i>Im STEP-Viewer öffnen …</i> zeigt eine STEP-Datei ohne Angebot: "
+                "Format (AP203/AP214/AP242), Einheit und Baugruppe sofort, danach alle Bauteile nach Art, 3D mit "
+                "allen Ansichten, Darstellungen und Messwerkzeugen, die Erkennung je Teil (Profil, Wand, Länge, "
+                "Schneidweg, Einstiche, Normteil mit Grund) und <b>jede Kontur farbig nach Art</b>. Eine Kontur in "
+                "der Liste oder im 3D anklicken zeigt ihre Berechnungswerte; die Summe ist genau der Schneidweg, den "
+                "die Position übernimmt, mit Gegenprobe über die 3D-Linien. Art von Hand ändern (auf Wunsch für "
+                "künftige Importe gemerkt), ins Angebot übernehmen, dunkler CAD-Hintergrund, Analysestufe "
+                "<i>Experte</i> mit feinerem 3D-Netz (Messwerte bleiben gleich) und gemessene Ladezeiten. Die "
+                "STEP-Messung liefert dazu je 3D-Linie die Konturnummer; alle Messwerte bleiben bitgleich.",
+     "Eigener STEP-Viewer: Konturen farbig mit Berechnungswerten, Erkennung korrigierbar, Experten-Netz"],
     ["0.9.472", "<b>Generalüberholung, Paket 1: schneller und aufgeräumter</b>: Die Datendatei öffnet schneller "
                 "(beim Start rund 600 Datenbank-Anweisungen weniger, 0,6 → 0,3 s im Test), weil die Trigger des "
                 "Änderungsprotokolls stehen bleiben statt bei jedem Öffnen neu angelegt zu werden. Speichern, "

@@ -3693,6 +3693,7 @@ class Hauptfenster(QMainWindow):
         datei = self.menuBar().addMenu("&Datei")
         self.datei_aktionen = {}
         for text, ziel, taste in (("Neues Angebot aus STEP …", lambda: self.angebote.neu_aus_step(), None),
+                                  ("STEP-Viewer (Datei ansehen und prüfen) …", lambda: self.step_viewer(), "Ctrl+Shift+O"),
                                   ("Neue Fassung des Angebots", self.neue_fassung, None),
                                   (None, None, None),
                                   ("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
@@ -5122,6 +5123,12 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def step_viewer(self, pfad=None):
+        """Eigener STEP-Viewer (Master-Auftrag 24.11.2026): Datei ohne Angebot öffnen, messen, Konturen und Schneidweg
+        prüfen, bei Bedarf ins Angebot übernehmen (step_viewer_fenster.py). Ergebnis: das Fenster."""
+        from . import step_viewer_fenster
+        return step_viewer_fenster.oeffnen(self, pfad)
 
     def kostentreiber_zeigen(self, zeigen=True, zeitraum=None):
         """CALC-030: Kostentreiber über die beauftragten Angebote (kostentreiber.auswertung), je Bearbeitungsart und
