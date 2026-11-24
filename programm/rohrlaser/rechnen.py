@@ -3428,6 +3428,15 @@ def konturklassen(liste, grenzen):
     return out
 
 
+def klassen_text(p):
+    """Konturklassen einer Position als Text: 'groß 2 × 300,5 mm, mittel 4 × 125,6 mm, klein 10 × 324,0 mm'
+    (Bericht beim Einlesen von Programmen, Patrick 24.11.2026: „groß mittel klein anzeigen“)."""
+    teile = [f"{name} {int(_n(p.get(f'{feld}_n')))} × {zahl(_n(p.get(f'{feld}_mm')), 1)} mm"
+             for name, feld in (("groß", "gross"), ("mittel", "mittel"), ("klein", "klein"))
+             if _n(p.get(f"{feld}_n"))]
+    return ", ".join(teile) or "keine Innenkonturen"
+
+
 def konturklassen_neu(p, m, wand=None):
     """Neue Einteilung einer Position, deren Konturliste mit einer anderen Regel eingeteilt wurde als der aktuellen
     (Grenzen und Faktoren der Maschine, Wandstärke des Profils): dict mit den Klassenfeldern und kontur_grenzen,
@@ -4653,6 +4662,64 @@ def faktor_laserzeit(einst):
     return float(w) if _zahl(w) and w > 0 else 1.0
 
 
+def programm_laserzeit(p, einst=None):
+    """Zeiten je Teil aus dem Maschinenprogramm (positionen.step_merkmale['programm'], TRUMPF-LST) als (Laser an [s],
+    Einstiche enthalten, Verfahren [s] oder None) oder None (keine Programmzeit, Einstellung trumpf_zeit = nein bzw.
+    ganz, Schneidzeit von Hand). Laser an = Zeit mit Laserleistung > 0, Verfahren = ohne Strahl (Achswege, Drehen,
+    Ecken); hat die Maschine das Teil gemessen, gilt die gemessene Zeit (beide Anteile im Verhältnis). Patrick
+    24.11.2026: „Laserzeit als reine Laserzeit nutzen und die restlichen Werte dazurechnen wie jetzt auch“; „wenn noch
+    andere Zeiten in der LST enthalten sind, diese auch übernehmen und nur das dazurechnen, was fehlt“."""
+    if not _leer(p.get("zeit_manuell")) or str((einst or {}).get("trumpf_zeit") or "ja") in ("nein", "ganz"):
+        return None
+    m = p.get("step_merkmale")
+    if not m or "programm" not in str(m):
+        return None
+    try:
+        d = ((json.loads(m) if isinstance(m, str) else m) or {}).get("programm") or {}
+        s = float(d.get("laser_an_s") or 0)
+        v = float(d["verfahren_s"]) if _zahl(d.get("verfahren_s")) and d["verfahren_s"] >= 0 else None
+        g = float(d.get("gemessen_s") or 0)
+    except (TypeError, ValueError, AttributeError):
+        return None
+    if s <= 0:
+        return None
+    if g > 0:                      # gemessen an der Maschine: Anteile laut Programm, Summe gemessen
+        f = g / (s + (v or 0.0))
+        s, v = s * f, (v * f if v is not None else None)
+    return s, str((einst or {}).get("programmzeit_einstiche") or "enthalten") != "eigen", v
+
+
+def laser_aus_programm(anteile, laser_s, einstiche_enthalten=False, verfahren_s=None):
+    """Zeitanteile mit den Zeiten des Programms: die Laser-an-Zeit ersetzt Schneiden (groß/mittel/klein, Gravur, 3D,
+    Abfall) und Ecken, verteilt nach den berechneten Anteilen; die Verfahrzeit des Programms (ohne Strahl) ersetzt
+    Verfahren und Drehen. Was das Programm nicht enthält (Nebenzeit, Messen, Entnahme, Beladen), bleibt berechnet.
+    Einstiche: in der Laser-an-Zeit enthalten (Einstichzeit 0) oder eigener Posten (Laser-an-Zeit minus berechnete
+    Einstichzeit)."""
+    neu = dict(anteile)
+    ersetzt = BAUSTEINE["schneiden"] + BAUSTEINE["ecken"] + (BAUSTEINE["einstechen"] if einstiche_enthalten else ())
+    rein = max(0.0, laser_s - (0.0 if einstiche_enthalten else _n(anteile.get("einstiche"))))
+    _verteilen(neu, anteile, [n for n in ersetzt if n != "einstiche"], rein, "gross")
+    if einstiche_enthalten and "einstiche" in neu:
+        neu["einstiche"] = 0.0
+    if verfahren_s is not None:
+        _verteilen(neu, anteile, list(BAUSTEINE["bewegen"]), verfahren_s, "anfahren")
+    return neu
+
+
+def _verteilen(neu, alt, namen, summe, rest):
+    """summe auf die Anteile namen verteilen (nach ihren berechneten Werten in alt, ohne Werte alles auf rest)."""
+    basis = sum(_n(alt.get(n)) for n in namen)
+    for n in namen:
+        if n in neu:
+            neu[n] = 0.0
+    if basis > 0:
+        for n in namen:
+            if _n(alt.get(n)) > 0:
+                neu[n] = summe * _n(alt[n]) / basis
+    else:
+        neu[rest] = summe
+
+
 def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau, f_laser=1.0):
     """Laserzeit eines Rohrlaserteils (Teil von kalkulation): Schneiddaten, Zeitanteile, Einsparung gemeinsamer
     Schnitte (ein = [Anzahl, eingespart mm, eingesparte Einstiche] aus dem Schnittplan) und Laserzeit netto je Teil oz
@@ -4664,6 +4731,10 @@ def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau, f_laser=1.0):
     sd, (h, i_, j, kv, l), d3, ez, ta = t["sd"], t["vorschuebe"], t["d3"], t["ez"], t["ta"]
     mz = sum(t["anteile"].values()) if t["anteile"] else None
     anteile = t["anteile"] or {}
+    prog = programm_laserzeit(p, (tabellen or {}).get("einstellungen"))
+    if prog is not None and anteile:      # Laserzeit aus dem Maschinenprogramm (Patrick 24.11.2026)
+        anteile = laser_aus_programm(anteile, *prog)
+        mz = sum(anteile.values())
     if h is None or c == 0 or not h:
         nz = 0
     else:
