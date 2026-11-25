@@ -272,7 +272,8 @@ app.processEvents()
 assert not d.baum.isColumnHidden(d.SP_REVISION) and not d.baum.isColumnHidden(d.SP_ERKENNUNG)
 zeilen = {Path(str(d.messwerte[z.liste[0]].get("datei"))).stem: z for z in d.zeilen}
 r = zeilen["123456_REV02"].it
-assert r.text(d.SP_REVISION) == "REV02" and r.text(d.SP_ERKENNUNG) == "sicher · liste.pdf", r.text(d.SP_ERKENNUNG)
+assert r.text(d.SP_REVISION) == "REV02" and r.text(d.SP_ERKENNUNG) == "sicher", r.text(d.SP_ERKENNUNG)
+assert "liste.pdf" in r.toolTip(d.SP_ERKENNUNG)
 assert r.background(d.SP_ERKENNUNG).color().name().upper() == stil.farbe(stil.GRUEN_FLAECHE).name().upper()
 assert zeilen["777777"].it.text(d.SP_ERKENNUNG).startswith("Widerspruch"), zeilen["777777"].it.text(d.SP_ERKENNUNG)
 assert "der Mail" in zeilen["777777"].it.toolTip(d.SP_ERKENNUNG) or "Mail" in zeilen["777777"].it.toolTip(d.SP_ERKENNUNG)
@@ -281,7 +282,7 @@ assert n.it.text(d.SP_ERKENNUNG) == "nicht erkannt" and n.it.text(d.SP_REVISION)
 n.sp.setValue(12)               # von Hand eingetragen: nicht mehr rot
 assert n.it.text(d.SP_ERKENNUNG) == ""
 d.close()
-ok("M12 Prüfdialog: Spalte Revision (REV02), Erkennung „sicher · liste.pdf“ grün, Widerspruch gelb, "
+ok("M12 Prüfdialog: Spalte Revision (REV02), Erkennung „sicher“ grün (Quelle im Tooltip), Widerspruch gelb, "
    "„nicht erkannt“ rot bis zur Eingabe von Hand")
 
 print("Alle Tests bestanden.")

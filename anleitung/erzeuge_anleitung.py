@@ -1639,8 +1639,8 @@ def kapitel_angebote(i):
             "ordnet das Programm nicht still zu. Die Menge ist gelb mit <i>mehrere Dateien zu 123456 … bitte Revision "
             "prüfen</i>. Nennt der Text selbst eine Revision (<i>123456-02</i>), gilt die passende Datei.",
             "<b>Spalten im Prüfdialog</b>: <i>Revision</i> zeigt die Revision aus dem Dateinamen, <i>Erkennung "
-            "Stückzahl</i> den Status mit Quelle: <i>sicher · liste.pdf</i> (grün), <i>unsicher</i>, <i>Widerspruch</i> "
-            "oder <i>Revision prüfen</i> (gelb) und <i>nicht erkannt</i> (rot, bis du eine Zahl einträgst). Beide "
+            "Stückzahl</i> den Status (Quelle im Tooltip): <i>sicher</i> (grün), <i>unsicher</i>, <i>Widerspruch</i> "
+            "oder <i>Rev. prüfen</i> (gelb) und <i>nicht erkannt</i> (rot, bis du eine Zahl einträgst). Beide "
             "Spalten erscheinen nur, wenn es etwas zu zeigen gibt (Rechtsklick auf die Kopfzeile blendet sie ein).",
             "<b>An der Position gespeichert</b>: Artikelnummer, Revision, Datei, Stückzahl mit Quelle und Status "
             "(sicher, unsicher, von Hand, nicht erkannt) sowie die Zeichnung, aus der Angaben stammen. "

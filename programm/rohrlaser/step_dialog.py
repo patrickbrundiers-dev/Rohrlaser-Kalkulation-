@@ -517,7 +517,7 @@ class StepPruefDialog(QDialog):
         QShortcut(QKeySequence("F2"), self.baum, activated=lambda: self.artikel_bearbeiten(self.baum.currentItem()),
                   context=Qt.WidgetShortcut)
         self._baum_fuellen()
-        for c, b in enumerate((220, 50, 150, 175, 150, 110, 70, 120, 80, 95, 65, 130, 70, 150)):
+        for c, b in enumerate((220, 50, 150, 175, 150, 110, 70, 120, 80, 95, 65, 130, 60, 100)):
             self.baum.setColumnWidth(c, b)
         self._spalten_an_auswahl()          # Art und Profil so breit wie die längste Auswahl (E1)
         # M1 (Patrick 07.11.2026): kein Querscrollen – Hinweis als Stichwort, Länge/Schneidweg/Konturen stehen im
@@ -1228,14 +1228,13 @@ class StepPruefDialog(QDialog):
                 text, farbe = "Widerspruch", stil.GELB_FLAECHE
                 tipp.append(f"Andere Angabe: {m['_stueck_widerspruch']}")
             elif m.get("_stueck_hinweis") and "Revision" in m["_stueck_hinweis"]:
-                text, farbe = "Revision prüfen", stil.GELB_FLAECHE
+                text, farbe = "Rev. prüfen", stil.GELB_FLAECHE
             elif m["_stueck_formular"]:
                 text, farbe = "sicher", stil.GRUEN_FLAECHE
             else:
                 text, farbe = "unsicher", stil.GELB_FLAECHE
             quelle = m.get("_stueck_fundstelle") or m.get("_stueck_quelle") or ""
-            if quelle:
-                text += " · " + quelle.split(":")[0]
+            if quelle:          # Quelle im Tooltip: die Spalte bleibt schmal (kein Querscrollen, M1)
                 tipp.insert(0, f"Fundstelle: {quelle}")
         elif m.get("_stueck_fehlt") and not m.get("_saetze"):
             text, farbe = "nicht erkannt", stil.ROT_FLAECHE
