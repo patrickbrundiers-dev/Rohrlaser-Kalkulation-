@@ -144,7 +144,10 @@ def main():
             e = d.eingaben()
             assert not any(z.get("art") == "V-Ausschnitt" for z in e["konturen"]), (name, e["konturen"])
             if name.startswith(("A1", "A6")):      # Ende A mit schräger Ecke bzw. Ausschnitt bis ans Ende: nicht „gerade“
-                assert e["a"].get("form") == "komplex" and ende_text(e["a"]).startswith("komplex"), (name, e["a"])
+                # komplex mit Umriss der STEP; seit 0.9.491 ggf. mit erkannter Konturart (Umriss bleibt maßgebend)
+                assert e["a"].get("form") == "komplex" and e["a"].get("umriss") and (
+                    ende_text(e["a"]).startswith("komplex")
+                    or ende_text(e["a"]).endswith("(erkannt, Umriss wie STEP)")), (name, ende_text(e["a"]))
             n = wie.netz_wie_konstruiert(d)
             sn = ansicht3d.entpacken(ms[name]["_netz"])
             mod = [z for a in ("K", "EA", "EB") for z in n["l"].get(a, [])]
