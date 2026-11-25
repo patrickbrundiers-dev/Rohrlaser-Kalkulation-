@@ -325,8 +325,8 @@ class InfoPanel(QScrollArea):
             if self._seite is not None:
                 try:
                     self._seite.pos_modell.modelReset.disconnect(self.spaeter)
-                except (RuntimeError, TypeError):
-                    pass
+                except (RuntimeError, TypeError, AttributeError):
+                    pass        # Seite schon abgebaut (Supportpaket 25.11.2026: AttributeError pos_modell)
             self._seite = seite
             if seite is not None:
                 seite.pos_modell.modelReset.connect(self.spaeter)
