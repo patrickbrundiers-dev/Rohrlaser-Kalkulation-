@@ -43,6 +43,57 @@ def _punkte(umriss):
     return out if len(out) >= 3 else None
 
 
+BOGEN_ENDE = 8          # Bogenenden bis so viele Punkte vor der größten Reichweite prüfen
+PUNKTE_MAX = 400        # dichtere Umrisse vor dem Zerlegen ausdünnen (Zerlegen ist kubisch in der Punktzahl)
+
+
+def _ausduennen(pts, schritte=300, ecke_grad=30.0):
+    """Dichten geschlossenen Umriss gleichmäßig entlang des Umfangs auf etwa `schritte` Punkte bringen (Bögen
+    behalten gleichmäßige Sehnen, Messrauschen wächst nicht), Ecken bleiben: Punkte, an denen die Richtung über einen
+    halben Schritt vor und nach dem Punkt um mehr als ecke_grad dreht (davon je Ecke der schärfste)."""
+    n = len(pts)
+    lauf = [0.0]
+    for i in range(1, n + 1):
+        a, b = pts[i - 1], pts[i % n]
+        lauf.append(lauf[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
+    umfang = lauf[-1]
+    schritt = umfang / max(schritte, 3)
+
+    def nachbar(i, richtung):
+        j, d = i, 0.0
+        while d < schritt / 2 and abs(j - i) < n - 1:
+            k = j + richtung
+            a, b = pts[j % n], pts[k % n]
+            d += math.hypot(b[0] - a[0], b[1] - a[1])
+            j = k
+        return pts[j % n]
+
+    def dreh(i):
+        a, b, c = nachbar(i, -1), pts[i], nachbar(i, 1)
+        w1 = math.atan2(b[1] - a[1], b[0] - a[0])
+        w2 = math.atan2(c[1] - b[1], c[0] - b[0])
+        return math.degrees(abs((w2 - w1 + math.pi) % (2 * math.pi) - math.pi))
+    dr = [dreh(i) for i in range(n)]
+    ecken = set()
+    for i in range(n):
+        if dr[i] > ecke_grad and dr[i] >= dr[i - 1] and dr[i] >= dr[(i + 1) % n]:
+            ecken.add(i)
+    out, letzt = [], -1e9
+    for i in range(n):
+        if i in ecken:
+            if out and lauf[i] - letzt < schritt / 2 and out[-1][1] not in ecken:
+                out.pop()                       # gleichmäßiger Punkt dicht vor der Ecke: Ecke statt dessen
+            out.append((pts[i], i))
+            letzt = lauf[i]
+        elif lauf[i] - letzt >= schritt and (not out or i not in ecken):
+            nah = any(0 < (lauf[e] - lauf[i]) % umfang < schritt / 2 for e in ecken)
+            if not nah:
+                out.append((pts[i], i))
+                letzt = lauf[i]
+    res = [p for p, _ in out]
+    return res if len(res) >= 3 else pts
+
+
 def _abstand_strecke(p, a, b):
     dx, dy = b[0] - a[0], b[1] - a[1]
     lg = dx * dx + dy * dy
@@ -114,6 +165,8 @@ def zerlegen(umriss, tol=ERKENNUNG_TOL, tol_zus=None):
     pts = _punkte(umriss)
     if not pts:
         return None
+    if len(pts) > PUNKTE_MAX:           # die Abweichung prüft erkennen danach gegen alle Punkte
+        pts = _ausduennen(pts)
     n = len(pts)
 
     def knick(i):
@@ -128,14 +181,27 @@ def zerlegen(umriss, tol=ERKENNUNG_TOL, tol_zus=None):
         # je Startpunkt die größte Reichweite als Gerade bzw. als Bogen, dann die Zerlegung mit den wenigsten Stücken
         # (dynamische Programmierung; gierig vorwärts teilt sonst Bögen am Übergang zur Geraden)
         weit_g, weit_b = [0] * m, [0] * m
+        merk = {}
+
+        def bogen(i, j):
+            if (i, j) not in merk:
+                merk[i, j] = _bogen_ok(ring, i, j, tol)
+            return merk[i, j]
         for i in range(m):
-            jg = i + 1
+            jg = max(i + 1, weit_g[i - 1] if i else 0)      # Teilstück einer Geraden ist eine Gerade
+            if jg > i + 1 and not _gerade_ok(ring, i, jg, tol):
+                jg = i + 1
             while jg + 1 <= m and _gerade_ok(ring, i, jg + 1, tol):
                 jg += 1
             weit_g[i] = jg
             jb, fehl, j = i, 0, i + 2
+            # Bogen ab dem vorigen Startpunkt reicht meist bis zum selben Ende: dort weitersuchen (dichte Umrisse,
+            # sonst kubisch in der Punktzahl)
+            if i and weit_b[i - 1] >= i + 2 and bogen(i, weit_b[i - 1]):
+                jb = weit_b[i - 1]
+                j = jb + 1
             while j <= m:
-                if _bogen_ok(ring, i, j, tol):
+                if bogen(i, j):
                     jb, fehl = j, 0
                 else:
                     fehl += 1
@@ -150,7 +216,9 @@ def zerlegen(umriss, tol=ERKENNUNG_TOL, tol_zus=None):
                 continue
             for j in range(i + 1, max(weit_g[i], weit_b[i]) + 1):
                 gerade = j <= weit_g[i]
-                if not gerade and not (j >= i + 2 and _bogen_ok(ring, i, j, tol)):
+                # Bögen: bis zur Reichweite, kürzere nur nahe davor (Übergang zur Geraden) oder schon geprüfte
+                if not gerade and not (j >= i + 2 and ((i, j) in merk or j >= weit_b[i] - BOGEN_ENDE)
+                                       and bogen(i, j)):
                     continue
                 wert = (best[i][0] + 1, best[i][1] - (j - i if not gerade else 0)) if best[i] else \
                     (1, -(j - i) if not gerade else 0)
@@ -354,6 +422,17 @@ def _lage(w):
     return "" if w == 0 else (", quer" if abs(w - 90) < 0.25 else f", {_zahl(w)}° zur Achse")
 
 
+def _regelmaessig(geraden, tol_grad=1.0):
+    """Regelmäßiges Vieleck: jede Seite dreht gegenüber der vorigen um 360°/n (gleich lange Seiten allein reichen
+    nicht, z. B. Sechseck mit 40°/80° im Wechsel)."""
+    n = len(geraden)
+    soll = 360.0 / n
+    for i in range(n):
+        d = (geraden[i]["winkel"] - geraden[i - 1]["winkel"]) % 360
+        if min(abs(d - soll), abs(360 - d - soll)) > tol_grad:
+            return False
+    return True
+
 def erkennen(umriss, tol=ERKENNUNG_TOL):
     """Form der Sonderkontur: dict(typ, text, abweichung, Maße …) oder None (zu wenig Punkte)."""
     pts = _punkte(umriss)
@@ -426,7 +505,7 @@ def erkennen(umriss, tol=ERKENNUNG_TOL):
             text = "Dreieck " + " × ".join(_zahl(x) for x in seiten) + (f" R{_zahl(r)}" if r > 0.05 else "")
             kand.append((dict(typ=DREIECK, seiten=[round(x, 2) for x in seiten], radius=round(r, 2), text=text),
                          None))
-        elif n >= 5 and max(laengen) - min(laengen) <= 4 * tol:
+        elif n >= 5 and max(laengen) - min(laengen) <= 4 * tol and _regelmaessig(geraden):
             innen = 180 - 360 / n
             ext = 2 * r / math.tan(math.radians(innen / 2)) if boegen else 0.0
             seite = sum(laengen) / n + ext

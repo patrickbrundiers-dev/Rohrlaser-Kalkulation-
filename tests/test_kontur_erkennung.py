@@ -113,6 +113,27 @@ def test_formen():
         if r and typ != fe.FREIFORM:
             pruef(r["abweichung"] <= fe.ERKENNUNG_TOL, f"{text}: Abweichung {r['abweichung']}")
     pruef(fe.erkennen([(0, 0), (1, 0)]) is None, "zwei Punkte erkannt")
+    # gleich lange Seiten, aber 40°/80° im Wechsel: kein regelmäßiges Sechseck
+    sechs, x, y, w = [], 0.0, 0.0, 0.0
+    for i in range(6):
+        sechs.append((x, y))
+        x, y = x + 10 * math.cos(math.radians(w)), y + 10 * math.sin(math.radians(w))
+        w += 40 if i % 2 == 0 else 80
+    r = fe.erkennen(sechs)
+    pruef(r and r["typ"] == fe.FREIFORM, f"Sechseck 40°/80° als {r and r['text']} erkannt")
+    # dichte Umrisse (Review #661): schnell und gleich erkannt
+    import time
+    for n in (250, 600, 1500):
+        k = [(10 * math.cos(2 * math.pi * i / n) + rnd.uniform(-.02, .02),
+              10 * math.sin(2 * math.pi * i / n) + rnd.uniform(-.02, .02)) for i in range(n)]
+        t0 = time.perf_counter()
+        r = fe.erkennen(k)
+        dt = time.perf_counter() - t0
+        pruef(r and r["text"] == "Kreis Ø20", f"Kreis mit {n} Punkten als {r and r['text']}")
+        pruef(dt < 2.0, f"Kreis mit {n} Punkten: {dt:.1f} s")
+    ll = fe._langloch(3, 1, 40, 12, 30, 400)
+    r = fe.erkennen(ll)
+    pruef(r and r["text"] == "Langloch 40 × 12, 30° zur Achse", f"dichtes Langloch als {r and r['text']}")
     pruef(fe.text(dict(form_erkannt=dict(text="Sechseck SW 17,3"))) == "Sechseck SW 17,3: Umriss wie STEP",
           "Bemerkungstext")
     print("OK formen")
