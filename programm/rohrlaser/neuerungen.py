@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.507", "<b>Fracht und Verpackung 2.0</b> ([[fracht_vergleich]], [[fracht_packmittel]]): <i>Tarifvorlagen "
+    ["0.9.509", "<b>Fracht und Verpackung 2.0</b> ([[fracht_vergleich]], [[fracht_packmittel]]): <i>Tarifvorlagen "
                 "laden</i> legt Listenpreise von DHL (2026 und ab 2027, national und EU), GLS und Hermes mit Quelle und "
                 "Preisstand an, dazu <b>Tariflücken</b> ohne Preise für MBE, UPS, FedEx, DPD, Cargoboard und "
                 "Speditionen: sie werden nie automatisch gewählt, ein Angebot kommt per CSV hinein. Paketregeln je "
