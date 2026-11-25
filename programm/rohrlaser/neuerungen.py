@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.504", "<b>Einfacher Modus: Fracht und Marge</b> ([[einfach_fracht_marge]]): Im Schritt <i>Bearbeitung</i> "
+    ["0.9.506", "<b>Einfacher Modus: Fracht und Marge</b> ([[einfach_fracht_marge]]): Im Schritt <i>Bearbeitung</i> "
                 "gibt es die Karte <i>Frachtkosten</i> mit Frachtart, Betrag, Verteilung (je Stück oder nach "
                 "Gewicht), <i>Fracht berechnen …</i> (Paket oder Palette, Tarif, wie im Expertenmodus) und "
                 "<i>Fracht automatisch berechnen</i>. Im Schritt <i>Ergebnis</i> stellt <i>Marge einstellen</i> den "
@@ -29,6 +29,13 @@ NEUERUNGEN = [
                 "setzen</i> in der Preisleiter), dazu Knöpfe für Ziel- und Mindestmarge. Beides nutzt dieselben "
                 "Angebotsfelder und dieselbe Rechnung wie der Expertenmodus.",
      "Einfacher Modus: Frachtkosten hinzufügen und Marge einstellen"],
+    ["0.9.505", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
+                "Höhe und Winkel einer Fase am Rohrende und bei Sonderkonturen mit schräger Schnittfläche auch den Rand "
+                "auf der Innenwand. Ist die 3D-Schnittbearbeitung gewählt, zeigt der Editor beides wie in der STEP und "
+                "rechnet es als 3D-Schnitt (Fase durch die ganze Wand: Kopf um den Fasenwinkel; schräge Kontur: Zeile "
+                "Kontur 3D mit dem gemessenen Schwenk). Ohne 3D wird die Innenkante mit 90° durch die Wand projiziert: "
+                "Fasen nicht gelasert, Ende gerade; schräge Konturen mit Umriss und Schnittlänge der Innenkante.",
+     "Fasen-Enden und schräge Konturen mit 3D wie in der STEP, ohne 3D Innenkante 90°"],
     ["0.9.503", "<b>3D-Maus in jeder Belegung</b> ([[mausbelegung_3d]]): In allen 3D-Fenstern (Rohr- und Blech-Editor, "
                 "STEP-Viewer, Baugruppe, Satz, Nesting-3D, Vorschauen) dreht jetzt <b>links ziehen</b> und verschiebt "
                 "<b>rechts ziehen</b>, egal welche Mausbelegung eingestellt ist; das Mausrad zoomt immer. Vorher tat die "

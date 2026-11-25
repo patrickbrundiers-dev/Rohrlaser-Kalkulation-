@@ -612,20 +612,22 @@ class StepPruefDialog(QDialog):
         # 3D-Schnittbearbeitung (nur wenn ausgewählt): Gehrungen und schräge Bohrungen aller Teile in 3D
         zeile_3d = QHBoxLayout()
         self.d3 = QCheckBox("3D-Schnittbearbeitung aktivieren")
-        gehr = bohr = 0
+        gehr = bohr = sonder = 0
         for m in messwerte:
             g_, b_ = step.kandidaten_3d(m)
-            gehr, bohr = gehr + g_, bohr + b_
+            gehr, bohr, sonder = gehr + g_, bohr + b_, sonder + step.sonder_3d(m)
         # Vorgabe an, wenn die Maschine des Angebots 3D kann und Schnitte nicht senkrecht stehen (Patrick 24.10.2026)
         self.d3.setChecked(any(m.get("_d3") for m in messwerte) if any("_d3" in m for m in messwerte)
-                           else bool(maschine_3d and (gehr or bohr)))
+                           else bool(maschine_3d and (gehr or bohr or sonder)))
         self.d3.setToolTip("3D = Schnittfläche nicht senkrecht (90°) zur Rohroberfläche (gemessen, ab 0,5°). "
                            "Gehrungen an den Enden und schräge Bohrungen aller Teile, die das sind, mit geschwenktem "
                            "Laserkopf (3D) rechnen; Gehrungen, die überall senkrecht zur Wand stehen, bleiben 2D. Aus = 2D wie bisher; Teile mit schrägen Bohrungen bekommen dann den "
                            "Hinweis „3D prüfen“. Teile ohne solche Schnitte bleiben 2D. Vorgabe: an, wenn die "
                            "Maschine des Angebots 3D kann. Korrektur je Teil im Rohr-Editor (Schneidweg berechnen …).")
         self.d3_info = QLabel(f"nicht senkrecht zur Oberfläche: {gehr} Gehrung{'en' if gehr != 1 else ''} an "
-                              f"Enden, {bohr} schräge Bohrung{'en' if bohr != 1 else ''}" + (" – 3D prüfen" if bohr else ""))
+                              f"Enden, {bohr} schräge Bohrung{'en' if bohr != 1 else ''}" +
+                              (f", {sonder} schräge Kontur{'en' if sonder != 1 else ''}" if sonder else "") +
+                              (" – 3D prüfen" if bohr else ""))
         self.d3_info.setStyleSheet("color: #7A5A00;" if bohr else "color: #595959;")
         zeile_3d.addWidget(self.d3)
         zeile_3d.addWidget(self.d3_info, 1)
