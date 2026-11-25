@@ -34,7 +34,7 @@ auf_seiten = {n for s in ordnung.SEITEN for a in s.abschnitte for n in a.namen}
 fracht = {e.name for e in EINSTELLUNGEN if e.gruppe == ordnung.EIGENER_REITER}
 assert auf_seiten <= set(EINSTELLUNG), auf_seiten - set(EINSTELLUNG)
 assert set(EINSTELLUNG) - auf_seiten == fracht | ordnung.INTERN, set(EINSTELLUNG) - auf_seiten - fracht
-assert len(ordnung.SEITEN) == 29 and len({s.schluessel for s in ordnung.SEITEN}) == 29     # + ERP-Preisimport
+assert len(ordnung.SEITEN) == 30 and len({s.schluessel for s in ordnung.SEITEN}) == 30     # + ERP-Preisimport, + STEP-Messung
 assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN if s.schluessel != "e_funktionen") <= 25
 assert sum(len(a.namen) for a in ordnung.SEITEN[0].abschnitte) <= 35      # Funktionen: nur Schalter (je eine Zeile), + ERP-Preisimport, + zentrale Zukaufartikel, + Schnellimport
 doppelt = [n for n in auf_seiten if len(ordnung.seiten_von(n)) > 1]
@@ -68,7 +68,7 @@ assert nav.currentWidget() is f.einstellungen.seiten[0] and nav.currentWidget().
 assert [g.text(0) for g in nav.gruppen.values() if not g.isHidden()][:3] == ["Allgemein", "Kalkulation", "Angebot"]
 assert "Vorgaben" not in [nav.tabText(i) for i in range(nav.count())]
 step = f.einstellung_zeigen("step_tol_profil")
-assert step.titel == "STEP-Import" and nav.currentWidget() is step
+assert step.titel == "STEP-Import: Messung und Toleranzen" and nav.currentWidget() is step
 experte = next(b for b in step.boxen if b.isCheckable())
 assert experte.title() == "Toleranzen (Experte)" and not experte.isChecked()
 form, zeile = next((fo, z) for e, fo, z, b in step.zeilen if e.name == "step_tol_profil")

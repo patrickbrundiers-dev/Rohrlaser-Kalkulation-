@@ -16,6 +16,7 @@ TOLERANZEN = {"step_tol_profil": (step, "TOL_MASS", 0.15), "step_tol_gleich": (s
 WEITERE = {"schweiss_spalt_max": (baugruppe, "SPALT_MAX", 2.0), "schweiss_a_min": (baugruppe, "A_MIN", 3.0)}
 EINSTELLUNGEN = set(TOLERANZEN) | {"step_prozesse", "step_zeitlimit", "step_cache", "step_cache_mb",
                                    "step_flach_laenge", "step_gekantet_anteil", "step_naht_spalt",
+                                   "step_null_aufmass",
                                    "step_zukauf_begriffe", "step_abwicklungskern"}
 
 
@@ -50,7 +51,8 @@ def mess_argumente(db):
             "--zeitlimit", f"{_zahl(db, 'step_zeitlimit', 600):g}",
             "--flach-laenge", f"{_zahl(db, 'step_flach_laenge', 3.0):g}",
             "--gekantet-anteil", f"{_zahl(db, 'step_gekantet_anteil', 0.85):g}",
-            "--naht-spalt", f"{_zahl(db, 'step_naht_spalt', 3.0):g}"]
+            "--naht-spalt", f"{_zahl(db, 'step_naht_spalt', 3.0):g}",
+            "--null-aufmass", f"{_zahl(db, 'step_null_aufmass', 0.1):g}"]
     # Normteile laut Name (DIN 933 …) nur als Zukaufteil messen (Patrick 21.11.2026) – nicht, wenn die eingebaute
     # Erkennung aus ist: dann bleiben sie Fertigungsteile und brauchen die volle Messung
     if (db.einstellung("step_zukauf_begriffe") or "ja") != "ja":
