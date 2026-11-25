@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.508", "<b>Echte Innenkante bei 3D-Schnitten an den Enden</b> ([[nesting]]): Beim Verschachteln beliebiger "
+                "Endkonturen nimmt ein ebener Schnitt (Gehrung oder schräg in zwei Richtungen) mit "
+                "3D-Schnittbearbeitung die Innenkante jetzt dort an, wo die Schnittebene die Innenwand trifft, wie in "
+                "der STEP. Bisher lag sie pauschal Wand × tan(Winkel) vor der Außenkante. Bei 45° an 3 mm Wand rücken "
+                "die Teile dadurch im Mittel gut 2 mm näher zusammen, nie näher als sicher. Ohne 3D bleibt alles wie "
+                "bisher (Innenkante 90°). Geprüft gegen die STEP-Testteile R02 und R03.",
+     "Verschachteln: echte Innenkante bei 3D-Gehrungen statt Wand × tan"],
     ["0.9.506", "<b>Einfacher Modus: Fracht und Marge</b> ([[einfach_fracht_marge]]): Im Schritt <i>Bearbeitung</i> "
                 "gibt es die Karte <i>Frachtkosten</i> mit Frachtart, Betrag, Verteilung (je Stück oder nach "
                 "Gewicht), <i>Fracht berechnen …</i> (Paket oder Palette, Tarif, wie im Expertenmodus) und "
