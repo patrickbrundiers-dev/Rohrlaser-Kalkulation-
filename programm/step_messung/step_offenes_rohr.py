@@ -44,6 +44,7 @@ TOL_HUELLE = 0.2        # mm, Hüllrechteck an allen Lagen gleich
 SPALT_MAX = 2.0         # mm, breitester Spalt, der ganz geschlossen wird (sonst Stege und Fenster)
 STEG = 2.0              # mm, Steg über der offenen Seite an Ende A und Ende B (Patrick 25.10.2026)
 SPALT_TOL = 0.05        # mm, Messtoleranz auf SPALT_MAX
+GERADE_TOL = 1e-6       # mm: Stützpunkte eines Endes, die so genau auf einer Geraden liegen, fallen weg (_gerade_raus)
 
 
 def _dicke(t):
@@ -100,7 +101,8 @@ def _offen(luecken, a, b, d):
 def erkennen(solid, d):
     """Offene Seite des Körpers: dict(ax3, seite, luecken [(von, bis)], huelle (x0, y0, x1, y1), z (zmin, zmax)) im
     lokalen System (Z = Achse) oder None."""
-    ax3, _ = g._lage(solid)
+    import step_abwicklungskern as ak
+    ax3 = ak.achssystem(solid)      # mit Abwicklungskern aus den Flächen (gleiches System), sonst _lage
     lok = g._transformiere(solid, ax3)
     zmin, zmax = g._z_bereich(lok)
     if zmax - zmin < 3 * d:
@@ -210,6 +212,32 @@ def _seite_z(lok, uv_zu_xyz, u, v, mitte):
         return treffer[0][1] if treffer else None
     (wa, za), (wb, zb) = treffer
     return tuple(za[k] + (zb[k] - za[k]) * (v - wa) / (wb - wa) for k in range(2))
+
+
+def _vereinfachen():
+    """Enden der Ringe und Wände in der Abwicklung bereinigen (_gerade_raus): mit dem Abwicklungskern (Modus an,
+    step_abwicklungskern.neu_aktiv); sonst alle Stützpunkte wie vor 24.11.2026."""
+    import step_abwicklungskern as ak
+    return ak.neu_aktiv()
+
+
+def _gerade_raus(pts, tol=GERADE_TOL):
+    """Polygonzug [(u, z)] ohne Zwischenpunkte, die auf der Geraden ihrer Nachbarn liegen (Abstand ≤ tol). Gleiche
+    Linie, aber ein gerades Ende hat dann zwei statt bis zu 240 Punkte: der Ring bzw. die Wand daraus hat wenige
+    Flächen, und die Boolesche Operation damit ist um ein Vielfaches schneller (Abwicklungskern 24.11.2026, 2D-
+    Konturbereinigung vor dem 3D-Körper)."""
+    if len(pts) < 3:
+        return list(pts)
+    out = [pts[0]]
+    for i in range(1, len(pts) - 1):
+        (ua, za), (ub, zb) = out[-1], pts[i + 1]
+        u, z = pts[i]
+        lg = math.hypot(ub - ua, zb - za)
+        if lg <= 0 or abs((ub - ua) * (z - za) - (zb - za) * (u - ua)) / lg > tol or \
+                not min(ua, ub) - tol <= u <= max(ua, ub) + tol:
+            out.append(pts[i])
+    out.append(pts[-1])
+    return out
 
 
 def _knicke(pts):
@@ -323,6 +351,8 @@ def ring(e, d, steg, anzeige=False):
     ringe = []
     for k, richtung in ((0, 1.0), (1, -1.0)):
         ende = _knicke([(u, z[k]) for u, z in zip(us, gegen)])
+        if _vereinfachen():
+            ende = _gerade_raus(ende)
         drahte = []
         for v in (v_aussen - innen * (1.0 + _wachs(e, x0, y0, x1, y1)), v_weit):
             # Versatz quer zur Wand: in der Wandschicht gemessen, linear über die Hülle verlängert
@@ -475,11 +505,17 @@ def wand(e, d, ueberlapp=True, fenster=0.0):
         for v in (v_lo, v_hi):
             va, vb = versatz[a + d / 2, v], versatz[b - d / 2, v]
             vf = v if not fenster else v - innen * 1.0 if v == v_aussen else v + innen * 0.5   # Fenster: über die Wand
-            unten = [uv_zu_xyz(u, vf, z + fenster + va[0] * (1 - (u - a) / (b - a)) + vb[0] * (u - a) / (b - a))
-                     for u, z in enden[0]]
-            oben = [uv_zu_xyz(u, vf, z - fenster + va[1] * (1 - (u - a) / (b - a)) + vb[1] * (u - a) / (b - a))
-                    for u, z in enden[1]]
-            schicht.append((unten, oben))
+
+            def linien(en):
+                unten = [uv_zu_xyz(u, vf, z + fenster + va[0] * (1 - (u - a) / (b - a)) + vb[0] * (u - a) / (b - a))
+                         for u, z in en[0]]
+                oben = [uv_zu_xyz(u, vf, z - fenster + va[1] * (1 - (u - a) / (b - a)) + vb[1] * (u - a) / (b - a))
+                        for u, z in en[1]]
+                return unten, oben
+            unten, oben = linien(enden)
+            schicht.append((unten, oben))      # Anzeige: alle Stützpunkte (Gitter der 3D-Ansicht)
+            if _vereinfachen():                # Körper: gerade Stücke ohne Zwischenpunkte (_gerade_raus)
+                unten, oben = linien([_gerade_raus(en) for en in enden])
             poly = BRepBuilderAPI_MakePolygon()
             for q in unten + oben[::-1]:
                 poly.Add(gp_Pnt(*q))
@@ -709,7 +745,9 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
             # offenen Lagen ist flacher, die Wand wäre sonst Kontur, STEP 553591)
             quer_k = _quer_vom_ende(e, d) or quer_k
         else:
-            mit_ringen = _vereinen(_vereinen(solid, teile, e["ax3"]), ringe, e["ax3"], False) if ringe and f else None
+            # voll = _vereinen(solid, teile, e["ax3"]) von oben: gleiche Eingaben, gleicher Körper (Rechenkern 2.0,
+            # Paket 2: die Vereinigung lief hier ein zweites Mal)
+            mit_ringen = _vereinen(voll, ringe, e["ax3"], False) if ringe and f else None
             zu = _ausschneiden(mit_ringen, f[0], e["ax3"]) if mit_ringen is not None else None
         if zu is None or quer_k is None:
             return False

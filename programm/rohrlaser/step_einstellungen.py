@@ -16,7 +16,7 @@ TOLERANZEN = {"step_tol_profil": (step, "TOL_MASS", 0.15), "step_tol_gleich": (s
 WEITERE = {"schweiss_spalt_max": (baugruppe, "SPALT_MAX", 2.0), "schweiss_a_min": (baugruppe, "A_MIN", 3.0)}
 EINSTELLUNGEN = set(TOLERANZEN) | {"step_prozesse", "step_zeitlimit", "step_cache", "step_cache_mb",
                                    "step_flach_laenge", "step_gekantet_anteil", "step_naht_spalt",
-                                   "step_zukauf_begriffe"}
+                                   "step_zukauf_begriffe", "step_abwicklungskern"}
 
 
 def _zahl(db, name, vorgabe):
@@ -55,6 +55,10 @@ def mess_argumente(db):
     # Erkennung aus ist: dann bleiben sie Fertigungsteile und brauchen die volle Messung
     if (db.einstellung("step_zukauf_begriffe") or "ja") != "ja":
         args.append("--normteile-voll")
+    # Abwicklungskern (Patrick 24.11.2026): nur mitgeben, wenn nicht aus (aus = Aufruf und Zwischenspeicher wie bisher)
+    modus = db.einstellung("step_abwicklungskern") or "an"   # Vorgabe an (Patrick 24.11.2026)
+    if modus in ("vergleich", "an"):
+        args += ["--abwicklungskern", modus]
     from .stammdaten import STEP_CACHE_WAHL
     cache = db.einstellung("step_cache") or STEP_CACHE_WAHL[1]
     if cache in STEP_CACHE_WAHL[:2]:

@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.482", "<b>Rechenkern 2.0, Teil 2: Import robuster, Speicher sparsamer</b>: Ist in einer STEP-Baugruppe ein "
+                "Körper beschädigt, fehlt er nicht mehr still: bei jedem Körper steht <i>STEP-Leser meldet: 1 von 48 "
+                "Volumenkörpern der Datei nicht lesbar (beschädigt?) …</i>, die übrigen Körper werden wie bisher "
+                "gemessen ([[step]]). Stürzt das Lesen einer stark beschädigten Datei ab, sagt die Meldung jetzt, "
+                "dass die Datei vermutlich beschädigt ist und neu exportiert werden sollte. Die gemerkten "
+                "Schnittpläne brauchen weniger Arbeitsspeicher (500 Rechenrunden: 140 statt 153 MB, kein "
+                "Speicherleck). Beim Schließen offener Profile entfällt eine doppelte Rechnung. Alle Zahlen bleiben "
+                "gleich.",
+     "Beschädigte Körper in Baugruppen gemeldet; Schnittplan-Merker sparsamer; alle Werte gleich"],
     ["0.9.481", "<b>Schnellimport STEP (ohne 3D), optional</b> ([[step]]): neuer Importmodus <i>Schnellkalkulation</i> "
                 "neben dem vollständigen CAD-Import. Gleiche Messung und genau gleiche Kalkulation, aber statt des "
                 "Prüfdialogs mit 3D eine kompakte Ergebnisübersicht (Schneidweg, Konturen, Einstiche, Bearbeitungen, "

@@ -171,15 +171,16 @@ SEITEN = (
     Seite("e_knick_steck", "Knickrahmen und Steckverbindung", ALLE_PLAETZE,
           (_a("Knickrahmen", "knick_z knick_freistich knick_k"),
            _a("Steckverbindung", "steck_anzahl steck_nase_min steck_nase_rand steck_spiel steck_ueberstand "
-                                 "steck_marke"))),
+                                 "steck_marke"),
+           # von „STEP-Import“ hierher (Abwicklungskern 24.11.2026): dort ist die Höchstzahl je Seite erreicht
+           _a("Biegerohr", "biegerohr_faktor"))),
     Seite("e_step", "STEP-Import", ALLE_PLAETZE,
-          (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_zukauf_begriffe step_benennung step_werkstoff werkstoff_gleichnamen "
-                           "biegerohr_faktor"),
+          (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_zukauf_begriffe step_benennung step_werkstoff werkstoff_gleichnamen"),
            _a("Bohrungen", "bohren_laser fliessloch_laser bohr_gewinde_gaenge bohr_flowdrill_min bohr_flowdrill_faktor"),
            _a("Dateien", "step_kopieren step_vorschau"),
            _a("TRUMPF-Programme (LST/TUBX)", "trumpf_zeit programmzeit_einstiche lst_ordner"),
            _a("Toleranzen", "step_tol_profil step_tol_gleich step_tol_kernloch step_flach_laenge "
-                            "step_gekantet_anteil step_zeitlimit", True))),
+                            "step_gekantet_anteil step_zeitlimit step_abwicklungskern", True))),
     # Schnellimport (24.11.2026): eigene Seite („STEP-Import“ hat schon 25 Einträge), nur mit Funktion Schnellimport
     Seite("e_step_ablauf", "STEP-Import: Schnellimport", ALLE_PLAETZE,
           (_a("Importmodus", "step_importmodus step_importmodus_fragen"),)),

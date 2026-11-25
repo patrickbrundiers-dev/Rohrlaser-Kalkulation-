@@ -53,8 +53,8 @@ Nutzen ÷ (Aufwand × Risiko).
 | 2 | Staffeln rechnen die Schnittzeiten je Stufe neu | mittel | – | klein | gering (Feldzugriffe nachgewiesen) | hoch | **umgesetzt (R1)** |
 | 3 | Kein Monitoring mit Median/Perzentilen, CPU, RAM je Schritt | – | mittel | klein | keins | hoch | **umgesetzt (M1)** |
 | 4 | Benchmarks nur mit Median bzw. einem Lauf | – | – | klein | keins | mittel | **umgesetzt (M2)** |
-| 5 | Ebenenschnitte (`_schnitt`) zur Querschnittsuche: BRepAlgoAPI_Section je Lage | mittel | – | mittel | mittel | mittel | Paket 2 (Untersuchung: Schnitt an Flächen statt am ganzen Körper ist bereits ab 150 Flächen aktiv) |
-| 6 | Maschinenvergleich: Schnittzeiten je Maschine, Optimieren je Maschine | mittel | – | mittel | mittel | mittel | Paket 2 (gleiches Muster wie R1 für Felder, die nicht von der Maschine abhängen, nur mit Nachweis) |
+| 5 | Ebenenschnitte (`_schnitt`) zur Querschnittsuche: BRepAlgoAPI_Section je Lage | gering | – | mittel | mittel | gering | **Paket 2 untersucht: nur 1,6 % der Zeit (K08), Flächenfilter ab 150 Flächen besteht schon – kein Umbau** |
+| 6 | Maschinenvergleich: Schnittzeiten je Maschine, Optimieren je Maschine | gering | – | mittel | mittel | gering | **Paket 2 untersucht: alle Teile der Schnittzeit lesen die Maschine; Schneidfolge und Schnittpläne sind schon je Eingabe gemerkt – nichts bitgleich teilbar** |
 | 7 | Mehrere Messprozesse × Parallelmodus: Überbelegung der Kerne | gering | gering | klein | gering | gering | beobachten (I05 mit 3 Prozessen trotzdem 14 % schneller) |
 | 8 | STEP-Leser selbst (Datei lesen/übertragen) | gering–mittel | – | – | – | gering | OCCT 8.0 bringt hier schon bis 75 % gegenüber 7.7 (wir sind auf 8.0.1) |
 | 9 | Datenbank für 10–25 Benutzer | – | mittel | groß | hoch | – | bleibt: PostgreSQL je PC + Abgleich über Ordner (gemessen bis 25 PCs < 0,5 s); keine Architekturänderung ohne Freigabe |
@@ -167,3 +167,85 @@ angefasst; Unterschiede ±7 % sind Schwankung).
 | 4 | Fehlerresistenz Import: ein defekter Körper bricht die Baugruppe nicht ab (heute schon je Körper isoliert gemessen, mit Zeitlimit); Prüfung mit beschädigten Test-STEPs, Endlosschleifen-Schutz je Schritt | 3 + 11 |
 | 5 | Zentrale Kalkulation: Liste aller Stellen, die Preise/Zeiten außerhalb von `rechnen.kalkulation` rechnen (Staffeln seit #636 schon zentral; Rahmenaufträge, Nachkalkulation, Schweißbaugruppen prüfen), doppelte Logik entfernen nur mit Regressionstest bitgleich | 5 |
 | 6 | Last- und Speichertests (große Baugruppen, 10.000 Angebote, viele Benutzer über den Austauschordner), Abschlussbericht mit Vorher/Nachher | 6 |
+
+## 7. Paket 2: Untersuchung und Ergebnis (24.11.2026)
+
+Gemessen mit py-spy (Stichproben, alle Fäden) und cProfile; Zeiten ohne Profiler aus den Benchmarks.
+
+**Maschinenvergleich L (200 Positionen, 3 Maschinen, 1,75 s):** je Maschine einmal optimieren und kalkulieren.
+In der Kalkulation steckt die Zeit in `_schneidzeit_teile_rechnen` (Schneiddaten, Vorschübe, Dynamik mit Last,
+Ecken, Leerwege, Kopfweg, Beladung). Jeder dieser Schritte liest die Maschine (`m`, Beschleunigung, Eilgang,
+Drehzahl, Kopfhub). Was nicht von der Maschine abhängt (Lage der Konturen, Anzahl), kostet unter 1 %. Die
+teuren Teile sind schon gemerkt: Schneidfolge je Eingabe (`dynamik._FOLGE_MERK` + Angebots-Cache), Schnittpläne je
+Gruppe (`optimierung.gemerkt`), der ganze Vergleich je Eingabe (`maschinen_vergleich._MERK`). Fäden bringen nichts
+(GIL), Hilfsprozesse sind nicht bitgleich beweisbar (Hash-Reihenfolge, siehe oben). **Ergebnis: kein Umbau.**
+
+**STEP-Messung, langsamste Datei K08 (U-Profil 80×40×4, 17 s):** 92 % im Schließen des offenen Profils
+(`step_offenes_rohr._kasten_schliessen`), davon ~48 % Boolesche Operationen (seit B1 parallel), 27 % die Messung
+des geschlossenen Profils, 20 % die Ringe an den Enden (drei verschiedene Ringe: Steg 2 mm, Prüfring 0,3 mm,
+Anzeige-Ring – verschiedene Eingaben, nichts doppelt). Die Querschnittsuche `_schnitt` hat nur 1,6 %.
+Geprüft: OCP gibt während `Build()` den GIL nicht frei (zwei Booleans in zwei Fäden: 21,1 s statt 18,7 s
+nacheinander) – Booleans in Fäden parallel bringen nichts.
+
+Umgesetzt: In `_kasten_schliessen` lief die Vereinigung Körper ∪ ergänzte Wände ein zweites Mal mit genau denselben
+Eingaben; jetzt wird das Ergebnis `voll` von oben verwendet. 126 von 126 Prüf-STEPs bitgleich. Der Gewinn
+(~1 % bei Profilen mit Fenster) liegt in der Messschwankung, daher keine Tempo-Angabe.
+
+Baugruppe I05 (48 Körper): im Programm (mit Zeitlimit) wird die Datei auf 3 Messprozesse verteilt, 7,1 s statt
+13–15 s im Benchmark mit `--prozesse 1` – kein Engpass.
+
+**Folgerung:** Nach B1 und R1 gibt es in Rechenkern und STEP-Messung keine großen bitgleichen Gewinne mehr ohne einen
+anderen Geometriekern (Patrick 24.11.: „Open Cascade bleiben“). Paket 5 (zentrale Kalkulation) ist mit dieser
+Untersuchung erledigt: alle 40+ Stellen, die Preise brauchen, rufen `rechnen.kalkulation`; Staffeln (#636) und
+Rahmenaufträge (`rahmen_kalk`, über `staffeln.stufe_lauf`/`marge_anhebung`) und die Baugruppen-Kostenübersicht
+(`bg_kosten`) rechnen nichts selbst; Dreh-/Frästeil-Richtpreise sind EK-Vorschläge für Zukaufteile (gewollt eigene
+Rechnung). Weiter mit Paket 4 (Fehlerresistenz des Imports) und Paket 6 (Last/Speicher).
+
+## 8. Paket 4: Fehlerresistenz des Imports (24.11.2026)
+
+Neues Prüfwerkzeug `werkzeuge/step_robust.py`: macht aus guten STEP-Dateien beschädigte Fassungen (abgeschnitten
+bei 50/90 %, jede 7. Zeile weg, 200 Bytes gekippt, Unsinn-Koordinaten 1E308, ohne Kopf, nur Zufallsbytes, doppelte
+Entitätsnummern, ein einzelner Körper einer Baugruppe unbrauchbar) und misst jede wie im Programm (eigener Prozess,
+Zeitlimit je Körper). Geprüft: nichts hängt, jede Messung liefert ein Ergebnis, die übrigen Körper einer Baugruppe
+werden weiter gemessen.
+
+Ergebnis mit I05 (Baugruppe 48 Teile), T02 (Rundrohr), RP06 (Verbund 2 Körper), K08 (U-Profil): 34 Messungen, keine
+hängt, jede in 1–7 s fertig, jede mit Ergebnis. Unlesbare Dateien kommen als „STEP-Datei nicht lesbar
+(Syntaxfehler) …“, Abstürze des OpenCascade-Lesers (gekippte Bytes, doppelte Nummern) fängt die Aufsicht ab
+(„Messung abgebrochen (Absturz beim Lesen der Datei …)“), das Programm läuft weiter.
+
+**Gefunden und behoben:** Ein beschädigter Körper in einer Baugruppe fiel still weg (47 statt 48 Teile, Status
+„gelesen“, kein Hinweis). Jetzt zählt `step_geometrie._fehlende_koerper` die Volumenkörper-Einträge im Modell
+(`xst-type(ManifoldSolidBrep)`, ~15 ms bei 54.000 Entitäten) und meldet „1 von 48 Volumenkörpern der Datei nicht
+lesbar (beschädigt?) – er fehlt in der Liste, Datei prüfen oder neu exportieren“ als erste Lesermeldung (steht als
+Hinweis bei jedem Körper, Status „gelesen mit Meldungen“). Nur Hinweis, Messwerte unverändert; bei allen 124
+lesbaren Prüf-STEPs kein Hinweis (keine Fehlalarme). Test: `tests/test_rechenkern_2411.py` Teil 5.
+
+Grenze: Mit Zeitlimit 0 (Einstellung „ohne“) misst `step_messen` ohne Aufsicht; ein Absturz des Lesers beendet dann
+die Messung ohne Ergebnis (das Programm meldet den Fehler des Messprozesses). Vorgabe ist 600 s, also mit Aufsicht.
+
+## 9. Paket 6: Speicher-Dauerlauf (24.11.2026)
+
+Neues Werkzeug `werkzeuge/speicher_dauerlauf.py`: rechnet viele Runden mit je Runde anderen Eingaben (geänderte
+Teilelänge, Stückzahl im Wechsel, Angebot bleibt gleich groß): optimieren, kalkulieren, Staffeln, Maschinenvergleich.
+Gemessen je Runde: Arbeitsspeicher (RSS), Python-Speicherblöcke, Dauer; optional Länge aller Merker auf Modulebene
+(`--behaelter`) und tracemalloc (`--spur`, langsam).
+
+Ergebnis Testangebot M (50 Positionen), 500 Runden, PostgreSQL wie im Programm:
+
+| Stand | RSS nach 250 Runden | RSS nach 500 Runden | Zuwachs je Runde (2. Hälfte) | Dauer Median / 95 % |
+|---|---|---|---|---|
+| 0.9.476 | 149,1 MB | 152,9 MB | 0,015 MB (Messrauschen) | 0,74 / 0,89 s |
+| neu | 135,2 MB | 139,8 MB | 0,019 MB (Messrauschen) | 0,73 / 0,84 s |
+
+Kein Speicherleck: alle Merker sind begrenzt (Kalkulation 32, Maschinenvergleich 16, Schnittpläne 400 Gruppen,
+Schneidfolge 5.000, Konturlagen 4.000) und füllen sich nur bis zur Grenze. Ein erster Lauf, in dem die Stückzahl je
+Runde stieg, wuchs scheinbar um 0,4 MB je Runde: das Testangebot selbst wurde größer, kein Fehler im Programm.
+
+Umgesetzt: Der Merker der Schnittpläne (`optimierung._merker`) hatte als Schlüssel den ganzen Text der Gruppe (alle
+Teile mit allen Feldern); jetzt eine BLAKE2b-Prüfsumme (256 Bit) des Texts samt Länge. Gleiche Gruppe, gleicher
+Schlüssel, gleiche Pläne (Regressionstest 20 Angebote, test_optimierung, test_performance_1011 grün). Spart ~13 MB
+beim Testangebot M, bei großen Gruppen (viele Teile) entsprechend mehr.
+
+Datenbank für 10–25 Benutzer: bereits gemessen mit `werkzeuge/last_messung.py` (Teil A: 1/5/10/25 gleichzeitige
+Benutzer, Teil B: Abgleich über den Ordner mit bis 25 Plätzen < 0,5 s); unverändert, kein Umbau.

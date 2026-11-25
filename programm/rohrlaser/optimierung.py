@@ -30,6 +30,7 @@ Ineinanderlegen); die Untergrenze zieht dann je Teil die größtmögliche Überl
 """
 import bisect
 import collections
+import hashlib
 import itertools
 import math
 import threading
@@ -752,19 +753,29 @@ def _grenzen():
     return (EXAKT_MAX_TEILE, EXAKT_MAX_KNOTEN, MUSTER_MAX_RUNDEN, MUSTER_MAX_KNOTEN)
 
 
+def _merk_schluessel(schl):
+    """Schlüssel im Merker: Prüfsumme (BLAKE2b, 256 Bit) des Gruppentexts statt des Texts selbst (Rechenkern 2.0,
+    Paket 6, 24.11.2026: der Text enthält alle Teile der Gruppe; 400 solche Texte ließen den Speicher im
+    Dauerlauf um ~0,4 MB je Rechenrunde wachsen, bei großen Gruppen um ein Vielfaches). Gleicher Text, gleiche
+    Prüfsumme; zwei verschiedene Texte mit gleicher 256-Bit-Prüfsumme kommen praktisch nicht vor."""
+    return hashlib.blake2b(schl.encode("utf-8", "surrogatepass"), digest_size=32).digest(), len(schl), _grenzen()
+
+
 def gemerkt(schl):
     """Ergebnis einer schon gerechneten Gruppe (Folgen als Teilnummern, bewiesen, schranke) oder None."""
+    s = _merk_schluessel(schl)
     with _merker_sperre:
-        erg = _merker.get((schl, _grenzen()))
+        erg = _merker.get(s)
         if erg is not None:
-            _merker.move_to_end((schl, _grenzen()))
+            _merker.move_to_end(s)
         return erg
 
 
 def _ablegen(schl, erg):
+    s = _merk_schluessel(schl)
     with _merker_sperre:
-        _merker[(schl, _grenzen())] = erg
-        _merker.move_to_end((schl, _grenzen()))
+        _merker[s] = erg
+        _merker.move_to_end(s)
         while len(_merker) > MERKER_MAX:
             _merker.popitem(last=False)
 

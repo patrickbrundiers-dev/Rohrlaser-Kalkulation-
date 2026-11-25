@@ -70,6 +70,11 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("KO1", "Kosten 25 bis 50 %", "#EF6C00", None),
     ("KO2", "Kosten 10 bis 25 %", "#F9A825", None),
     ("KO3", "Kosten unter 10 %", "#2E7D32", None),
+    # Geometrieprüfung des Imports (step_qualitaet, STEP-Viewer „Farben nach Prüfung“, 24.11.2026)
+    ("QK", "Geometrie korrekt", "#2E7D32", None),
+    ("QU", "Geometrie unsicher", "#F2A900", None),
+    ("QR", "Geometrie reparierbar", "#2B6CB0", None),
+    ("QF", "Geometrie fehlerhaft", "#C62828", None),
     ("SC", "Schnittkante (nur Anzeige)", "#D81B60", "#D81B60"),     # V6: Kante an der Schnittebene
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
@@ -425,7 +430,7 @@ def _in_lage(p, lage):
     return aus
 
 
-def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=None, normteile=()):
+def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=None, normteile=(), pruefung=None):
     """Teile einer Baugruppe in ihrer Einbaulage zu einem Netz zusammensetzen. netze: Liste von Netzen (dict oder
     gepackt); farben: je Netz eine Nummer, gleiche Nummer = gleiche Farbe (z. B. gleiche Teile), sonst je Netz eine;
     hervor: Nummern in netze, die als 'gewählte Teile' (Art S) blau, alle anderen hellgrau gefärbt werden;
@@ -434,7 +439,9 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=N
     Einbaulage, z. B. aus einer älteren Messung). bereiche: Liste, bekommt je Netz (Nummer, erster Punkt, Ende,
     Dreiecke als Punktnummern) für die Zuordnung eines Modellpunkts zu seinem Teil. kosten: {Nummer in netze: Stufe
     0 … 3} färbt die Teile nach ihrem €-Anteil (kostenfarben.py, Arten KO0 … KO3, mit Legende); gewählte Teile bleiben
-    blau. normteile: Nummern der Normteile/Zukaufteile, eigene Farbe (Art NT, mit Legende), außer gewählt."""
+    blau. normteile: Nummern der Normteile/Zukaufteile, eigene Farbe (Art NT, mit Legende), außer gewählt.
+    pruefung: {Nummer in netze: Art QK/QU/QR/QF} färbt nach der Geometrieprüfung (korrekt, unsicher, reparierbar,
+    fehlerhaft); Normteile bleiben NT (ausgeschlossen), gewählte Teile blau."""
     punkte, dreiecke, ohne, wk = [], {}, 0, []
     fk, tf, mit_fk = [], {}, True            # Flächenkatalog der Teile (Messplan M3), nur wenn alle Teile einen haben
     for nr, netz in enumerate(netze):
@@ -462,6 +469,7 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=N
             if art_teil == "I":
                 continue
             art = "S" if nr in hervor else "N" if nr in fehlend else f"KO{kosten[nr]}" if kosten and nr in kosten \
+                else "NT" if pruefung and nr in normteile else pruefung[nr] if pruefung and nr in pruefung \
                 else "X" if hervor else "NT" if nr in normteile else \
                 f"F{(farben[nr] if farben else nr) % len(TEILFARBEN)}"
             dreiecke.setdefault(art, []).extend(basis + i for i in idx)
