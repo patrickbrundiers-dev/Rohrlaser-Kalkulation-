@@ -14164,9 +14164,52 @@ def kapitel_stammdaten(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.abschnitt("Kundenliste als CSV", marke="kunden_csv")
     i.liste("<b>CSV exportieren</b>: alle Kunden als Datei für Excel.",
-            "<b>CSV importieren …</b>: Datei wählen, Vorschau prüfen (grün neu, gelb geändert, rot Fehler), dann "
-            "<b>Importieren</b>.", nummeriert=True, kurz=True)
+            "<b>CSV importieren …</b>: Datei (CSV oder Excel) wählen, der <b>Importassistent</b> führt in 5 "
+            "Schritten durch Datei, Spalten, Dubletten, Vorschau und Import.", nummeriert=True, kurz=True)
     i.genauer()
+    i.text("<b>Importassistent für Kundenlisten</b> (seit dem Master-Auftrag vom 25.11.2026, gleiche Bedienung wie "
+           "der EK-Import, [[ek_import_assistent]]). Oben steht die Schrittleiste, unten <b>◀ Zurück</b> und "
+           "<b>Weiter ▶</b>; bis zum letzten Schritt ändert nichts die Datenbank. <b>Letzte Importe / Rückgängig "
+           "…</b> listet die bisherigen Läufe; <b>Ausgewählten Import rückgängig machen</b> nimmt einen davon "
+           "zurück. (Die frühere Vorschau mit dem Häkchen <i>Vorhandene Kunden nicht ändern (nur neue anlegen)</i> "
+           "ersetzt der Assistent; dafür in Schritt 3 <i>Überspringen</i> wählen.)")
+    i.liste("<b>1 Datei und Format</b>: erkannt werden Kodierung (UTF-8, Windows-1252, UTF-16), Trennzeichen "
+            "(Semikolon, Komma, Tab), Dezimalzeichen und ob es eine Kopfzeile gibt; auch Listen <b>ohne Kopfzeile</b> "
+            "gehen (Spalten A, B, C … zum Zuordnen). <b>Vorhandene Kunden</b>: <i>nur leere Felder ergänzen</i> "
+            "(Vorgabe für fremde Listen: vorhandene Werte bleiben) oder <i>Werte aus der Datei übernehmen</i> "
+            "(Vorgabe für den eigenen Export). Leere Zellen löschen nie etwas. <b>Letzte Importe / Rückgängig …</b> "
+            "zeigt die bisherigen Kundenimporte.",
+            "<b>2 Spalten zuordnen</b>: je Programmfeld (Firmenname, Firmenzusatz, Kundennummer, Kundengruppe, "
+            "Branche, Vorname, Nachname, Ansprechpartner, Abteilung, Position, E-Mail, Telefon, Mobil, Website, Fax, "
+            "Straße, Hausnummer, PLZ, Ort, Bundesland, Land, USt-ID, Steuernummer, Zahlungsbedingungen, Zahlungsziel, "
+            "Rabatt, Skonto, Lieferadresse, Rechnungsadresse, interne Notizen …) die Spalte der Datei. Deutsche und "
+            "englische Namen werden erkannt (Firma, Unternehmen, Customer, Customer ID, Mail, ZIP, City, VAT ID …). "
+            "<b>Grün</b> = sicher, <b>gelb</b> = Vorschlag zum Prüfen. Eine Spalte <i>Name</i> ist mehrdeutig: "
+            "neben einer Firmenspalte ist sie die Person, sonst die Firma, immer nur als Vorschlag. Fehlende Felder "
+            "blockieren nichts, nötig ist nur der Firmenname. <b>Importprofil</b>: Laden, Speichern, Kopieren, "
+            "Umbenennen, Löschen; ein Profil wird auch bei anderer Spaltenreihenfolge wiedererkannt.",
+            "<b>3 Prüfung und Dubletten</b>: jede Zeile wird mit den vorhandenen Kunden verglichen: Kundennummer, "
+            "Firmenname (<i>Muster GmbH</i> = <i>Muster GmbH.</i> = <i>MUSTER GmbH</i>), E-Mail und Firmendomain, "
+            "Telefon, Anschrift und USt-ID. Gleiche Kundennummer oder sichere Treffer (z. B. gleiche USt-ID) werden "
+            "<i>aktualisiert</i>; ähnliche Namen (<i>Muster GmbH</i> / <i>Muster Metallbau GmbH</i>) gelten nie "
+            "automatisch als derselbe Kunde, sie stehen als <b>mögliche Dublette</b> zur Entscheidung: "
+            "<i>Bestehenden Kunden aktualisieren</i>, <i>Als neuen Kunden anlegen</i>, <i>Überspringen</i> oder "
+            "<i>Manuell zuordnen</i> (Kundennummer eintragen). <b>Neue Kunden brauchen eine Kundennummer von Hand</b> "
+            "– das Programm vergibt nie eine; fehlt sie, ist die Zeile fehlerhaft, bis eine eingetragen ist. "
+            "<b>Neu prüfen</b> rechnet mit den Entscheidungen neu.",
+            "<b>4 Vorschau</b>: neue Kunden (grün), zu aktualisieren (blau, mit alt → neu), unverändert, offene "
+            "Dubletten (gelb), fehlerhaft (rot), übersprungen (grau), mit Filter.",
+            "<b>5 Abschluss</b>: <b>Importieren</b> legt eine Datensicherung an und übernimmt alles als einen "
+            "Importlauf: neue Kunden mit Ansprechpartner (Vor-/Nachname, Abteilung, Position, Mobil), Liefer- und "
+            "Rechnungsadresse und Rabatt; Fax (und Mobil ohne Person) gehen in die Notizen. Jede Änderung steht in "
+            "der Kundenhistorie. Kundennummern vorhandener Kunden ändern sich nie, Angebote, Aufträge und Anfragen "
+            "bleiben verknüpft. <b>Fehlerbericht speichern …</b> schreibt fehlerhafte Zeilen und offene Dubletten "
+            "als CSV; <b>Diesen Import rückgängig machen</b> (oder später unter <i>Letzte Importe</i>) nimmt den "
+            "Lauf zurück – Kunden, an denen inzwischen ein Angebot, Auftrag oder eine Anfrage hängt, bleiben.",
+            nummeriert=True)
+    i.text("Große Listen (10.000 Zeilen gegen 3.000 vorhandene Kunden) prüft der Assistent in wenigen Sekunden; "
+           "der Fortschritt steht unten. Der folgende Text beschreibt Dateiformat und Meldungen, die für den "
+           "Assistenten genauso gelten.")
     i.text("Im Reiter <i>Kunden</i> speichert <b>CSV exportieren</b> alle Kunden als CSV-Datei (Semikolon, mit Excel "
            "zu öffnen): eine Zeile je Kunde, Kopfzeile mit den Spaltentiteln wie im Reiter, Zahlen mit Komma. So "
            "lässt sich die Liste in Excel bearbeiten oder aus einem anderen Programm übernehmen. Werte, die Excel "
@@ -14176,12 +14219,12 @@ def kapitel_stammdaten(i):
            "<b>CSV importieren …</b> liest eine solche Datei und zeigt zuerst eine Vorschau: je Zeile <i>neu</i> "
            "(grün), <i>ändern</i> (gelb, mit alt → neu), <i>unverändert</i>, <i>übersprungen</i> (grau) oder "
            "<i>Fehler</i> (rot). Übernommen wird erst mit <b>Importieren</b>.")
-    i.liste("Pflicht sind die Spalten Kundennummer und Kundenname; die Reihenfolge der Spalten ist egal, fehlende "
-            "Spalten bleiben beim Kunden unverändert. Auch Kopfzeilen wie <i>Kundennr.</i>, <i>Name</i> oder "
+    i.liste("Pflicht ist nur der Firmenname (für neue Kunden dazu die Kundennummer, notfalls im Assistenten von "
+            "Hand); die Reihenfolge der Spalten ist egal, fehlende Spalten bleiben beim Kunden unverändert. Auch Kopfzeilen wie <i>Kundennr.</i>, <i>Name</i> oder "
             "<i>Ort</i> werden erkannt.",
-            "Gibt es die Kundennummer schon, ändert der Import diesen Kunden: die Werte aus der Datei ersetzen die "
-            "alten (eine leere Zelle leert das Feld). Mit dem Häkchen <b>Vorhandene Kunden nicht ändern (nur neue "
-            "anlegen)</b> bleiben sie unverändert und stehen als <i>übersprungen</i> in der Vorschau.",
+            "Gibt es die Kundennummer schon, aktualisiert der Import diesen Kunden: je nach Wahl in Schritt 1 nur "
+            "leere Felder oder alle Werte aus der Datei; eine leere Zelle löscht nichts. Wer vorhandene Kunden gar "
+            "nicht ändern will, wählt für diese Zeilen <i>Überspringen</i>.",
             "Nicht übernommen werden Zeilen mit Fehler: Pflichtfeld leer, Kundennummer doppelt in der Datei, Zahl "
             "außerhalb des Bereichs (z. B. Skonto über 20 %), unbekannte Lieferbedingung, Land nicht als Ländercode.",
             "Excel entfernt führende Nullen. Eine deutsche PLZ mit vier Ziffern (z. B. 1067) ergänzt der Import "
@@ -14446,6 +14489,46 @@ def kapitel_stammdaten(i):
            "Preise und Lieferlängen bleiben unverändert. Festgeschriebene Angebote behalten ihren Tonnenpreis, "
            "Preiswächter und <i>Aktuelle Preise übernehmen …</i> melden den Unterschied. Leere Tabelle = kein "
            "Zuschlag. Das Programm holt keine Werte aus dem Netz.")
+    i.abschnitt("EK-CSV-Import: Importassistent in 6 Schritten", marke="ek_import_assistent")
+    i.text("<b>Preise aus ERP-CSV …</b> (bzw. <i>Mehr → ERP-Einkauf (EK-CSV) einlesen …</i>) öffnet seit dem "
+           "Master-Auftrag vom 25.11.2026 einen Assistenten. Bis zum letzten Schritt ändert nichts die Datenbank; "
+           "danach zeigt das Fenster <i>Materialpreise aus ERP-CSV</i> wie bisher die Übersicht.", kurz=True)
+    i.genauer()
+    i.liste("<b>1 Datei, Lieferant, Format</b>: CSV oder Excel; erkannt werden Kodierung (UTF-8, Windows-1252), "
+            "Trennzeichen (Semikolon, Komma, Tab), Dezimalformat (<i>1.250</i> je nach Datei 1,25 oder 1.250), "
+            "Titelzeilen und Dateien ohne Kopfzeile. <b>Lieferant</b> gilt für alle Zeilen ohne eigene "
+            "Lieferantenspalte. Passt ein Importprofil, ist es gewählt (mit seinem Lieferanten).",
+            "<b>2 Spalten</b>: Artikelnummer, Lieferantenartikelnummer, Bezeichnung, Werkstoff, Abmessung, "
+            "Oberfläche, Menge, Mengeneinheit, Länge, EK, Preiseinheit, Währung, Lieferant, Kaufdatum, Liefertermin "
+            "… Namen deutsch und englisch (Belegdatum, ME, Qty, Unit price, Supplier …), mit Gegenprobe am Inhalt; "
+            "grün sicher, gelb Vorschlag. Importprofile speichern, kopieren, umbenennen, löschen; auch bei anderer "
+            "Spaltenreihenfolge erkannt.",
+            "<b>3 Materialerkennung</b>: Abmessungen in vielen Schreibweisen – <i>Rohr 50 x 50 x 3</i>, "
+            "<i>Vierkantrohr 50x50x3</i>, <i>50 X 50 X 3 mm</i> und <i>RR 50/50/3</i> sind 50x50x3, "
+            "<i>Rechteckrohr 100x50x4</i>, <i>Rundrohr Ø60x3</i>. Werkstoffe werden nie verwechselt (S235JR, "
+            "S355J2H, S355MC, 1.4301, 1.4571, Aluminium); gleiche Bezeichnung mit anderem Werkstoff, Profil oder "
+            "Maß ist ein anderes Material. Drei Stufen: <b>exakter Treffer</b> (grün, automatisch), "
+            "<b>wahrscheinlicher Treffer</b> (gelb, z. B. <i>S355J2H</i> ohne Norm → S355 EN 10219; Haken = "
+            "bestätigen, <i>Alle wahrscheinlichen Treffer bestätigen</i>), <b>kein Treffer</b> (rot: neues Material "
+            "wird vorgeschlagen und angelegt, wenn der Haken <i>Materialien ohne Treffer neu anlegen</i> gesetzt "
+            "ist; <i>auch neue Werkstoffe anlegen</i> nur mit Freigabe für Werkstoffe). Ein Profil, das es in anderer Schreibweise schon gibt, wird nicht doppelt angelegt.",
+            "<b>4 Preisprüfung</b>: je Material und Lieferant der neueste EK der Datei gegen den letzten bisherigen, "
+            "mit Änderung in € und %; rot = teurer, grün = günstiger ab <b>markieren ab</b> (Einstellung <i>EK-Import: "
+            "Preisänderung markieren ab</i>, Vorgabe 10 %), gelb = kleinere Änderung. Ein Preis eines anderen "
+            "Lieferanten ist nur Vergleich und wird nie überschrieben: jeder Kauf bleibt mit seinem Lieferanten "
+            "gespeichert (EK-Historie je Lieferant).",
+            "<b>5 Vorschau</b>: jede Zeile <i>neu</i>, <i>unverändert (schon eingelesen)</i>, <i>doppelt in der "
+            "Datei</i> oder <i>fehlerhaft</i> (z. B. fremde Währung, Preis keine Zahl, Gutschrift) mit Filter. "
+            "Mengeneinheiten werden umgerechnet: mm, Stück/Stange (× Länge, ohne Längenspalte 6 m mit Hinweis), kg "
+            "und t über das Metergewicht.",
+            "<b>6 Abschluss</b>: <b>Importieren</b> speichert alles als einen Importlauf (bei einem Fehler wird "
+            "alles zurückgenommen). <b>Fehlerbericht speichern …</b> schreibt fehlerhafte und doppelte Zeilen als "
+            "CSV für Excel; <b>Diesen Import rückgängig machen</b> (oder später <i>Letzte Importe / Rückgängig …</i> "
+            "in Schritt 1) nimmt Käufe, Zuordnungen und angelegte Materialien zurück. Preise in den Stammdaten und "
+            "vorhandene Angebote bleiben unverändert.", nummeriert=True)
+    i.text("<b>Lernen nur kontrolliert</b>: Importprofile und bestätigte Zuordnungen werden gemerkt (lokal, "
+           "nachvollziehbar, über die Importhistorie zurücknehmbar); es gibt keine selbständige KI-Entscheidung und "
+           "nichts geht ins Internet. 10.000 Zeilen: Vorschau etwa 2 s, Import etwa 3 s.")
     i.abschnitt("Materialpreise aus ERP-CSV", marke="erp_preise")
     i.text("Wer seine Einkäufe im ERP hat, lädt sie als CSV: Knopf <b>Preise aus ERP-CSV …</b> unter Preise. Die "
            "Käufe werden nur aufgelistet, Preise in den Stammdaten bleiben unverändert. Im Angebot nimmt das Programm "
@@ -15358,7 +15441,8 @@ def kapitel_material(i):
            "speichern</i> merkt die Zuordnung; beim nächsten Import mit gleichem Spaltenkopf wird sie gewählt. "
            "<b>Importprofil löschen</b> im Bereich ERP-Import.",
            "Das Fenster <b>ERP-Import: Vorschau</b> zeigt jede Zeile in einer Gruppe: <b>neu</b>, "
-           "<b>Preisänderung</b> (alter und neuer €/m, Änderung in %, ab ±15 % Warnung), <b>aktualisiert</b>, "
+           "<b>Preisänderung</b> (alter und neuer €/m, Änderung in %, Warnung ab der Einstellung <i>EK-Import: "
+           "Preisänderung markieren ab</i>, Vorgabe 10 %), <b>aktualisiert</b>, "
            "<b>unverändert</b>, <b>doppelt</b>, <b>fehlerhaft</b> und <b>nicht zuordenbar</b> (z. B. <i>S355</i> "
            "ohne Norm: mehrere Werkstoffe möglich, das Programm rät nicht). Haken bestimmen, welche der Gruppen neu, "
            "Preisänderung und aktualisiert übernommen werden. <b>Fehlerhafte Zeilen exportieren …</b> schreibt die "

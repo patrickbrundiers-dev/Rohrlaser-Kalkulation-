@@ -2323,6 +2323,9 @@ EINSTELLUNGEN += (
     # Patrick 23.11.2026: Werkstoff je Profil nach dem EK vorwählen (erp_anlegen.werkstoff_je_profil)
     Einstellung("erp_werkstoff_vorwahl", "ERP-Preise: Werkstoff je Profil nach dem Einkauf vorwählen (STEP-Import)",
                 "ERP-Preisimport", "auswahl", "ja", auswahl="janein"),
+    # Master-Auftrag EK-CSV-Import 25.11.2026: Preisprüfung im Importassistenten (EK-Käufe und Preislisten)
+    Einstellung("ek_preis_markierung", "EK-Import: Preisänderung markieren ab [%]", "ERP-Preisimport", "zahl", 10.0,
+                0, 1000),
 )
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
 

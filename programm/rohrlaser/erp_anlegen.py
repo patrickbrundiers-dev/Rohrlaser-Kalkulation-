@@ -22,7 +22,7 @@ Was unsicher ist (Abmessung oder Güte nicht erkannt, mehrdeutig), bleibt in der
 import datetime
 import re
 
-from . import erp_preise
+from . import erp_preise, masstext
 
 FAMILIEN = {
     "10219": dict(norm="EN 10219 kaltgefertigt, geschweißt", rohrart="geschweißt", text="EN10219"),
@@ -202,6 +202,10 @@ def plan(db, kaeufe=None):
                 continue
             form = mas["form"]
             pid = profil_id(mas["form"], mas["a"], mas["b"], mas["wand"])
+            # keine Dublette: gibt es das Profil schon in anderer Schreibweise ('QR 50 x 50 x 3'), dieses nehmen
+            schon = masstext.finde(pid, k.profile) if pid not in k.profile else None
+            if schon:
+                pid = schon
             if pid not in k.profile and pid not in profile:
                 profile[pid] = dict(profil_id=pid, form=mas["form"], a=mas["a"], b=mas["b"], wand=mas["wand"],
                                     bemerkung=f"aus ERP-EK angelegt ({a['bezeichnung'][:60]})")
@@ -227,13 +231,15 @@ def plan(db, kaeufe=None):
     return dict(profile=list(profile.values()), werkstoffe=list(werkstoffe.values()), zuordnungen=zuord, offen=offen)
 
 
-def ausfuehren(db, p, mit_werkstoffen=True):
+def ausfuehren(db, p, mit_werkstoffen=True, lauf=None):
     """Plan anlegen (vorher Sicherung): Profile, Werkstoffe (nur mit_werkstoffen, sonst entfallen ihre Zuordnungen),
-    Zuordnungen merken, KI-Protokoll. Ergebnis dict(profile, werkstoffe, zuordnungen, sicherung)."""
+    Zuordnungen merken, KI-Protokoll. lauf (csv_import.Lauf, EK-Importassistent): alles Angelegte gehört zum
+    Importlauf und lässt sich mit ihm zurücknehmen. Ergebnis dict(profile, werkstoffe, zuordnungen, sicherung)."""
+    neu_ = lauf.neu if lauf is not None else db.neu
     from . import ki_protokoll
     if not (p["profile"] or p["werkstoffe"] or p["zuordnungen"]):
         from . import material_stamm
-        stamm = material_stamm.ergaenzen(db, quelle="ERP-EK")
+        stamm = material_stamm.ergaenzen(db, quelle="ERP-EK", lauf=lauf)
         return dict(profile=0, werkstoffe=0, zuordnungen=0, sicherung=None, stamm_neu=stamm["neu"],
                     nummern=stamm["nummern"])
     try:
@@ -243,19 +249,24 @@ def ausfuehren(db, p, mit_werkstoffen=True):
     neu_w = {w["werkstoff_id"] for w in p["werkstoffe"]} if mit_werkstoffen else set()
     for w in p["werkstoffe"]:
         if w["werkstoff_id"] in neu_w:
-            db.neu("werkstoffe", w)
+            neu_("werkstoffe", w)
     for pr in p["profile"]:
-        db.neu("profile", {kk: v for kk, v in pr.items() if v is not None})
+        neu_("profile", {kk: v for kk, v in pr.items() if v is not None})
     n = 0
     vorhanden_w = set(db.kontext().werkstoffe)
     for z in p["zuordnungen"]:
         if z["werkstoff_id"] not in vorhanden_w:
             continue
+        if lauf is not None:
+            alt = db.con.execute("SELECT * FROM erp_zuordnung WHERE schluessel=?", (z["schluessel"],)).fetchone()
+            lauf.merken("erp_zuordnung", None, "zuordnung", alt=dict(alt) if alt else None,
+                        neu=dict(schluessel=z["schluessel"], profil_id=z["profil_id"], werkstoff_id=z["werkstoff_id"],
+                                 oberflaeche=z["oberflaeche"] or ""))
         erp_preise.zuordnung_merken(db, z["schluessel"], z["artikelnr"], z["bezeichnung"], z["profil_id"],
                                     z["werkstoff_id"], z["oberflaeche"])
         n += 1
     from . import material_stamm        # Artikelnummer je Abmessung × Werkstoff in den Materialstamm
-    stamm = material_stamm.ergaenzen(db, quelle="ERP-EK angelegt")
+    stamm = material_stamm.ergaenzen(db, quelle="ERP-EK angelegt", lauf=lauf)
     erg = dict(profile=len(p["profile"]), werkstoffe=len(neu_w), zuordnungen=n, sicherung=sich,
                stamm_neu=stamm["neu"], nummern=stamm["nummern"])
     ki_protokoll.schreiben(db, "Materialprüfung", "Aus ERP-Einkauf angelegt",

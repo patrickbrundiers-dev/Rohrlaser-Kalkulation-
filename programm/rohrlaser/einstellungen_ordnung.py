@@ -147,7 +147,8 @@ SEITEN = (
           "Einkäufe aus der ERP-CSV (Stammdaten → Preise → „Preise aus ERP-CSV …“): das Angebot nimmt nach dem "
           "Optimieren je Abmessung den passenden Kauf der letzten Monate, die Übersicht zeigt den Durchschnitt ohne "
           "Ausreißer. " + ALLE_PLAETZE,
-          (_a("Auswertung", "erp_monate erp_ausreisser erp_direkt_tage erp_direkt_stangen erp_werkstoff_vorwahl"),)),
+          (_a("Auswertung", "erp_monate erp_ausreisser erp_direkt_tage erp_direkt_stangen erp_werkstoff_vorwahl "
+                           "ek_preis_markierung"),)),
     Seite("e_listen", "Auswahllisten", ALLE_PLAETZE,
           (_a("Listen", "profilformen kategorien"),)),
     Seite("e_blech", "Blech-Richtpreis", ALLE_PLAETZE,

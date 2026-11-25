@@ -391,14 +391,31 @@ def importieren(seite, db, pfad=None, zuordnung=None, zeigen=True, heute=None):
     if pfad is None:
         f = seite.window()
         start = f.ablage() if hasattr(f, "ablage") else Path.home()
-        pfad, _ = QFileDialog.getOpenFileName(seite, "ERP-Einkaufsdaten laden", str(start), "CSV (*.csv *.txt)")
+        pfad, _ = QFileDialog.getOpenFileName(seite, "ERP-Einkaufsdaten laden", str(start),
+                                              "Listen (*.csv *.txt *.xlsx)")
         if not pfad:
             return None
+    if zeigen and zuordnung is None:
+        # Importassistent in 6 Schritten (25.11.2026): prüft alles vor dem Speichern, danach die Preisübersicht
+        from .ek_import_assistent import assistent
+        try:
+            a = assistent(seite, db, pfad)
+        except OSError as e:
+            raise OSError(dateifehler(e, pfad)) from e
+        if a.exec() != QDialog.Accepted or not a.abschluss.ergebnis:
+            return None
+        e = a.abschluss.ergebnis
+        d = ErpPreiseDialog(seite, db, f"<b>{Path(pfad).name}</b>: Import Nr. {e['import_id']} – {e['neu']} Käufe neu "
+                            f"gespeichert, {e['zuordnungen']} Zuordnungen.", heute=heute or datetime.date.today())
+        d.meldungen = []
+        d.aus_assistent = True
+        d.exec()
+        return d
     try:
         roh = Path(pfad).read_bytes()
     except OSError as e:
         raise OSError(dateifehler(e, pfad)) from e
-    daten = E.lesen(roh)
+    daten = E.lesen(roh, str(pfad))
     vorlagen = db.einstellung(E.VORLAGEN) or {}
     if zuordnung is None:
         zuordnung, gespeichert = E.zuordnung_fuer(daten["kopf"], vorlagen)
