@@ -259,7 +259,12 @@ def kaeufe(daten, zuordnung, k=None, fehlerliste=None):
         me = re.sub(r"[^a-zäöüß]", "", zelle("einheit").lower())
         hinweis = ""
         if me in _ME_MM:
-            m, p = m / 1000, p * 1000
+            # Menge in mm: der Preis gilt je ME (mm). Ergäbe das über 1.000 €/m, ist er schon je Meter angegeben
+            # (übliche ERP-Ausgabe „Menge mm, Preis €/m“) – dann bleibt er so, mit Hinweis
+            if p * 1000 > 1000:
+                m, hinweis = m / 1000, hinweis + " (Preis als €/m gelesen, je mm wäre er unplausibel)"
+            else:
+                m, p = m / 1000, p * 1000
         elif me in _ME_STANGE:
             lg = zahl(zelle("laenge"), dez)
             lg = lg * 1000 if lg and lg <= 30 else lg

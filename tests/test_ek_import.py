@@ -117,6 +117,7 @@ gruende = {n: grund for n, grund, _r in v["fehler"]}
 assert "USD" in gruende[6] or "Währung" in gruende[6], gruende
 kauf = {x["zeile"]: x for x in v["kaeufe"]}
 assert abs(kauf[4]["menge"] - 1.2505) < 1e-6 and kauf[4]["lieferant"] == "", kauf[4]
+assert abs(kauf[4]["preis"] - 9.4) < 1e-9 and "€/m" in kauf[4]["hinweis"], kauf[4]     # 9.400 €/m wäre unplausibel
 assert abs(kauf[5]["menge"] - 36) < 1e-6 and "6 m" in kauf[5]["hinweis"], kauf[5]
 ok("Mengeneinheit mm und Stück (×6 m mit Hinweis) umgerechnet; fremde Währung und kaputter Preis = fehlerhaft; "
    "doppelte Zeile erkannt")

@@ -245,7 +245,7 @@ class KundenAssistent(IA.Assistent):
         self.datei = IA.DateiSchritt(pfad, daten, profilname, zusatz=(("Vorhandene Kunden", self.modus),),
                                      laeufe=lambda: csv_import.laeufe(db, csv_import.ART_KUNDEN),
                                      rueckgaengig=lambda i: K.rueckgaengig(db, i))
-        self.spalten = IA.SpaltenSchritt(db, K.IMPORTPROFILE, K.FELDER, K.IMPORT_PFLICHT, daten, erkannt, profilname,
+        self.spalten = IA.SpaltenSchritt(db, K.IMPORTPROFILE, [(f, K.FELD_TITEL.get(f, t)) for f, t in K.FELDER], K.IMPORT_PFLICHT, daten, erkannt, profilname,
                                          hinweis="Grün = sicher erkannt, gelb = Vorschlag (bitte prüfen, z. B. "
                                          "„Name“: Firma oder Person?), weiß = nicht zugeordnet. Fehlende Felder "
                                          "blockieren den Import nicht; nötig ist nur der Firmenname *.")
