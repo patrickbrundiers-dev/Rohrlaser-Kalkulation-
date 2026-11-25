@@ -307,6 +307,17 @@ def kandidaten_3d(m):
     return gehr, bohr
 
 
+def vergleich_wie_step(rechner):
+    """Eingaben für die 3D-Gegenprobe: schräge Konturen, die ohne 3D an der Innenkante mit 90° geschnitten werden
+    (bewusst anders als die STEP, Patrick 25.11.2026), mit dem Umriss der STEP und 3D wie konstruiert; sonst
+    unverändert."""
+    if not isinstance(rechner, dict) or not any(z_.get("umriss_step") for z_ in rechner.get("konturen") or ()):
+        return rechner
+    kont = [dict(z_, umriss=z_["umriss_step"], umriss_innen=z_["umriss"], d3=True) if z_.get("umriss_step") else z_
+            for z_ in rechner["konturen"]]
+    return dict(rechner, konturen=kont, d3=True)
+
+
 def sonder_3d(m):
     """Anzahl Sonderkonturen mit schräger Schnittfläche (gemessen 'schwenk' ab 0,5°) und gemessenem Rand auf der
     Innenwand: mit 3D-Bearbeitung als 3D-Schnitt wie in der STEP (Patrick 25.11.2026)."""
@@ -2685,6 +2696,7 @@ def rohr_gegenprobe(m, profile, d3=False):
         if konturen_umstellen(rechner, dict(profil, profil_id=pid or profil.get("profil_id")))[1]:
             return None     # Konturen werden für das Profil umgestellt: das Übernehmen vergleicht dann nicht
         laenge = round(_z(m, "laenge"), 1)
+        rechner = vergleich_wie_step(rechner)
         ab = step_gegenprobe.abweichung(m, profil, rechner, laenge)
         fasen = fase_zonen(m, laenge)
         if ab and fasen and step_gegenprobe.hinweis(*ab) and form in step_gegenprobe.FORMEN:
@@ -3883,7 +3895,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     # Gegenprobe: das Modell des Editors liegt wie die STEP (Patrick 30.10.2026, Übergabe absichern)
                     from . import step_gegenprobe, tempo
                     with tempo.abschnitt("STEP: Gegenprobe Rohr"):
-                        ab = step_gegenprobe.abweichung(m, profile[pid], rechner, p["laenge"])
+                        ab = step_gegenprobe.abweichung(m, profile[pid], vergleich_wie_step(rechner), p["laenge"])
                     if ab:
                         p["_step_abweichung"] = round(ab[0], 2)
                         h = step_gegenprobe.hinweis(*ab)

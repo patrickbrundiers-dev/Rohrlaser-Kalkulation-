@@ -90,13 +90,27 @@ def netz_wie_konstruiert(d):
     """3D-Netz des Editors (SchneidwegDialog d) mit ebenen Gehrungen in 3D, also wie in der STEP konstruiert. In 2D
     wird eine ebene STEP-Gehrung an der langen Seite um Wand · tan(Winkel) kürzer, wie gefertigt (Patrick
     28.10.2026, Variante a); nur eine schon in der STEP 2D geschnittene Gehrung ('aussen_mass') steht in 2D wie dort."""
+    from PySide6.QtCore import Qt
+    from rohrlaser.schneidweg_dialog import D3_SPALTE
     e = d.eingaben()
     eben = [s for s in ("a", "b") if (e.get(s) or {}).get("winkel") and not e[s].get("aussen_mass")
             and not e[s].get("d3")]
-    if eben:
+    # schräge Kontur, ohne 3D an der Innenkante mit 90° projiziert (Patrick 25.11.2026): wie in der STEP in 3D
+    schraeg = []
+    for r in range(d.tabelle.rowCount()):
+        combo = d.tabelle.cellWidget(r, 0)
+        ex = getattr(combo, "extra", None)
+        if ex and ex[1].get("umriss_step"):
+            x = dict(ex[1], umriss=ex[1]["umriss_step"], umriss_innen=ex[1]["umriss"])
+            x.pop("umriss_step")
+            combo.extra = (ex[0], x)
+            schraeg.append(r)
+    if eben or schraeg:
         d.d3.setChecked(True)
         for s in eben:
             d.ende_3d[s].setChecked(True)
+        for r in schraeg:
+            d.tabelle.item(r, D3_SPALTE).setCheckState(Qt.Checked)
         d.rechnen()
         if getattr(d, "editor", None) is not None:
             d.editor.zeitgeber.stop()

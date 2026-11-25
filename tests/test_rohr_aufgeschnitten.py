@@ -137,7 +137,8 @@ def main():
             tech = json.loads(p["technik"])
             if tech.get("konturen"):
                 tech["konturen"][0]["x"] = float(tech["konturen"][0].get("x") or 0) + 2
-                ab = step_gegenprobe.abweichung(ms[name], k.profile[p["profil_id"]], tech, p["laenge"])
+                ab = step_gegenprobe.abweichung(ms[name], k.profile[p["profil_id"]], step.vergleich_wie_step(tech),
+                                               p["laenge"])
                 h = step_gegenprobe.hinweis(*ab)
                 assert h and h.startswith("Editor weicht bis 1,"), (name, ab, h)
             d = SchneidwegDialog(None, p, k.profile[p["profil_id"]], kopf, k, db.tabellen(), db)
