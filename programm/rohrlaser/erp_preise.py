@@ -861,7 +861,7 @@ def bestaetigen(db, a, profil_id=None, werkstoff_id=None, oberflaeche=None, lauf
     if lauf is not None:
         alt = db.con.execute("SELECT * FROM erp_zuordnung WHERE schluessel=?", (a["schluessel"],)).fetchone()
         lauf.merken("erp_zuordnung", None, "zuordnung", alt=dict(alt) if alt else None,
-                    neu=dict(schluessel=a["schluessel"]))
+                    neu=dict(schluessel=a["schluessel"], profil_id=pid, werkstoff_id=wid, oberflaeche=ober or ""))
     zuordnung_merken(db, a["schluessel"], a["artikelnr"], a["bezeichnung"], pid, wid, ober)
     return pid, wid, ober
 
@@ -1341,12 +1341,19 @@ def uebernehmen(db, v, datei="", bestaetigt=(), anlegen=True, mit_werkstoffen=Tr
 def rueckgaengig(db, import_id, status="rückgängig gemacht"):
     """EK-Importlauf zurücknehmen: Käufe des Laufs löschen, gemerkte Zuordnungen auf den alten Stand, angelegte
     Profile, Werkstoffe und Materialstamm-Zeilen löschen (csv_import.rueckgaengig). Ergebnis (Anzahl, Meldungen)."""
-    n = 0
+    n, meldungen_z = 0, []
     for p in reversed(csv_import.posten_des_laufs(db, import_id)):
         if p["tabelle"] != "erp_zuordnung" or p["aktion"] != "zuordnung":
             continue
-        schl = (p["neu"] or {}).get("schluessel")
+        neu = p["neu"] or {}
+        schl = neu.get("schluessel")
         alt = p["alt"]
+        jetzt = db.con.execute("SELECT profil_id, werkstoff_id, oberflaeche FROM erp_zuordnung WHERE schluessel=?",
+                               (schl,)).fetchone()
+        if "profil_id" in neu and (jetzt is None or (jetzt[0], jetzt[1], jetzt[2] or "") !=
+                                   (neu["profil_id"], neu["werkstoff_id"], neu.get("oberflaeche") or "")):
+            meldungen_z.append(f"Zuordnung {schl} seit dem Import geändert, bleibt")
+            continue
         with db.con:
             if alt:
                 db.con.execute("UPDATE erp_zuordnung SET artikelnr=?, bezeichnung=?, profil_id=?, werkstoff_id=?, "
@@ -1359,7 +1366,7 @@ def rueckgaengig(db, import_id, status="rückgängig gemacht"):
         n += 1
     m, meldungen = csv_import.rueckgaengig(db, import_id, status)
     _KAEUFE_STAND[0] += 1
-    return n + m, meldungen
+    return n + m, meldungen_z + meldungen
 
 
 def fehlerbericht(v, kopf=None):

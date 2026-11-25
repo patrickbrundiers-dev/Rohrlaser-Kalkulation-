@@ -260,7 +260,8 @@ def ausfuehren(db, p, mit_werkstoffen=True, lauf=None):
         if lauf is not None:
             alt = db.con.execute("SELECT * FROM erp_zuordnung WHERE schluessel=?", (z["schluessel"],)).fetchone()
             lauf.merken("erp_zuordnung", None, "zuordnung", alt=dict(alt) if alt else None,
-                        neu=dict(schluessel=z["schluessel"]))
+                        neu=dict(schluessel=z["schluessel"], profil_id=z["profil_id"], werkstoff_id=z["werkstoff_id"],
+                                 oberflaeche=z["oberflaeche"] or ""))
         erp_preise.zuordnung_merken(db, z["schluessel"], z["artikelnr"], z["bezeichnung"], z["profil_id"],
                                     z["werkstoff_id"], z["oberflaeche"])
         n += 1

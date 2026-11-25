@@ -161,6 +161,16 @@ bericht = E.fehlerbericht(v, daten["kopf"])
 assert bericht.startswith("﻿Zeile;Gruppe;Grund;Belegdatum") and "USD" in bericht and "abc" in bericht
 ok("Fehlerbericht (CSV für Excel) mit fehlerhaften und doppelten Zeilen")
 
+# Rückgängig überschreibt keine Zuordnung, die seit dem Import geändert wurde
+d5 = E.lesen(f"Datum;Menge;Preis;Bezeichnung\n{tag(2)};6;5;QR 50x50x3 S355J2H Rückgängig\n".encode(), "r.csv")
+v5 = E.vorschau_import(db, d5, csv_import.zuordnung(E.spalten_erkennen(d5)))
+a5 = [a for a in v5["artikel"] if a["stufe"] == E.WAHRSCHEINLICH][0]
+e5 = E.uebernehmen(db, v5, "r.csv", bestaetigt=[(a5, None)], anlegen=False)
+E.zuordnung_merken(db, a5["schluessel"], a5["artikelnr"], a5["bezeichnung"], "QR 50x50x3", "S235-10219", "")
+_n, meld5 = E.rueckgaengig(db, e5["import_id"])
+assert E.zuordnungen(db)[a5["schluessel"]]["werkstoff_id"] == "S235-10219" and any("bleibt" in m for m in meld5)
+ok("Rückgängig lässt eine danach von Hand geänderte Zuordnung stehen")
+
 # ------------------------------------------------------------------ 5 Importprofile
 csv_import.profil_speichern(db, E.IMPORTPROFILE, "Stahl Nord", KOPF, sp, lieferant="Stahl Nord")
 um = [KOPF[i] for i in (8, 7, 6, 5, 4, 3, 2, 1, 0)]

@@ -483,6 +483,15 @@ def fehler_csv(posten):
 _Lauf = csv_import.Lauf         # gemeinsame Importbasis (Posten gesammelt, ein Schreibvorgang)
 
 
+def _aelter(neu, alt):
+    """True, wenn das Gültig-ab neu vor alt liegt (beide als Datum/Text lesbar)."""
+    try:
+        a, b = str(neu or "")[:10], str(alt or "")[:10]
+        return bool(a and b and a < b)
+    except Exception:           # noqa: BLE001
+        return False
+
+
 def ausfuehren(db, posten, gruppen=AUSFUEHRBAR, datei="", importprofil="", sichern=True, fortschritt=None,
                aktiv_ersetzen=()):
     """Bestätigte Gruppen übernehmen. Ergebnis dict(import_id, neu, aktualisiert, preise, profile, werkstoffe,
@@ -570,9 +579,13 @@ def ausfuehren(db, posten, gruppen=AUSFUEHRBAR, datei="", importprofil="", siche
                 lg = e.get("laenge")
                 lz = lief.get((pid, wid, e["lieferant"], lg or None))
                 lw = dict(basis=e["basis"], preis=e["preis"], gueltig_ab=e["gueltig_ab"])
+                if e.get("gueltig_bis"):
+                    lw["gueltig_bis"] = e["gueltig_bis"]
                 if e.get("bestellnr") or e.get("materialnr"):
                     lw["artikelnr"] = e.get("bestellnr") or e["materialnr"]
-                if lz is None:
+                if lz is not None and _aelter(e.get("gueltig_ab"), lz.get("gueltig_ab")):
+                    pass        # älteres Angebot dieses Lieferanten: das neuere bleibt (kein veralteter Preis)
+                elif lz is None:
                     w = dict(lw, profil_id=pid, werkstoff_id=wid, lieferant=e["lieferant"], laenge=lg)
                     lief[(pid, wid, e["lieferant"], lg or None)] = dict(w, id=lauf.neu(mp.LIEFERANTEN_TABELLE, w))
                     if e.get("lieferant_konflikt"):
