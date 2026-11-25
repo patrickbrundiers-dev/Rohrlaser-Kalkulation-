@@ -22,7 +22,11 @@ from . import entfernung, paletten
 from .angebot import ist_baugruppe
 
 PALETTEN_EINST = ("palette_hoehe_gesamt", "palette_max_brutto", "palette_mischen", "palette_fuellgrad",
-                  "palette_zwischenlage")
+                  "palette_zwischenlage",
+                  # Packkern 3.0 (25.11.2026): ältere gespeicherte Frachtberechnungen haben die Schlüssel nicht und
+                  # packen bitgleich wie bisher (paletten._kern3)
+                  "palette_packkern", "palette_ueberstand", "palette_max_teillaenge", "palette_rand", "palette_abstand", "palette_sortenrein",
+                  "palette_max_artikel", "palette_verschachteln", "palette_drehen", "palette_modus")
 
 MANUELL, BERECHNET, KEINE, ENTHALTEN = "manuell", "berechnet", "keine Fracht", "im Artikelpreis enthalten"
 MODI = (MANUELL, BERECHNET, KEINE, ENTHALTEN)

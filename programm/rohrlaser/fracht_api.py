@@ -96,6 +96,11 @@ class FedEx:
             "requestedPackageLineItems": pakete}}
         return self.url, {"Content-Type": "application/json"}, body
 
+    def token_anfrage(self, kennung, geheim):
+        """FedEx will client_id und client_secret im Formular, nicht im Basic-Kopf."""
+        return {"Content-Type": "application/x-www-form-urlencoded"}, urllib.parse.urlencode(dict(
+            grant_type="client_credentials", client_id=kennung, client_secret=geheim)).encode()
+
     def antwort(self, j):
         out = []
         for r in (j.get("output") or {}).get("rateReplyDetails") or []:
@@ -113,15 +118,17 @@ class DHLExpress:
     url = "https://express.api.dhl.com/mydhlapi/rates"
 
     def anfrage(self, s, konto=""):
-        kg, m = max(_stuecke(s), key=lambda x: x[0])
-        gesamt = sum(x[0] for x in _stuecke(s))
-        datum = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
-        q = dict(accountNumber=konto, originCountryCode=s.get("absender_land") or "DE",
-                 originPostalCode=s.get("absender_plz") or "", destinationCountryCode=s.get("land") or "DE",
-                 destinationPostalCode=s.get("plz") or "", weight=f"{gesamt:.1f}", length=_cm(m[0]),
-                 width=_cm(m[1]), height=_cm(m[2]), plannedShippingDate=datum, isCustomsDeclarable="false",
-                 unitOfMeasurement="metric")
-        return self.url + "?" + urllib.parse.urlencode(q), {}, None
+        """Mehrstück-Anfrage (POST /rates): jedes Packstück mit eigenem Gewicht und Maß."""
+        datum = (datetime.date.today() + datetime.timedelta(days=1)).isoformat() + "T10:00:00GMT+01:00"
+        pakete = [{"weight": round(kg, 1), "dimensions": {"length": _cm(m[0]), "width": _cm(m[1]),
+                                                          "height": _cm(m[2])}} for kg, m in _stuecke(s)]
+        body = {"customerDetails": {
+                    "shipperDetails": {"postalCode": s.get("absender_plz") or "",
+                                       "countryCode": s.get("absender_land") or "DE"},
+                    "receiverDetails": {"postalCode": s.get("plz") or "", "countryCode": s.get("land") or "DE"}},
+                "accounts": [{"typeCode": "shipper", "number": konto}], "plannedShippingDateAndTime": datum,
+                "unitOfMeasurement": "metric", "isCustomsDeclarable": False, "packages": pakete}
+        return self.url, {"Content-Type": "application/json"}, body
 
     def antwort(self, j):
         out = []
@@ -181,6 +188,14 @@ def _http(url, headers, body=None, methode=None, oeffnen=None):
         return json.loads(r.read().decode("utf-8") or "{}")
 
 
+def _token_anfrage(a, kennung, geheim):
+    """OAuth-Kopf und -Formular: Anbieter mit eigener Form (FedEx), sonst Basic-Kopf (UPS)."""
+    if hasattr(a, "token_anfrage"):
+        return a.token_anfrage(kennung, geheim)
+    return {"Content-Type": "application/x-www-form-urlencoded", "Authorization": "Basic " + base64.b64encode(
+        f"{kennung}:{geheim}".encode()).decode()}, b"grant_type=client_credentials"
+
+
 def abfragen(einst, sendung, anbieter=None, oeffnen=None):
     """Live-Preise der eingerichteten Anbieter (nur auf Knopfdruck). Ergebnis: dict(preise=[…], fehler=[…]) –
     preise mit anbieter, dienst, preis, waehrung, laufzeit, basis 'Schnittstelle', abruf (Zeit)."""
@@ -201,9 +216,8 @@ def abfragen(einst, sendung, anbieter=None, oeffnen=None):
         try:
             url, kopf, body = a.anfrage(sendung, konto)
             if a.token_url:
-                t = _http(a.token_url, {"Content-Type": "application/x-www-form-urlencoded", "Authorization":
-                          "Basic " + base64.b64encode(f"{kennung or konto}:{geheim}".encode()).decode()},
-                          b"grant_type=client_credentials", oeffnen=oeffnen)
+                tk, tb = _token_anfrage(a, kennung or konto, geheim)
+                t = _http(a.token_url, tk, tb, oeffnen=oeffnen)
                 kopf = dict(kopf, Authorization="Bearer " + str(t.get("access_token") or ""))
             else:
                 kopf = dict(kopf, Authorization="Basic " + base64.b64encode(

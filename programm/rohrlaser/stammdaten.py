@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from . import dfm, feiertage, funktionen, naht, navigation3d, normprofile, ovalprofile, rp_profile, visualisierung, \
     zeit_zusatz
 from . import geometrie as _geometrie
+from . import packkern
 from .stil import DICHTEN, THEMES
 from .drehfraes_preis import SCHNITTWERTE_VORGABE
 
@@ -2210,6 +2211,25 @@ EINSTELLUNGEN = (
                 "anteil", 0.9, 0.1, 1),
     Einstellung("palette_zwischenlage", "Paletten: Zwischenlage zwischen zwei Lagen [mm] (0 = keine)", "Versand",
                 "zahl", 0.0, 0, 200),
+    # Packkern 3.0 (25.11.2026, packkern.py): nur neue Frachtberechnungen; gespeicherte packen wie bisher
+    Einstellung("palette_packkern", "Packkern 3.0: Ladung mit Lagen, Reihen, Überstand und Verschachtelung "
+                "berechnen (nein = bisherige Lagenrechnung)", "Versand", "auswahl", "ja", auswahl="janein"),
+    Einstellung("palette_ueberstand", "Packkern: Überstand je Stirnseite an der langen Seite [mm] (kurze Seite nie)",
+                "Versand", "zahl", 50.0, 0, 500),
+    Einstellung("palette_max_teillaenge", "Packkern: lange Teile bis zu dieser Länge auf Palette, Überstand nur an der "
+                "langen Seite [mm] (max. Teillänge der Maschine)", "Versand", "ganz", 6500, 0, 30000),
+    Einstellung("palette_rand", "Packkern: Sicherheitsabstand zum Rand der Breite [mm]", "Versand", "zahl", 0.0, 0, 200),
+    Einstellung("palette_abstand", "Packkern: Mindestabstand zwischen den Teilen [mm]", "Versand", "zahl", 0.0, 0, 100),
+    Einstellung("palette_sortenrein", "Packkern: Sortenreinheit (stark = möglichst je Artikel, aus = nur Platz)",
+                "Versand", "auswahl", "normal", auswahl="palettensorten"),
+    Einstellung("palette_max_artikel", "Packkern: max. Artikel je Packstück (0 = ohne Grenze)", "Versand", "ganz", 0,
+                0, 100),
+    Einstellung("palette_verschachteln", "Packkern: Rohre und Profile ineinander verschachteln", "Versand", "auswahl",
+                "ja", auswahl="janein"),
+    Einstellung("palette_drehen", "Packkern: Teile hochkant drehen erlaubt", "Versand", "auswahl", "ja",
+                auswahl="janein"),
+    Einstellung("palette_modus", "Packkern: Variante", "Versand", "auswahl", packkern.AUTOMATISCH,
+                auswahl="palettenmodus"),
     Einstellung("versand_bundesland", "Feiertage für Arbeitstage (Bundesland)", "Versand", "auswahl",
                 "Nordrhein-Westfalen", auswahl="bundesland"),
     Einstellung("versand_schritte", "Palettenschein: Arbeitsschritte (je Zeile 'Gruppe: Schritt')", "Versand",
@@ -2543,7 +2563,7 @@ class Kontext:
                          "regelzuordnung": list(REGEL_ZUORDNUNGEN), "angebotswirkung": list(ANGEBOTSREGEL_WIRKUNGEN), "anfragensortierung": ["Dringlichkeit", "Wichtigste zuerst"], "aufpreisbasis": list(AUFPREIS_BASEN),
                          "schweissregelart": list(SCHWEISSREGEL_ARTEN),
                          "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL),
-                         "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "abfallart": ["Mikrostege", "Zerschneiden"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
+                         "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "palettensorten": list(packkern.SORTEN), "palettenmodus": list(packkern.MODI), "abfallart": ["Mikrostege", "Zerschneiden"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
