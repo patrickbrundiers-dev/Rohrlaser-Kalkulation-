@@ -1237,7 +1237,7 @@ def preis_pruefung(neue, bisher, artikel_neu, artikel_bisher, grenze_pct=PREIS_M
     return sorted(out, key=lambda z: (-(abs(z["pct"]) if z["pct"] is not None else -1), str(z["material"])))
 
 
-def vorschau_import(db, daten, zuordnung, grenze_pct=None, fortschritt=None):
+def vorschau_import(db, daten, zuordnung, grenze_pct=None, fortschritt=None, lieferant=""):
     """Vorschau des EK-Imports ohne Datenbankänderung (Schritte 3 bis 5): Käufe, Gruppen (neu / unverändert /
     doppelt / fehlerhaft), ERP-Artikel mit Zuordnungsstufe, Preisprüfung, neue Materialien (erp_anlegen.plan).
     Ergebnis dict(kaeufe, gruppe {Dateizeile: Gruppe}, fehler [(Zeile, Grund, Zellen)], meldungen, artikel,
@@ -1248,6 +1248,9 @@ def vorschau_import(db, daten, zuordnung, grenze_pct=None, fortschritt=None):
     if fortschritt:
         fortschritt(0, 4, "Zeilen prüfen")
     liste, meldungen = kaeufe(daten, zuordnung, k, fehler)
+    if lieferant:                   # Lieferant aus Schritt 1 für Zeilen ohne eigene Lieferantenspalte
+        for x in liste:
+            x["lieferant"] = x.get("lieferant") or lieferant
     bisher = gespeicherte(db)
     schon = {_kauf_schl(x) for x in bisher}
     gruppe, gesehen = {}, {}

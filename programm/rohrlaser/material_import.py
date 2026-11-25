@@ -70,7 +70,7 @@ NEU, AKTUALISIERT, PREIS, GLEICH, DOPPELT, FEHLER, OFFEN = (
     "neu", "aktualisiert", "Preisänderung", "unverändert", "doppelt", "fehlerhaft", "nicht zuordenbar")
 GRUPPEN = (NEU, PREIS, AKTUALISIERT, GLEICH, DOPPELT, FEHLER, OFFEN)
 AUSFUEHRBAR = (NEU, PREIS, AKTUALISIERT)
-SPRUNG_PCT = 15.0           # Preiswarnung in der Vorschau ab ±15 % zum bisherigen Preis (ohne Einstellung ek_preis_markierung)
+SPRUNG_PCT = 15.0           # Preiswarnung ab ±15 %, nur falls die Einstellung ek_preis_markierung (Vorgabe 10 %) fehlt
 GEWICHT_TOL = 0.05          # Gewicht aus dem ERP weicht mehr als 5 % vom berechneten kg/m ab: Hinweis
 
 TABELLEN_SQL = csv_import.TABELLEN_SQL      # Importläufe und Posten: gemeinsame Importbasis (Spalte art)

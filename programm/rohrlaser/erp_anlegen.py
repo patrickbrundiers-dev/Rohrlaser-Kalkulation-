@@ -22,7 +22,7 @@ Was unsicher ist (Abmessung oder Güte nicht erkannt, mehrdeutig), bleibt in der
 import datetime
 import re
 
-from . import erp_preise
+from . import erp_preise, masstext
 
 FAMILIEN = {
     "10219": dict(norm="EN 10219 kaltgefertigt, geschweißt", rohrart="geschweißt", text="EN10219"),
@@ -202,6 +202,10 @@ def plan(db, kaeufe=None):
                 continue
             form = mas["form"]
             pid = profil_id(mas["form"], mas["a"], mas["b"], mas["wand"])
+            # keine Dublette: gibt es das Profil schon in anderer Schreibweise ('QR 50 x 50 x 3'), dieses nehmen
+            schon = masstext.finde(pid, k.profile) if pid not in k.profile else None
+            if schon:
+                pid = schon
             if pid not in k.profile and pid not in profile:
                 profile[pid] = dict(profil_id=pid, form=mas["form"], a=mas["a"], b=mas["b"], wand=mas["wand"],
                                     bemerkung=f"aus ERP-EK angelegt ({a['bezeichnung'][:60]})")
