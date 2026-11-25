@@ -294,7 +294,8 @@ def lht_werte(eintraege, lht_zeilen):
         je.append(dict(lht_id=z["lht_id"], art=z.get("art"), bezeichnung=z.get("bezeichnung") or z["lht_id"], anzahl=n,
                        masse=(l, b, h), volumen=l * b * h / 1e9 * n if l and b and h else None,
                        stellplaetze=plaetze * (z.get("stellplaetze") or 1),
-                       lademeter=plaetze * l * b / 1e6 / 2.4 if l and b else None,
+                       lademeter=(_n(e["ldm"]) * plaetze / n if _zahl(e.get("ldm"))     # Packkern 3.0: Überstand
+                                  else plaetze * l * b / 1e6 / 2.4 if l and b else None),
                        eigengewicht=_n(z.get("eigengewicht")) * n + rahmen * _n(z.get("rahmen_gewicht")),
                        rahmen=rahmen, brutto_je=list(e.get("brutto_je") or ()) or None,
                        aussen=_aussen(z, e),
