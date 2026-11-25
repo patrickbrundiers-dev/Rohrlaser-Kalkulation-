@@ -164,6 +164,10 @@ Versionen von SCHEMA_VERSION:
   doppelte_koerper}. Messwerte unverändert (die Messung rechnet mit dem Körper wie gelesen); nur ein Körper, dessen
   Messung scheitert und dessen Reparatur Klasse 1 ist, wird an der reparierten Kopie gemessen (Hinweis, Status prüfen).
   Felder aus 1.30 unverändert.
+  Ergänzung 25.11.2026 (zusätzliche Felder, Version bleibt): ein Ende mit "fase" trägt "fase_tiefe" (Außenkante vom
+  Ende längs der Achse [mm]), "fase_hoehe" (wie tief die Fase am Ende in die Wand reicht [mm]), "fase_winkel" (Neigung
+  gegen die Senkrechte zur Oberfläche [°]) und "fase_ganze_wand" (keine Stirnfläche bleibt stehen); nur bei einer
+  ebenen Außenkante um das Ende.
 """
 from datetime import datetime
 
