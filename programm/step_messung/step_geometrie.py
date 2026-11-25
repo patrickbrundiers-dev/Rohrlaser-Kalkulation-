@@ -2875,7 +2875,7 @@ def _profil_messen_kern(solid, datei="", koerper=1, netz=False, quer=None, vorga
     merkmale = {}  # Wurzel -> dict(faces, aussenkanten, durch)
     for f, a_ in art.items():
         if a_ == "S":
-            merkmale.setdefault(finde(f), dict(faces=[], kanten=[], durch=False))["faces"].append(f)
+            merkmale.setdefault(finde(f), dict(faces=[], kanten=[], durch=False, innen_kanten=[]))["faces"].append(f)
     for e, fi in kanten_info:
         arten = {art[f] for f in fi}
         for f in fi:
@@ -2885,6 +2885,8 @@ def _profil_messen_kern(solid, datei="", koerper=1, netz=False, quer=None, vorga
                     m["kanten"].append(e)
                 if "I" in arten:
                     m["durch"] = True
+                    if e not in m["innen_kanten"]:
+                        m["innen_kanten"].append(e)
 
     def konturzuege(kanten):
         """Kanten zu geschlossenen Konturzügen gruppieren (über gemeinsame Eckpunkte)."""
@@ -2917,6 +2919,21 @@ def _profil_messen_kern(solid, datei="", koerper=1, netz=False, quer=None, vorga
     fasen = {}              # Ende ('A'/'B') mit Fase -> Außenkontur gerade (senkrecht zur Achse)
     fasen_lage = {}         # Ende -> [(z der Außenkante, Spanne in z, Flächen)] je Fase
     liste = _KonturListe()
+
+    def umriss_innen(innen_kanten, d):
+        """Abgewickelter Rand einer Kontur auf der Innenwand [[u, z]] (u über den Winkel wie 'umriss'): der Zug der
+        Innenkanten, dessen Mitte der Mitte der Kontur außen am nächsten liegt; None ohne Innenkanten."""
+        best = None
+        for zi in konturzuege(list(innen_kanten)):
+            um = _umriss_uv(zi, abw, zmin, d["u"])
+            if not um or len(um) < 3:
+                continue
+            uc = (max(p[0] for p in um) + min(p[0] for p in um)) / 2
+            zc = (max(p[1] for p in um) + min(p[1] for p in um)) / 2
+            ab = math.hypot(uc - d["u"], zc - d["z"])
+            if best is None or ab < best[0]:
+                best = (ab, um)
+        return best[1] if best else None
 
     def lage_auf_rohr(zug):
         """Abgewickelte Kontur -> Form, Maße, Mitte (z ab Ende A, Winkel, Seite), Normale der Wand dort."""
@@ -3169,6 +3186,12 @@ def _profil_messen_kern(solid, datei="", koerper=1, netz=False, quer=None, vorga
                              richtung=round(lage, 1))
                 if not rund or d["art"] == "Sonderkontur":  # Bohrungen: Neigung der Achse (oben); sonst Flächen
                     d["schwenk"] = schwenk([faces.FindKey(f) for f in m["faces"]], zug, abw)
+                    if (d["schwenk"] or 0) >= SCHRAEG_3D and d.get("umriss"):
+                        # schräge Schnittfläche (Patrick 25.11.2026, „im Editor wie in der STEP“): Rand auf der
+                        # Innenwand, Umfangsposition über den Winkel um die Achse wie der Umriss außen
+                        ui = umriss_innen(m.get("innen_kanten") or (), d)
+                        if ui:
+                            d["umriss_innen"] = ui
                 liste.append(d)
         if m["art"] in enden:
             enden[m["art"]][0] += [faces.FindKey(f) for f in m["faces"]]

@@ -1212,7 +1212,7 @@ class SchneidwegDialog(QDialog):
         # Eigenschaften je Kontur (3E-4, nur im Eigenschaften-Feld): Drehwinkel, Bezug der Lage, Schnittrichtung, Wände
         art.eig = {k_: z[k_] for k_ in EIGENSCHAFTEN if z.get(k_) not in (None, "", 0)}
         # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import): bleibt, solange die Art bleibt
-        extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil", "quelle", "ende_teil", "muendung",
+        extra = {k_: z[k_] for k_ in ("umriss", "umriss_innen", "umriss_step", "schwenk", "gemessen_step", "waende", "tiefe", "messprofil", "quelle", "ende_teil", "muendung",
                                           "artikel") if z.get(k_) is not None}
         if z.get("art") == sw.AUSSCHNITT:   # Ausschnitt mit Tiefe: Tiefe ist Maß 3, der Umriss folgt aus dem Profil
             extra = {}

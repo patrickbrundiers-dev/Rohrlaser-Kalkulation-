@@ -11,6 +11,8 @@ W2 Kastenprofile: Sonderkonturen über eine, zwei und drei Ecken, schräg, gedre
 W3 Bohrungen auf allen vier Seiten (vorher je Ecke 0,43 × Radius verschoben)
 W4 Rundrohr: Rechteck, schräge Sonderkontur, Bohrungen rundum, Rohr in der Datei gedreht (Netz auf 0°)
 W5 komplexes Ende über die Ecken (vorher im 3D gerade)
+Schräge Konturen (Schnittfläche nicht senkrecht zur Wand) werden mit 3D verglichen: nur dann zeigt das Programm sie wie
+die STEP, ohne 3D an der Innenkante mit 90° (Patrick 25.11.2026).
 """
 import math
 import sys
@@ -149,7 +151,12 @@ def main():
             name = Path(m["datei"]).stem
             a_, b_ = float(m["abm_a"]), float(m["abm_b"] or 0) or None
             profil = dict(form=m["profilform"], a=a_, b=b_, wand=float(m["wandstaerke"]), profil_id="X")
-            e = step.rechner_eingaben(m, m["profilform"], a_, b_)
+            # schräge Schnittfläche (gemessen): wie in der STEP nur mit 3D; ohne 3D an der Innenkante 90° (Patrick
+            # 25.11.2026), dann liegt die Kontur außen bewusst anders
+            mit_3d = step.sonder_3d(m) > 0
+            e = step.rechner_eingaben(m, m["profilform"], a_, b_, mit_3d)
+            if mit_3d:
+                e["d3"] = True
             n = rohr3d.netz(e, profil, float(m["laenge"]))
             sn = ansicht3d.entpacken(m["_netz"])
             zeile = [name]

@@ -142,20 +142,18 @@ m = JE["F10_Fase"][0]
 assert step.FASE_HINWEIS in str(m.get("hinweise")), m.get("hinweise")
 assert step.fase_zonen(m, 120.0), "Fase-Bereich am Ende"
 g = step.rohr_gegenprobe(m, k.profile)
-assert g and g[0] and "nicht verglichen" not in g[1], ("der Editor zeichnet die Fase wie die STEP", g)
+assert g and g[0] and "Fase" in g[1] and "nicht verglichen" in g[1], g
 ohne = dict(m, hinweise="")
 g2 = step.rohr_gegenprobe(ohne, k.profile)
-assert g2 and g2[0], ("die Fase kommt aus der Messung, nicht aus dem Hinweistext", g2)
-ok("R2 Fase am Rohrende: der Editor zeichnet die Fase wie die STEP, die Gegenprobe vergleicht auch den Fase-Bereich")
+assert g2 and not g2[0], ("ohne den Hinweis der Messung bleibt die Abweichung an der Fase", g2)
+ok("R2 Fase am Rohrende: Gegenprobe bestanden, die Fase ist nicht verglichen (wird nicht gelasert); ohne erkannte "
+   "Fase bleibt die Abweichung gemeldet")
 
 # ---------------------------------------------------------------- R3 Ursache
 assert "Aufteilen" in step.gegenprobe_ursache(dict(profilform="Quadratrohr", hinweise=step.MEHRERE_HINWEIS + "? Rohr"))
 assert "Kantteil" in step.gegenprobe_ursache(dict(profilform="U-Profil", hinweise=""))
 assert step.gegenprobe_ursache(dict(profilform="Quadratrohr", hinweise="")) == ""
-gerade = {**m, "hinweise": "", "konturen_liste": json.dumps(
-    [{kk: v for kk, v in e.items() if not kk.startswith("fase")} for e in json.loads(m["konturen_liste"])])}
-g3 = step.rohr_gegenprobe(gerade, k.profile)
-assert g3 and not g3[0] and "Wie in der STEP übernehmen" in g3[1], ("Ende ohne Fase-Maße: Abweichung bleibt", g3)
+assert "Wie in der STEP übernehmen" in g2[1]
 ok("R3 Abweichung mit Ursache: Körper mit angeschweißtem Teil → Aufteilen, offenes Profil → Kantteil prüfen; dazu "
    "der Weg „Wie in der STEP übernehmen“")
 

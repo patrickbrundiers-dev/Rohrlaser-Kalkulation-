@@ -202,6 +202,34 @@ def _innen(pt, poly):
     return drin
 
 
+def _zuordnen(q, pi):
+    """Geschlossenen Zug pi [(t, x)] auf so viele Punkte wie q bringen, Punkt für Punkt nach dem Anteil der
+    Bogenlänge, gleicher Umlaufsinn, Start am Punkt nächst q[0] (Lochrand außen -> Lochrand innen)."""
+    def flaeche(p):
+        return sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(p, p[1:] + p[:1]))
+    if (flaeche(q) > 0) != (flaeche(pi) > 0):
+        pi = pi[::-1]
+    i0 = min(range(len(pi)), key=lambda i: math.dist(pi[i], q[0]))
+    pi = pi[i0:] + pi[:i0]
+
+    def anteile(p):
+        s_ = [0.0]
+        for a, b in zip(p, p[1:] + p[:1]):
+            s_.append(s_[-1] + math.dist(a, b))
+        return s_
+    sq, sp = anteile(q), anteile(pi)
+    if sq[-1] <= 0 or sp[-1] <= 0:
+        return None
+    ring = pi + pi[:1]
+    out = []
+    for s in sq[:-1]:
+        z = s / sq[-1] * sp[-1]
+        k = max(0, min(len(pi) - 1, bisect.bisect_right(sp, z) - 1))
+        f = 0.0 if sp[k + 1] - sp[k] < 1e-12 else (z - sp[k]) / (sp[k + 1] - sp[k])
+        out.append((ring[k][0] + f * (ring[k + 1][0] - ring[k][0]), ring[k][1] + f * (ring[k + 1][1] - ring[k][1])))
+    return out
+
+
 def loecher(e, qs, aussen, cum, L, cum_i=None):
     """Geschnittene Konturen als [(Polygon [(t, x)], Zeile)] in der Abwicklung des Außenumrisses; über die Naht
     (t = 0) reichende zusätzlich um den Umfang verschoben. Mit cum_i (Innenumriss, gleiche Teilung; Rundrohr und
@@ -511,7 +539,9 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
 
     # Fase am Ende (STEP, Patrick 25.11.2026: im Editor wie in der STEP): die Außenkante liegt um die Tiefe der Fase
     # weiter innen, die Innenkante bleibt am Ende; die Stirnfläche wird zur Fasenfläche
-    fase_x = {s_: fase_tiefe(es) for s_, es in (("a", ea), ("b", eb))}
+    # Fase am Ende wie in der STEP nur mit 3D (Ende 'd3', nur bei Fase durch die ganze Wand); ohne 3D wie bisher
+    # gerade an der längsten Stelle = Innenkante mit 90° (Patrick 25.11.2026)
+    fase_x = {s_: fase_tiefe(es) if es.get("d3") else 0.0 for s_, es in (("a", ea), ("b", eb))}
     wand_ = float(profil.get("wand") or 0)
     fase_teil = {s_: (float(es["fase"].get("hoehe") or 0) if fase_x[s_] and not es["fase"].get("ganze_wand") and
                       0 < float(es["fase"].get("hoehe") or 0) < wand_ - 1e-3 else 0.0) for s_, es in (("a", ea), ("b", eb))}
@@ -611,7 +641,44 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
             out.append((ta, x))
         return out
 
-    loch_innen = [innen_parallel(q) if z in parallel else q for q, z in loch_zeile]
+    def innen_gemessen(q, zeile):
+        """Lochrand auf der Innenwand wie gemessen (schräge Sonderkontur mit 3D, Patrick 25.11.2026: mit 3D der
+        Schnitt wie in der STEP): Umriss innen (Umfangsposition über den Winkel um die Achse) als [(t, x)] wie q,
+        Punkt für Punkt nach Bogenlänge dem Rand außen zugeordnet; None, wenn er sich nicht legen lässt."""
+        ein = zeilen[zeile]
+        d_ = next((x for x in sk.lagen([ein], L, qs)), None)
+        if d_ is None:
+            return None
+        d_["eingabe"] = dict(ein, umriss=ein["umriss_innen"])
+        pi = loch_poly(d_, dict(e, d3=False), qs, aussen, cum)
+        if not pi or len(pi) < 3:
+            return None
+        if not qs.r:            # Kasten: Punkt innen in Richtung zur Mitte (wie gemessen über den Winkel)
+            neu = []
+            for t, x in pi:
+                _, u, v = ort(t, x, aussen)
+                lg = math.hypot(u, v) or 1.0
+                sv = sf.strahl_bis(innen, (u, v), (-u / lg, -v / lg))
+                if sv is None:
+                    neu.append((t, x))
+                    continue
+                ti = _t_von(innen, cum_i_alle, u - sv * u / lg, v - sv * v / lg)
+                k = max(0, min(len(innen) - 1, bisect.bisect_right(cum_i_alle, ti) - 1))
+                f = 0.0 if cum_i_alle[k + 1] - cum_i_alle[k] < 1e-12 else \
+                    (ti - cum_i_alle[k]) / (cum_i_alle[k + 1] - cum_i_alle[k])
+                ta = cum[k] + f * (cum[k + 1] - cum[k])
+                neu.append((ta + T * round((t - ta) / T), x))
+            pi = neu
+        sh = T * round((sum(p[0] for p in q) / len(q) - sum(p[0] for p in pi) / len(pi)) / T)
+        return _zuordnen(q, [(t + sh, x) for t, x in pi])     # auch die Kopie über die Naht
+
+    cum_i_alle = _laengen(innen) if innen else None
+    loch_innen = []
+    for q, z in loch_zeile:
+        zl = zeilen[z] if 0 <= z < len(zeilen) else {}
+        qi = innen_gemessen(q, z) if zl.get("umriss_innen") and zl.get("d3") and e.get("d3") is True and innen \
+            else None
+        loch_innen.append(qi or (innen_parallel(q) if z in parallel else q))
 
     def mantel_loch(poly, art, nach_aussen, loch=loch):
         """Wand mit Löchern: jede Spalte in Trapeze ohne die Löcher. Die Kanten zwischen zwei Spalten bekommen die

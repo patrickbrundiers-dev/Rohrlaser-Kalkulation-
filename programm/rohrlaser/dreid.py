@@ -39,7 +39,8 @@ GREIFMASS = 300.0
 SCHNELLWAHL = (-45, -30, 0, 30, 45)
 GRENZE_ABS = 89.0          # mehr ist geometrisch kein Schwenk mehr
 ENDE_A, ENDE_B, BOHRUNG = "Gehrung 3D Ende A", "Gehrung 3D Ende B", "Bohrung 3D"
-V_INNEN = "Knick 3D Innenwand"          # Knickrahmen mit schräger Innenwand (knickrahmen.py, schraeg)
+V_INNEN = "Knick 3D Innenwand"
+KONTUR_3D = "Kontur 3D"                 # Sonderkontur mit schräger Schnittfläche (STEP gemessen, Patrick 25.11.2026)          # Knickrahmen mit schräger Innenwand (knickrahmen.py, schraeg)
 
 
 def _z(v):
@@ -324,6 +325,21 @@ def bearbeitungen(p, m=None, einstiche_ende=1, profil=None):
             except ValueError as f:
                 z.update(winkel=None, fehler=str(f))
             z["abstand_b"] = max(0.0, lg - _z(e.get("x"))) if lg > 0 and e.get("x") is not None else 0.0
+            erg.append(z)
+            continue
+        if e.get("d3") and e.get("art") == "Sonderkontur" and _z(e.get("schwenk")) > 0:
+            # schräge Schnittfläche wie in der STEP (Kopf um den gemessenen Schwenk), Länge = Kontur außen
+            z = dict(art=KONTUR_3D, winkel_eingabe=_z(e.get("schwenk")), laengs=None, quer=None,
+                     anzahl=int(_z(e.get("anzahl")) or 1), einstiche=1, huelle=_z(e.get("huelle_gemessen")) or None,
+                     hinweis=None, fehler=None, ende=False, laenge=_z(e.get("gemessen")) or _z(e.get("laenge")))
+            try:
+                z["winkel"], z["hinweis"] = gehrung_begrenzen(z["winkel_eingabe"], m)
+                if z["hinweis"]:
+                    z["hinweis"] = z["hinweis"].replace("Gehrung in 3D", "Schräge Kontur in 3D")
+            except ValueError as f:
+                z.update(winkel=None, fehler=str(f))
+            x = e.get("x")
+            z["abstand_b"] = max(0.0, lg - _z(x)) if lg > 0 and isinstance(x, (int, float)) else 0.0
             erg.append(z)
             continue
         if not e.get("d3") or e.get("art") != "Bohrung":
