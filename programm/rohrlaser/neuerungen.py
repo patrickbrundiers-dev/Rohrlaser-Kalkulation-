@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.486", "<b>Einfacher Modus</b> ([[einfacher_modus]]): eine zweite, aufgeräumte Oberfläche neben dem "
+                "Experten-Pro-Modus. Sie führt in sechs Schritten durch die Kalkulation: Neue Kalkulation (STEP, "
+                "CAD, vorhandenes Bauteil, Angebot öffnen), Bauteile mit 3D-Vorschau, Material mit Preis und "
+                "Verfügbarkeit, Bearbeitung und Zusatzkosten, Ergebnis mit Marge und Ampel, Angebot mit Kunde, "
+                "Mengen, PDF und Speichern. Fehlende oder unsichere Werte erscheinen als Hinweis mit Knopf statt "
+                "angenommen zu werden; <b>? Hilfe</b> erklärt jeden Schritt. Wahl unter <i>Einstellungen → "
+                "Darstellung und Bedienoberfläche</i>, je Benutzer bzw. Arbeitsplatz, bleibt nach dem Neustart; "
+                "umschalten jederzeit ohne Datenverlust per Knopf in der Statusleiste oder Strg+Alt+M. Beide Modi "
+                "nutzen denselben Rechenkern und dieselben Daten; der Expertenmodus bleibt unverändert.",
+     "Einfacher Modus: geführte Kalkulation in 6 Schritten, je Benutzer wählbar, Expertenmodus unverändert"],
     ["0.9.485", "<b>Generalüberholung, Paket 3: Dunkelmodus besser lesbar</b>: Alle 68 Ansichten (Hauptreiter, "
                 "Reiter des Angebots, alle Einstellungsseiten) wurden in Hell und Dunkel auf Lesbarkeit gemessen. Zwei "
                 "Stellen hatten im Dunkelmodus weiße Schrift auf Hellblau (2,0 bzw. 2,6 : 1): der Knopf <i>Weiter ▸</i> "

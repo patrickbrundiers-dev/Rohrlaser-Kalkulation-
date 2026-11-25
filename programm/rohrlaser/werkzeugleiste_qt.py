@@ -444,6 +444,8 @@ def aendern(f, fenster=False):
     start = getattr(f, "start", None)
     if start is not None and hasattr(start, "karten_anordnen"):
         start.karten_anordnen()
+    from . import einfach_seite             # im einfachen Modus bleiben Leiste und Info-Panel aus
+    einfach_seite.oberflaeche_anpassen(f)
 
 
 def tasten_anwenden(f):
@@ -525,6 +527,8 @@ def zustand_laden(f, text=None):
         f.restoreState(QByteArray.fromBase64(text.encode("ascii")))
         f.info_dock.setVisible(wl.info_an(f.db))
         f.meine_leiste.setVisible(f.meine_leiste.aufbau.get("sichtbar", True))
+        from . import einfach_seite
+        einfach_seite.oberflaeche_anpassen(f)
 
 
 def arbeitsbereich_speichern(f, name=None):

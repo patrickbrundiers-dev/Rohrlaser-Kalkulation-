@@ -3475,7 +3475,10 @@ class Hauptfenster(QMainWindow):
         # Favoriten der Einstellungen (19.11.2026): eigene Seite ganz oben unter Allgemein
         from .einstellungen_extras_dialog import FavoritenSeite
         self.einstellungen_favoriten = FavoritenSeite(db, self.meldung)
-        self.bereich = EinstellungenBereich(db, self.einstellungen, [self.einstellungen_favoriten] + unter
+        # Darstellung und Bedienoberfläche (25.11.2026): Einfacher Modus oder Experten-Pro-Modus je Benutzer
+        from .bedienmodus_seite import BedienmodusSeite
+        self.bedienmodus_seite = BedienmodusSeite(self)
+        self.bereich = EinstellungenBereich(db, self.einstellungen, [self.einstellungen_favoriten, self.bedienmodus_seite] + unter
                                             + [self.zeitvorgaben, self.admin_seite, self.plaetze_seite,
                                                self.mail_vorlagen] + self.fracht.pflege)
         self.bereich.favoriten = self.einstellungen_favoriten
@@ -3508,6 +3511,9 @@ class Hauptfenster(QMainWindow):
         from . import werkzeugleiste_qt
         werkzeugleiste_qt.einrichten(self)
         self.funktionen_anwenden()          # ausgeschaltete Funktionen gleich beim Start ausblenden
+        # Einfacher Modus (25.11.2026): zweite Oberfläche auf dieselben Angebote; Expertenoberfläche bleibt self.reiter
+        from . import einfach_seite
+        einfach_seite.einrichten(self)
         self.benutzer_info = QLabel()
         self.benutzer_info.setTextFormat(Qt.PlainText)
         self.benutzer_info.hide()
@@ -3844,6 +3850,9 @@ class Hauptfenster(QMainWindow):
         from .kunden_seite import menue_einrichten
         self.kunden_menue = menue_einrichten(self, self.menuBar().addMenu("&Kunden"))
         ansicht = self.menuBar().addMenu("&Ansicht")
+        from .einfach_seite import menue_eintrag      # Einfacher Modus / Experten-Pro-Modus (25.11.2026)
+        menue_eintrag(self, ansicht)
+        ansicht.addSeparator()
         for text, taste, schritt, innen in (("Nächster Reiter", "Ctrl+Tab", 1, False),
                                             ("Vorheriger Reiter", "Ctrl+Shift+Tab", -1, False),
                                             ("Nächster Unterreiter", "Ctrl+PgDown", 1, True),
@@ -4858,6 +4867,8 @@ class Hauptfenster(QMainWindow):
         for text in self.ANGEBOT_DATEI:
             if text in getattr(self, "datei_aktionen", {}):
                 self.datei_aktionen[text].setEnabled(darf_angebote)
+        from . import einfach_seite         # angemeldeter Benutzer: seine Bedienoberfläche (25.11.2026)
+        einfach_seite.benutzer_pruefen(self)
         if not rollen.darf(self.db, rollen.B_ANGEBOTE):
             from .lizenz_dialog import lesemodus_anwenden
             for w in (self.angebote, *self.offen.values()):

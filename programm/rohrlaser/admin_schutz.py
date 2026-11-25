@@ -77,7 +77,7 @@ VORGABE = ("e_funktionen", "e_firma", "e_ablage", "e_zuschlaege", "e_gewinn_gest
            "preise", "werkstoffe", "maschinen", "schneiddaten", ZEITVORGABEN, "zusatzarbeiten",
            "arbeitsgang_regeln", FRACHT, KI)
 # immer frei: eigener Arbeitsplatz; Profile, damit „Unbekannte Abmessung anlegen“ im Popup weiter geht
-NIE = ("e_arbeitsplatz", "kunden")
+NIE = ("e_arbeitsplatz", "e_bedienmodus", "kunden")
 IMMER = HAUPT_SEITEN
 
 

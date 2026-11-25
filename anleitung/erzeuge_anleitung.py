@@ -16906,6 +16906,63 @@ OHNE_STELLE = {"stamm_stundensaetze",     # gleiche Seite wie stamm_arbeitsschri
                "stamm_schweissverfahren", "stamm_schweiss_faktoren"}
 
 
+def kapitel_einfacher_modus(i):
+    i.kapitel("Einfacher Modus", marke="einfacher_modus")
+    i.text("Neben der gewohnten Oberfläche (<i>Experten-Pro-Modus</i>) gibt es seit 0.9.486 den <b>Einfachen "
+           "Modus</b>: eine aufgeräumte Oberfläche, die in sechs Schritten durch eine Kalkulation führt. Beide "
+           "Oberflächen rechnen mit demselben Rechenkern, derselben Datenbank und denselben Angeboten. Jede "
+           "Kalkulation lässt sich in beiden Modi öffnen und weiterbearbeiten.", kurz=True)
+    i.abschnitt("Modus wählen und umschalten", marke="bedienmodus")
+    i.liste("<b>Einstellungen → Allgemein → Darstellung und Bedienoberfläche</b>: <i>Einfacher Modus</i> oder "
+            "<i>Experten-Pro-Modus</i> wählen. Die Wahl gilt nur für den angemeldeten Benutzer (ohne Anmeldung: "
+            "für diesen Arbeitsplatz). Kollegen und andere PCs behalten ihre eigene Wahl, auch beim Abgleich "
+            "über den gemeinsamen Ordner. Die Seite ist nie durch Admin-Vorgaben gesperrt.",
+            "Die Wahl bleibt nach einem Neustart erhalten.",
+            "<b>Schnell umschalten:</b> Knopf unten rechts in der Statusleiste, Menü <i>Ansicht → Einfacher "
+            "Modus</i> oder <b>Strg+Alt+M</b>. Im Einfachen Modus steht oben rechts der Knopf <i>Expertenmodus</i>.",
+            "Ein Wechsel verliert nichts: die geöffnete Kalkulation bleibt offen und erscheint im anderen Modus "
+            "mit allen Werten. Im Einfachen Modus sind Menüleiste, eigene Werkzeugleiste und Info-Panel "
+            "ausgeblendet; im Expertenmodus ist alles wie vorher.")
+    i.abschnitt("Die sechs Schritte", marke="einfach_schritte")
+    i.tabelle(["Schritt", "Was passiert"], [
+        ["1 Neue Kalkulation", "Großer Knopf <i>Neue Kalkulation erstellen</i>, Kacheln für STEP, CAD/andere "
+         "Formate, vorhandenes Bauteil und <i>Kalkulation öffnen</i>; darunter die letzten Angebote mit Suche."],
+        ["2 Bauteile", "Erkannte Teile mit Art, Querschnitt, Länge, Werkstoff und Stückzahl (direkt änderbar), "
+         "3D-Vorschau des markierten Teils und Hinweise mit Knopf zur Lösung."],
+        ["3 Material", "Je Werkstoff und Abmessung eine Karte: Werkstoff wählen, Wand, Preis je m und kg, "
+         "Preisstand und Verfügbarkeit. Fehlt ein Preis, führt <i>Preis eintragen …</i> direkt dorthin."],
+        ["4 Bearbeitung", "Maschinenzeit, Schnitt, Rüsten, Bearbeitung, Zusatzarbeiten, Zukauf und Gemeinkosten "
+         "als Kacheln; Knöpfe für Zusatzarbeiten, Vorschläge übernehmen und Neu berechnen."],
+        ["5 Ergebnis", "Verkaufspreis, Gewinn und Marge mit Ampel, Gesamtkosten, Aufteilung in Material, "
+         "Bearbeitung, Maschine und Zusatz als Balken, Preis je Teil und die Prüfliste."],
+        ["6 Angebot", "Kunde wählen, Mengen ändern, Gesamtsumme, PDF erstellen und öffnen, E-Mail, Speichern; "
+         "<i>Im Expertenmodus weiterbearbeiten</i> für alles Weitere."],
+    ], [38, 226])
+    i.abschnitt("Automatik, Prüfung und Hilfe", marke="einfach_hilfe")
+    i.liste("Das Programm rechnet bei den Schritten 3 bis 5 selbst neu, wenn sich etwas geändert hat.",
+            "Unsichere oder fehlende Werte (Stückzahl, Materialpreis, unsichere Erkennung, fehlender Kunde) "
+            "werden nicht angenommen: sie erscheinen als Hinweis mit Knopf, z. B. <i>Stückzahl eintragen</i> "
+            "oder <i>Im Editor prüfen</i>. Ein roter Hinweis muss vor dem Angebot gelöst sein.",
+            "Die Fußleiste sagt immer, was als Nächstes zu tun ist; <i>Weiter</i> und <i>Zurück</i> wechseln den "
+            "Schritt, die Schrittknöpfe oben springen direkt.",
+            "<b>? Hilfe</b> öffnet rechts eine Erklärung zum aktuellen Schritt und zu den Feldern, dazu den Knopf "
+            "<i>Bedienungsanleitung öffnen</i>. Jede Kachel und jedes Feld hat einen Tooltip.",
+            "Alles, was der Einfache Modus nicht zeigt (Staffeln, Nesting, Maschinenvergleich, Werkstattpapiere "
+            "usw.), bleibt im Expertenmodus unverändert erreichbar.")
+    i.abschnitt("Knöpfe im Einfachen Modus", marke="einfach_knoepfe")
+    i.liste("Kopfleiste: die Schrittknöpfe <i>1 Start</i> bis <i>6 Angebot</i>, <i>? Hilfe</i> und "
+            "<i>Expertenmodus</i>. Fußleiste: <i>‹ Zurück</i> und <i>Weiter ›</i>.",
+            "Schritt 1: <i>＋ Neue Kalkulation erstellen</i>, die Kacheln und bei einer offenen Kalkulation "
+            "<i>Weiterbearbeiten ›</i>.",
+            "Schritt 2: <i>Weitere Bauteile importieren …</i>, <i>Im Editor prüfen</i> und <i>Bauteil entfernen</i> "
+            "(wie im Expertenmodus mit <i>Rückgängig</i> in der Einblendung).",
+            "Schritt 3: <i>Materialpreise und Lieferlängen …</i> öffnet das Materialfenster des Expertenmodus.",
+            "Schritt 4: <i>Zusatzarbeiten hinzufügen …</i> und <i>Vorgeschlagene Arbeiten übernehmen</i> "
+            "(übernimmt die erkannten Arbeitsschritte wie Gewinde oder Senkungen).",
+            "Schritt 6: <i>PDF erstellen</i>, <i>PDF öffnen</i>, <i>Per E-Mail senden …</i> (nur wenn die Funktion "
+            "Angebot per Mail eingeschaltet ist) und <i>Angebot speichern</i>.")
+
+
 def kapitel_schnellstart(i):
     i.kapitel("Schnellstart: das erste Angebot in 10 Schritten", marke="schnellstart")
     i.text("Für das erste Angebot reichen die fett gedruckten Handgriffe; die Verweise führen zu den Einzelheiten.",
@@ -16946,6 +17003,9 @@ STECKBRIEFE = {
               "Download-Bereich auf GitHub (Rohrlaser-Updates, <i>download</i>); im Programm der Reiter <i>Start</i>"),
     "schnellstart": ("Einmal durch ein ganzes Angebot, vom Anlegen bis zum PDF.",
                      "Reiter <i>Angebote</i> und das geöffnete Angebot"),
+    "einfacher_modus": ("Eine Kalkulation geführt in sechs Schritten erstellen, ohne die Expertenoberfläche.",
+                        "<i>Einstellungen → Darstellung und Bedienoberfläche</i>, Knopf in der Statusleiste, "
+                        "Strg+Alt+M"),
     "angebote": ("Angebote finden, öffnen, kopieren und löschen.", "Reiter <i>Angebote</i>"),
     "angebot": ("Kopf, Positionen, Zusatzarbeiten und Einzelwerte eines Angebots eingeben.",
                 "Geöffnetes Angebot: Kopf, Übersicht, Reiter <i>Positionen</i>"),
@@ -17018,7 +17078,7 @@ STECKBRIEFE = {
 # Ein neues Kapitel hier an der passenden Stelle einsortieren und in STECKBRIEFE eintragen.
 TEILE = [
     ("A", "Erste Schritte", "Installieren, das Fenster kennenlernen und einmal ein ganzes Angebot rechnen.",
-     [kapitel_ueberblick, kapitel_start, kapitel_schnellstart]),
+     [kapitel_ueberblick, kapitel_start, kapitel_schnellstart, kapitel_einfacher_modus]),
     ("B", "Ein Angebot rechnen", "Alle Schritte eines Angebots in der Reihenfolge der Arbeit, vom Anlegen bis zur "
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
