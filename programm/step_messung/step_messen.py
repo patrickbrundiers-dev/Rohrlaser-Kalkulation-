@@ -22,6 +22,9 @@ Aufruf:
 
 --flach-laenge F, --gekantet-anteil A: Grenzwerte der Erkennung aus den Einstellungen (step_geometrie.einstellen).
 
+--netze-linien: Schnellimport (24.11.2026): die Netze enthalten nur die Linienzüge der Schnittkonturen (für die
+  Gegenprobe und die Lage), keine Dreiecke und keinen Flächenkatalog. Messwerte und Schneidweg sind dieselben.
+
 --prozesse N: gleichzeitige Messprozesse (0 = automatisch, Kerne − 1). --zeitlimit S: Sekunden je Körper (0 = ohne);
   mit Zeitlimit misst jeder Prozess unter Aufsicht: braucht ein Körper länger (oder stürzt die Messung ab), wird der
   Prozess beendet, der Körper als "nicht gemessen" gemeldet und die Datei ohne ihn weiter gemessen.
@@ -796,6 +799,9 @@ def main(argv=None):
                     help="Normteile laut Bauteilname (DIN 933 …) wie jedes Teil voll messen (sonst nur als Zukaufteil)")
     ap.add_argument("--netze-fein", action="store_true",
                     help="Analysestufe Experte: feineres Netz für die 3D-Ansicht (Messwerte gleich)")
+    ap.add_argument("--netze-linien", action="store_true",
+                    help="Schnellimport: in den Netzen nur die Linienzüge der Konturen (keine Dreiecke, kein "
+                         "Flächenkatalog); die Messwerte sind dieselben")
     ap.add_argument("--prozesse", type=int, default=0, help="Messprozesse (0 = automatisch)")
     ap.add_argument("--zeitlimit", type=float, default=0, help="Sekunden je Körper (0 = ohne)")
     ap.add_argument("--cache", help="Ordner des Zwischenspeichers")
@@ -833,7 +839,8 @@ def main(argv=None):
                                ("naht_spalt", a.naht_spalt),
                                ("stege", a.stege), ("virtuell", a.virtuell),
                                ("normteile_voll", a.normteile_voll or None),
-                               ("netz_fein", a.netze_fein or None)) if v is not None}
+                               ("netz_fein", a.netze_fein or None),
+                               ("netz_linien", a.netze_linien or None)) if v is not None}
     ergebnis = [None] * len(dateien)
     with open(a.ausgabe, "w", encoding="utf-8", newline="\n") as f:      # Teilergebnis wächst je Datei
         f.write("\t".join(SPALTEN) + "\n")
@@ -849,6 +856,15 @@ def main(argv=None):
             except OSError:
                 continue
             erg = cache_lesen(a.cache, schluessel[i], a.netze, i)
+            if erg is None and a.netze_linien and a.netze:
+                # Schnellimport: eine Messung des Vollimports derselben Datei gilt auch (gleiche Messwerte, ihr Netz
+                # hat zusätzlich die Dreiecke; das Programm übernimmt sie im Schnellimport nicht)
+                try:
+                    voll = cache_schluessel(d, a.kennung, dict({k: v for k, v in wirksam.items()
+                                                                 if k != "netz_linien"}))
+                    erg = cache_lesen(a.cache, voll, a.netze, i)
+                except OSError:
+                    erg = None
             if erg is not None:
                 ergebnis[i - 1] = erg
                 _teil_schreiben(a.ausgabe, erg[0])

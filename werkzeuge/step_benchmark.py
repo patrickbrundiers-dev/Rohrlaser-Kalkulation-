@@ -8,6 +8,7 @@ größten Arbeitsspeicher (Spitze eines Messprozesses). Der Vergleich zweier Lä
 
 Aufruf:
     python werkzeuge/step_benchmark.py lauf BAUM ERGEBNIS DATEI_ODER_ORDNER … [--prozesse 0] [--zeitlimit 600] [--wdh 1]
+    python werkzeuge/step_benchmark.py lauf BAUM ERGEBNIS_SCHNELL DATEI_ODER_ORDNER … --schnell   (Schnellimport)
     python werkzeuge/step_benchmark.py vergleich ERGEBNIS_ALT ERGEBNIS_NEU [--toleranz 0] [--bericht DATEI.md]
     python werkzeuge/step_benchmark.py suite ERGEBNIS [--bericht DATEI.md]
 
@@ -115,8 +116,9 @@ def _starten(befehl, umgebung, zeitlimit):
     return rc, time.perf_counter() - t0, cpu, ram, "".join(ausgabe)
 
 
-def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600, erwartung=None, wdh=1, lesecache=None,
-         lesecache_ab=None):
+def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600, erwartung=None, wdh=1, schnell=False,
+         lesecache=None, lesecache_ab=None):
+    """schnell: Messung wie der Schnellimport (--netze-linien, nur Linienzüge statt Dreiecksnetz)."""
     baum, ergebnis = Path(baum), Path(ergebnis)
     messen = baum / "programm" / "step_messung" / "step_messen.py"
     if not messen.exists():
@@ -135,7 +137,8 @@ def lauf(baum, ergebnis, pfade, prozesse=0, zeitlimit=600, gesamt_max=3600, erwa
         js, txt, netze = ergebnis / f"{n}.json", ergebnis / f"{n}.txt", ergebnis / f"{n}_netze"
         netze.mkdir(exist_ok=True)
         befehl = [sys.executable, str(messen), "--ausgabe", str(txt), "--json", str(js), "--netze", str(netze),
-                  "--prozesse", str(prozesse), "--zeitlimit", str(zeitlimit), str(p)]
+                  "--prozesse", str(prozesse), "--zeitlimit", str(zeitlimit), str(p)] \
+            + (["--netze-linien"] if schnell else [])
         # wdh > 1 (Master-Auftrag 24.11.2026): jede Datei mehrmals, Dauer = Median, dazu 90 %/95 % und längster Lauf;
         # jede Wiederholung muss dieselben Messwerte liefern (sonst ist die Messung nicht reproduzierbar)
         laeufe, abdruck = [], None
@@ -309,6 +312,7 @@ def main(argv=None):
     a.add_argument("--lesecache-ab", type=float, help="Lese-Zwischenspeicher schon ab so vielen Sekunden Lesedauer")
     a.add_argument("--erwartung", help="JSON {Dateiname: {Körpernummer: Art}} für die Trefferquote der Erkennung")
     a.add_argument("--wdh", type=int, default=1, help="Läufe je Datei (Median, 95 %%, längster Lauf)")
+    a.add_argument("--schnell", action="store_true", help="wie der Schnellimport messen (nur Linienzüge, --netze-linien)")
     s = sub.add_parser("suite")
     s.add_argument("ergebnis")
     s.add_argument("--bericht")
@@ -320,8 +324,8 @@ def main(argv=None):
     x = ap.parse_args(argv)
     if x.befehl == "lauf":
         erw = json.loads(Path(x.erwartung).read_text(encoding="utf-8")) if x.erwartung else None
-        lauf(x.baum, x.ergebnis, x.pfade, x.prozesse, x.zeitlimit, erwartung=erw, wdh=x.wdh, lesecache=x.lesecache,
-             lesecache_ab=x.lesecache_ab)
+        lauf(x.baum, x.ergebnis, x.pfade, x.prozesse, x.zeitlimit, erwartung=erw, wdh=x.wdh, schnell=x.schnell,
+             lesecache=x.lesecache, lesecache_ab=x.lesecache_ab)
         return 0
     if x.befehl == "suite":
         print(suite(x.ergebnis, x.bericht))

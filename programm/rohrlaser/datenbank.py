@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, rahmenauftrag, reklamation, step_pruefung
-from . import kunden_daten
+from . import austausch_dateien, kunden_daten
 from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, ki_protokoll, material_import, lst_lernen, lst_vergleich, onlinepreise, pg_lokal, produktion_lst, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
@@ -51,7 +51,7 @@ from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VO
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 104    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 105    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -218,6 +218,9 @@ SCHEMA_VERSION = 104    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #      material_importe/material_import_posten (ERP-Import mit Rückgängig, nur dieser PC)
                         # 104: Verschachtelung je Abmessung (23.11.2026, nesting.py): angebote.nesting (JSON: Strategie
                         #      und Belegung von Hand je Abmessung); leer = wie bisher gerechnet
+                        # 105: Austauschordner 2.0 (24.11.2026, austausch_dateien.py): Tabellen austausch_dateien
+                        #      (Metadaten je Datei: Zuordnung, Bearbeiter, Status …) und austausch_ereignisse
+                        #      (Kommentare, Verlauf), beide geteilt; neue Tabellen leer, bestehende Daten unverändert
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -233,14 +236,15 @@ SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Si
 ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE,
                                                                 POSITIONSVORLAGEN, lernen.GELERNT,
                                                                 bg_zeitlernen.BG_ZEITEN) + onlinepreise.TABELLEN + \
-    (lst_vergleich.ZUORDNUNG, lst_lernen.ENTSCHEIDUNGEN) + kunden_daten.TABELLEN
+    (lst_vergleich.ZUORDNUNG, lst_lernen.ENTSCHEIDUNGEN) + kunden_daten.TABELLEN + austausch_dateien.TABELLEN
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
                 POSITIONSVORLAGEN.name: POSITIONSVORLAGEN,
                 KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
                 kennwerte.HISTORIE.name: kennwerte.HISTORIE, lernen.GELERNT.name: lernen.GELERNT,
                 bg_zeitlernen.BG_ZEITEN.name: bg_zeitlernen.BG_ZEITEN,
                 **{t.name: t for t in onlinepreise.TABELLEN}, lst_vergleich.ZUORDNUNG.name: lst_vergleich.ZUORDNUNG,
-                lst_lernen.ENTSCHEIDUNGEN.name: lst_lernen.ENTSCHEIDUNGEN, **{t.name: t for t in kunden_daten.TABELLEN}}
+                lst_lernen.ENTSCHEIDUNGEN.name: lst_lernen.ENTSCHEIDUNGEN, **{t.name: t for t in kunden_daten.TABELLEN},
+                **{t.name: t for t in austausch_dateien.TABELLEN}}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 # Kundenverwaltung: Ansprechpartner, Adressen und Historie ziehen beim Umbenennen der Kundennummer mit
 ALLE_VERWEISE[("kunden", "kundennr")] = ALLE_VERWEISE[("kunden", "kundennr")] + tuple(
@@ -768,6 +772,7 @@ class Datenbank:
             for t in kunden_daten.TABELLEN:          # Kundenverwaltung: Suche je Kunde
                 self.con.execute(f'CREATE INDEX IF NOT EXISTS "{t.name}_kunde" ON "{t.name}" (kundennr)')
             kunden_daten.migrieren(self)            # einmalig: PLZ/Ort, Status, Ansprechpartner aus den Altdaten
+            self.con.execute("CREATE INDEX IF NOT EXISTS austausch_ereignisse_datei ON austausch_ereignisse (datei)")
             db_verbindung.schema_version_setzen(self.con, SCHEMA_VERSION)
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")

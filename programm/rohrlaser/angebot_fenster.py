@@ -2677,6 +2677,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 ("Blech-Editor …", lambda: self.blech_bearbeiten(), ""),
                 ("Richtpreis Dreh-/Frästeil …", lambda: self.drehfraes_bearbeiten(), ""),
                 ("Art ändern (Blech / Rohr / Dreh-/Frästeil) …", lambda: self.art_aendern(), ""),
+                ("3D aus STEP nachladen …", lambda: self.step_3d_nachladen(), ""),
                 ("Fräsen nach Bearbeitung …", lambda: self.fraesen_nach(), ""),
                 ("Baugruppe bearbeiten …", lambda: self.baugruppe_bearbeiten(self._markierte_zeilen()), ""),
                 ("Schweißnaht …", lambda: self.schweissnaht(), ""),
@@ -6499,6 +6500,59 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             self.rueckgaengig_anbieten(f"Pos. {p.get('pos') or ''}: {grund}.")
         return erg
 
+    def step_3d_nachladen(self, zeilen=None):
+        """Rechtsklick „3D aus STEP nachladen …“ (Schnellimport 24.11.2026): Positionen aus der Schnellkalkulation
+        bekommen den Körper der STEP für 3D-Ansicht und 3D-Editor. Die Datei wird einmal vollständig gemessen (gleiche
+        Messung, Zwischenspeicher), nur das Netz wird gespeichert; Werte, Kalkulation und Zusatzarbeiten der Position
+        bleiben unverändert. Weicht die neue Messung ab (z. B. andere Programmversion), steht das im Bericht.
+        Ergebnis: Anzahl nachgeladener Positionen oder None."""
+        from . import schnellimport
+        zeilen = self._markierte_zeilen() if zeilen is None else zeilen
+        offen = [r for r in zeilen if 0 <= r < len(self.positionen) and schnellimport.ist_schnell(self.positionen[r])]
+        if not offen:
+            self.f.meldung("3D aus STEP nachladen: keine markierte Position aus dem Schnellimport (die anderen haben "
+                           "ihren STEP-Körper schon).", fehler=True)
+            return None
+        if self.fremd() or self.db.nur_lesen:
+            return None
+        je_datei = {}
+        for r in offen:
+            p = self.positionen[r]
+            pfad = self.step_der_position(p)
+            if pfad is None:
+                self.f.meldung(f"3D aus STEP nachladen: STEP-Datei von Pos. {p.get('pos') or ''} nicht gefunden.",
+                               fehler=True)
+                continue
+            je_datei.setdefault(str(pfad), []).append(p)
+        n, bericht = 0, []
+        for pfad, liste in je_datei.items():
+            messwerte = self.step_messen(dateien=[pfad], modus=schnellimport.MODUS_VOLL)
+            if not messwerte:
+                continue
+            for m in messwerte:
+                m.setdefault("_pfad", pfad)
+            for p in liste:
+                info = schnellimport.lesen(p) or {}
+                i = schnellimport.koerper_finden(messwerte, info)
+                if i is None or not messwerte[i].get("_netz"):
+                    bericht.append(f"Pos. {p.get('pos') or ''}: Körper {info.get('koerper')} nicht in der Messung")
+                    continue
+                m = messwerte[i]
+                alt = (info.get("erkennung") or {})
+                if round(float(m.get("schneidweg") or 0), 2) != alt.get("schneidweg") or \
+                        int(float(m.get("konturen") or 0)) != alt.get("konturen"):
+                    bericht.append(f"Pos. {p.get('pos') or ''}: neue Messung weicht ab (Schneidweg "
+                                   f"{alt.get('schneidweg')} → {round(float(m.get('schneidweg') or 0), 2)} mm) – Werte "
+                                   "der Position bleiben, bei Bedarf „Art ändern …“ neu übernehmen")
+                self.db.netz_speichern(p["id"], step.netz_mit_lagen(messwerte, [i]))
+                q = schnellimport.nachgeladen(dict(p))
+                self.db.position_aendern(p["id"], "technik", q["technik"])
+                n += 1
+        self.neu_laden()
+        self.f.meldung(f"3D aus STEP nachgeladen: {n} Position(en); Werte und Kalkulation unverändert.",
+                       bericht=("3D nachladen", "\n".join(bericht)) if bericht else None)
+        return n
+
     def _art_knopf_einbauen(self, d, zeilen, step_knopf=True):
         """Knopf „Art ändern …“ im Editor (Rohr, Blech, Dreh-/Frästeil, Baugruppe, Satz in 3D; Patrick 04.11.2026:
         Schritte aus einem Editor in allen Editoren). Bei mehreren Teilen (Baugruppe, Satz) wird gefragt, welches; der
@@ -7184,6 +7238,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
     MENUE_ARTEN = {"Schneidweg berechnen …": {"rohr"}, "Blech-Editor …": {"blech"},
                    "Richtpreis Dreh-/Frästeil …": {"drehfraes"},
                    "Art ändern (Blech / Rohr / Dreh-/Frästeil) …": {"rohr", "blech", "drehfraes", "zukauf"},
+                   "3D aus STEP nachladen …": {"rohr", "blech"},
                    "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"}, "Material suchen und zuweisen …": {"rohr"},
                    "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"},
                    "STEP-Merkmale prüfen …": {"rohr"}, "Wandstärke ändern …": {"rohr"},
@@ -7319,6 +7374,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 sichtbar = mit_satz_zusatz and not self.fremd() and not self.db.nur_lesen
             elif text == "Baugruppe in anderes Angebot kopieren …":
                 sichtbar = mit_bg
+            elif text == "3D aus STEP nachladen …":          # nur mit Funktion Schnellimport (24.11.2026)
+                sichtbar = sichtbar and funktionen.an(funktionen.SCHNELLIMPORT, self.db)
             elif text == "Alle Schweißbaugruppen nachrechnen":      # Teil 2, A7
                 sichtbar = bool(baugruppe.baugruppen(self.positionen)) and not self.fremd() \
                     and not self.db.nur_lesen
@@ -10486,11 +10543,16 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         kundennr = kundennr if kundennr is not None else (getattr(self, "kopf", None) or {}).get("kundennr")
         return step_einstellungen.flach_bis(self.db, kundennr)
 
-    def step_messen(self, dateien=None, mit_ablage=False, titel="STEP-Dateien wählen", zwischen=False):
+    def step_messen(self, dateien=None, mit_ablage=False, titel="STEP-Dateien wählen", zwischen=False, modus=None,
+                    modus_waehlen=False):
         """STEP-Dateien wählen (ohne dateien) und mit STEP-Import.exe messen. Ergebnis: Messwerte (mit_ablage:
         (Messwerte, Pfad des abgelegten JSON-Ergebnisses)) oder None (abgebrochen, Fehler gemeldet).
         zwischen (N4): messen nur noch langsame Körper, kommt der Zwischenstand zurück (sie als „Messung läuft noch“)
-        und die Messung läuft in self.nachmessung weiter (nachmessung.Nachmessung; der Aufrufer beendet sie)."""
+        und die Messung läuft in self.nachmessung weiter (nachmessung.Nachmessung; der Aufrufer beendet sie).
+        modus (Schnellimport 24.11.2026): schnellimport.MODUS_SCHNELL misst ohne Dreiecksnetz (nur Linienzüge);
+        modus_waehlen: nach der Dateiwahl fragen (Einstellung step_importmodus_fragen). Der gewählte Modus steht danach
+        in self.step_modus_zuletzt."""
+        from . import schnellimport
         from . import nachmessung
         befehl = step.messprogramm(self.f.programmordner)
         if befehl is None:
@@ -10516,6 +10578,11 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 QMessageBox.warning(self, "STEP-Import", "Keine messbare CAD-Datei:\n\n" + text)
             return None
         dateien = [str(d) for d in vorbereitung.dateien]
+        if modus is None:
+            modus = self._importmodus_waehlen(dateien) if modus_waehlen else schnellimport.MODUS_VOLL
+            if modus is None:
+                return None
+        self.step_modus_zuletzt = modus
         if not self.f.stumm and self.db.einstellung("step_vorschau") != "nein" and not self._step_vorschau(dateien):
             return None
         gross = step.grosse_dateien(step.step_dateien(dateien))     # R8: Hinweis in der Fortschrittsanzeige
@@ -10532,7 +10599,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             nach = {} if zwischen and not self.f.stumm else None
             if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze),
                                           "--json", str(ergebnis), "--flachstahl-bis", str(self.flach_bis())]
-                                + step_einstellungen.mess_argumente(self.db)
+                                + step_einstellungen.mess_argumente(self.db) + schnellimport.mess_argumente(modus)
                                 + (["--zwischenstand", f"{nachmessung.ZWISCHENSTAND_S:g}"] if nach is not None else []),
                                 len(dateien), ausgabe, zwischen=nach, hinweis=gross):
                 return None
@@ -10560,6 +10627,22 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             if laufend is None:
                 shutil.rmtree(tmp, ignore_errors=True)
         return (messwerte, json_ablage) if mit_ablage else messwerte
+
+    def _importmodus_waehlen(self, dateien):
+        """Importmodus vor dem Messen (Schnellimport 24.11.2026): vollständiger CAD-Import oder Schneidweg &
+        Zusatzarbeiten. Ohne Frage (stumm, Einstellung step_importmodus_fragen = nein) die Vorgabe. None = abgebrochen."""
+        from . import schnellimport
+        vorgabe = schnellimport.vorgabe(self.db)
+        if self.f.stumm or not schnellimport.fragen(self.db):
+            return vorgabe
+        from .schnellimport_dialog import ModusDialog
+        dlg = ModusDialog(self, len(step.step_dateien(dateien)), vorgabe)
+        if dlg.exec() != QDialog.Accepted:
+            self.f.meldung("STEP-Import abgebrochen.")
+            return None
+        if dlg.als_vorgabe() and not self.db.nur_lesen:
+            self.db.einstellung_setzen("step_importmodus", schnellimport.EINSTELLUNG_TEXT[dlg.modus])
+        return dlg.modus
 
     def _step_vorschau(self, dateien):
         """Übersicht vor dem Messen (CAD-Plan Paket 5): nur bei größeren Importen; False = abgebrochen."""
@@ -10622,8 +10705,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False,
                          formulare=None, referenz=None, hinweis=None, werkstoff_text=None, ersetzen=None,
-                         fundstellen=None):
-        """STEP-Dateien messen und übernehmen. formulare: gelesene Anfrageformulare (W6b/W6c, dict text/ocr/unsicher):
+                         fundstellen=None, modus=None):
+        """STEP-Dateien messen und übernehmen. modus (Schnellimport 24.11.2026): schnellimport.MODUS_VOLL bzw.
+        MODUS_SCHNELL, None = nach der Dateiwahl fragen bzw. Vorgabe (Art ändern misst immer vollständig). formulare: gelesene Anfrageformulare (W6b/W6c, dict text/ocr/unsicher):
         Stückzahlen je
         Artikelnummer bzw. Dateiname werden im Prüfdialog vorbelegt. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
         Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja). kunde_waehlen: Kunde oben im Prüfdialog wählen
@@ -10652,10 +10736,16 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 elif wort:
                     hinweis.append(f"Werkstoff „{wort}“ nicht eindeutig ({', '.join(kandidaten[:4])}) – bitte wählen")
         flach_gemessen = self.flach_bis()
-        gemessen = self.step_messen(dateien, mit_ablage=True, zwischen=True)
+        from . import schnellimport
+        if ersetzen is not None:
+            modus = schnellimport.MODUS_VOLL
+        uhr = __import__("time").perf_counter()
+        gemessen = self.step_messen(dateien, mit_ablage=True, zwischen=True, modus=modus, modus_waehlen=modus is None)
         if gemessen is None:
             return None
         messwerte, json_ablage = gemessen
+        self._step_modus = getattr(self, "step_modus_zuletzt", None) or schnellimport.MODUS_VOLL
+        self._step_mess_s = __import__("time").perf_counter() - uhr
         eigene = getattr(self, "nachmessung", None)
         try:
             mail_werte = self._mail_werte(fundstellen, werkstoff if ws_aus_mail else None, ws_vorgabe, ws_wort)
@@ -10765,6 +10855,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         neue_profile, erneut, pdf_danach = True, False, False   # ohne Dialog: Profile anlegen, Doppelte überspringen
         fertig_danach = False
         gelernt = None
+        from . import schnellimport
+        schnell = getattr(self, "_step_modus", None) == schnellimport.MODUS_SCHNELL
+        nicht_gemessen = []
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
             # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)
@@ -10788,13 +10881,37 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                                       nachmessung=getattr(self, "nachmessung", None),
                                       profil_anlegen=None if self.fremd() or self.db.nur_lesen else self.abmessung_neu,
                                       mail_werte=mail_werte)
-            if dlg.exec() != QDialog.Accepted:
+            if schnell:     # Schnellimport: Vorgaben des Prüfdialogs, kompakte Übersicht statt des Dialogs
+                offen = dlg._nachmessung_offen() if dlg.nachmessung is not None else []
+                if offen and dlg.nachmessung.laeuft():       # N4: langsame Teile wie beim Übernehmen abwarten
+                    dlg.nachmessung.warten(self, len(offen))
+                if offen:
+                    dlg.nachmessung_pruefen()
+                with tempo.abschnitt("STEP: Schnellübersicht vorbereiten"):
+                    dlg.werte_schreiben()
+                    # wie accept() im Prüfdialog: nie halbfertige Teile übernehmen (24.11.2026)
+                    dlg.nicht_gemessen = step.ohne_nachmessung(dlg.messwerte) if dlg.nachmessung is not None else []
+                    if dlg.nicht_gemessen:
+                        dlg._baum_fuellen()
+                        dlg.werte_schreiben()
+                weiter = self._schnell_uebersicht(messwerte, fehlend, doppelt)
+                if weiter == "voll":
+                    self.f.meldung("STEP-Import: vollständig neu messen (mit 3D) …")
+                    return self.step_importieren(dateien, None, stueck, als_satz, kunde_waehlen, formulare, referenz,
+                                                 [h for h in hinweis or () if not h.startswith("Werkstoff")],
+                                                 werkstoff_text, ersetzen, getattr(self, "_fundstellen", None),
+                                                 modus=schnellimport.MODUS_VOLL)
+                if weiter is None:
+                    self.f.meldung("STEP-Import abgebrochen.")
+                    return None
+            elif dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
             nach = getattr(self, "nachmessung", None)
             if nach is not None and nach.ok():          # N4: endgültiges Messergebnis ablegen
                 json_ablage = self._messung_ablegen(nach.ergebnis_json)
             kopieren = dlg.kopieren_haken.isChecked()
+            nicht_gemessen = list(getattr(dlg, "nicht_gemessen", None) or ())     # 24.11.2026: nie halbfertig
             with tempo.abschnitt("STEP: Vorprüfung nach dem Prüfdialog"):
                 fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
             neue_profile, erneut, pdf_danach = dlg.neue_profile_anlegen(), dlg.doppelte_eintragen(), dlg.pdf_danach
@@ -10924,6 +11041,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 p["zukauf"] = json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))],
                                          ensure_ascii=False)
             netz = p.pop("_netz", None)
+            if schnell:     # Schnellimport: kein STEP-Körper (Netz hat nur Linienzüge), Modus und Erkennung merken
+                netz = None
+                i_q = schnellimport.koerper_finden(messwerte, step.herkunft(p) or {}) if step.herkunft(p) else None
+                if i_q is not None:
+                    from . import VERSION as _version
+                    schnellimport.merken(p, messwerte[i_q], _version, self.k.profile)
             if ersetzen is not None:    # Art ändern: Pos.-Nummer, Zusatzarbeiten und Arbeitsgänge der alten Position
                 p.update({f: ersetzen.get(f) for f in ("pos", "zusatz", "arbeitsgaenge", "satz", "muster")
                           if ersetzen.get(f) not in (None, "")})
@@ -10964,6 +11087,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             with tempo.abschnitt("STEP: Dateien in den Angebotsordner kopieren"):
                 erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
+        if nicht_gemessen:
+            weg = (f"{len(nicht_gemessen)} Teil(e) nicht übernommen, Messung nicht fertig (Bohrungen/Konturen fehlten): "
+                   + ", ".join(nicht_gemessen[:6]) + (" …" if len(nicht_gemessen) > 6 else "")
+                   + " – STEP erneut einlesen und die Messung abwarten.")
+            text += " " + weg
+            erg["bericht"].append(weg)
         aktion = None
         if len(self.positionen) == len(erg["positionen"]) and (self.db.einstellung("angebot_automatik") or "ja") \
                 == "ja" and (not self.f.stumm or getattr(self.f, "automatik_testen", False)):
@@ -10991,6 +11120,18 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         elif pdf_danach:
             self.angebot_pdf()
         return erg
+
+    def _schnell_uebersicht(self, messwerte, fehlend=(), doppelt=0):
+        """Ergebnisübersicht des Schnellimports (schnellimport_dialog.UebersichtDialog): "uebernehmen", "voll"
+        (vollständig importieren) oder None (abgebrochen)."""
+        from .schnellimport_dialog import UebersichtDialog
+        with tempo.abschnitt("STEP: Gegenprobe Rohre"):      # wie beim Übernehmen, Ergebnis wird dort weiterbenutzt
+            step.kantteile_gegenprobe(messwerte)
+            step.rohre_gegenprobe(messwerte, self.k.profile)
+        dlg = UebersichtDialog(self, messwerte, self.k.profile, getattr(self, "_step_mess_s", None), doppelt, fehlend)
+        if dlg.exec() != QDialog.Accepted:
+            return None
+        return dlg.ergebnis
 
     def _staffel_aus_anfrage(self, messwerte, werkstoff_text, erg):
         """Sicher erkannte Staffel der Anfrage als Stufen anlegen (Patrick 17.11.2026): Mengenzelle „50/100/250“ des

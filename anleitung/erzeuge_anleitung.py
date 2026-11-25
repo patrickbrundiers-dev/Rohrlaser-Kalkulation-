@@ -1440,9 +1440,9 @@ def kapitel_angebote(i):
             "eine eigene <b>Akte</b> mit Nummer <i>A-2026-00042</i>. Die Akte enthält eine Kopie der Mail und aller "
             "Anhänge mit Prüfsumme. Dieselbe Mail ergibt nie zwei Akten; ein Nachtrag des Kunden kommt dazu, "
             "solange die Anfrage neu ist.",
-            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt, Meine oder Keine Anfrage zeigt "
-            "diesen Ordner; jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung 0</b>, "
-            "<b>Erledigt 0</b>, <b>Meine 0</b> und <b>Keine Anfrage 0</b>. "
+            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt, Meine, Keine Anfrage oder Gelöscht "
+            "zeigt diesen Ordner; jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung "
+            "0</b>, <b>Erledigt 0</b>, <b>Meine 0</b>, <b>Keine Anfrage 0</b> und <b>Gelöscht 0</b>. "
             "Daneben Suche (Kunde, Betreff, Text, Dateiname, Angebotsnummer) und Filter nach Bearbeiter, Priorität "
             "und Zeitraum (Erledigt: letzte 90 Tage, auf Wunsch länger). Die Zahl der neuen Anfragen steht auch in "
             "der Seitenleiste.",
@@ -1566,8 +1566,9 @@ def kapitel_angebote(i):
             "zu diesem Kunden. Die Regeln stehen im Fenster <i>Outlook …</i> unter <i>Zuordnungsregeln</i> und lassen "
             "sich dort löschen. Der Kundenstamm wird dabei nie geändert.",
             "<b>Doppelt und Antworten</b>: Kommt dieselbe Kundenmail auf zwei Wegen (direkt und weitergeleitet), "
-            "entsteht keine zweite Anfrage. Antworten erkennt das Programm auch an den Kopfzeilen der Mail, ohne AW: im "
-            "Betreff.",
+            "entsteht keine zweite Anfrage. Die zweite Mail gehört trotzdem zur Anfrage und wird in Outlook mit ihr "
+            "verschoben (nach In Bearbeitung, Erledigt …), auch wenn ihr Inhalt schon in der Anfrage steht. Antworten "
+            "erkennt das Programm auch an den Kopfzeilen der Mail, ohne AW: im Betreff.",
             "<b>Interne Notizen bleiben intern</b>: Ist die Anfrage intern weitergeleitet, öffnen <i>Rückfrage</i> und "
             "<i>Angebot per E-Mail</i> eine neue Mail an den Kunden, nie eine Antwort auf die interne Mail. So geht "
             "der interne Verlauf nicht mit.")
@@ -1738,6 +1739,15 @@ def kapitel_angebote(i):
             "Hauptanfrage. Automatisch wird nie zusammengeführt.",
             "<b>Zusammenführung rückgängig</b>: trennt die zuletzt zusammengeführten Anfragen wieder. Gelöscht wird "
             "nichts, die Originaldateien bleiben unverändert.",
+            "<b>Originale im Anfrage-Ordner</b>: Beim Zusammenführen legt das Programm die Originale der übernommenen "
+            "Anfragen aus dem Anfrage-Ordner in dessen Unterordner .uebernommen. So erscheinen sie nach dem "
+            "Kalkulieren nicht wieder als neue Anfrage. Das gilt auch für gelöschte und aussortierte Anfragen.",
+            "<b>Löschen …</b>: legt die gewählte Anfrage in den Ordner <i>Gelöscht</i> (oben in der Zählerleiste). Dort "
+            "ist sie für alle Kollegen aus den Listen, Zählern und der Auswertung heraus, und in Outlook kommt die Mail "
+            "nach Erledigt. Ein Grund ist freiwillig. Eine neue Anfrage darf jeder löschen, eine übernommene nur der "
+            "Bearbeiter oder der Admin. Verknüpfte Angebote bleiben erhalten. <i>Wiederherstellen</i> holt die Anfrage "
+            "in ihren alten Ordner zurück. Die Dateien bleiben in der Akte, damit dieselbe Mail nicht als neue "
+            "Anfrage wiederkommt.",
             "<b>Sicherheit</b>: Zusammenführen dürfen der Bearbeiter und der Admin, eine neue Anfrage darf jeder "
             "zusammenführen. Eine Sperre verhindert, dass zwei Plätze gleichzeitig dieselben Anfragen zusammenführen. "
             "Ein Journal sorgt dafür, dass ein Absturz oder Netzabbruch mittendrin beim nächsten Start sauber zu Ende "
@@ -4139,8 +4149,14 @@ def kapitel_step(i):
             "laufen, öffnet der Prüfdialog gleich mit allen übrigen Teilen. Die langsamen stehen mit dem Hinweis "
             "<i>Messung läuft noch</i> in der Liste, über der Liste steht <i>N langsame Teile werden noch gemessen</i>; "
             "sobald sie fertig sind, rücken sie von selbst nach (Messwerte und 3D, Eingaben im Dialog bleiben). "
-            "<b>OK</b> wartet nötigenfalls auf sie (<i>Ohne sie übernehmen</i> lässt sie weg). Das Zeitlimit je Körper "
-            "gilt weiter."
+            "<b>OK</b> wartet nötigenfalls auf sie; das Fenster zeigt die Teile und die Wartezeit. "
+            "<i>Nicht mehr warten …</i> fragt: <i>Zurück zur Liste (weiter messen)</i> (Vorgabe, die Messung läuft "
+            "weiter) oder <i>Ohne diese Teile übernehmen</i>. Halbfertige Teile kommen nie ins Angebot (seit 0.9.480): "
+            "die langsamen Teile fehlen dann, die Meldung und der Bericht nennen sie, zum Nachholen die STEP erneut "
+            "einlesen und die Messung abwarten. Solange ein Teil noch gemessen wird, gibt es kein <i>Von Hand "
+            "nachtragen</i> (das ergäbe ein Rohr mit Länge aus dem Hüllmaß ohne Bohrungen und Konturen, Laserzeit "
+            "viel zu klein); kommt die Messung nach einem früheren Nachtrag doch, ersetzt sie ihn ganz (Profil, "
+            "Konturen, Schneidweg aus der STEP). Das Zeitlimit je Körper gilt weiter."
             "<b>Rohre mit vielen Gravuren (seit 0.9.371):</b> Die Gegenprüfung, ob ein Teil auch als gekantetes Blech "
             "abwickelbar wäre, prüft erst über die Hüllen der Flächen, wo überhaupt eine Gegenfläche liegen kann. Ein "
             "Rechteckrohr 80 × 40 × 2 mit Schriftgravur (553591) brauchte dafür vorher 5,5 Minuten und lief bei "
@@ -5159,6 +5175,54 @@ def kapitel_step(i):
                                                            "übernommene Teil bekommt, z. B. Feuerverzinken"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_importprofile", "Einstellungen, Importprofile (STEP): je Kunde eine Zeile", hoehe=70 * mm)
+    i.abschnitt("Schnellimport: Schneidweg & Zusatzarbeiten ohne 3D", marke="schnellimport")
+    i.text("Seit 0.9.481 gibt es zwei Importmodi. <b>Vollständiger CAD-Import</b> ist der bisherige Weg: Messung, "
+           "Prüfdialog mit 3D-Ansicht, jede Position bekommt den STEP-Körper für 3D-Ansicht und 3D-Editor. "
+           "<b>Schneidweg &amp; Zusatzarbeiten (Schnellkalkulation)</b> misst genauso (dieselbe Messung, dieselben "
+           "Schneidwege, dieselben Werte bis auf die letzte Stelle), baut aber keinen editierbaren 3D-Körper: "
+           "gespeichert werden nur die Linienzüge der Konturen. Statt des Prüfdialogs erscheint eine kompakte "
+           "Ergebnisübersicht, danach rechnet die Kalkulation wie immer. Der Schnellimport ist <b>optional</b> und "
+           "ab Werk ausgeschaltet: <i>Einstellungen → Funktionen → Schnellimport STEP (ohne 3D)</i>. Aus heißt: "
+           "jeder Import ist vollständig, ohne Frage nach dem Modus; die Seite <i>STEP-Import: Schnellimport</i> "
+           "und „3D aus STEP nachladen …“ sind ausgeblendet. Er spart vor allem Arbeitsspeicher (bis 68 %) und den "
+           "Prüfdialog, an Rechenzeit nur etwa 5 %.", kurz=True)
+    i.liste("<b>Modus wählen</b> (Funktion an): nach der Dateiwahl fragt das Fenster <b>STEP-Import: Importmodus</b>. Das Häkchen "
+            "<i>Als Vorgabe für neue Importe merken</i> speichert die Wahl. Unter <i>Einstellungen → STEP-Import: "
+            "Schnellimport → Importmodus</i> stehen <i>STEP-Import: Importmodus als Vorgabe (vollständig oder "
+            "Schnellkalkulation)</i> und <i>STEP-Import: bei jedem Import nach dem Importmodus fragen</i> (nein = "
+            "immer die Vorgabe). „Art ändern …“ und "
+            "das Ersetzen einer Position messen immer vollständig.",
+            "<b>Ergebnisübersicht</b> (Fenster <i>Schnellkalkulation</i>): je Teil Art / Profil / Werkstoff "
+            "(Vorbelegung wie im Prüfdialog), Wand, Länge, "
+            "Schneidweg, Konturen, Einstiche, Anfahrten (je Einstich eine, so rechnet auch die Kalkulation), "
+            "Schnittarten der Enden (gerade, Gehrung, Schrägschnitt), Bearbeitungen (Bohrungen, Langlöcher, "
+            "Ausschnitte …), Zusatzarbeiten (Senkungen, Fließlöcher, Gewinde-Vorschlag, Fasen, Gravuren, nicht "
+            "laserbare Sackbohrungen) und die <b>Genauigkeit</b>. Oben die Summen und der "
+            "<b>Kalkulationsstatus</b>. Der Haken in der ersten Spalte entscheidet, welche Teile übernommen werden.",
+            "<b>Genauigkeit</b> in vier Stufen: <font color='#2e7d32'>Sicher erkannt</font> (Ampel grün, "
+            "3D-Gegenprobe bestanden), <font color='#558b2f'>Wahrscheinlich erkannt</font> (grün, aber ohne "
+            "vergleichbare Gegenprobe), <font color='#f9a825'>Nicht eindeutig erkannt</font> (gelb, Hinweise), "
+            "<font color='#c62828'>Manuelle Prüfung erforderlich</font> (rot, Fehler, Gegenprobe abweichend oder "
+            "Blech mit Prüfstatus). Der Tooltip der Spalte nennt die Gründe.",
+            "<b>Kalkulationsstatus</b>: <i>Daten vollständig</i> (alle gewählten Teile sicher), <i>Daten teilweise "
+            "erkannt</i> (wahrscheinlich oder nicht eindeutig) oder <i>Manuelle Ergänzung erforderlich</i>.",
+            "<b>Zusatzarbeiten</b> werden nie erfunden: nur was die Messung findet, steht in der Übersicht und "
+            "erscheint wie gewohnt als gelber Vorschlag an der Position. Weitere Arbeiten über Rechtsklick → "
+            "<i>Zusatzarbeiten …</i> bzw. <i>Zusatzarbeit hinzufügen</i>; sie rechnen in der gewohnten "
+            "Zusatzarbeiten-Kalkulation.",
+            "<b>In die Kalkulation übernehmen</b> legt die Positionen an, <b>Vollständig importieren (mit 3D) …</b> "
+            "misst neu im vollständigen Modus und öffnet den Prüfdialog.",
+            "<b>Gespeichert</b> wird an jeder Position: Importmodus, STEP-Datei, Körper, Programmversion, Zeitpunkt, "
+            "Genauigkeit, Status und die Erkennung (Schneidweg, Konturen, Einstiche, Bearbeitungen, Zusatzarbeiten).",
+            "<b>Später auf vollständig wechseln</b>: Rechtsklick auf die Position → <b>3D aus STEP nachladen …</b>. "
+            "Die Datei wird vollständig gemessen, nur der 3D-Körper wird gespeichert; Werte, Kalkulation und "
+            "Zusatzarbeiten der Position bleiben gleich. Weicht die neue Messung ab (andere Programmversion), "
+            "steht das im Bericht.")
+    i.text("<b>Wie viel schneller?</b> Ehrlich gemessen: Die Messung selbst (Geometrie, Booleans, Schneidweg) ist "
+           "in beiden Modi dieselbe Rechnung, denn sie muss exakt bleiben. Der Schnellmodus spart den Aufbau des "
+           "Dreiecksnetzes (je nach Datei 2 bis 13 % der Zeit), etwa 90 % der gespeicherten 3D-Daten, Arbeitsspeicher "
+           "bei großen Dateien (z. B. 440 → 354 MB) und vor allem die Zeit im Prüfdialog. Gemessene Zahlen stehen "
+           "in <i>docs/performance/schnellimport_2411.md</i> (Werkzeug <i>werkzeuge/schnellimport_vergleich.py</i>).")
     i.abschnitt("Importanalyse: Kategorien, Konfidenz, Merkmale, ZIP", marke="importanalyse")
     i.text("Seit 0.9.425 (Importengine nach dem Vergleich mit Laserhub) zeigt der Prüfdialog oben eine "
            "<b>Schrittleiste</b>: ① Import › ② Analyse › ③ Ergebnis › ④ Kontrolle › ⑤ Korrektur › ⑥ Kalkulation, "
@@ -12459,7 +12523,9 @@ def kapitel_einstellungen(i):
            "Versand</i>; jede Einstellung steht auf der Seite ihres Themas neben den passenden Stammdaten. Darüber das "
            "<b>Suchfeld</b>: es zeigt nur die Seiten, deren Titel, Spalten oder Einstellungen zum Suchwort passen, und "
            "auf diesen Seiten nur die passenden Einstellungen (z. B. „gewinn“). Enter öffnet den ersten Treffer, "
-           "das × im Feld zeigt wieder alles. Seiten mit 🔒 ändert nur der Admin ([[passwort]]).", kurz=True)
+           "das × im Feld zeigt wieder alles. Seiten mit 🔒 ändert nur der Admin ([[passwort]]). Die Seiten mit "
+           "Einstellungen entstehen erst, wenn Sie sie zum ersten Mal öffnen; so startet das Programm schneller.",
+           kurz=True)
     i.bild("einstellungen_suche", "Einstellungen: Suche nach „gewinn“", hoehe=60 * mm, legende=[
         (1, "<b>Suchfeld</b>"), (2, "Navigation: nur Seiten mit Treffern"),
         (3, "Seite Zuschläge und Preise: nur die passenden Einstellungen")])
@@ -13106,6 +13172,80 @@ def kapitel_einstellungen(i):
            "ändern bestehende Angebote nicht; im Angebot holt sie der Knopf <i>Stundensätze aus Einstellungen</i> "
            "([[zeiten]]). Eine Kopie übernimmt die Werte des Originals. Wird die Maschine eines Angebots "
            "gewechselt, gelten deren aktuelle Werte.")
+
+
+def kapitel_austausch(i):
+    i.kapitel("Austauschordner: gemeinsame Dateien, Aufgaben und Versionen", marke="austausch")
+    i.text("Seite <b>Austausch</b> in der Seitenleiste unter <i>Arbeiten</i>: der gemeinsame Ordner als Datei- und "
+           "Projektverwaltung im Programm. Dateien hochladen, ansehen, einem Kunden, Angebot oder Auftrag zuordnen, "
+           "einem Kollegen zuweisen, kommentieren und alte Fassungen zurückholen, ohne den Windows-Explorer. Es gibt "
+           "<b>keinen Server</b>: die Dateien liegen im gemeinsamen Ordner ([[mehrere_arbeitsplaetze]]) im "
+           "Unterordner <b>Austausch</b>, Zuordnung, Status und Kommentare gehen mit dem normalen Abgleich an alle "
+           "Plätze. Ohne gemeinsamen Ordner zeigt die Seite nur die eigenen Bereiche.", kurz=True)
+    i.liste("<b>Links</b>: Übersicht, <i>Neu für mich</i> (seit dem letzten Ansehen neu oder geändert), "
+            "<i>Meine Aufgaben</i> (mir zugewiesen, nicht fertig), Favoriten, Zuletzt verwendet, <i>Wer arbeitet "
+            "woran</i>; darunter die Bereiche <b>Gemeinsame Dateien</b>, <b>Mein Ordner</b> (persönlich), "
+            "<b>Anfragen</b> (nur lesen), <b>Angebotsablage</b> und <b>PPEASE-Ablage</b>, dazu Archiv, Papierkorb "
+            "und gespeicherte Suchen.",
+            "<b>Oben</b>: Pfad zum Anklicken, Suche über <b>alle</b> Bereiche (Name, Kunde, Nummern, Mitarbeiter, "
+            "Kommentare und Text in TXT/CSV/LST/PDF, Groß-/Kleinschreibung und Umlaute egal), Filter Typ, "
+            "Mitarbeiter, Status, Kunde, Zeitraum, Sortierung, <i>Kacheln</i> (mit Vorschaubildern) oder Liste, "
+            "<i>Suche merken</i> (Rechtsklick auf eine gemerkte Suche: <i>Gespeicherte Suche löschen</i>). "
+            "<i>Neuer Ordner</i> legt im gewählten Ordner einen Unterordner an.",
+            "<b>Rechts</b>: Infobereich der gewählten Datei mit Vorschau, Bauteilinfo (STEP), Zuordnung, "
+            "Verantwortlich, Status (Neu, Ungesehen, In Bearbeitung, Rückfrage erforderlich, Fertiggestellt, "
+            "Archiviert), Priorität, Fällig (Haken <i>fällig am</i> und Datum), Aufgabe, interne Notiz, Kommentare "
+            "mit Verlauf und Versionen. Bei STEP-Dateien übernimmt <i>In Kalkulation</i> die gewählten Dateien in ein "
+            "neues Angebot (Kunde aus der Zuordnung) oder ins geöffnete Angebot.",
+            "<b>Hochladen</b>: Knopf <i>Hochladen …</i> oder Dateien/Ordner in die Liste ziehen; mit Fortschritt und "
+            "Abbrechen. Gibt es den Namen schon, fragt das Programm: <i>Neue Version</i> (die alte Fassung wird "
+            "gesichert), <i>Beide behalten</i> (Name (2)) oder <i>Überspringen</i>. Programme (.exe, .bat …) werden "
+            "nie angenommen. Herausziehen in den Explorer oder in eine Mail geht auch.", kurz=True)
+    i.genauer()
+    i.abschnitt("Zuordnung zu Kunde, Angebot und Auftrag")
+    i.text("Beim Hochladen sucht das Programm im Namen, im Ordner und in der Angebotsablage nach Angebots-, "
+           "Auftrags-, PPEASE-, Anfrage- und Kundennummern. Sichere Treffer (z. B. <i>2026-00042</i> im Namen und "
+           "das Angebot gibt es) werden gleich eingetragen; unsichere stehen gelb als <b>Vorschlag</b> im "
+           "Infobereich: <i>Vorschlag bestätigen</i> oder <i>Verwerfen</i>. Die Kachel <i>Zuordnung bestätigen</i> "
+           "in der Übersicht zeigt alle offenen Vorschläge. Rechtsklick → <i>Zuordnung erkennen</i> prüft die "
+           "gewählten Dateien neu.")
+    i.abschnitt("Aufgaben, Kommentare und Benachrichtigungen")
+    i.liste("Im Infobereich <i>Verantwortlich</i>, Status, Priorität, Fällig und Aufgabe eintragen und "
+            "<i>Speichern</i>; bei mehreren gewählten Dateien gilt es für alle. Rechtsklick → <i>Zuweisen an</i> und "
+            "<i>Status</i> gehen ohne Infobereich.",
+            "Kommentar unten im Infobereich; mit <b>@MK</b> vorne geht er gezielt an den Kollegen MK.",
+            "<b>Benachrichtigungen …</b> oben (Fenster <i>Benachrichtigungen im Austauschordner</i>): wählen, wobei dieser Platz Bescheid bekommt (neue Datei, neue "
+            "Kundenanfrage, Aufgabe, Zuweisung, geänderte eigene Datei, Kommentar, Status, Fertiggestellt). Die "
+            "Meldung kommt unten in der Statusleiste und, wenn das Programm im Hintergrund ist, im Windows-"
+            "Infobereich. Eigene Änderungen werden nie gemeldet, viele neue Dateien kommen als eine Sammelmeldung, "
+            "dieselbe geänderte Datei höchstens alle 30 Minuten.",
+            "Die <b>Übersicht</b> zeigt Kacheln (neue Dateien, meine Aufgaben, fällig, offene Rückfragen, in "
+            "Bearbeitung, fertig, Zuordnung bestätigen) und Listen (kürzlich geändert, wer arbeitet woran, "
+            "Aktivitäten). <i>Anpassen …</i> (Fenster <i>Übersicht anpassen</i>) blendet Kacheln und Listen je Platz "
+            "ein oder aus.")
+    i.abschnitt("Bearbeiten, Versionen, Papierkorb: nichts geht verloren")
+    i.liste("<b>Bearbeiten</b> (Doppelklick öffnet die Vorschau, Rechtsklick → <i>Bearbeiten</i>) öffnet die Datei "
+            "mit dem zugehörigen Programm, sichert vorher die aktuelle Fassung unter <i>Versionen</i> und zeigt den "
+            "Kollegen „in Bearbeitung von …“. Bearbeitet schon jemand die Datei (auch in Excel/Word erkannt), fragt "
+            "das Programm: <i>Nur ansehen</i> oder <i>Trotzdem bearbeiten</i>.",
+            "<b>Versionen</b>: jede ersetzte Fassung liegt im Unterordner <i>_Versionen</i> (Name_V1_Datum_Kürzel). "
+            "<i>Fassung wiederherstellen</i> macht eine ältere wieder aktuell und sichert die jetzige vorher.",
+            "Hat ein Kollege die Datei geändert, während man sie offen hatte, wird nichts still überschrieben: das "
+            "Programm meldet den Konflikt und wer zuletzt gespeichert hat.",
+            "<b>Löschen</b> (Entf) verschiebt in den <b>Papierkorb</b> des Bereichs; dort <i>Wiederherstellen</i>. "
+            "Endgültig löschen und den Papierkorb leeren (älter als 30 Tage) darf nur der Administrator.",
+            "<b>Archivieren</b> verschiebt nach <i>_Archiv</i> (Ansicht Archiv links); <i>Aus dem Archiv holen</i> "
+            "bringt es zurück.")
+    i.abschnitt("Rechte und Schutz")
+    i.text("Wer hochladen, ändern, löschen oder verwalten darf, folgt den Rollen der Benutzerverwaltung (Hauptadmin). "
+           "Der Bereich Anfragen ist nur zum Lesen; PPEASE-Angebotsordner legt das Programm nie an (das macht "
+           "PPEASE). Weil es keinen Server gibt, prüft das Programm die Rechte; wer zusätzlich verhindern will, dass "
+           "jemand im Explorer löscht, stellt die Windows-Freigabe des gemeinsamen Ordners entsprechend ein. Jede "
+           "Aktion steht im Verlauf der Datei (wer, wann, was). Abschalten: Einstellungen → <i>Ablage und Teilen</i> → "
+           "<i>Seite Austausch verwenden</i>.")
+    i.tabelle(["Taste", "Wirkung"], [["F5", "Ordner neu einlesen"], ["F2", "Umbenennen"],
+                                    ["Entf", "In den Papierkorb"], ["Doppelklick", "Ordner öffnen bzw. Vorschau"]],
+              [40 * mm, 120 * mm])
 
 
 def kapitel_mehrere(i):
@@ -16740,6 +16880,9 @@ STECKBRIEFE = {
     "zukauf": ("Zukaufartikel, Lieferanten, Einkaufspreise und Aufschläge verwalten.", "Reiter <i>Zukaufartikel</i>"),
     "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",
                      "Reiter <i>Frachtkosten</i>"),
+    "austausch": ("Gemeinsame Dateien im Programm: hochladen, suchen, Kunde/Angebot/Auftrag zuordnen, Kollegen "
+                  "zuweisen, kommentieren, Versionen und Papierkorb; Übersicht und Benachrichtigungen.",
+                  "Seite <i>Austausch</i> in der Seitenleiste unter Arbeiten; Einstellungen → Ablage und Teilen"),
     "mehrere_arbeitsplaetze": ("Kürzel als Bearbeiter, gemeinsamer Nummernkreis 2026-00001; Angebote und Stammdaten "
                                "mit den Kollegen über einen gemeinsamen Ordner teilen, Angebote übergeben, sehen wer "
                                "woran arbeitet.",
@@ -16771,7 +16914,7 @@ TEILE = [
       kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
-     [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_material, kapitel_zukauf, kapitel_frachtkosten,
+     [kapitel_einstellungen, kapitel_mehrere, kapitel_austausch, kapitel_stammdaten, kapitel_material, kapitel_zukauf, kapitel_frachtkosten,
       kapitel_pflege, kapitel_admin_datenbank, kapitel_lizenz]),
     ("Anhang", "Nachschlagen", "STEP-Messung im Detail, Tastenkürzel, häufige Fragen und die Neuerungen je "
      "Version.",

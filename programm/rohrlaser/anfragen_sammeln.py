@@ -323,6 +323,8 @@ def zusammenfuehren(abl, haupt, weitere, jetzt=None, ich=None, admin=False, _abb
     for a in [haupt] + weitere:
         if a.stand.get("zusammengefuehrt_in"):
             raise ak.AblageFehler(f"{a.nr} ist schon in {a.stand['zusammengefuehrt_in']} zusammengeführt.")
+        if a.geloescht:
+            raise ak.AblageFehler(f"{a.nr} ist gelöscht; bitte erst wiederherstellen.")
         if not darf(a, ich, admin):
             raise ak.AblageFehler(f"{a.nr} bearbeitet {a.bearbeiter}: nur er oder der Admin darf zusammenführen.")
     gesperrt = []
