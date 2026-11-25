@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.512", "<b>Packkern 3.0: Ladung berechnen und in 2D/3D ansehen</b> ([[packkern]]): Neue Frachtberechnungen "
+                "packen Lage für Lage mit Reihen längs und quer, Überstand nur an der langen Seite (Vorgabe 50 mm je "
+                "Stirnseite, lange Teile bis zur max. Teillänge 6.500 mm mittig), die kurze Seite nie, mit "
+                "Sicherheits- und Mindestabstand, Gewicht und Höhe. Gleiche Artikel bleiben zusammen, Lücken werden "
+                "mit passenden Teilen gefüllt, gleich große U-Profile verzahnt und gleiche Winkel gestapelt (nie Rohr in Rohr), je Packstück nur ein Grundwerkstoff, neue Lagen nur auf volle Lagen. "
+                "Vier Varianten (sortenrein, Platz, wenigste Packstücke, ausgewogen) mit Kennzahlen, die beste gilt. "
+                "Jede Packung wird geometrisch geprüft. Neuer Reiter <i>Ladung 2D/3D</i> im Frachtrechner: "
+                "Draufsicht je Lage, 3D mit Palette, Gitterbox und echten Querschnitten, Klick auf ein Teil, Lage oder "
+                "Position von Hand verschieben. Grenzen auch je Packmittel. Ältere Angebote packen unverändert.",
+     "Packkern 3.0: Überstand an der langen Seite, Varianten A–D, Ladung in 2D/3D"],
     ["0.9.511", "<b>Fracht und Verpackung 2.0</b> ([[fracht_vergleich]], [[fracht_packmittel]]): <i>Tarifvorlagen "
                 "laden</i> legt Listenpreise von DHL (2026 und ab 2027, national und EU), GLS und Hermes mit Quelle und "
                 "Preisstand an, dazu <b>Tariflücken</b> ohne Preise für MBE, UPS, FedEx, DPD, Cargoboard und "

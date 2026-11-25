@@ -78,7 +78,39 @@ def vorgaben(einst):
                 fuellgrad=float(f) if _zahl(f) and 0 < f <= 1 else FUELLGRAD,
                 max_brutto=float(b) if _zahl(b) and b > 0 else (None if "palette_max_brutto" in einst else MAX_BRUTTO),
                 zwischenlage=float(z) if _zahl(z) and z > 0 else 0.0,
-                mischen=einst.get("palette_mischen") if einst.get("palette_mischen") in MISCHEN else MISCHEN_RESTE)
+                mischen=einst.get("palette_mischen") if einst.get("palette_mischen") in MISCHEN else MISCHEN_RESTE,
+                **_kern3(einst))
+
+
+def _kern3(einst):
+    """Packkern 3.0 (packkern.py, 25.11.2026): nur, wenn die Einstellung palette_packkern 'ja' mitkommt. Ältere
+    gespeicherte Frachtberechnungen kennen den Schlüssel nicht und packen bitgleich wie bisher."""
+    from . import packkern
+    if einst.get("palette_packkern") != "ja":
+        return {}
+
+    def mm(n, vorgabe):
+        x = einst.get(n)
+        return float(x) if _zahl(x) and x >= 0 else vorgabe
+    m = einst.get("palette_max_artikel")
+    modus = einst.get("palette_modus")
+    return dict(kern=3, ueberstand=mm("palette_ueberstand", packkern.UEBERSTAND),
+                max_teil=mm("palette_max_teillaenge", packkern.MAX_TEIL), rand=mm("palette_rand", 0.0),
+                abstand=mm("palette_abstand", 0.0),
+                sorten=einst.get("palette_sortenrein") if einst.get("palette_sortenrein") in packkern.SORTEN
+                else "normal", max_artikel=int(m) if _zahl(m) and m > 0 else 0,
+                verschachteln=einst.get("palette_verschachteln") != "nein", drehen=einst.get("palette_drehen") != "nein",
+                modus=modus if modus in packkern.MODI else packkern.AUTOMATISCH, hand=_hand(einst.get("palette_hand")))
+
+
+def _hand(x):
+    """Packliste von Hand (Frachtrechner): dict(variante, artikel {Positions-ID: {allein, achse}}, verschieben)."""
+    if isinstance(x, str) and x.strip():
+        try:
+            x = json.loads(x)
+        except ValueError:
+            return {}
+    return x if isinstance(x, dict) else {}
 
 
 def _mm(x):
@@ -207,8 +239,20 @@ def packstuecke(positionen, werte):
             g = summe if not fehlt else None
         out.append(dict(i=i, pos=p.get("pos"), artikel=p.get("artikel") or "", bezeichnung=p.get("bezeichnung") or "",
                         stueck=int(n), gewicht=g if _zahl(g) and g > 0 else None, masse=packmass(p, w),
-                        id=p.get("id"), rund=_rund(p, w)))
+                        id=p.get("id"), rund=_rund(p, w), profil=_profil(p, w), gerade=_gerade(p, w)))
     return out
+
+
+def _gerade(p, w):
+    """Gerades Profilteil (Rohr, Profil): nur solche lassen sich ineinander schieben (Packkern 3.0)."""
+    t = _technik(p)
+    return bool((w or {}).get("profil_abm") and not ist_baugruppe(p) and not (
+        t and (knickrahmen.lesen(t) or biegerohr.lesen(t) or blech.lesen(p.get("technik")))))
+
+
+def _profil(p, w):
+    abm = (w or {}).get("profil_abm")
+    return tuple(abm) if abm and _gerade(p, w) else None
 
 
 # ------------------------------------------------------------------ Ladungsträger
@@ -415,6 +459,9 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
     gruppen = {}
     for k, s in enumerate(stuecke):
         z, h = traeger_waehlen(s["masse"], std, lg)
+        if (v.get("kern") == 3 and std and std.get("art") not in INNEN and s["masse"]
+                and s["masse"][0] <= v["max_teil"] + EPS):     # Patrick 25.11.: Überstand bis max. Teillänge
+            z, h = std, None
         name = f"Pos. {s['pos'] or '?'}"
         if h:
             hinweise.append(f"{name}: {h}")
@@ -424,6 +471,8 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
             plan = Plan([int(hand)], stapelhoehe(z, v), 0.0, 1, f"{int(hand)} Stück je Palette (von Hand)", hand=True)
         elif s["masse"]:
             plan, h = lagenplan(s["masse"], s.get("rund"), z, v)
+            if h and v.get("kern") == 3 and plan is not None:     # Packkern 3.0 rechnet selbst (Überstand)
+                h = None
             if h:
                 hinweise.append(f"{name}: {h}")
         else:
@@ -443,6 +492,9 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
         gruppen.setdefault(z["lht_id"], (z, []))[1].append(
             dict(k=k, n=s["stueck"], rest=s["stueck"], g=s["gewicht"] or 0.0, plan=plan,
                  l=(s["masse"] or (0.0,))[0], zl=v["zwischenlage"]))
+    if v.get("kern") == 3:
+        from . import packkern
+        return packkern.packen(leer, stuecke, gruppen, std, v, hinweise, _fertig, max_je)
     paletten, je_lht = [], {}
     for lht_id, (z, items) in sorted(gruppen.items(), key=lambda x: (x[0] != (std or {}).get("lht_id"), x[0])):
         items.sort(key=lambda it: (-it["l"], it["k"]))
@@ -478,36 +530,47 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
         if v["mischen"] == MISCHEN_RESTE:
             liste = _reste_zusammen(liste, frei, last, v["zwischenlage"])
         je_lht[lht_id] = len(liste)
-        for pal in liste:
-            netto = sum(stuecke[k]["gewicht"] * n for k, n in pal["inhalt"] if stuecke[k]["gewicht"] is not None)
-            aufbau = []
-            for k, n, lagen in pal["aufbau"]:
-                s = stuecke[k]
-                t = f"Pos. {s['pos'] or '?'}: {_mm(n)} Stück"
-                if lagen:
-                    t += f" in {lagen} Lage{'n' if lagen != 1 else ''} à {s['plan_text']}"
-                if s["gewicht"]:
-                    t += f", {zahl_als_text(s['gewicht'] * n, 0)} kg"
-                aufbau.append(t)
-            hoehe = pal["hoehe"] + (_n(z.get("hoehe")) if z.get("art") not in INNEN else 0.0) if pal["hoehe"] else None
-            rahmen = rahmen_anzahl(z, pal["hoehe"])
-            if rahmen:                # Fracht 2.0: Palette + Rahmen; die Ladung steht in den Rahmen
-                hoehe = _n(z.get("hoehe")) + rahmen * _n(z["rahmen_hoehe"])
-                aufbau.append(f"{rahmen} Aufsetzrahmen à {_mm(z['rahmen_hoehe'])} mm (Ladung {_mm(pal['hoehe'])} mm)")
-            paletten.append(dict(lht_id=lht_id, bezeichnung=z.get("bezeichnung") or lht_id,
-                                 inhalt=[(k, n) for k, n in pal["inhalt"]], netto=netto,
-                                 brutto=netto + _n(z.get("eigengewicht")) + rahmen * _n(z.get("rahmen_gewicht")),
-                                 hoehe=hoehe, aufbau=aufbau, rahmen=rahmen,
-                                 aussen=aussenmass(z, hoehe, [stuecke[k] for k, _ in pal["inhalt"]]),
-                                 schichten=[dict(k=k, stueck=n, lagen=lagen) for k, n, lagen in pal["aufbau"]],
-                                 masse=(_n(z.get("laenge")), _n(z.get("breite")), _n(z.get("hoehe"))),
-                                 art=z.get("art"), zwischenlage=v["zwischenlage"],
-                                 hoehe_max=stapelhoehe(z, v) if z.get("art") == KARTON else gesamthoehe(z, v)))
+        paletten += _fertig(liste, lht_id, z, stuecke, v)
     for nr, pal in enumerate(paletten, start=1):
         pal["nr"] = nr
     gewichte = [s["gewicht"] for s in stuecke]
     return dict(leer, paletten=paletten, anzahl=len(paletten), je_lht=je_lht,
                 netto=sum(g * s["stueck"] for g, s in zip(gewichte, stuecke) if g is not None))
+
+
+def _fertig(liste, lht_id, z, stuecke, v):
+    """Paletten der Packliste aus dem Aufbau (inhalt [(k, n)], aufbau [(k, n, lagen)], hoehe der Ladung)."""
+    paletten = []
+    for pal in liste:
+        netto = sum(stuecke[k]["gewicht"] * n for k, n in pal["inhalt"] if stuecke[k]["gewicht"] is not None)
+        aufbau = []
+        for k, n, lagen in pal["aufbau"]:
+            s = stuecke[k]
+            t = f"Pos. {s['pos'] or '?'}: {_mm(n)} Stück"
+            if lagen and s["plan_text"].startswith("verschachtelt"):      # Packkern 3.0: U in U
+                t += f", {s['plan_text']}"
+            elif lagen:
+                t += f" in {lagen} Lage{'n' if lagen != 1 else ''} à {s['plan_text']}"
+            if s["gewicht"]:
+                t += f", {zahl_als_text(s['gewicht'] * n, 0)} kg"
+            aufbau.append(t)
+        hoehe = pal["hoehe"] + (_n(z.get("hoehe")) if z.get("art") not in INNEN else 0.0) if pal["hoehe"] else None
+        rahmen = rahmen_anzahl(z, pal["hoehe"])
+        if rahmen:                # Fracht 2.0: Palette + Rahmen; die Ladung steht in den Rahmen
+            hoehe = _n(z.get("hoehe")) + rahmen * _n(z["rahmen_hoehe"])
+            aufbau.append(f"{rahmen} Aufsetzrahmen à {_mm(z['rahmen_hoehe'])} mm (Ladung {_mm(pal['hoehe'])} mm)")
+        paletten.append(dict(lht_id=lht_id, bezeichnung=z.get("bezeichnung") or lht_id,
+                             inhalt=[(k, n) for k, n in pal["inhalt"]], netto=netto,
+                             brutto=netto + _n(z.get("eigengewicht")) + rahmen * _n(z.get("rahmen_gewicht")),
+                             hoehe=hoehe, aufbau=aufbau, rahmen=rahmen,
+                             aussen=aussenmass(z, hoehe, [stuecke[k] for k, _ in pal["inhalt"]]),
+                             schichten=[dict(k=k, stueck=n, lagen=lagen) for k, n, lagen in pal["aufbau"]],
+                             masse=(_n(z.get("laenge")), _n(z.get("breite")), _n(z.get("hoehe"))),
+                             art=z.get("art"), zwischenlage=v["zwischenlage"],
+                             hoehe_max=stapelhoehe(z, v) if z.get("art") == KARTON else gesamthoehe(z, v)))
+        if pal.get("kern3"):
+            paletten[-1].update(pal["kern3"])
+    return paletten
 
 
 def aussenmass(z, hoehe, stuecke=()):

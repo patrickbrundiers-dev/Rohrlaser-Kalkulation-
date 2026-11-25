@@ -16092,7 +16092,10 @@ def kapitel_frachtkosten(i):
         ["Aufsetzrahmen Höhe [mm], Aufsetzrahmen Gewicht [kg], Aufsetzrahmen Preis [€], Aufsetzrahmen max. Anzahl",
          "nur Palette mit Aufsetzrahmen: das Programm "
                                                                     "rechnet die Rahmen aus der Ladehöhe (z. B. 350 "
-                                                                    "mm Ware = 2 Rahmen à 200 mm, höchstens 5)"]],
+                                                                    "mm Ware = 2 Rahmen à 200 mm, höchstens 5)"],
+        ["Überstand je Stirnseite [mm], Sicherheitsabstand Rand [mm], Mindestabstand Teile [mm], Max. Artikel je "
+         "Packstück", "Grenzen des Packkerns 3.0 nur für dieses Packmittel ([[packkern]]); leer = Einstellung. "
+                      "Gitterbox, Karton und Sonderbehälter haben nie Überstand"]],
               [75, 190])
     i.text("<b>Standard-Packmittel laden</b> legt Europalette mit Aufsetzrahmen, Gitterbox EPAL (außen 1.240 × 835 × "
            "970 mm, innen 1.200 × 800 × 800 mm, 85 kg), Rohrkartons 1,2 m und 2 m sowie einen Sonderbehälter mit "
@@ -16103,6 +16106,54 @@ def kapitel_frachtkosten(i):
            "<i>Fracht berechnen …</i> (bzw. Einstellung <i>Verpackungskosten aus den Packmitteln der Packliste "
            "rechnen</i> für die automatische Fracht) statt der Tabelle Verpackung; ältere Angebote rechnen wie "
            "bisher.")
+    i.abschnitt("Packkern 3.0: Ladung berechnen und ansehen", marke="packkern")
+    i.text("Der Packkern legt die Teile Lage für Lage auf den Ladungsträger: gleiche Artikel als Block, Lücken mit "
+           "passenden anderen Teilen gefüllt, Überstand nur an der langen Seite, die kurze Seite (800 mm) nie. Der "
+           "Reiter <b>Ladung 2D/3D</b> im Frachtrechner zeigt das Ergebnis.", kurz=True)
+    i.genauer()
+    i.text("Eingeschaltet mit der Einstellung <i>Packkern 3.0</i> (Vorgabe ja) für neue Frachtberechnungen. "
+           "Gespeicherte Frachtberechnungen älterer Angebote packen wie bisher, ihre Preise bleiben gleich.")
+    i.tabelle(["Regel", "Bedeutung"], [
+        ["Lagen und Reihen", "Lange Teile liegen längs (entlang 1.200 mm) in Reihen nebeneinander über die Breite, kurze "
+                             "auch quer; hochkant nur, wenn Drehen erlaubt ist und es mehr Teile ergibt"],
+        ["Überstand", "je Stirnseite der langen Seite bis zum eingestellten Überstand (Vorgabe 50 mm, also 2 × 640 mm "
+                      "hintereinander); einzelne lange Teile bis zur max. Teillänge der Maschine (Vorgabe 6.500 mm) "
+                      "mittig mit Überstand. Länger: Hinweis Sonderladung"],
+        ["Breite", "nie über die Palettenbreite, abzüglich Sicherheitsabstand am Rand"],
+        ["Mindestabstand", "zwischen den Teilen einer Lage; Lagen liegen aufeinander (oder auf der Zwischenlage)"],
+        ["Rundrohre", "versetzt in den Mulden der Lage darunter, wenn das mehr Teile ergibt"],
+        ["Verschachteln", "kleineres U-Profil in der Öffnung eines größeren (mit Spiel, nie länger als das äußere), "
+                          "gleiche Winkel ineinander gestapelt. <b>Nie Rohr in Rohr.</b>"],
+        ["Gewicht und Höhe", "Nutzlast bzw. max. Brutto und max. Gesamthöhe je Packstück; eine schwere Lage wird geteilt"],
+        ["Prüfung", "jede Packung wird geometrisch geprüft: keine Überschneidung, Breite, Überstand, Höhe, Abstand"]],
+              [40, 225])
+    i.text("<b>Varianten</b>: A möglichst sortenrein, B maximale Platzausnutzung, C minimale Anzahl Packstücke, D "
+           "Sortenreinheit und Platz ausgewogen. Automatisch gilt die beste: wenigste Packstücke, dann je nach "
+           "<i>Sortenreinheit</i> (stark, normal, aus) weniger Artikel je Packstück bzw. mehr Auslastung.")
+    i.tabelle(["Einstellung (Versand und Paletten › Packkern 3.0)", "Bedeutung"], [
+        ["Packkern 3.0: Ladung mit Lagen, Reihen, Überstand und Verschachtelung berechnen (nein = bisherige "
+         "Lagenrechnung)", "ja = neuer Packkern für neue Frachtberechnungen"],
+        ["Packkern: Überstand je Stirnseite an der langen Seite [mm] (kurze Seite nie)", "Vorgabe 50 mm"],
+        ["Packkern: lange Teile bis zu dieser Länge auf Palette, Überstand nur an der langen Seite [mm] (max. "
+         "Teillänge der Maschine)", "Vorgabe 6.500 mm"],
+        ["Packkern: Sicherheitsabstand zum Rand der Breite [mm]", "Vorgabe 0 mm"],
+        ["Packkern: Mindestabstand zwischen den Teilen [mm]", "Vorgabe 0 mm"],
+        ["Packkern: Sortenreinheit (stark = möglichst je Artikel, aus = nur Platz)", "Vorgabe normal"],
+        ["Packkern: max. Artikel je Packstück (0 = ohne Grenze)", "Vorgabe 0"],
+        ["Packkern: Rohre und Profile ineinander verschachteln", "U in U, Winkel ineinander (nie Rohr in Rohr)"],
+        ["Packkern: Teile hochkant drehen erlaubt", "Vorgabe ja"],
+        ["Packkern: Variante", "automatisch (beste Variante) oder A–D fest"]], [100, 165])
+    i.text("<b>Reiter Ladung 2D/3D</b> (Frachtrechner, rechts): oben <i>Variante</i>, <i>Packstück</i>, <i>Lage</i> "
+           "und <i>2D</i>/<i>3D</i>, darunter die Kennzahlen je Variante (Packstücke, Fläche, Volumen, Artikel je "
+           "Packstück, Überstand, Prüfung; die beste mit ★). Die 2D-Draufsicht zeigt jede Lage oder alle (oberste "
+           "sichtbar) mit Farben je Artikel, Pos.-Nummer, Überstandszonen rot schraffiert, freier Fläche grün und "
+           "Maßen. Die 3D-Ansicht zeigt Palette, Gitterbox oder Aufsetzrahmen mit den echten Querschnitten (rund, "
+           "eckig, U, Winkel); ziehen dreht, Mausrad zoomt. Klick auf ein Teil zeigt Position, Maße, Lage und Lage "
+           "im Packstück und hebt alle Teile dieses Artikels hervor.")
+    i.text("Von Hand (danach rechnet der Frachtrechner sofort neu und prüft): eine andere Variante wählen (Liste oder "
+           "Klick in die Kennzahlen), <b>Position allein auf ein Packstück</b>, <b>Lage längs/quer drehen</b>, "
+           "<b>Lage verschieben</b> nach einem anderen oder neuen Packstück (nur wenn Höhe, Gewicht und Artikel "
+           "passen) und <b>Von Hand zurücksetzen</b>. Die Änderungen werden mit der Fracht im Angebot gespeichert.")
     i.abschnitt("Zuschläge")
     i.bild("fracht_zuschlaege", "Zuschläge, darunter Dieselpreise, Dieselstaffel und Währungen", hoehe=105 * mm,
            legende=[(1, "Unterreiter <i>Dieselpreise</i>"), (2, "Unterreiter <i>Dieselstaffel</i>"),

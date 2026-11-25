@@ -218,6 +218,8 @@ SEITEN = (
           (_a("Versand", "versand_aktiv palettenschein_werkstatt versand_schritte"),
            _a("Paletten", "palette_hoehe_gesamt palette_max_brutto palette_mischen palette_fuellgrad "
                           "palette_zwischenlage"),
+           _a("Packkern 3.0", "palette_packkern palette_ueberstand palette_max_teillaenge palette_rand palette_abstand palette_sortenrein "
+                              "palette_max_artikel palette_verschachteln palette_drehen palette_modus"),
            _a("Liefertermine zur Wahl (im Angebot)", "express_tage flexibel_tage flexibel_abschlag"))),
 )
 SEITE = {s.schluessel: s for s in SEITEN}

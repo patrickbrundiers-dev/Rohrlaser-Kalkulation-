@@ -187,6 +187,10 @@ assert db.palettenschein(aid) == palettenschein.leer() and db.versand_auftraege(
 gruppen = palettenschein.schritte(db.einstellung("versand_schritte"))
 assert "Intern" in gruppen and "Extern" in gruppen and gruppen["Intern"]
 z = palettenschein.zusammenstellen(db, aid)
+assert z["packliste"].get("kern") == 3 and z["packliste"]["je_lht"] == {"EUR": 1}, paletten.kurz(z["packliste"])
+assert not any(p["pruefung"] for p in z["packliste"]["paletten"])
+db.einstellung_setzen("palette_packkern", "nein")     # bisherige Lagenrechnung: lange Teile auf Langgut
+z = palettenschein.zusammenstellen(db, aid)
 assert z["packliste"]["anzahl"] == 2 and z["packliste"]["je_lht"] == {"EUR": 1, "LG": 1}, paletten.kurz(z["packliste"])
 assert z["schein"]["arbeiten"], "Vorschlag der Arbeitsschritte aus dem Angebot"
 assert all(k.partition(palettenschein.TRENNER)[0] in gruppen for k in z["schein"]["arbeiten"])

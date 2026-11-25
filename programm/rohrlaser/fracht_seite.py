@@ -288,6 +288,11 @@ class RechnerSeite(QWidget):
         self.rechts_reiter.addTab(self._vergleich_bauen(), "Preisvergleich")
         self.packmittel_anzeige = QTextBrowser()
         self.rechts_reiter.addTab(self.packmittel_anzeige, "Packliste und Packmittelkosten")
+        # Packkern 3.0 (25.11.2026): Ladung in 2D/3D mit Varianten und Änderungen von Hand
+        from .pack_ansicht import PackAnsicht
+        self.pack_hand = {}
+        self.pack_ansicht = PackAnsicht(self._pack_hand_neu)
+        self.rechts_reiter.addTab(self.pack_ansicht, "Ladung 2D/3D")
         self.rechts_reiter.currentChanged.connect(lambda *_: self._rechts_fuellen())
         rv.addWidget(self.rechts_reiter, 1)
         z = QHBoxLayout()
@@ -456,6 +461,8 @@ class RechnerSeite(QWidget):
             if zeilen else ""))
         self.packliste_ansicht.setzen(self.packliste)
         self.packliste_box.show()
+        if self.rechts_reiter.currentIndex() == 3:
+            self.pack_ansicht.setzen(self.packliste, self.pack_hand)
 
     def lht_eintraege(self):
         out = []
@@ -536,6 +543,8 @@ class RechnerSeite(QWidget):
         if self.ware is not None:
             from . import fracht_angebot, paletten
             einst = {n: self.db.einstellung(n) for n in fracht_angebot.PALETTEN_EINST}
+            if self.pack_hand:
+                einst["palette_hand"] = self.pack_hand
             self.vergleich_liste = paletten.guenstigste(*self.ware, self.daten.get("lht", []), std, lg, einst,
                                                         self._preis_mit, self._preis_paket)
             if self.vergleich_liste:
@@ -706,6 +715,14 @@ class RechnerSeite(QWidget):
             self._vergleich_zeigen()
         elif self.rechts_reiter.currentIndex() == 2:
             self._packmittel_zeigen()
+        elif self.rechts_reiter.currentIndex() == 3:
+            self.pack_ansicht.setzen(self.packliste, self.pack_hand)
+
+    def _pack_hand_neu(self, hand):
+        """Ladung von Hand geändert (Variante, Position allein, Achse, Lage verschoben): neu packen."""
+        self.pack_hand = dict(hand or {})
+        self.packvorschlag()
+        self.pack_ansicht.setzen(self.packliste, self.pack_hand)
 
     def _vergleich_zeigen(self):
         from . import fracht_vergleich
@@ -940,7 +957,8 @@ class FrachtDialog(QDialog):
             daten = dict(sendung=e["eingaben"], snapshot=snap, gesamt=e["gesamt"], text=text,
                          lht_standard=db.einstellung("fracht_lht_standard"),
                          lht_langgut=db.einstellung("fracht_lht_langgut"),
-                         paletten={n: db.einstellung(n) for n in fracht_angebot.PALETTEN_EINST},
+                         paletten=dict({n: db.einstellung(n) for n in fracht_angebot.PALETTEN_EINST},
+                                       **({"palette_hand": self.rechner.pack_hand} if self.rechner.pack_hand else {})),
                          # Tarifkopie der anderen Versandart (Paket/Palette): jede Staffelmenge nimmt die günstigere
                          alternative=fracht_angebot.alternative(self.rechner.daten, e["eingaben"],
                                                                 db.einstellung("fracht_lht_standard")))

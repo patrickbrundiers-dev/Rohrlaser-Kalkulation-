@@ -279,7 +279,12 @@ LHT = Tabelle(
      Feld("rahmen_hoehe", "Aufsetzrahmen Höhe [mm]", "ganz", 0, 2000, breite=80),
      Feld("rahmen_gewicht", "Aufsetzrahmen Gewicht [kg]", "zahl", 0, 1000, stellen=1, breite=80),
      Feld("rahmen_preis", "Aufsetzrahmen Preis [€]", "zahl", 0, 10000, stellen=2, breite=80),
-     Feld("rahmen_max", "Aufsetzrahmen max. Anzahl", "ganz", 0, 20, breite=75)),
+     Feld("rahmen_max", "Aufsetzrahmen max. Anzahl", "ganz", 0, 20, breite=75),
+     # Packkern 3.0 (25.11.2026): Grenzen je Packmittel, leer = Einstellung
+     Feld("pack_ueberstand", "Überstand je Stirnseite [mm]", "zahl", 0, 500, stellen=1, breite=80),
+     Feld("pack_rand", "Sicherheitsabstand Rand [mm]", "zahl", 0, 200, stellen=1, breite=80),
+     Feld("pack_abstand", "Mindestabstand Teile [mm]", "zahl", 0, 100, stellen=1, breite=80),
+     Feld("pack_max_artikel", "Max. Artikel je Packstück", "ganz", 0, 100, breite=75)),
     ("lht_id",),
     "Ladungsträger mit Maßen, Eigengewicht und Nutzlast. Max. Teillänge: längere Teile kommen im Packvorschlag "
     "auf Langgut; ist sie größer als die Länge, dürfen Teile längs überstehen, quer nie. Karton: Maße = Innenmaße, "
@@ -287,7 +292,9 @@ LHT = Tabelle(
     "je Stück (Kauf bzw. Miete je Sendung; Tausch = 0 € mit Hinweis auf den Pfand), Sicherungsmaterial (Folie, "
     "Umreifung, Kantenschutz, Zwischenlagen) und Packzeit (× Stundensatz „Verpackung“). Außenmaße für Gitterbox, Karton "
     "und Sonderbehälter (Maße = Innenmaße). Max. Gesamthöhe leer = Einstellung. Palette mit Aufsetzrahmen: Maße = "
-    "Innenmaß des Rahmens, Höhe = Palettenhöhe; das Programm setzt so viele Rahmen auf, wie die Ladung hoch ist.",
+    "Innenmaß des Rahmens, Höhe = Palettenhöhe; das Programm setzt so viele Rahmen auf, wie die Ladung hoch ist. "
+    "Packkern: Überstand, Sicherheitsabstand, Mindestabstand und max. Artikel je Packmittel, leer = Einstellung "
+    "(Gitterbox, Karton, Sonderbehälter nie Überstand).",
     pruefung=_lht_pruefung)
 
 ZUSCHLAEGE = Tabelle(

@@ -122,6 +122,9 @@ class PacklisteAnsicht(QWidget):
         p.drawText(QRectF(r.x(), r.y(), r.width(), 16), Qt.AlignLeft, "Draufsicht (unterste Lage)")
         if not (L and B):
             return
+        if pal.get("teile") is not None:            # Packkern 3.0: echte Teile der untersten Lage
+            self._draufsicht_teile(p, pal, L, B, r)
+            return
         schichten = pal.get("schichten") or []
         geo = stuecke[schichten[0]["k"]].get("plan_geo") if schichten else None
         ueber = (geo or {}).get("ueber") or 0.0
@@ -155,6 +158,30 @@ class PacklisteAnsicht(QWidget):
         unten = f"{_mm(L)} × {_mm(B)} mm" + (f", Überstand {_mm(ueber)} mm" if ueber else "")
         p.drawText(QRectF(r.x(), r.bottom() - 14, r.width(), 14), Qt.AlignHCenter, unten)
 
+    def _draufsicht_teile(self, p, pal, L, B, r):
+        teile = [t for t in pal["teile"] if t["lage"] == 1 and t["innen_von"] is None]
+        x0 = min([0.0] + [t["x0"] for t in teile])
+        x1 = max([L] + [t["x1"] for t in teile])
+        flaeche = QRectF(r.x(), r.y() + 18, r.width(), r.height() - 34)
+        s = min(flaeche.width() / (x1 - x0), flaeche.height() / B)
+        ox = flaeche.x() + (flaeche.width() - (x1 - x0) * s) / 2 - x0 * s
+        oy = flaeche.y() + (flaeche.height() - B * s) / 2
+        p.setPen(QPen(stil.farbe("#7A5A30"), 1.5 if pal.get("art") in INNEN else 1))
+        p.setBrush(stil.farbe(HOLZ, 60 if pal.get("art") in INNEN else 140))
+        p.drawRect(QRectF(ox, oy, L * s, B * s))
+        p.setPen(QPen(stil.farbe("#1F2937"), 0.6))
+        for t in teile:
+            p.setBrush(self._farbe(t["k"]))
+            p.drawRect(QRectF(ox + t["x0"] * s, oy + (B - t["y1"]) * s, (t["x1"] - t["x0"]) * s,
+                              (t["y1"] - t["y0"]) * s))
+        p.setPen(QPen(stil.farbe("#7A5A30"), 1.5, Qt.DashLine))        # Palettenrand über der Ladung
+        p.setBrush(Qt.NoBrush)
+        p.drawRect(QRectF(ox, oy, L * s, B * s))
+        ueber = max(0.0, -x0, x1 - L)
+        p.setPen(stil.farbe("#5F6B7A"))
+        unten = f"{_mm(L)} × {_mm(B)} mm" + (f", Überstand {_mm(ueber)} mm je Seite" if ueber > 0.5 else "")
+        p.drawText(QRectF(r.x(), r.bottom() - 14, r.width(), 14), Qt.AlignHCenter, unten)
+
     def seitenansicht(self, p, pal, stuecke, r):
         """Seitenansicht: Ladungsträger, darauf die Positionen übereinander, zulässige Höhe gestrichelt."""
         L, B, hp = pal.get("masse") or (0, 0, 0)
@@ -166,7 +193,24 @@ class PacklisteAnsicht(QWidget):
         gitterbox = pal.get("art") in INNEN
         boden = 0.0 if gitterbox else (hp or 0.0)
         hmax = max(pal.get("hoehe_max") or 0.0, pal.get("hoehe") or 0.0, boden + 1)
-        schichten = schicht_hoehen(pal, stuecke)
+        if pal.get("teile") is not None:            # Packkern 3.0: Teile von der Seite (Länge × Höhe)
+            teile = [t for t in pal["teile"] if t["innen_von"] is None]
+            x0 = min([0.0] + [t["x0"] for t in teile])
+            x1 = max([L] + [t["x1"] for t in teile])
+            flaeche = QRectF(r.x() + 46, r.y() + 28, r.width() - 50, r.height() - 34)
+            s = min(flaeche.width() / (x1 - x0), flaeche.height() / hmax)
+            ox = flaeche.x() + (flaeche.width() - (x1 - x0) * s) / 2 - x0 * s
+            grund = flaeche.bottom()
+            if boden:
+                p.setPen(QPen(stil.farbe("#7A5A30"), 1))
+                p.setBrush(stil.farbe(HOLZ, 160))
+                p.drawRect(QRectF(ox, grund - boden * s, L * s, boden * s))
+            p.setPen(QPen(stil.farbe("#1F2937"), 0.4))
+            for t in sorted(teile, key=lambda t: -t["y0"]):
+                p.setBrush(self._farbe(t["k"]))
+                p.drawRect(QRectF(ox + t["x0"] * s, grund - (boden + t["z1"]) * s, (t["x1"] - t["x0"]) * s,
+                                  (t["z1"] - t["z0"]) * s))
+        schichten = schicht_hoehen(pal, stuecke) if pal.get("teile") is None else []
         ueber = max([(stuecke[k].get("plan_geo") or {}).get("ueber") or 0.0 for k, *_ in schichten] or [0.0])
         flaeche = QRectF(r.x() + 46, r.y() + 28, r.width() - 50, r.height() - 34)
         s = min(flaeche.width() / (L + ueber), flaeche.height() / hmax)

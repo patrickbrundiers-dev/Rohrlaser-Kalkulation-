@@ -33,6 +33,7 @@ def ok(text):
 app = QApplication.instance() or QApplication([])
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
 db.einstellung_setzen("absender_plz", "33129")
+db.einstellung_setzen("palette_packkern", "nein")     # bisherige Lagenrechnung (Packkern 3.0: test_packkern.py)
 db.fracht_richtwerte_laden("33129")
 aid = beispiel_angebot.anlegen(db)
 fenster = Hauptfenster(db, stumm=True)
