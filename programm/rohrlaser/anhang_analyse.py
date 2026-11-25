@@ -98,7 +98,11 @@ def revision_aus_name(name):
     stamm = Path(str(name)).stem
     stamm = re.sub(r"\s*\(\d\)$", "", stamm)            # „Halter (1)“ = Kopie, keine Revision
     rev = ""
-    for m in _REV:
+    from . import artikelnr     # 25.11.2026: gleiche Regeln wie überall (123456_002, 123456-02, _final, _neu …)
+    t = artikelnr.zerlegen(stamm)
+    if t.grund != t.roh and t.grund.strip():
+        rev, stamm = t.rev, t.grund
+    for m in () if rev else _REV:
         x = m.search(stamm)
         if x:
             rev = x.group(1).upper()

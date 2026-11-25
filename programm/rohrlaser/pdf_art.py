@@ -356,7 +356,7 @@ def zeichnung_zu_teilen(messwerte, zeichnungen, werkstoffe=None):
 
 
 AUTO_FELDER = ("_stueck", "_stueck_formular", "_stueck_quelle", "_stueck_anders", "_stueck_staffel",
-               "_stueck_staffel_sicher")
+               "_stueck_staffel_sicher", "_stueck_fundstelle", "_stueck_widerspruch", "_stueck_hinweis", "_stueck_vorschlag")
 
 
 def mails_vergleichen(messwerte, mails, namen, formulare=()):
@@ -413,10 +413,24 @@ def anwenden(messwerte, formulare, werkstoffe=None, ws_formular=None):
             m.pop(k, None)
     formulare = [f for f in formulare or () if f]
     namen = {n for m in messwerte for n in (m.get("artikel"), m.get("datei")) if n}
-    n = formular.stueck_setzen(messwerte, formular.stueck_aus([f for f in formulare if f.get("text")], namen))
+    fund = {}
+    n = formular.stueck_setzen(messwerte, formular.stueck_aus([f for f in formulare if f.get("text")], namen, fund),
+                               fund)
     mails_vergleichen(messwerte, [f for f in formulare if f.get("mail") and f.get("text")], namen,
                       [f for f in formulare if not f.get("mail") and f.get("text")])
     unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
+    from . import artikelnr
+    gruppen = artikelnr.gruppen({m.get("datei") for m in messwerte if m.get("datei") and not m.get("_saetze")})
+    for m in messwerte:     # 25.11.2026: Formular/Mail da, aber keine Menge zum Teil = „nicht erkannt“ (nie erfinden)
+        if m.pop("_stueck_fehlt", None):
+            m.pop("_stueck_hinweis", None)
+        if formulare and any(f.get("text") for f in formulare) and "_stueck_formular" not in m \
+                and not m.get("_saetze"):
+            m["_stueck_fehlt"] = True
+            g = gruppen.get(artikelnr.schluessel(m.get("datei") or ""))
+            if g:               # mehrere Revisionen derselben Grundnummer: keine Menge raten
+                m["_stueck_hinweis"] = (f"mehrere Dateien zu {artikelnr.grund(m['datei'])}: "
+                                        + ", ".join(sorted(Path(str(d)).name for d in g)) + " – bitte Revision prüfen")
     w = werkstoff_setzen(messwerte, formulare, namen, ws_formular) if ws_formular else 0
     b = bearbeitung_setzen(messwerte, formulare, namen)
     z = zeichnung_zu_teilen(messwerte, [z for f in formulare for z in f.get("zeichnungen") or ()], werkstoffe)

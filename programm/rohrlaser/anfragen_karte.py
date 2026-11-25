@@ -252,6 +252,11 @@ class AnfragenKarte:
                     except ak.SchonUebernommen:
                         akte = abl.neu_lesen(akte)
                 akte = abl.angebot_verknuepfen(akte, seite.kopf.get("nummer") or "")
+                # Kundenbindung (25.11.2026): im Prüfdialog gewählter Kunde gilt auch in der Anfrage
+                kn = str(seite.kopf.get("kundennr") or "")
+                if kn and kn != str(akte.kunde or ""):
+                    akte = abl.zuordnung_aendern(akte, "kunde", kn, seite.kopf.get("kunde") or "",
+                                                 grund="im Prüfdialog gewählt")
                 nummern.append(akte.nr)
             except (OSError, ak.AblageFehler):
                 continue
