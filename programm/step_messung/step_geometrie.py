@@ -158,6 +158,10 @@ class Teil:
     offene_seite: dict = None   # offenes Rohr geschlossen (step_offenes_rohr): Seite, Lücken, Länge; sonst None
     geschlossen: object = None  # offen gezeichnetes Rohr: Messung mit ergänzter Wand (Teil); sonst None
     drehfraes: dict = None      # Dreh- oder Frästeil (step_drehfraes): Art, Maße, Merkmale, Fingerabdruck; sonst None
+    # Geometrieprüfung des Körpers wie gelesen (step_qualitaet.koerper_pruefen, Master-Auftrag 24.11.2026): Status,
+    # Toleranzen, offene Kanten, Fehlerarten, Reparatur-Probe, CAD-Prüfwerte, doppelte Körper; Datei-Kennzahlen
+    qualitaet: dict = None
+    pruefung_datei: dict = None
 
     @property
     def pruefstatus(self):
@@ -709,7 +713,8 @@ def _koerper_daten(t, shape, art):
     if not box.IsVoid():
         a, b = box.CornerMin(), box.CornerMax()
         t.huelle = (b.X() - a.X(), b.Y() - a.Y(), b.Z() - a.Z())
-    t.gueltig = BRepCheck_Analyzer(shape).IsValid()
+    vorab = t.__dict__.pop("_gueltig_vorab", None)      # schon in _geometrie_pruefen geprüft (gleicher Körper)
+    t.gueltig = BRepCheck_Analyzer(shape).IsValid() if vorab is None else vorab
     if not t.gueltig:
         t.hinweise.append("Geometrie laut Prüfung ungültig (Fehler im CAD-Modell), Messwerte prüfen")
     if art == "aus Flächenmodell genäht":
@@ -5667,6 +5672,8 @@ def _verbund_pruefen(teile, koerper):
         bi = boxen[i]
         for j, (u, (_, kj)) in enumerate(zip(teile, koerper)):
             bj = boxen[j]
+            if abs((u.volumen or 0) - (t.volumen or 0)) <= 1e-6 * max(t.volumen or 0, 1.0):
+                continue    # gleiches Volumen: deckungsgleiche Kopie (doppelt eingefügt), kein Kern (step_qualitaet)
             if i == j or u.verbund or bj.IsOut(bi) or not all(
                     bi.CornerMin().Coord(n) - 0.01 <= bj.CornerMin().Coord(n) and
                     bj.CornerMax().Coord(n) <= bi.CornerMax().Coord(n) + 0.01 for n in (1, 2, 3)):
@@ -5728,6 +5735,10 @@ def datei_lesen(pfad, name=None):
     """STEP-Datei lesen (lies_step_info) und gleiche Körper suchen. Wirft ValueError, wenn sie nicht lesbar ist."""
     import os
     koerper, info = lies_step_info(pfad)
+    uhr = time.monotonic()      # Kopfangaben und Prüfwerte des Original-CAD (step_qualitaet, 24.11.2026)
+    import step_qualitaet
+    info["kopf"] = step_qualitaet.datei_kopf(pfad, info.get("einheit"))
+    info.setdefault("phasen", {})["kopf_s"] = time.monotonic() - uhr
     einzeln = os.environ.get("STEP_MESSEN_EINZELN")         # nur für Tests: jeden Körper selbst messen
     if einzeln:
         return Gelesen(name or _Path(pfad).stem, koerper, info, {})
@@ -5996,6 +6007,7 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
         except Exception as e:  # Messung dieses Körpers gescheitert: melden, andere Körper weiter messen
             t = Teil(datei=gel.name, koerper=i)
             t.hinweise.append(f"Messung fehlgeschlagen: {e or type(e).__name__}")
+    t = _geometrie_pruefen(t, k, art, gel, i, netz, flach_bis)
     t.einheit, t.meldungen = info["einheit"], info["meldungen"]
     t.bauteil, t.pfad, t.knoten = info["bauteile"].get(i, ("", "", ""))
     t.struktur = info["struktur"]
@@ -6128,6 +6140,81 @@ def _instanz_gedreht(vorbild, nr, info, rel, koerper):
     return t
 
 
+REPARATUR_MESSEN = True     # Messung gescheitert und Reparatur Klasse 1: reparierten Körper messen (step_qualitaet)
+
+
+def _nicht_gemessen(t):
+    return not t.bauteiltyp and not t.profilform and not t.drehfraes
+
+
+def _geometrie_pruefen(t, k, art, gel, i, netz, flach_bis):
+    """Geometrieprüfung des gelesenen Körpers (step_qualitaet.koerper_pruefen) in t.qualitaet. Ist die Messung
+    gescheitert und der Körper sicher reparierbar (Klasse 1), wird der reparierte Körper gemessen; die Importdaten
+    (gültig, Volumen, Flächen) bleiben die des gelesenen Körpers, Hinweis und Protokoll sagen es."""
+    import step_qualitaet
+    if art == "Flächenmodell offen" and not hasattr(k, "ShapeType"):
+        return t
+    uhr = time.monotonic()
+    try:
+        from OCP.BRepCheck import BRepCheck_Analyzer
+        gueltig = bool(BRepCheck_Analyzer(k).IsValid())
+        q, repariert = step_qualitaet.koerper_pruefen(k, art, gueltig, (gel.info.get("kopf") or {}).get(
+            "unsicherheit_mm"))
+    except Exception:  # noqa: BLE001 – Prüfung ist Zusatz
+        return t
+    if repariert is not None and REPARATUR_MESSEN and _nicht_gemessen(t) and art != "Flächenmodell offen":
+        try:
+            t2 = analysiere(repariert, gel.name, i, netz, flach_bis)
+        except Exception:  # noqa: BLE001 – dann bleibt es beim Ergebnis des gelesenen Körpers
+            t2 = None
+        if t2 is not None and not _nicht_gemessen(t2):
+            r = q["reparatur"]
+            t2.hinweise.insert(0, "Geometrie ungültig, mit sicher reparierter Kopie gemessen (Abweichung Hülle "
+                               f"{(r['abweichung'] or {}).get('huelle_mm') or 0:.4f} mm) – prüfen")
+            q["gemessen_mit_reparatur"] = True
+            t = t2
+    t.qualitaet = q
+    t._gueltig_vorab = gueltig
+    ph = gel.info.setdefault("phasen", {})
+    ph["pruefen_s"] = ph.get("pruefen_s", 0.0) + time.monotonic() - uhr
+    return t
+
+
+def _datei_pruefung(gel, out):
+    """Datei-Abgleich (CAD-Prüfwerte, doppelte Körper) und Kennzahlen je Datei in t.qualitaet / t.pruefung_datei."""
+    import step_qualitaet
+    uhr = time.monotonic()
+    vol = {t.koerper: (t.volumen, t.oberflaeche) for t in out if t.koerper and t.koerperart != "Flächenmodell offen"}
+    erg = step_qualitaet.datei_pruefen(gel.koerper, gel.gleich, gel.info.get("bauteile") or {},
+                                       gel.info.get("kopf"), vol)
+    for t in out:
+        q = t.qualitaet
+        if q is None:
+            continue
+        if t.koerper in erg["doppelt"] or t.koerper in erg["cad"]:
+            q = t.qualitaet = dict(q)       # Kopien teilen sonst das dict des Vorbilds
+        if t.koerper in erg["doppelt"]:
+            q["doppelt_zu"] = erg["doppelt"][t.koerper]
+            q["hinweise"] = list(q.get("hinweise") or []) + [
+                f"liegt deckungsgleich auf Körper {erg['doppelt'][t.koerper]} (doppelt im CAD?)"]
+            if q.get("status") == "korrekt":
+                q["status"] = "unsicher"
+            t.hinweise.append(f"liegt deckungsgleich auf Körper {erg['doppelt'][t.koerper]} (doppelt im CAD?), "
+                              "Anzahl prüfen")
+        if t.koerper in erg["cad"]:
+            c = q["cad_referenz"] = erg["cad"][t.koerper]
+            if c["status"] == "abweichung":
+                q["status"] = "fehlerhaft" if q.get("status") != "reparierbar" else q["status"]
+                t.hinweise.append("Volumen/Oberfläche weichen von den Prüfwerten des Original-CAD ab, Messwerte prüfen")
+            elif c["status"] == "prüfen" and q.get("status") == "korrekt":
+                q["status"] = "unsicher"
+    zus = step_qualitaet.datei_zusammenfassung(gel.info.get("kopf"), [t.qualitaet for t in out])
+    for t in out:
+        t.pruefung_datei = zus
+    ph = gel.info.setdefault("phasen", {})
+    ph["pruefen_s"] = ph.get("pruefen_s", 0.0) + time.monotonic() - uhr
+
+
 def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None, melden=None):
     """Gemessene Teile {Körpernummer: Teil} einer Datei vervollständigen: Kopien für gleiche Körper, dann die
     Auswertungen über die ganze Baugruppe (Anbauteile, Verbundprofile, Nahtkandidaten). Ergebnis: Liste der Teile
@@ -6216,6 +6303,11 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
         t.naehte = naehte
         if t.alternative is not None:
             t.alternative.naehte = naehte
+    try:
+        _datei_pruefung(gel, out)
+    except Exception as e:  # noqa: BLE001 – Prüfung ist Zusatz, nie die Messung verhindern; Grund festhalten
+        for t in out:
+            t.pruefung_datei = dict(fehler=f"Datei-Prüfung nicht möglich: {type(e).__name__}")
     for t in out:
         teil_uebergeben(t)
         t.__dict__.pop("_rohr", None)

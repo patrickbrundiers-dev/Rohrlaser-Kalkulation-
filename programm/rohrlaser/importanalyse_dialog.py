@@ -11,13 +11,17 @@ Importanalyse (Knopf im Prüfdialog), alles aus bauteil_analyse/baugruppe_analys
   Bearbeitung und Konfidenz
 - Baugruppen: Struktur (Knoten), gleiche Teile mit Stückzahl, Varianten, Schweißverbindungen, Materialbedarf
 - Dateien: Befunde des Imports (ZIP, Herstellerformate, leere/defekte/doppelte Dateien)
+- Geometrieprüfung (Master-Auftrag CAD-Importkern 24.11.2026, step_qualitaet): je Körper Status in Farbe (grün korrekt,
+  gelb unsicher, blau reparierbar, rot fehlerhaft, grau ausgeschlossenes Zukaufteil), Toleranzen, Fehlerarten,
+  Reparatur-Protokoll und Abgleich mit den Prüfwerten des Original-CAD; je Datei Schema, CAD-System, Einheit,
+  Genauigkeit. Ein Klick auf eine Zeile zeigt das ganze Prüfprotokoll des Körpers.
 „Bauteilliste als CSV …“ speichert die Bauteilliste.
 """
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QHeaderView, QLabel, QPushButton, QSplitter,
-                               QTableWidget, QTableWidgetItem, QTabWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-                               QWidget)
+                               QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QTreeWidget, QTreeWidgetItem,
+                               QVBoxLayout, QWidget)
 
 from . import bauteil_analyse as ba
 from . import baugruppe_analyse as bga
@@ -200,6 +204,7 @@ class ImportanalyseDialog(QDialog):
         self._bauteile_reiter()
         self._baugruppen_reiter()
         self._dateien_reiter()
+        self._pruefung_reiter()
         knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
         knoepfe.button(QDialogButtonBox.Close).setText("Schließen")
         self.csv_knopf = QPushButton("Bauteilliste als CSV …")
@@ -414,6 +419,46 @@ class ImportanalyseDialog(QDialog):
         w.setSizes([300, 200])
         self.reiter.addTab(w, f"Dateien ({len(zeilen)}, {len(befunde)} Befund{'e' if len(befunde) != 1 else ''})")
 
+    # ------------------------------------------------------------------ Geometrieprüfung
+    def _pruefung_reiter(self):
+        w = QSplitter(Qt.Vertical)
+        oben = QWidget()
+        lo = QVBoxLayout(oben)
+        lo.setContentsMargins(0, 0, 0, 0)
+        self.pruefung_dateien = geometrie_dateien(self.messwerte)
+        kopf = QLabel(pruefung_kopf_html(self.pruefung_dateien))
+        kopf.setTextFormat(Qt.RichText)
+        kopf.setWordWrap(True)
+        lo.addWidget(kopf)
+        self.pruefung_zeilen = geometrie_zeilen(self.messwerte)
+        t = QTableWidget(len(self.pruefung_zeilen), len(PRUEF_SPALTEN))
+        t.setHorizontalHeaderLabels(PRUEF_SPALTEN)
+        t.verticalHeader().setVisible(False)
+        t.setSelectionBehavior(QTableWidget.SelectRows)
+        t.setSelectionMode(QTableWidget.SingleSelection)
+        for r, z in enumerate(self.pruefung_zeilen):
+            for c, v in enumerate(z["werte"]):
+                t.setItem(r, c, _item(v, STATUS_FARBE.get(z["status"]) if c == 3 else None, c == 1,
+                                      tipp=str(v) if c >= 4 else None))
+        t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        t.horizontalHeader().setStretchLastSection(True)
+        self.pruefung_tabelle = t
+        lo.addWidget(t)
+        w.addWidget(oben)
+        self.pruefung_text = QTextBrowser()
+        self.pruefung_text.setOpenLinks(False)
+        self.pruefung_text.setHtml("Körper wählen: hier steht dann das ganze Prüfprotokoll.")
+        w.addWidget(self.pruefung_text)
+        w.setSizes([380, 200])
+        t.itemSelectionChanged.connect(self._pruefung_zeigen)
+        n = sum(1 for z in self.pruefung_zeilen if z["status"] in ("fehlerhaft", "reparierbar", "unsicher"))
+        self.reiter.addTab(w, f"Geometrieprüfung ({n} prüfen)" if n else "Geometrieprüfung")
+
+    def _pruefung_zeigen(self):
+        r = self.pruefung_tabelle.currentRow()
+        if 0 <= r < len(self.pruefung_zeilen):
+            self.pruefung_text.setHtml(protokoll_html(self.pruefung_zeilen[r]))
+
     def csv_speichern(self, pfad=None):
         if pfad is None:
             pfad, _ = QFileDialog.getSaveFileName(self, "Bauteilliste speichern", "Bauteilliste.csv",
@@ -421,3 +466,164 @@ class ImportanalyseDialog(QDialog):
             if not pfad:
                 return None
         return bga.csv_schreiben(self.dateien, pfad)
+
+
+# ---------------------------------------------------------------------------------------------- Geometrieprüfung
+PRUEF_SPALTEN = ("Datei", "Körper", "Bauteil", "Status", "Toleranz [mm]", "Fehler", "Reparatur", "CAD-Prüfwerte",
+                 "Hinweise")
+STATUS_FARBE = {"korrekt": stil.GRUEN, "unsicher": "#B7791F", "reparierbar": "#2B6CB0", "fehlerhaft": stil.ROT,
+                "Zukauf": stil.TEXT_GRAU, "nicht geprüft": stil.TEXT_GRAU}
+STATUS_TEXT = {"korrekt": "korrekt erkannt", "unsicher": "unsicher", "reparierbar": "reparierbar",
+               "fehlerhaft": "fehlerhaft", "Zukauf": "ausgeschlossen (Zukauf)", "nicht geprüft": "nicht geprüft"}
+FEHLER_TEXT = {
+    "ungueltige_flaechen": "ungültige Flächen", "nicht_pruefbar": "Kontur nicht prüfbar",
+    "selbstueberschneidung": "Selbstüberschneidung",
+    "luecken": "Lücken zwischen Kanten", "kleine_kanten": "sehr kleine Kanten", "entartete_kanten": "entartete Kanten",
+    "offene_kanten": "offene Kanten", "falsch_orientiert": "falsch orientierte Kanten", "kein_volumen": "kein Volumen",
+    "nicht_geschlossen": "nicht geschlossen",
+}
+
+
+def _json(x):
+    import json
+    if isinstance(x, dict) or x is None:
+        return x
+    try:
+        return json.loads(x) if x else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _mm(x):
+    try:
+        return f"{float(x):.2g}".replace(".", ",")
+    except (TypeError, ValueError):
+        return ""
+
+
+def _tol(x):
+    """Toleranz lesbar: sehr kleine Werte (Genauigkeit der CAD-Systeme, 1e-7 mm) als „< 0,0001“."""
+    try:
+        x = float(x)
+    except (TypeError, ValueError):
+        return ""
+    return "< 0,0001" if x < 1e-4 else f"{x:.4f}".rstrip("0").replace(".", ",")
+
+
+def _prozent(x):
+    return "" if x is None else f"{float(x) * 100:.3f} %".replace(".", ",")
+
+
+def geometrie_zeilen(messwerte):
+    """Je Körper eine Zeile der Geometrieprüfung: dict(werte (wie PRUEF_SPALTEN), status, pruefung, m)."""
+    out = []
+    for m in messwerte or ():
+        if m.get("_import_befund"):
+            continue
+        q = _json(m.get("pruefung"))
+        status = "Zukauf" if m.get("_normteil") else (q or {}).get("status") or "nicht geprüft"
+        tol = (q or {}).get("toleranz") or {}
+        fehler = ", ".join(f"{n}× {FEHLER_TEXT.get(c, c)}" for c, n in ((q or {}).get("fehler") or {}).items())
+        rep = (q or {}).get("reparatur")
+        rep_text = f"Klasse {rep['klasse']}" + (" (gemessen mit Reparatur)" if q.get("gemessen_mit_reparatur") else
+                                                "") if rep else ""
+        cad = (q or {}).get("cad_referenz")
+        cad_text = (f"{cad['status']} (Volumen {_prozent(cad.get('volumen_rel'))})" if cad else "")
+        hinweise = list((q or {}).get("hinweise") or [])
+        if m.get("fehler"):
+            hinweise.insert(0, str(m["fehler"]))
+        werte = (m.get("datei") or "", m.get("koerper") or "", m.get("bauteil") or m.get("artikel") or "",
+                 STATUS_TEXT.get(status, status),
+                 f"{_tol(tol.get('max'))} ({tol.get('stufe')})" if tol.get("max") is not None else "", fehler,
+                 rep_text, cad_text, "; ".join(hinweise))
+        out.append(dict(werte=werte, status=status, pruefung=q, m=m))
+    return out
+
+
+def geometrie_dateien(messwerte):
+    """{Datei: Kennzahlen der Datei (pruefung_datei)} in der Reihenfolge der Messwerte."""
+    out = {}
+    for m in messwerte or ():
+        d = _json(m.get("pruefung_datei"))
+        if d and (m.get("datei") or "") not in out:
+            out[m.get("datei") or ""] = d
+    return out
+
+
+def pruefung_kopf_html(dateien):
+    """Je Datei eine Zeile: Schema, CAD-System, Einheit, Genauigkeit, Körper je Status, Reparaturen, CAD-Prüfwerte."""
+    if not dateien:
+        return "Keine Geometrieprüfung vorhanden (Messung vor Version 1.31 der STEP-Messung)."
+    zeilen = []
+    for name, d in dateien.items():
+        st = d.get("status") or {}
+        ampel = " · ".join(f"<span style='color:{STATUS_FARBE[k]}'>{st.get(k, 0)} {STATUS_TEXT[k]}</span>"
+                           for k in ("korrekt", "unsicher", "reparierbar", "fehlerhaft") if st.get(k))
+        teile = [x for x in (d.get("schema"), d.get("system"), f"Einheit {d.get('einheit')}" if d.get("einheit")
+                             else "", f"Genauigkeit der Datei {_tol(d.get('unsicherheit_mm'))} mm"
+                             if d.get("unsicherheit_mm") else "",
+                             f"größte Toleranz {_tol(d.get('toleranz_max'))} mm ({d.get('toleranz_stufe')})"
+                             if d.get("toleranz_max") is not None else "") if x]
+        cad = d.get("cad_abgleich") or {}
+        if d.get("cad_pruefwerte"):
+            teile.append("CAD-Prüfwerte: " + (", ".join(f"{n} {k}" for k, n in cad.items()) or "keinem Körper "
+                                                                                                "zuzuordnen"))
+        else:
+            teile.append("keine CAD-Prüfwerte in der Datei")
+        if d.get("reparaturen"):
+            teile.append("Reparatur-Proben: " + ", ".join(f"{n}× Klasse {k}" for k, n in sorted(d["reparaturen"].items())))
+        if d.get("doppelte_koerper"):
+            teile.append(f"<span style='color:{stil.ROT}'>{d['doppelte_koerper']} doppelte Körper</span>")
+        zeilen.append(f"<b>{name}</b>: {ampel}<br>" + " · ".join(teile))
+    legende = " ".join(f"<span style='color:{STATUS_FARBE[k]}'>■</span> {STATUS_TEXT[k]}"
+                       for k in ("korrekt", "unsicher", "reparierbar", "fehlerhaft", "Zukauf"))
+    return "<br>".join(zeilen) + f"<br><small>{legende}. Die Messung rechnet immer mit dem Körper wie in der " \
+        "STEP-Datei; eine Reparatur wird nur bei Klasse 1 und gescheiterter Messung verwendet.</small>"
+
+
+def protokoll_html(z):
+    """Ganzes Prüfprotokoll eines Körpers."""
+    q, m = z.get("pruefung") or {}, z.get("m") or {}
+    if not q:
+        return "Für diesen Körper liegt keine Geometrieprüfung vor."
+    farbe = STATUS_FARBE.get(z["status"], stil.TEXT)
+    out = [f"<b>Körper {m.get('koerper')}</b> {m.get('bauteil') or ''} – "
+           f"<b style='color:{farbe}'>{STATUS_TEXT.get(z['status'], z['status'])}</b>",
+           f"Eingelesen als: {q.get('eingelesen') or ''}, {q.get('flaechen', 0)} Flächen, "
+           f"{q.get('freiform_flaechen', 0)} Freiformflächen"]
+    tol = q.get("toleranz") or {}
+    if tol:
+        out.append("Toleranzen nach dem Einlesen [mm]: " + ", ".join(
+            f"{n} {_tol(tol.get(k))}" for n, k in (("größte", "max"), ("Mittel", "mittel"), ("Punkte", "punkte"),
+                                                   ("Kanten", "kanten"), ("Flächen", "flaechen"))) +
+            f" – Stufe {tol.get('stufe')}")
+    out.append(f"Offene Kanten: {q.get('offene_kanten', 0)}, falsch orientierte Kanten: {q.get('falsch_orientiert', 0)}")
+    if q.get("fehler"):
+        out.append("Fehler: " + ", ".join(f"{n}× {FEHLER_TEXT.get(c, c)}" for c, n in q["fehler"].items()))
+    r = q.get("reparatur")
+    if r:
+        ab = r.get("abweichung") or {}
+        out.append(f"Reparatur-Probe (Kopie, Genauigkeit {_mm(r.get('genauigkeit_mm'))} mm, höchstens "
+                   f"{_mm(r.get('max_toleranz_mm'))} mm): <b>Klasse {r['klasse']}</b> – {r.get('text')}")
+        v, n = r.get("vorher") or {}, r.get("nachher") or {}
+        out.append(f"vorher gültig {'ja' if v.get('gueltig') else 'nein'}, Toleranz {_mm(v.get('toleranz_max'))} mm, "
+                   f"{v.get('offene_kanten', 0)} offene Kanten · nachher gültig "
+                   f"{'ja' if n.get('gueltig') else 'nein'}, Toleranz {_mm(n.get('toleranz_max'))} mm, "
+                   f"{n.get('offene_kanten', 0)} offene Kanten")
+        if ab:
+            out.append(f"Abweichung: Volumen {_prozent(ab.get('volumen_rel'))}, Oberfläche "
+                       f"{_prozent(ab.get('flaeche_rel'))}, Hülle {_mm(ab.get('huelle_mm'))} mm, Schwerpunkt "
+                       f"{_mm(ab.get('schwerpunkt_mm'))} mm")
+        if q.get("gemessen_mit_reparatur"):
+            out.append("<b>Gemessen mit der reparierten Kopie</b> (die Messung des Originals war gescheitert).")
+    c = q.get("cad_referenz")
+    if c:
+        out.append(f"Prüfwerte des Original-CAD: <b>{c['status']}</b> – Volumen {_prozent(c.get('volumen_rel'))}, "
+                   f"Oberfläche {_prozent(c.get('flaeche_rel'))}"
+                   + (f", Schwerpunkt {_mm(c.get('schwerpunkt_mm'))} mm" if c.get("schwerpunkt_mm") is not None
+                      else ""))
+    if q.get("doppelt_zu"):
+        out.append(f"Liegt deckungsgleich auf Körper {q['doppelt_zu']}.")
+    for h in q.get("hinweise") or ():
+        out.append("• " + h)
+    return "<br>".join(out)

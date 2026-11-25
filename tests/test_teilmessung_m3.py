@@ -54,7 +54,7 @@ def step_netz(name):
 
 
 # ------------------------------------------------------------------ T1 Katalog in der STEP-Messung
-assert step_ergebnis.SCHEMA_VERSION == "1.30"
+assert tuple(map(int, step_ergebnis.SCHEMA_VERSION.split("."))) >= (1, 30)     # Flächenkatalog seit 1.30
 L16 = step_netz("REF16_L40x40x4_Bohrung")
 fk, tf = L16["fk"], L16["tf"]
 assert {a: len(v) // 3 for a, v in L16["t"].items()} == {a: len(v) for a, v in tf.items()}

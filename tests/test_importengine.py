@@ -312,7 +312,7 @@ def _():
     for n in iad.SCHRITTE:
         assert n in html_, n
     d = iad.ImportanalyseDialog(None, mw)
-    assert d.reiter.count() == 3 and d.bauteile.rowCount() == sum(len(x["positionen"]) for x in d.dateien)
+    assert d.reiter.count() == 4 and d.bauteile.rowCount() == sum(len(x["positionen"]) for x in d.dateien)  # + Geometrieprüfung (24.11.)
     r = next(i for i, (_, p) in enumerate(d.zeilen) if p["bezeichnung"].startswith("T07"))
     d.bauteile.selectRow(r)
     assert d.merkmale.rowCount() >= 8 and "Vierkantrohr" in d.merkmal_titel.text(), (

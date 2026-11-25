@@ -5298,6 +5298,29 @@ def kapitel_step(i):
             "Position in der Spalte <b>Schneidtechnik</b> (leer = Standard der Maschine). Bei <b>XY</b> werden Löcher "
             "im Rundrohr zylindrisch geschnitten; ein Loch über Faktor × Rohr-Ø (Vorgabe 0,5) meldet der Import und "
             "der Angebots-Check. 2,5D hat diese Grenze nicht. Die Wahl ändert die Laserzeit nicht.")
+    i.abschnitt("Geometrieprüfung und Prüfwerte des CAD", marke="geometriepruefung")
+    i.text("Der STEP-Import prüft jeden Körper so, wie er aus der Datei gelesen wurde, und zeigt das Ergebnis in der "
+           "<b>Importanalyse</b> im Reiter <b>Geometrieprüfung</b>. Die Farbe sagt, wie verlässlich die Geometrie ist:",
+           kurz=True)
+    i.liste("<b>grün – korrekt erkannt</b>: gültiger, geschlossener Körper, Toleranzen fein oder normal (bis 0,01 mm).",
+            "<b>gelb – unsicher</b>: aus Flächen genäht, Toleranz gröber als 0,01 mm, die STEP-Datei selbst ist nur grob "
+            "genau, der Körper liegt deckungsgleich auf einem anderen (doppelt im CAD, Anzahl prüfen) oder die "
+            "Prüfwerte des CAD weichen leicht ab (0,1 bis 0,5 %).",
+            "<b>blau – reparierbar</b>: der Körper hat Fehler (z. B. falsch orientierte Flächen, Selbstüberschneidung), "
+            "eine Reparatur an einer Kopie war erfolgreich.",
+            "<b>rot – fehlerhaft</b>: offen, nicht reparierbar oder Volumen/Oberfläche weichen um mehr als 0,5 % von den "
+            "Prüfwerten des Original-CAD ab.",
+            "<b>grau – ausgeschlossen</b>: als Normteil/Zukaufteil erkannt, nicht als Fertigungsteil gemessen.")
+    i.text("Reparaturen laufen nur an einer Kopie und werden in drei Klassen eingeteilt: <b>Klasse 1</b> automatisch "
+           "und sicher (danach gültig, Hülle ändert sich höchstens um 0,001 mm), <b>Klasse 2</b> reparierbar mit "
+           "Abweichung (nur gemeldet), <b>Klasse 3</b> nicht zuverlässig reparierbar. Die Messung rechnet immer mit "
+           "dem Körper wie in der STEP-Datei. Nur wenn diese Messung scheitert und die Reparatur Klasse 1 ist, misst der "
+           "Import die reparierte Kopie und sagt es im Hinweis. Toleranzen werden nie erhöht, um Fehler zu verdecken.")
+    i.text("Viele CAD-Systeme schreiben <b>Prüfwerte</b> (Volumen, Oberfläche, Schwerpunkt je Bauteil) in die STEP-"
+           "Datei. Sind sie vorhanden, vergleicht der Import seine Messung damit: bis 0,1 % gilt sie als <b>bestätigt</b>. "
+           "Ein Klick auf eine Zeile zeigt das ganze Prüfprotokoll: Toleranzen, offene Kanten, Fehlerarten, Ergebnis "
+           "der Reparatur-Probe vorher/nachher und den Vergleich mit dem CAD. Oben je Datei: STEP-Schema (AP203/AP214/"
+           "AP242), CAD-System, Einheit und Genauigkeit der Datei.")
     i.abschnitt("Plausibilität der Messung", marke="plausibilitaet")
     i.text("Seit 0.9.443 prüft der STEP-Import die <b>Messwerte</b> jedes Profils auf Ungewöhnliches, bevor "
            "kalkuliert wird. Ein Befund macht das Teil im Prüfdialog <b>gelb</b> mit dem Grund „Plausibilität: …“ "
@@ -5460,7 +5483,11 @@ def kapitel_step(i):
             "Enden, Gehrungen/Schrägschnitte, Gravuren und nicht gelaserte Konturen (Sackbohrung, Fließloch) mit "
             "Legende. <b>Nur Rohrlaser-Teile</b> blendet in der Gesamtansicht Normteile, Bleche und Dreh-/Frästeile "
             "aus, im Einzelteil Anbauteile und Innenwand. <b>Dunkel</b> schaltet einen dunklen CAD-Hintergrund ein "
-            "(nur solange der Viewer offen ist; im dunklen Programm-Design ist die Ansicht ohnehin dunkel).",
+            "(nur solange der Viewer offen ist; im dunklen Programm-Design ist die Ansicht ohnehin dunkel). "
+            "<b>Farben nach Prüfung</b> färbt die Gesamtansicht nach der Geometrieprüfung (grün korrekt, gelb "
+            "unsicher, blau reparierbar, rot fehlerhaft, dunkelgrau ausgeschlossene Normteile); auffällige Körper "
+            "stehen auch im Baum farbig, und beim Anklicken zeigt das Feld Erkennung Toleranz, Fehler, Reparatur-Probe "
+            "und den Abgleich mit den Prüfwerten des CAD (siehe [[geometriepruefung]]).",
             "<b>Gegenprobe:</b> Die Spalte <i>Linie 3D</i> ist die Länge der Konturlinien im 3D-Bild, unabhängig "
             "von der Messung zusammengezählt; ✓ heißt: sie passt zur Schnittlänge (2 %, mindestens 0,5 mm). Bei "
             "offenen Profilen zählt eine Seite der Wand, Bohrungen im Rundrohr zeigen <i>✓ 2D-Schnitt</i> (der "
