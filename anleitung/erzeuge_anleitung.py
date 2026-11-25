@@ -3889,7 +3889,7 @@ def abschnitte_profirst_angebot(i):
            "genau wie bisher. Der Vergleich zeigt je Abmessung die Zeile <i>ohne Konturverschachtelung</i> "
            "(ursprüngliche Belegung) und die Spalten <i>Enden ineinander</i>, <i>davon Endkonturen</i> und "
            "<i>Trennschnitte</i>; die Karte <i>Status</i> nennt die Einsparung (Stangen, m, €, %). In der "
-           "Stangenabwicklung und im 3D ist jede Verschachtelung prüfbar. Seit 0.9.491 rechnet ein gemessenes Ende "
+           "Stangenabwicklung und im 3D ist jede Verschachtelung prüfbar. Seit 0.9.492 rechnet ein gemessenes Ende "
            "eines Teils ohne 3D-Schnittbearbeitung ohne Zuschlag für den Schwenk (2D: der Strahl steht senkrecht "
            "zur Oberfläche, die Innenkante liegt unter der Außenkante); vorher lag z. B. eine V-Spitze 20 mm am "
            "Rechteckrohr 80 × 40 für das Verschachteln 3 mm zu weit vorn.")
@@ -4276,13 +4276,19 @@ def kapitel_step(i):
             "Gehrungen an den Enden, die nicht senkrecht zur Oberfläche stehen, und schräge Bohrungen (Achse ab 0,5° gegen die Wand geneigt) werden in 3D "
             "übernommen, die Bohrungen mit gemessener Neigung längs und quer. Daneben steht, wie viele Gehrungen und "
             "schrägen Bohrungen gefunden wurden. Ohne Häkchen bleibt alles 2D; Teile mit schrägen Bohrungen bekommen "
-            "im Bericht „3D prüfen“. Fasen werden nie in 3D gerechnet. Über der Grenze der Maschine wird begrenzt "
+            "im Bericht „3D prüfen“. Eine Fase am Ende zählt nur, wenn sie durch die ganze Wand geht (siehe unten). Über der Grenze der Maschine wird begrenzt "
             "(WARNUNG im Status). Ändern je Teil im Schneidweg-Rechner ([[schneidweg_rechner]]); bei Rundrohren ist "
             "die gemessene Querneigung auf etwa ±1,5° genau.",
-            "<b>Fasen an den Enden</b> (seit 0.8.27): Eine Fase am Rohrende wird nicht gelasert. Der Import erkennt "
-            "sie, schreibt den Hinweis „Ende B: Fase erkannt …“ in den Bericht und nimmt Länge und Schneidweg an der "
-            "längsten Stelle an: Länge = längste Länge des Teils, Endschnitt = gerader Schnitt an der Außenkontur. "
-            "Das Teil bleibt <i>plausibel</i> und wird ohne Häkchen-Prüfung übernommen.",
+            "<b>Fasen an den Enden</b> (seit 0.8.27, erweitert 0.9.491): Der Import erkennt eine Fase am Rohrende, "
+            "schreibt den Hinweis „Ende B: Fase erkannt …“ in den Bericht und misst Tiefe (längs), Höhe (in die Wand) "
+            "und Winkel der Fase. Im Rohr-Editor und in der 3D-Ansicht sieht das Ende aus wie in der STEP: der "
+            "Außenring liegt um die Fasentiefe zurück, eine Teilfase knickt in der gemessenen Höhe. Gerechnet wird so: "
+            "Geht die Fase <b>durch die ganze Wand</b> und ist die <i>3D-Schnittbearbeitung</i> am Teil aktiviert, "
+            "ist sie ein 3D-Schnitt – der Kopf wird um die Neigung der Fase geschwenkt (Zeile „Gehrung 3D Ende …“, "
+            "begrenzt durch die Maschine). In allen anderen Fällen (Teilfase, ohne 3D) wird die Fase nicht gelasert: "
+            "Länge = längste Länge des Teils, Endschnitt = gerader Schnitt an der Außenkontur, Text „Fase nicht "
+            "gelasert“; eine Fase durch die ganze Wand ohne 3D bekommt dazu einen Hinweis. Das Teil bleibt "
+            "<i>plausibel</i> und wird ohne Häkchen-Prüfung übernommen.",
             "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i>. Die Zeile nennt "
             "den Grund und das Hüllmaß des Körpers (zum Wiederfinden im CAD). In der 3D-Baugruppe sind diese Teile "
             "<b>magenta</b>; ein Klick auf die Zeile hebt das Teil blau hervor, ein Klick auf <i>Nicht übernehmbar</i> "
@@ -6408,7 +6414,7 @@ def kapitel_optimieren(i):
             "Bohrungen gleichen Ø (Doppelbohrung, lag als eine Bohrung bis 3 mm daneben), eine Bohrung auf der "
             "Rundung eines Quadrat-/Rechteckrohrs (Text <i>Bohrung Ø … auf der Rundung: Umriss wie STEP</i>) und "
             "bei Flachstahl und Winkeln z. B. ein Sechskant (wurde Langloch) genau wie gezeichnet in den Editor.",
-            "<b>Erkennung von Endkonturen und Sonderkonturen</b> (seit 0.9.491): Ein Ende, das weder gerade noch "
+            "<b>Erkennung von Endkonturen und Sonderkonturen</b> (seit 0.9.492): Ein Ende, das weder gerade noch "
             "Gehrung noch Gegenrohr ist, wird mit seiner <i>Konturart</i> erkannt: V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, "
             "Bogen konvex/konkav, S-Kurve, Schräg oder Stufen, mit Maßen (Tiefe, Breite, Radius, Versatz, Richtung). "
             "Erkannt gilt nur, was den gemessenen Umriss an jedem Messpunkt auf 0,1 mm trifft (wie bei der Gehrung). "

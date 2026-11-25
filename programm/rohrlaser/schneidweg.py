@@ -864,6 +864,23 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
             text += (f", {int(_z(nb.get('anzahl')))} Nase{'n' if _z(nb.get('anzahl')) != 1 else ''} "
                      f"{zahl(_z(nb.get('bN')), 1)} × {zahl(_z(nb.get('lN')), 1)} (Steckverbindung)")
             nasen_plus += _z(nb.get("laenge_plus"))
+        fase = e.get("fase") if isinstance(e.get("fase"), dict) else None
+        if fase and not w and not sat:
+            # Fase am Ende (Patrick 25.11.2026): durch die ganze Wand und mit 3D-Bearbeitung ein 3D-Schnitt, sonst
+            # wird sie nicht gelasert (22.10.2026) und das Ende an der längsten Stelle gerade geschnitten
+            fw = _z(fase.get("winkel"))
+            if mit_3d and e.get("d3") and fase.get("ganze_wand") and fw:
+                v, h_ = dreid.gehrung_begrenzen(fw, maschine)
+                text += f", Fase {zahl(fw, 1)}° in 3D (Kopf {zahl(v, 1)}°)"
+                if h_:
+                    hinweise_3d.append(f"{titel}: {h_.replace('Gehrung', 'Fase')} Die Fasenfläche ist dann nicht "
+                                       "maßhaltig.")
+            else:
+                text += ", Fase nicht gelasert"
+                if fase.get("ganze_wand") and fw and not mit_3d:
+                    hinweise_3d.append(f"{titel}: Fase {zahl(fw, 1)}° durch die ganze Wand – als 3D-Schnitt nur mit "
+                                       "3D-Schnittbearbeitung (Häkchen am Teil); so gerechnet: nicht gelasert, Ende "
+                                       "an der längsten Stelle.")
         if mit_3d and e.get("d3") and w and not sat:
             v, h_ = dreid.gehrung_begrenzen(w, maschine)
             text += f", in 3D (Kopf {zahl(v, 1)}°)"

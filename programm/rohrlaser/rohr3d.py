@@ -443,6 +443,25 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
     return n
 
 
+def _mitte(p, q, h):
+    """Punkt im Abstand h von p auf der Strecke p → q (u, v)."""
+    d = math.dist(p, q)
+    f = min(h / d, 1.0) if d > 1e-9 else 0.0
+    return p[0] + f * (q[0] - p[0]), p[1] + f * (q[1] - p[1])
+
+
+def fase_tiefe(es):
+    """Tiefe der Fase eines Endes (Eingaben des Endes, Block 'fase' aus der STEP-Messung) [mm] oder 0: nur an einem
+    sonst geraden Ende (ohne Gehrung, Ausklinkung, Gegenrohr, Endkontur)."""
+    f = es.get("fase") if isinstance(es, dict) else None
+    if not isinstance(f, dict) or es.get("winkel") or es.get("sattel") or es.get("gegen") or es.get("kontur") or es.get("umriss"):
+        return 0.0
+    try:
+        return max(float(f.get("tiefe") or 0), 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, bau=None):
     """Netz der 3D-Ansicht aus Eingaben e (schneidweg), Profil und Teilelänge [mm]; None ohne Länge/Querschnitt.
     naht_winkel: Lage der Längsschweißnaht (naht.py, von Ende A gesehen 0° oben, 90° rechts) als rote Linie 'NL'
@@ -490,13 +509,20 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
     nasen = {s_: nasen_lage(es, qs, (nasen_winkel or {}).get(s_)) for s_, es in (("a", ea), ("b", eb))}
     plus = {s_: (n_[0] if n_ else 0.0) for s_, n_ in nasen.items()}
 
+    # Fase am Ende (STEP, Patrick 25.11.2026: im Editor wie in der STEP): die Außenkante liegt um die Tiefe der Fase
+    # weiter innen, die Innenkante bleibt am Ende; die Stirnfläche wird zur Fasenfläche
+    fase_x = {s_: fase_tiefe(es) for s_, es in (("a", ea), ("b", eb))}
+    wand_ = float(profil.get("wand") or 0)
+    fase_teil = {s_: (float(es["fase"].get("hoehe") or 0) if fase_x[s_] and not es["fase"].get("ganze_wand") and
+                      0 < float(es["fase"].get("hoehe") or 0) < wand_ - 1e-3 else 0.0) for s_, es in (("a", ea), ("b", eb))}
+
     def za(u, v):
         x = innen_x["a"].get((round(u, 6), round(v, 6)))
-        return (sk.schnitt_x(qs, ea, u, v) if x is None else x) + plus["a"]
+        return (sk.schnitt_x(qs, ea, u, v) + fase_x["a"] if x is None else x) + plus["a"]
 
     def zb(u, v):
         x = innen_x["b"].get((round(u, 6), round(v, 6)))
-        return L - (sk.schnitt_x(qs, eb, u, v) if x is None else x) - plus["b"]
+        return L - (sk.schnitt_x(qs, eb, u, v) + fase_x["b"] if x is None else x) - plus["b"]
 
     roh_a = list(umriss[0]) if _flaeche2(umriss[0]) > 0 else list(umriss[0])[::-1]     # ccw in (u, v)
     knicke = _knick_anteile(qs, roh_a, (ea, eb), [s_ for k in e.get("konturen") or () if k.get("muendung")
@@ -684,6 +710,12 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
                 a0, a1 = _xyz(z(*p0), *p0), _xyz(z(*p1), *p1)
                 b0, b1 = _xyz(z(*q0), *q0), _xyz(z(*q1), *q1)
                 art_i = "GB" if i in gelb[art[1].lower()] else art     # 3D über der Grenze: gelb
+                h_ = fase_teil[art[1].lower()]
+                if h_:      # Fase nicht durch die ganze Wand: Fasenfläche bis h_, dahinter die ebene Stirnfläche
+                    m0, m1 = (_xyz(z(*q0), *_mitte(p0, q0, h_)), _xyz(z(*q1), *_mitte(p1, q1, h_)))
+                    dreieck(art_i, a0, a1, m1, soll, ende)
+                    dreieck(art_i, a0, m1, m0, soll, ende)
+                    a0, a1 = m0, m1
                 dreieck(art_i, a0, a1, b1, soll, ende)
                 dreieck(art_i, a0, b1, b0, soll, ende)
         elif not qs.r:

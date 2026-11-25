@@ -1916,6 +1916,41 @@ def _null_schnitte(lok, ws, zmin, zmax, aufmass):
     return TopoDS.Solid(_liste(neu, TopAbs_SOLID)[0]), len(treffer)
 
 
+FASE_EBEN = 0.1        # mm: so eben muss die Außenkante einer Fase sein, damit ihre Maße gelten (Kegel um das Ende)
+
+
+def _fase_mass(lagen, ende, zmin, zmax, wand, s_aussen=None):
+    """Maße einer Fase am Ende (Patrick 25.11.2026, im Editor wie in der STEP; als 3D-Schnitt nur durch die ganze Wand
+    und mit 3D-Bearbeitung): fase_tiefe = Abstand der Außenkante vom Ende längs der Achse [mm], fase_winkel = Neigung
+    der Fasenfläche gegen die Senkrechte zur Oberfläche [°], fase_ganze_wand = keine ebene Stirnfläche bleibt stehen
+    (die Fase geht durch die ganze Wand), fase_hoehe = wie tief die Fase am Ende in die Wand reicht (von außen, [mm];
+    ganze Wand = Wandstärke). Nur für eine einzige, ebene Außenkante um das Ende (sonst leer)."""
+    if len(lagen) != 1 or wand <= 0:
+        return {}
+    z, spanne, flaechen = lagen[0]
+    if spanne > FASE_EBEN:
+        return {}
+    tiefe = z - zmin if ende == "A" else zmax - z
+    if tiefe <= 0:
+        return {}
+    stirn = 0.0             # ebene Stirnfläche senkrecht zur Achse am Ende (Rest der Wand neben der Fase)
+    for f in flaechen:
+        pl = _ebene(f)
+        if pl is not None and abs(abs(pl.Axis().Direction().Z()) - 1) < TOL_PARALLEL:
+            stirn += _flaeche(f)
+    ganz = stirn < 1.0
+    hoehe = wand
+    if not ganz and s_aussen:
+        z_ende = zmin if ende == "A" else zmax
+        am_ende = [BRep_Tool.Pnt_s(TopoDS.Vertex(v)) for f in flaechen if _ebene(f) is None or
+                   abs(_ebene(f).Axis().Direction().Z()) < 1 - TOL_PARALLEL for v in _liste(f, TopAbs_VERTEX)]
+        am_ende = [p for p in am_ende if abs(p.Z() - z_ende) < 0.05]
+        if am_ende:
+            hoehe = min(wand, max(_abstand_zug(p.X(), p.Y(), s_aussen) for p in am_ende))
+    return dict(fase_tiefe=round(tiefe, 3), fase_winkel=round(math.degrees(math.atan2(tiefe, hoehe)), 2),
+                fase_ganze_wand=ganz, fase_hoehe=round(hoehe, 3))
+
+
 def _fase_ende(flaechen, zmin, zmax, gz0, gz1, tol=0.01):
     """'A' bzw. 'B', wenn ein Merkmal eine Fase am Ende ist: seine Flächen reichen bis an das Ende (z min bzw. max),
     die Außenkanten (gz0..gz1) liegen aber davor, höchstens FASE_TIEFE entfernt (Schlitze und Ausklinkungen
@@ -2880,6 +2915,7 @@ def _profil_messen_kern(solid, datei="", koerper=1, netz=False, quer=None, vorga
     hx, hy = bx / 2, by / 2
     enden = {"EA": [[], 0.0, []], "EB": [[], 0.0, []]}     # Flächen, Schnittlänge und Kanten je Ende
     fasen = {}              # Ende ('A'/'B') mit Fase -> Außenkontur gerade (senkrecht zur Achse)
+    fasen_lage = {}         # Ende -> [(z der Außenkante, Spanne in z, Flächen)] je Fase
     liste = _KonturListe()
 
     def lage_auf_rohr(zug):
@@ -3070,6 +3106,7 @@ def _profil_messen_kern(solid, datei="", koerper=1, netz=False, quer=None, vorga
             # Schnittlänge = Außenkontur, an der die Fase beginnt, Länge = längste Länge des Teils
             m["art"] = "E" + fase
             fasen[fase] = gz1 - gz0 < TOL_Z
+            fasen_lage.setdefault(fase, []).append(((gz0 + gz1) / 2, gz1 - gz0, [faces.FindKey(f) for f in m["faces"]]))
             if fase == "A":
                 t.ende_a += laenge
                 t.ende_a_gerade = fasen[fase] and t.ende_a == laenge
@@ -3160,6 +3197,7 @@ def _profil_messen_kern(solid, datei="", koerper=1, netz=False, quer=None, vorga
                      hinweis="Fase: nicht gelasert, Schnitt an der längsten Stelle")
             t.hinweise.append(f"{name}: {FASE_HINWEIS}, wird nicht gelasert; Länge und Schneidweg an der längsten "
                               "Stelle angenommen")
+            e.update(_fase_mass(fasen_lage.get(art_[1]) or (), art_[1], zmin, zmax, t.wandstaerke, s_aussen))
 
 
         if e["form"] == "komplex" and kt:

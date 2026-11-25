@@ -144,7 +144,7 @@ def main():
             e = d.eingaben()
             assert not any(z.get("art") == "V-Ausschnitt" for z in e["konturen"]), (name, e["konturen"])
             if name.startswith(("A1", "A6")):      # Ende A mit schräger Ecke bzw. Ausschnitt bis ans Ende: nicht „gerade“
-                # komplex mit Umriss der STEP; seit 0.9.491 ggf. mit erkannter Konturart (Umriss bleibt maßgebend)
+                # komplex mit Umriss der STEP; seit 0.9.492 ggf. mit erkannter Konturart (Umriss bleibt maßgebend)
                 assert e["a"].get("form") == "komplex" and e["a"].get("umriss") and (
                     ende_text(e["a"]).startswith("komplex")
                     or ende_text(e["a"]).endswith("(erkannt, Umriss wie STEP)")), (name, ende_text(e["a"]))
