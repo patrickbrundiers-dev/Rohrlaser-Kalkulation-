@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.507", "<b>Outlook-Import: Kundenbindung, Stückzahlen und STEP-Zuordnung</b> ([[anfrage_import]]): Der "
+    ["0.9.510", "<b>Outlook-Import: Kundenbindung, Stückzahlen und STEP-Zuordnung</b> ([[anfrage_import]]): Der "
                 "Kunde einer Anfrage (automatisch eindeutig erkannt oder von Hand) gilt bis zum Auftrag; Abweichungen "
                 "aus Mail/Formular sind nur ein Hinweis. Kundenwechsel: offene Angebote der Anfrage wechseln nach "
                 "Rückfrage mit, beauftragte nie automatisch; ein Wechsel im Angebot schreibt die Anfrage nach. "
@@ -31,6 +31,13 @@ NEUERUNGEN = [
                 "_final, _neu, _Bearbeitet): Zuordnung über die Grundnummer, Revision getrennt an der Position "
                 "gespeichert, mehrere Versionen werden angezeigt statt still zugeordnet.",
      "Kunde bleibt gebunden, Stückzahlen mit Fundstelle, STEP-Zuordnung mit Revision (_REV02, -02, _002)"],
+    ["0.9.508", "<b>Echte Innenkante bei 3D-Schnitten an den Enden</b> ([[nesting]]): Beim Verschachteln beliebiger "
+                "Endkonturen nimmt ein ebener Schnitt (Gehrung oder schräg in zwei Richtungen) mit "
+                "3D-Schnittbearbeitung die Innenkante jetzt dort an, wo die Schnittebene die Innenwand trifft, wie in "
+                "der STEP. Bisher lag sie pauschal Wand × tan(Winkel) vor der Außenkante. Bei 45° an 3 mm Wand rücken "
+                "die Teile dadurch im Mittel gut 2 mm näher zusammen, nie näher als sicher. Ohne 3D bleibt alles wie "
+                "bisher (Innenkante 90°). Geprüft gegen die STEP-Testteile R02 und R03.",
+     "Verschachteln: echte Innenkante bei 3D-Gehrungen statt Wand × tan"],
     ["0.9.506", "<b>Einfacher Modus: Fracht und Marge</b> ([[einfach_fracht_marge]]): Im Schritt <i>Bearbeitung</i> "
                 "gibt es die Karte <i>Frachtkosten</i> mit Frachtart, Betrag, Verteilung (je Stück oder nach "
                 "Gewicht), <i>Fracht berechnen …</i> (Paket oder Palette, Tarif, wie im Expertenmodus) und "
