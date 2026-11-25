@@ -13025,10 +13025,19 @@ def kapitel_einstellungen(i):
          "Nahtkandidaten) zu lange, fehlen nur diese, mit Hinweis am ersten Teil."],
         ["STEP-Import", "Messung: Zwischenspeicher (gleiche Datei nicht neu messen), Messung: Zwischenspeicher "
                         "höchstens [MB]",
-         "ja (Vorgabe) = eine schon gemessene Datei mit gleichem Inhalt, gleicher Programmversion und gleichen "
+         "ja = eine schon gemessene Datei mit gleichem Inhalt, gleicher Programmversion und gleichen "
          "Einstellungen kommt sofort aus dem Ordner <i>STEP-Cache</i> neben der Datenbank. Ist er größer als "
          "angegeben (Vorgabe 500 MB), fallen die am längsten nicht benutzten Messungen weg. <b>Zwischenspeicher "
          "leeren</b> löscht alle gemerkten Messungen. Messungen mit ausgelassenen Körpern werden nicht gemerkt. "
+         "<b>ja, mit gelesenen Körpern</b> (Vorgabe seit CAD-Kern 3.0) wie ja und merkt sich zusätzlich die eingelesenen und geheilten Körper "
+         "jeder STEP-/IGES-Datei (Einträge <i>lesen_…</i>, gleiche Grenze in MB). Beim Einlesen großer Baugruppen "
+         "ergänzt OpenCascade fast die ganze Zeit fehlende Flächenkurven auf Freiformflächen (z. B. Gewindestangen): "
+         "U_29MB.step mit 870 Körpern braucht 297 s, aus dem Speicher 0,2 s. Das hilft nach jedem Update, nach "
+         "geänderten Einstellungen und beim Neu-Messen, wenn die gemerkte Messung nicht passt. Gefunden wird über "
+         "Inhalt und Namen der Datei, nicht den Ordner. Dabei misst das Programm schon beim ersten Einlesen die "
+         "gemerkte Form: jede Wiederholung und jeder Messprozess rechnet bis auf das letzte Bit gleich. Gegenüber "
+         "<b>ja</b> (so rechnete das Programm bis dahin) können einzelne Werte in der letzten Stelle abweichen (Prüfsammlung: 3 von 126 Dateien, "
+         "Stützstellen der Wandstärke, ein Konturumriss der Auswahl „geschlossen“ bis 0,23 mm). "
          "Gilt nur für diesen Arbeitsplatz."],
         ["STEP-Import", "Toleranz Profil aus den Stammdaten ± [mm], Toleranz gleiche Teile einer Baugruppe ± [mm], "
                         "Toleranz Kernloch für Gewinde-Vorschlag ± [mm]",

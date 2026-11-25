@@ -63,6 +63,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import step_ergebnis  # noqa: E402
 import step_geometrie  # noqa: E402
+import step_lesecache  # noqa: E402
 from step_geometrie import FLACHSTAHL_BIS, analysiere_datei  # noqa: E402
 
 TEILEN_AB = int(os.environ.get("STEP_MESSEN_TEILEN_AB", 4))    # Datei auf Prozesse verteilen ab so vielen Körpern
@@ -135,49 +136,16 @@ def _schnappschuss_pfad(datei, einst, aufsicht=None):
 
 
 def _schnappschuss_schreiben(pfad, gel):
-    import pickle
-    from OCP.BinTools import BinTools
-    from OCP.BRep import BRep_Builder
-    from OCP.TopoDS import TopoDS_Compound
-    try:
-        c = TopoDS_Compound()
-        b = BRep_Builder()
-        b.MakeCompound(c)
-        for _, k in gel.koerper:
-            b.Add(c, k)
-        tmp = pfad.with_suffix(f".{os.getpid()}.tmp")
-        BinTools.Write_s(c, str(tmp))
-        tmp.with_suffix(".pkl").write_bytes(pickle.dumps(
-            (gel.name, gel.info, gel.gleich, gel.gedreht, [a for a, _ in gel.koerper])))
-        os.replace(tmp.with_suffix(".pkl"), pfad.with_suffix(".pkl"))
-        os.replace(tmp, pfad)
-    except Exception:       # nur Beschleunigung: dann liest jeder Prozess selbst
-        pass
+    """Nur Beschleunigung: misslingt es, liest jeder Prozess selbst (step_lesecache.formen_schreiben)."""
+    step_lesecache.formen_schreiben(pfad, gel.koerper, (gel.name, gel.info, gel.gleich, gel.gedreht))
 
 
 def _schnappschuss_laden(pfad):
-    import pickle
-    from OCP.BinTools import BinTools
-    from OCP.TopoDS import TopoDS, TopoDS_Iterator, TopoDS_Shape
-    try:
-        if pfad is None or not pfad.is_file():
-            return None
-        name, info, gleich, gedreht, arten = pickle.loads(pfad.with_suffix(".pkl").read_bytes())
-        s = TopoDS_Shape()
-        BinTools.Read_s(s, str(pfad))
-        it, koerper = TopoDS_Iterator(s), []
-        while it.More():
-            koerper.append(it.Value())
-            it.Next()
-        if len(koerper) != len(arten):
-            return None
-        from OCP.TopAbs import TopAbs_COMPOUND, TopAbs_FACE, TopAbs_SHELL, TopAbs_SOLID
-        art = {TopAbs_SOLID: TopoDS.Solid, TopAbs_SHELL: TopoDS.Shell, TopAbs_FACE: TopoDS.Face,
-               TopAbs_COMPOUND: TopoDS.Compound}
-        koerper = [(a, art.get(k.ShapeType(), lambda x: x)(k)) for a, k in zip(arten, koerper)]
-        return step_geometrie.Gelesen(name, koerper, info, gleich, gedreht)
-    except Exception:
+    erg = step_lesecache.formen_laden(pfad) if pfad is not None else None
+    if erg is None:
         return None
+    koerper, (name, info, gleich, gedreht) = erg
+    return step_geometrie.Gelesen(name, koerper, info, gleich, gedreht)
 
 
 def _schnappschuss_weg(pfad):
@@ -857,6 +825,8 @@ def main(argv=None):
                     "als virtuelles Bauteil messen (step_schenkel)")
     ap.add_argument("--virtuell", help="Ordner: virtuelles Bauteil (Teil mit Stegen bzw. Ringen, so wird gelasert) je "
                     "Körper als STEP k<Nr>.step")
+    ap.add_argument("--lesecache", action="store_true",
+                    help="mit --cache: gelesene und geheilte Körper merken (step_lesecache, großes Wiedereinlesen schnell)")
     ap.add_argument("--kennung", default="", help="Programmversion (Teil des Schlüssels im Zwischenspeicher)")
     ap.add_argument("--zwischenstand", type=float, default=0,
                     help="Sekunden: messen nur noch Körper, die schon so lange laufen, Zwischenstand ohne sie nach "
@@ -894,6 +864,8 @@ def main(argv=None):
     schluessel = {}
     if a.cache:
         Path(a.cache).mkdir(parents=True, exist_ok=True)
+        if a.lesecache:     # Lese-Zwischenspeicher (CAD-Kern 3.0): gilt über die Umgebung auch in den Messprozessen
+            os.environ[step_lesecache.UMGEBUNG] = str(Path(a.cache).resolve())
         wirksam = dict(einst, flachstahl_bis=a.flachstahl_bis, netze=bool(a.netze))
         for i, d in enumerate(dateien, start=1):
             try:
@@ -959,6 +931,8 @@ def main(argv=None):
                 print(f"[{zaehler[0]}/{len(dateien)}] {dateien[i - 1].name}", flush=True)
                 fertig(i, messen(dateien[i - 1], a.netze, i, a.flachstahl_bis, einst))
     fehler = False
+    if a.cache:
+        cache_begrenzen(a.cache, a.cache_mb)       # auch die gemerkten Lesungen (step_lesecache)
     if a.json:
         Path(a.json).write_text(json.dumps(step_ergebnis.gesamt([e[1] for e in ergebnis]), ensure_ascii=False,
                                            indent=1), encoding="utf-8")
