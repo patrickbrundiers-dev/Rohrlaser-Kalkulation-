@@ -166,6 +166,11 @@ assert k2["umriss"] != k2["umriss_step"] and k2["gemessen"] != k2["gemessen_step
 zeilen = dreid.bearbeitungen(dict(laenge=300.0, technik=json.dumps(dict(f3, d3=True))), masch)
 assert [z["art"] for z in zeilen] == [dreid.KONTUR_3D] and nah(zeilen[0]["winkel_eingabe"], k3["schwenk"], 0.01) \
     and zeilen[0]["winkel"] <= 45, zeilen
+db_f = Datenbank(tmp / "f.db")
+for d3_, soll in ((True, False), (False, True)):
+    ef = step.uebernehmen([dict(mf, _uebernehmen=True)], [], db_f.kontext(), db_f.zeilen("gewinde"), None,
+                          "S235-10219", 1, neue_profile=True, d3=d3_)
+    assert ("nicht senkrecht" in " ".join(ef["bericht"])) == soll, (d3_, ef["bericht"])
 n3 = rohr3d.netz_rechnen(dict(f3, d3=True), profil, 300.0)
 n2 = rohr3d.netz_rechnen(f2, profil, 300.0)
 assert n3 and n2 and n3 != n2

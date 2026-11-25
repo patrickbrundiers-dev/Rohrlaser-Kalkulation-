@@ -3818,7 +3818,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if bohr_3d and not mit_3d:
                 hinweise.append(f"3D prüfen: {bohr_3d} schräge Bohrung{'en' if bohr_3d > 1 else ''}, ohne "
                                 "3D-Schnittbearbeitung als 2D gerechnet")
-            sonst_3d = schraege_konturen(m)
+            sonst_3d = max(0, schraege_konturen(m) - (sonder_3d(m) if mit_3d else 0))     # mit 3D gerechnet: kein Hinweis
             if sonst_3d:
                 hinweise.append(f"3D prüfen: {sonst_3d} Kontur{'en' if sonst_3d > 1 else ''} nicht senkrecht zur "
                                 "Oberfläche, als 2D gerechnet")
