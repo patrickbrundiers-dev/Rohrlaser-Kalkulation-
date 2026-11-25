@@ -95,7 +95,7 @@ class Leinwand(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.setMinimumHeight(320)
+        self.setMinimumHeight(180)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setMouseTracking(False)
         self.packliste, self.pal, self.modus3d, self.lage = None, None, False, 0   # lage 0 = alle
@@ -369,6 +369,8 @@ class PackAnsicht(QWidget):
         self.k2d.setChecked(True)
         for w, t in ((QLabel("Variante"), None), (self.variante, 1), (QLabel("Packstück"), None), (self.packstueck, 0),
                      (QLabel("Lage"), None), (self.lage, 0), (self.k2d, None), (self.k3d, None)):
+            if isinstance(w, QComboBox):
+                w.setMinimumWidth(90)
             oben.addWidget(w, t or 0)
         lay.addLayout(oben)
         self.kennzahlen = QTableWidget(0, 7)
@@ -379,6 +381,7 @@ class PackAnsicht(QWidget):
         self.kennzahlen.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.kennzahlen.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.kennzahlen.setMaximumHeight(150)
+        self.kennzahlen.setMinimumHeight(60)
         lay.addWidget(self.kennzahlen)
         self.leinwand = Leinwand()
         lay.addWidget(self.leinwand, 1)
@@ -386,16 +389,20 @@ class PackAnsicht(QWidget):
         self.info.setWordWrap(True)
         self.info.setTextFormat(Qt.RichText)
         lay.addWidget(self.info)
-        hand = QHBoxLayout()
         self.allein = QPushButton("Position allein auf ein Packstück")
         self.achse = QPushButton("Lage längs/quer drehen")
         self.ziel = QComboBox()
+        self.ziel.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.ziel.addItem("neues Packstück", 0)
         self.schieben = QPushButton("Lage verschieben")
         self.zurueck = QPushButton("Von Hand zurücksetzen")
-        for b in (self.allein, self.achse, QLabel("nach"), self.ziel, self.schieben, self.zurueck):
-            hand.addWidget(b)
-        hand.addStretch(1)
-        lay.addLayout(hand)
+        for zeile in ((self.allein, self.achse, self.zurueck), (QLabel("Lage nach"), self.ziel, self.schieben)):
+            hand = QHBoxLayout()          # zwei Zeilen: auch im schmalen Fenster jede Beschriftung ganz lesbar
+            for b in zeile:
+                b.setMinimumWidth(b.sizeHint().width())
+                hand.addWidget(b)
+            hand.addStretch(1)
+            lay.addLayout(hand)
         self.allein.setToolTip("Gewählte Position packt nur auf eigene Packstücke (keine anderen Artikel dazu)")
         self.achse.setToolTip("Gewählte Position: Teile längs bzw. quer zur langen Seite legen")
         self.schieben.setToolTip("Ganze Lage des gewählten Teils auf ein anderes oder ein neues Packstück; wird "
