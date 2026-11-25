@@ -794,12 +794,16 @@ class SchneidwegDialog(QDialog):
                                                             and k_ not in ENDE_FELDER
                                                             and not (eben_3d and k_ == "aussen_mass")})
                 self.winkel[s].setStyleSheet("background: #E8F5E9;")
+                er = self._erkannt(s)
                 gm.setText(f"<span style='color:#1E6B35'>gemessen {rechnen.zahl(x['gemessen'], 1)} mm"
                            + (f", {x['form']}" if x.get("form") else "")
+                           + (f", erkannt: {er[0]} (± {rechnen.zahl(er[1], 2)} mm)" if er else "")
                            + (" (3D-Ende, für andere Profile gerechnet)" if x.get("flaechen") else "") + "</span>")
             else:
                 self.winkel[s].setStyleSheet("")
                 gm.setText("<span style='color:#595959'>–</span>")
+            if s in getattr(self, "kontur_knopf", {}):
+                self._kontur_text(s)            # Hinweis „aus der STEP erkannt“ am Knopf Endkontur
             if s in self._nasen:
                 n = self._nasen[s]
                 gm.setText(gm.text() + f" <span style='color:#1F4E79'>· Steckverbindung {n.get('id', '')}: "
@@ -1249,12 +1253,24 @@ class SchneidwegDialog(QDialog):
         k.setToolTip("Gegenrohr ändern oder entfernen" if g else
                      "Ende auf ein Gegenrohr setzen (rund oder rechteckig, schräg, mit Versatz)")
 
+    def _erkannt(self, s):
+        """(Text, Abweichung, Kontur) der aus der STEP erkannten Konturart des Endes s (gemessener Umriss, solange das
+        Ende wie gemessen ist) oder None."""
+        from . import endkontur
+        x = (getattr(self, "_ende_step", {}).get(s) or (None, {}))[1]
+        er = x.get("kontur_erkannt") if isinstance(x, dict) else None
+        k = endkontur.lesen(er.get("kontur")) if isinstance(er, dict) else None
+        return (endkontur.text(k), sw._z(er.get("abweichung")), k) if k and x.get("umriss") else None
+
     def _kontur_text(self, s):
         from . import endkontur
         k = self.kontur.get(s)
         b = self.kontur_knopf[s]
         b.setText(f"{endkontur.text(k)} …" if k else "Endkontur …")
+        er = None if k else self._erkannt(s)
         b.setToolTip("Endkontur ändern oder entfernen" if k else
+                     f"Aus der STEP erkannt: {er[0]} (± {rechnen.zahl(er[1], 2)} mm). Klick öffnet sie zum Bearbeiten; "
+                     "übernommen ersetzt sie den gemessenen Umriss" if er else
                      "Freie Endkontur: schräg, V, U, S, Bogen, Stufen, Freiform oder mehrere überlagert")
 
     def endkontur(self, s, k=False):
@@ -1264,7 +1280,9 @@ class SchneidwegDialog(QDialog):
             from .endkontur_dialog import fragen
             m = rechnen.maschine(self.kopf, self.k) or {}
             alt = {kk: v for kk, v in self.eingaben_enden().get(s, {}).items()}
-            geaendert, k = fragen(self.profil, self.kontur.get(s), "Ende A" if s == "a" else "Ende B", self, alt=alt,
+            er = None if self.kontur.get(s) else self._erkannt(s)      # aus der STEP erkannt: vorbelegt
+            geaendert, k = fragen(self.profil, self.kontur.get(s) or (er[2] if er else None),
+                                  "Ende A" if s == "a" else "Ende B", self, alt=alt,
                                   kerf=sw._z(m.get("schnittverlust")) or 0.2, laenge=sw._z(self.p.get("laenge")) or None)
             if not geaendert:
                 return
