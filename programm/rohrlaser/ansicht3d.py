@@ -3089,9 +3089,10 @@ class Ansicht3D(QWidget):
                     if self.mess_max else
                     "Naht zeichnen: Punkte entlang der Naht anklicken (fängt die nächste Ecke)") if self.messen else
                    hinweis or
-                   "Linke Maustaste drehen (um den Punkt unter der Maus) · rechte verschieben · Mausrad zoomen · "
-                   "Doppelklick Ausgangsansicht · Tasten 1–6/0 Ansichten, F einpassen", Qt.ElideRight, int(self.width() - 20)))
-        if self._drehpunkt is not None and self._maus is not None and self._maus[1] == Qt.LeftButton:
+                   navigation3d.hinweis(navigation3d.werte_lesen(_speicher)) +     # nach der Mausbelegung (25.11.)
+                   " · Doppelklick Ausgangsansicht · Tasten 1–6/0 Ansichten, F einpassen", Qt.ElideRight,
+                   int(self.width() - 20)))
+        if self._drehpunkt is not None and self._maus is not None and self._maus[2] == "drehen":
             x, y = self._drehpunkt[1]           # Drehpunkt beim Drehen zeigen
             p.setRenderHint(QPainter.Antialiasing, True)
             p.setBrush(Qt.NoBrush)
@@ -3605,8 +3606,11 @@ class Ansicht3D(QWidget):
         super().keyPressEvent(e)
 
     def wheelEvent(self, e):
-        self.zoomen(navigation3d.zoom_faktor(e.angleDelta().y(), navigation3d.werte_lesen(_speicher)),
-                    e.position().x(), e.position().y())
+        schritte = navigation3d.rad_schritte(e.angleDelta().y(), e.angleDelta().x(), e.pixelDelta().y())
+        e.accept()                      # das Rad gehört dem 3D (rollt nie die Seite darunter)
+        if schritte:
+            self.zoomen(navigation3d.zoom_faktor(schritte, navigation3d.werte_lesen(_speicher)),
+                        e.position().x(), e.position().y())
 
     def zoomen(self, faktor, x=None, y=None):
         """Zoom um faktor; mit Pixel (x, y) bleibt der Punkt unter der Maus stehen (Zoom zur Mausposition)."""
