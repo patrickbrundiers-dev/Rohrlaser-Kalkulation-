@@ -5,7 +5,9 @@
 - Gehrung in 3D an Ende A oder B (technik a/b {d3: true}): der Kopf wird auf den Gehrungswinkel geschwenkt, die
   Schnittfläche ist eben durch die ganze Wand. Eine Gehrung ohne 3D bleibt der heutige 2D-Schnitt.
 - schräge Bohrung (Kontur Bohrung {d3: true, neigung_l, neigung_q}).
-Fasen werden nicht in 3D bearbeitet (Patrick: in der Praxis nicht zuverlässig).
+Fasen an den Enden: nur eine Fase durch die ganze Wand wird mit 3D-Schnittbearbeitung als 3D-Schnitt gerechnet
+(Kopf um die Neigung der Fase geschwenkt, Patrick 25.11.2026); jede andere Fase wird nicht gelasert (22.10.2026:
+in der Praxis nicht zuverlässig).
 
 Zwei Winkel nie verwechseln:
 - Umfangswinkel = Lage am Rohr (Kontur 'seite'): Blick von Ende A, 0° oben, 90° rechts, 180° unten, 270° links.
@@ -286,6 +288,17 @@ def bearbeitungen(p, m=None, einstiche_ende=1, profil=None):
             continue
         z = dict(art=art, winkel_eingabe=e.get("winkel"), laengs=None, quer=None, anzahl=1,
                  einstiche=einstiche_ende, huelle=None, abstand_b=abst, hinweis=None, fehler=None, ende=True)
+        fase = e.get("fase") if isinstance(e.get("fase"), dict) else None
+        if fase and fase.get("ganze_wand") and _z(fase.get("winkel")) > 0 and not _z(e.get("winkel")):
+            # Fase durch die ganze Wand (Patrick 25.11.2026): Kopf um die Neigung der Fase geschwenkt, ganzer Umfang
+            z["winkel_eingabe"] = _z(fase["winkel"])
+            try:
+                z["winkel"], z["hinweis"] = gehrung_begrenzen(z["winkel_eingabe"], m)
+            except ValueError as f:
+                z.update(winkel=None, fehler=str(f))
+            z.update(laenge=_z(p.get(schnitt)), fase=True)
+            erg.append(z)
+            continue
         try:
             z["winkel"], z["hinweis"] = gehrung_begrenzen(e.get("winkel"), m)
         except ValueError as f:

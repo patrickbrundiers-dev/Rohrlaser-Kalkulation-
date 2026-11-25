@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.490", "<b>Fasen an den Rohrenden wie in der STEP</b> ([[step]]): Im Editor und in der 3D-Ansicht "
+                "liegt das Ende mit Fase jetzt wie in der STEP (vorher gerade an der längsten Stelle, bis 3 mm "
+                "daneben). Der Import misst Tiefe, Höhe und Winkel der Fase. Geht sie durch die ganze Wand und ist die "
+                "3D-Schnittbearbeitung am Teil aktiviert, wird sie als 3D-Schnitt gerechnet (Kopf um den Fasenwinkel "
+                "geschwenkt); sonst wird sie wie bisher nicht gelasert.",
+     "Fasen-Enden im Editor wie in der STEP, Fase durch die ganze Wand mit 3D als 3D-Schnitt"],
     ["0.9.489", "<b>Supportpaket 25.11.: BLM-Programme mit Fasen, Schnitt auf 0, Transportschiene</b> "
                 "([[blm_programm]], [[null_schnitt]]): BPF/ARTUBE vom LT7 mit Fasen-Enden (3D-Kopf) ließen sich nicht "
                 "lesen (<i>BPF-Datei beschädigt</i>, ein Behälter von 2 KB stand in einem eigenen Block) und hingen "
