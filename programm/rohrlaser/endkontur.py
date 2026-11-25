@@ -587,23 +587,37 @@ def ende_verlauf_zellen(qs, gk, e, gespiegelt=False, d3=None):
     out = []
     zusatz = 0.0
     w = abs(_z(e.get("winkel")))
-    if e.get("d3") and w:
+    # 3D-Ebene: echte Innenkante je Stützstelle (unten); innen_3d = pauschaler Zuschlag als zweite sichere Grenze
+    innen_3d = (qs.wand or 0.0) * math.tan(math.radians(min(w, 80))) if _innen_3d(qs, e) else 0.0
+    if innen_3d:
+        pass
+    elif e.get("d3") and w:
         zusatz = (qs.wand or 0.0) * math.tan(math.radians(min(w, 80)))
     elif _z(e.get("schwenk")) >= 0.5 and d3 is not False:
         zusatz = (qs.wand or 0.0) * math.tan(math.radians(min(_z(e.get("schwenk")), 80)))
     for i in range(g.n):
-        werte = []
+        werte, werte_i = [], []
         for k_ in range(TEIL_SCHRITTE + 1):
             s = (i + k_ / TEIL_SCHRITTE) * g.ds
-            (u, v), _ = qs.s_zu_uv(min(s, qs.umfang - 1e-9))
+            (u, v), nrm = qs.s_zu_uv(min(s, qs.umfang - 1e-9))
             if gespiegelt:
                 u = -u
             try:
                 werte.append(sk.schnitt_x(qs, e, u, v))
+                if innen_3d:                # 3D-Schnitt: die Ebene trifft die Innenwand an ihrer eigenen Stelle
+                    ln = math.hypot(*nrm) or 1.0
+                    ui, vi = u - qs.wand * (-nrm[0] if gespiegelt else nrm[0]) / ln, v - qs.wand * nrm[1] / ln
+                    werte_i.append(sk.schnitt_x(qs, e, ui, vi))
             except (ValueError, ZeroDivisionError, TypeError):
                 return None
         sprung = max((abs(b - a) for a, b in zip(werte, werte[1:])), default=0.0)
-        out.append(min(werte) - sprung / 2 - zusatz)     # zwischen den Stützstellen höchstens um den halben Sprung
+        wert = min(werte) - sprung / 2 - zusatz         # zwischen den Stützstellen höchstens um den halben Sprung
+        if werte_i:
+            # beides sind sichere Grenzen: die echte Innenkante und der pauschale Zuschlag Wand × tan(Winkel) (an
+            # Ecken von Kastenprofilen springt die Innenkante, dort ist der Zuschlag enger); die weitere zählt
+            sprung_i = max((abs(b - a) for a, b in zip(werte_i, werte_i[1:])), default=0.0)
+            wert = max(min(wert, min(werte_i) - sprung_i / 2), wert - innen_3d)
+        out.append(wert)
     um = sk.ende_umriss_von(qs, e)
     if um:                                  # Knicke eines gemessenen bzw. konstruierten Verlaufs genau
         f = sk._ende_umriss_merken(qs, um)
@@ -615,6 +629,24 @@ def ende_verlauf_zellen(qs, gk, e, gespiegelt=False, d3=None):
             i = int(s / g.ds) % g.n
             out[i] = min(out[i], f(st) - zusatz)
     return out
+
+
+def _innen_3d(qs, e):
+    """True, wenn die Innenkante eines Endes genau aus der Schnittebene folgt: ebener Schnitt (Gehrung bzw. schräg in
+    zwei Richtungen) mit 3D-Bearbeitung ('d3') an einem Hohlprofil. Dann liegt die Innenkante dort, wo die Ebene die
+    Innenwand trifft (wie in der STEP), statt pauschal Wand × tan(Winkel) vor der Außenkante (Master-Auftrag
+    Abwicklungskern 25.11.2026, P4; Patrick 25.11.2026: mit 3D wie in der STEP, ohne 3D 90° an der Innenkante)."""
+    w = abs(_z(e.get("winkel")))
+    return bool(e.get("d3") and 0 < w < 80 and (qs.wand or 0) > 0 and not e.get("umriss") and not e.get("kontur")
+                and not e.get("nasen") and not _gegen(e))
+
+
+def _gegen(e):
+    from . import durchdringung as dd
+    try:
+        return bool(dd.gegen_lesen(e))
+    except Exception:   # noqa: BLE001
+        return True
 
 
 def profil_schluessel(werte):
@@ -713,7 +745,10 @@ def kanten_punkte(qs, e, gespiegelt=False, n=720):
         out.append((u, v, d))
         if qs.wand:
             ln = math.hypot(*nrm) or 1.0
-            out.append((u - qs.wand * nrm[0] / ln, v - qs.wand * nrm[1] / ln, d))
+            ui, vi = u - qs.wand * nrm[0] / ln, v - qs.wand * nrm[1] / ln
+            # 3D-Schnitt: Innenkante dort, wo die Ebene die Innenwand trifft; 2D: unter der Außenkante
+            di = sk.schnitt_x(qs, e, -ui if gespiegelt else ui, vi) if _innen_3d(qs, e) else d
+            out.append((ui, vi, di))
     return out
 
 
