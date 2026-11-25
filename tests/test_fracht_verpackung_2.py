@@ -273,6 +273,14 @@ assert cb[0]["preis"] == 89.0
 url, kopf_h, body = fracht_api.UPS().anfrage(dict(sp, stuecke=[dict(kg=8.0, masse=(600, 400, 400))]), "A1")
 assert body["RateRequest"]["Shipment"]["Package"][0]["Dimensions"]["Length"] == "60"
 assert "@" not in json.dumps(body)                         # keine Kunden- oder Personendaten
+zwei = dict(sp, stuecke=[dict(kg=8.0, masse=(600, 400, 400)), dict(kg=3.0, masse=(300, 200, 100))])
+url, kopf_h, body = fracht_api.DHLExpress().anfrage(zwei, "A1")
+assert body["packages"][1] == {"weight": 3.0, "dimensions": {"length": 30, "width": 20, "height": 10}}, body
+assert len(body["packages"]) == 2 and "?" not in url          # Mehrstück per POST, jedes Stück mit Maß
+tk, tb = fracht_api._token_anfrage(fracht_api.FedEx(), "id1", "geh")
+assert b"client_id=id1" in tb and b"client_secret=geh" in tb and "Authorization" not in tk
+tk, tb = fracht_api._token_anfrage(fracht_api.UPS(), "id1", "geh")
+assert tk["Authorization"].startswith("Basic ") and tb == b"grant_type=client_credentials"
 db.einstellung_setzen("fracht_api_aktiv", "ja")
 zugang.speichern(fracht_api.zugang_name("UPS"), "A1|client", "geheim")
 
