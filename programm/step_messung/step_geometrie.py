@@ -104,6 +104,7 @@ class Teil:
     innen_b: float = 0.0        # Innenmaß Höhe
     wand_messungen: list = field(default_factory=list)  # je Messstelle (z ab Ende A, x, y, Wert, Seite) [mm]
     sicherheit: dict = field(default_factory=dict)       # je Merkmal: sicher / wahrscheinlich / unsicher / …
+    bilanz: dict = field(default_factory=dict)  # Schneidweg-Bilanz (_schneidweg_bilanz), nur Prüfung, {} = nicht gerechnet
     achse_global: tuple = ()    # Richtung der Rohrachse (Ende A -> B) in der Datei, Einheitsvektor
     ende_a_global: tuple = ()   # Mitte von Ende A (Schwerlinie, z = 0) in der Datei [mm]
     x_global: tuple = ()        # lokale X-Richtung (Breite) in der Datei: mit Achse und Ende A die Einbaulage
@@ -738,6 +739,65 @@ def _flaeche(shape):
 
 def _kantenlaenge(kante):
     return GCPnts_AbscissaPoint.Length_s(BRepAdaptor_Curve(TopoDS.Edge(kante)))
+
+
+BILANZ_TOL = 0.01      # mm: so weit darf die Summe der Konturkanten von der Summe aller Schnittkanten abweichen
+
+
+def _schneidweg_bilanz(kanten_info, art, liste, enden):
+    """Schneidweg-Bilanz (Master-Auftrag 25.11.2026, Paket P3): jede Kante zwischen Außenmantel ("A") und einer
+    Schnittfläche ("S") ist eine geschnittene Kante und muss zu genau einer Kontur gehören (Innenkontur, Gravur oder
+    Ende). Zählt fehlende (keiner Kontur zugeordnet) und doppelte (mehreren zugeordnet) Kanten und vergleicht die
+    Kantenlängen. Nur Prüfung: ändert keinen Messwert. Ergebnis: dict(kanten, fehlt, doppelt, laenge_kanten,
+    laenge_konturen, ok)."""
+    km = TopTools_IndexedMapOfShape()
+    laengen = []
+    for e, fi in kanten_info:
+        arten = {art[f] for f in fi}
+        if "A" in arten and "S" in arten and km.FindIndex(e) == 0:
+            km.Add(e)
+            laengen.append(_kantenlaenge(e))
+    zaehler = [0] * len(laengen)
+    fremd = 0
+    gruppen = [liste.kanten.get(id(d), ()) for d in liste] + [enden[k][2] for k in enden]
+    for gruppe in gruppen:
+        for e in gruppe:
+            i = km.FindIndex(e)
+            if i:
+                zaehler[i - 1] += 1
+            else:
+                fremd += 1
+    fehlt = [i for i, n in enumerate(zaehler) if n == 0]
+    doppelt = [i for i, n in enumerate(zaehler) if n > 1]
+    lk = sum(laengen)
+    lz = sum(laengen[i] * n for i, n in enumerate(zaehler))
+    return dict(kanten=len(laengen), fehlt=len(fehlt), doppelt=len(doppelt), fremd=fremd,
+                laenge_fehlt=round(sum(laengen[i] for i in fehlt), 3), laenge_kanten=round(lk, 3),
+                laenge_konturen=round(lz, 3),
+                ok=not fehlt and not doppelt and not fremd and abs(lk - lz) <= BILANZ_TOL)
+
+
+def _bilanz_melden(t):
+    """Ergebnis der Schneidweg-Bilanz in die Erkennungssicherheit (Spalte sicherheit, schneidweg=geprüft bzw.
+    wahrscheinlich) und bei einem Befund als Hinweis – nie still übergehen. Ändert keinen Messwert."""
+    b = t.bilanz or {}
+    if b.get("ok"):
+        t.sicherheit["schneidweg"] = "geprüft"
+        return
+    t.sicherheit["schneidweg"] = "wahrscheinlich"
+    if b.get("fehler"):
+        t.hinweise.append(f"Schneidweg-Bilanz nicht gerechnet ({b['fehler']}), Schneidweg bitte prüfen")
+        return
+    teile = []
+    if b.get("fehlt"):
+        teile.append(f"{b['fehlt']} Schnittkante(n) ohne Kontur ({b['laenge_fehlt']:.1f} mm)")
+    if b.get("doppelt"):
+        teile.append(f"{b['doppelt']} Kante(n) in mehreren Konturen")
+    if b.get("fremd"):
+        teile.append(f"{b['fremd']} Konturkante(n) nicht auf einer Schnittfläche")
+    if not teile:
+        teile.append(f"Konturkanten {b.get('laenge_konturen')} mm statt {b.get('laenge_kanten')} mm")
+    t.hinweise.append("Schneidweg-Bilanz: " + ", ".join(teile) + " – Schneidweg bitte prüfen")
 
 
 def _vec(d):
@@ -3208,6 +3268,11 @@ def _profil_messen_kern(solid, datei="", koerper=1, netz=False, quer=None, vorga
                 a_["gegenueber"], b_["gegenueber"] = True, True
     for d in liste:
         d.pop("_achse", None)
+    try:
+        t.bilanz = _schneidweg_bilanz(kanten_info, art, liste, enden)
+    except Exception as e_:     # noqa: BLE001 – Prüfung darf die Messung nie stören
+        t.bilanz = dict(ok=None, fehler=f"{type(e_).__name__}: {e_}")
+    _bilanz_melden(t)
     kopf = []
     for art_, name, z in (("EA", "Ende A", 0.0), ("EB", "Ende B", t.laenge)):
         fl, lg, kt = enden[art_]
