@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.483", "<b>Austauschordner 2.0, Paket C</b> ([[austausch]]): STEP-Dateien öffnen mit einem Klick im "
+                "<b>STEP-Viewer</b> des Programms. LST, BPF und ArTube gleichen Namens stehen als <i>Zugehörige "
+                "Programme</i> neben der STEP. Neuer Knopf <b>Dateien im Austausch</b> bei Kunde, Angebot und "
+                "Auftrag, er findet auch Dateien mit der Angebots- oder PPEASE-Nummer im Pfad. Outlook-Mails (MSG, "
+                "EML): <i>Anhänge auspacken</i> legt die Anhänge daneben, mit der Zuordnung der Mail, ohne Doppel und "
+                "ohne Überschreiben. Die Rechte im Austauschordner stehen jetzt als Tabelle je Rolle in <i>Benutzer "
+                "und Rollen</i> und gehen mit den Admin-Vorgaben an alle Plätze. Ist das Netzlaufwerk weg, meldet "
+                "das Hochladen das klar, statt Ordner woanders anzulegen. Nach einem Netzausfall mitten im Hochladen "
+                "sperrt kein Rest mehr die Datei.",
+     "Austausch: STEP-Viewer, zugehörige LST/BPF, Dateien im Austausch bei Kunde/Angebot/Auftrag, Mail-Anhänge, "
+     "Rechtetabelle"],
     ["0.9.482", "<b>Rechenkern 2.0, Teil 2: Import robuster, Speicher sparsamer</b>: Ist in einer STEP-Baugruppe ein "
                 "Körper beschädigt, fehlt er nicht mehr still: bei jedem Körper steht <i>STEP-Leser meldet: 1 von 48 "
                 "Volumenkörpern der Datei nicht lesbar (beschädigt?) …</i>, die übrigen Körper werden wie bisher "
