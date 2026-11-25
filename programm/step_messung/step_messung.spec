@@ -19,6 +19,7 @@ hiddenimports += ["step_tubx"]            # TRUMPF TUBX wie STEP, wird erst bei 
 hiddenimports += ["step_blm"]             # BLM ArTube/BPF wie STEP, wird erst bei Bedarf importiert
 hiddenimports += ["step_lst", "rohrlaser.lst_bahn"]     # TRUMPF-LST aus dem Schneidweg, erst bei Bedarf importiert
 hiddenimports += ["step_schreiben"]       # STEP-Export (--export), wird erst bei Bedarf importiert
+hiddenimports += ["step_qualitaet"]       # Geometrieprüfung (in Funktionen importiert, Master-Auftrag 24.11.2026)
 # RP-Bibliothek (rohrlaser/rp_profile.json) für die Erkennung der RP-Profile per Fingerabdruck
 datas += [(os.path.join(os.path.dirname(SPECPATH), "rohrlaser", "rp_profile.json"), "rohrlaser")]
 # Von delvewheel/auditwheel ausgelagerte DLLs (cadquery_ocp.libs) neben die .exe legen
