@@ -101,7 +101,7 @@ def _rolle(d, wand, sicher):
 
 def _ende(d, art, form, sicher):
     r = ANFANG if art == "Ende A" else ENDE
-    erkannt = (d.get("kontur_erkannt") or {}).get("kontur") if isinstance(d.get("kontur_erkannt"), dict) else None
+    erkannt = _ende_erkannt(d.get("kontur_erkannt"))
     if d.get("gegenrohr"):
         g = d["gegenrohr"]
         dm = _f(g.get("d")) if isinstance(g, dict) else None
@@ -122,7 +122,23 @@ def _ende(d, art, form, sicher):
                                                                             ", Erkennung des Teils unsicher"))
     if erkannt:
         return _ergebnis(r, WAHRSCHEINLICH, f"Endkontur {erkannt} aus dem gemessenen Umriss")
+
     return _ergebnis(r, PROBLEMATISCH, "Endschnitt ohne Grundform (mehrere Flächen), Schnittlänge aus dem STEP")
+
+
+def _ende_erkannt(k):
+    """Text der erkannten Endkontur (Endkonturen-Thread, endkontur.py): Grundart (kontur), Ausklinkung in einer Wand
+    (ausklinkung, kontur None) und Freimachung (freimachung) – sonst None."""
+    if not isinstance(k, dict):
+        return None
+    teile = []
+    if k.get("kontur"):
+        teile.append(str(k["kontur"]))
+    elif isinstance(k.get("ausklinkung"), dict):
+        teile.append(k.get("text") or "Ausklinkung")
+    if isinstance(k.get("freimachung"), dict):
+        teile.append(k["freimachung"].get("text") or "Freimachung")
+    return ", ".join(teile) or None
 
 
 def _innen(d, art, wand, sicher):
@@ -138,7 +154,7 @@ def _innen(d, art, wand, sicher):
     elif art == "Sonderkontur":
         erk = d.get("form_erkannt")
         if isinstance(erk, dict):       # Endkonturen-Thread (form_erkennung.py): {typ, …}
-            erk = erk.get("typ") or erk.get("form") or ""
+            erk = erk.get("text") or erk.get("typ") or erk.get("form") or ""
         if erk:
             return _ergebnis(AUSSCHNITT, WAHRSCHEINLICH, f"Sonderkontur, Grundform {erk} aus dem Umriss")
         if len(d.get("waende") or ()) > 1:

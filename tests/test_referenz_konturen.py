@@ -132,6 +132,14 @@ def _():
         kr.WAHRSCHEINLICH
     assert kr.rolle(dict(art="Ende B", form="komplex", schnittlaenge=90, kontur_erkannt=dict(kontur="V")))[
         "stufe"] == kr.WAHRSCHEINLICH
+    # Freimachung (Endkonturen-Thread): Ausklinkung in einer Wand ohne Grundart, Rechteck mit Freimachung innen
+    r = kr.rolle(dict(art="Ende B", form="komplex", schnittlaenge=287, kontur_erkannt=dict(
+        kontur=None, ausklinkung=dict(breite=20, tiefe=30), text="Ausklinkung 20 × 30",
+        freimachung=dict(d=10, lage="mittig", anzahl=2, text="Freimachung 2 × Ø10 mittig"))))
+    assert r["stufe"] == kr.WAHRSCHEINLICH and "Ausklinkung 20 × 30, Freimachung 2 × Ø10" in r["grund"], r
+    r = kr.rolle(dict(art="Sonderkontur", z=50, schnittlaenge=214, form_erkannt=dict(
+        typ="Rechteck mit Freimachung", text="Rechteck 60 × 20, Freimachung 4 × Ø10 mittig")))
+    assert r["rolle"] == kr.AUSSCHNITT and r["stufe"] == kr.WAHRSCHEINLICH and "Freimachung 4" in r["grund"], r
 
 
 @fall("Zusammenfassung: zu prüfen sind Stufe 3 und 4, Konturen ohne Schnitt zählen nicht")
