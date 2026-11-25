@@ -273,9 +273,12 @@ class StepPruefDialog(QDialog):
     AUTOMATISCH = "automatisch (vorhanden oder neu)"     # kurz für die Spalte (11.11.2026); Erklärung im Tooltip
     # Hinweis gleich hinter dem Teil (Plan Angebotsablauf V2: bei 1366 px sichtbar, ganzer Text im Tooltip)
     SPALTEN = ("Artikelnummer ✎", "In Datei", "Hinweis", "Art", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl",
-               "Zusatzarbeiten", "Länge [mm]", "Schneidweg [mm]", "Konturen", "Anbauteile")
+               "Zusatzarbeiten", "Länge [mm]", "Schneidweg [mm]", "Konturen", "Anbauteile", "Revision",
+               "Erkennung Stückzahl")
     (SP_HINWEIS, SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_ZUSATZ, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN,
-     SP_ANBAU) = range(2, 12)
+     SP_ANBAU, SP_REVISION, SP_ERKENNUNG) = range(2, 14)
+    # 25.11.2026 (Master-Auftrag Outlook-Import): Revision aus dem Dateinamen und Status der Stückzahl aus Mail/PDF
+    # (sicher, unsicher, Widerspruch, Revision prüfen, nicht erkannt) mit Quelle; nur sichtbar, wenn es etwas zeigt
 
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
@@ -514,7 +517,7 @@ class StepPruefDialog(QDialog):
         QShortcut(QKeySequence("F2"), self.baum, activated=lambda: self.artikel_bearbeiten(self.baum.currentItem()),
                   context=Qt.WidgetShortcut)
         self._baum_fuellen()
-        for c, b in enumerate((220, 50, 150, 175, 150, 110, 70, 120, 80, 95, 65, 130)):
+        for c, b in enumerate((220, 50, 150, 175, 150, 110, 70, 120, 80, 95, 65, 130, 70, 150)):
             self.baum.setColumnWidth(c, b)
         self._spalten_an_auswahl()          # Art und Profil so breit wie die längste Auswahl (E1)
         # M1 (Patrick 07.11.2026): kein Querscrollen – Hinweis als Stichwort, Länge/Schneidweg/Konturen stehen im
@@ -1186,7 +1189,7 @@ class StepPruefDialog(QDialog):
     NEBENSPALTEN = ("SP_LAENGE", "SP_SCHNEIDWEG", "SP_KONTUREN")     # M1: stehen im Infofeld, ausgeblendet
     # M1: so schmal darf eine Spalte beim Einpassen werden (Artikelnummer zuletzt: Einrückung, Haken und Farbe brauchen
     # schon 80 px; Hinweis, Art, Profil, Werkstoff, Zusatzarbeiten, Anbauteile)
-    SPALTE_MIN = {0: 200, 2: 110, 3: 140, 4: 120, 5: 100, 7: 70, 11: 70}
+    SPALTE_MIN = {0: 200, 2: 110, 3: 140, 4: 120, 5: 100, 7: 70, 11: 70, 12: 55, 13: 90}
 
     def _spalten_sichtbar(self):
         """Nebenspalten aus (außer von Hand eingeblendet), Anbauteile nur mit Anbauteilen in der Liste."""
@@ -1200,10 +1203,53 @@ class StepPruefDialog(QDialog):
             c = getattr(self, name)
             self.baum.setColumnHidden(c, c not in self.spalten_gezeigt)
         self.baum.setColumnHidden(self.SP_ANBAU, not anbau and self.SP_ANBAU not in self.spalten_gezeigt)
+        for c in (self.SP_REVISION, self.SP_ERKENNUNG):     # Anfrage-Erkennung: nur mit Inhalt (oder von Hand an)
+            self.baum.setColumnHidden(c, not self._spalte_hat_text(c) and c not in self.spalten_gezeigt)
+
+    def _spalte_hat_text(self, c):
+        from PySide6.QtWidgets import QTreeWidgetItemIterator
+        it = QTreeWidgetItemIterator(self.baum)
+        while it.value() is not None:
+            if it.value().text(c):
+                return True
+            it += 1
+        return False
+
+    def _erkennung_zeigen(self, z, m):
+        """Spalten Revision und Erkennung Stückzahl einer Zeile (aus den Messwerten, pdf_art/formular)."""
+        from . import artikelnr
+        rev = m.get("_revision") or artikelnr.zerlegen(m.get("datei") or "").revision
+        z.it.setText(self.SP_REVISION, rev or "")
+        z.it.setToolTip(self.SP_REVISION, f"Revision aus „{m.get('datei')}“, getrennt von der Artikelnummer "
+                                          "gespeichert" if rev else "")
+        text, farbe, tipp = "", None, []
+        if "_stueck_formular" in m and not m.get("_saetze"):
+            if m.get("_stueck_widerspruch"):
+                text, farbe = "Widerspruch", stil.GELB_FLAECHE
+                tipp.append(f"Andere Angabe: {m['_stueck_widerspruch']}")
+            elif m.get("_stueck_hinweis") and "Revision" in m["_stueck_hinweis"]:
+                text, farbe = "Revision prüfen", stil.GELB_FLAECHE
+            elif m["_stueck_formular"]:
+                text, farbe = "sicher", stil.GRUEN_FLAECHE
+            else:
+                text, farbe = "unsicher", stil.GELB_FLAECHE
+            quelle = m.get("_stueck_fundstelle") or m.get("_stueck_quelle") or ""
+            if quelle:
+                text += " · " + quelle.split(":")[0]
+                tipp.insert(0, f"Fundstelle: {quelle}")
+        elif m.get("_stueck_fehlt") and not m.get("_saetze"):
+            text, farbe = "nicht erkannt", stil.ROT_FLAECHE
+            tipp.append("In Mail/PDF keine Menge zu diesem Teil – bitte eintragen")
+        if m.get("_stueck_hinweis"):
+            tipp.append(m["_stueck_hinweis"])
+        z.it.setText(self.SP_ERKENNUNG, text)
+        z.it.setToolTip(self.SP_ERKENNUNG, "\n".join(tipp))
+        z.it.setBackground(self.SP_ERKENNUNG, QBrush(stil.farbe(farbe)) if farbe else QBrush())
 
     def _spalten_menue(self, pos):
         menue = QMenu(self)
-        for c in [getattr(self, n) for n in self.NEBENSPALTEN] + [self.SP_ANBAU]:
+        for c in [getattr(self, n) for n in self.NEBENSPALTEN] + [self.SP_ANBAU, self.SP_REVISION,
+                                                                  self.SP_ERKENNUNG]:
             a = menue.addAction(self.SPALTEN[c])
             a.setCheckable(True)
             a.setChecked(not self.baum.isColumnHidden(c))
@@ -1665,11 +1711,14 @@ class StepPruefDialog(QDialog):
     def _stueck_eingetragen(self, z, m):
         """Stückzahl von Hand eingetragen: „nicht erkannt“ (rot) ist erledigt."""
         if m.pop("_stueck_fehlt", None):
+            m["_stueck_hand"] = True
             self._vorschlag_faerben(z, m)
 
     def _vorschlag_faerben(self, z, m):
         """Stückzahl aus Formular/Mail bzw. Zeichnung (W6b, 28.10.2026): Tooltip, unsicher gelb; Werkstoff aus dem
         Schriftfeld einer Zeichnung gelb."""
+        if getattr(z, "it", None) is not None:
+            self._erkennung_zeigen(z, m)
         gelb = f"background: {stil.farbe(stil.GELB_FLAECHE).name()};"
         if "_stueck_formular" in m and not m.get("_saetze"):
             sicher = m["_stueck_formular"]
@@ -1904,6 +1953,7 @@ class StepPruefDialog(QDialog):
             if z.ws is not None and not z.blech:
                 z.ws.setCurrentText(m.get("_werkstoff", self.werkstoff) or "")
             self._vorschlag_faerben(z, m)
+        self._spalten_sichtbar()
 
     def _modus(self, datei):
         return "satz" if self.saetze.get(datei) else "einzeln"

@@ -13,6 +13,7 @@ Abnahmeliste des Auftrags:
   M9  mehrere STEP-Versionen -> Mehrdeutigkeit angezeigt, keine Menge geraten
   M10 mehrere Artikel -> Positionen bleiben getrennt; fehlende Menge = „nicht erkannt“
   M11 Kunde geändert -> Anfrage und Angebote bleiben konsistent, beauftragte nie automatisch
+  M12 Prüfdialog: Spalten Revision und Erkennung Stückzahl (sicher/unsicher/Widerspruch/nicht erkannt) farbig
 
 Aufruf: python tests/test_anfrage_import_master.py   (ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -246,5 +247,41 @@ v = [e for e in abl.neu_lesen(a1).verlauf if e.get("aktion") == akt.ZUORDNUNG]
 assert v[-1].get("grund") == "im Angebot gewählt", v[-1]
 ok("M11 Kundenwechsel: ohne Bestätigung bleiben Angebote; bestätigt folgen offene, beauftragte nie; "
    "Wechsel im Angebot schreibt die Anfrage nach")
+
+# ------------------------------------------------------------------ M12 Prüfdialog-Spalten
+sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
+import step_messen  # noqa: E402
+from formen_baukasten import ohne, quader, schreibe  # noqa: E402
+
+from rohrlaser import step, stil  # noqa: E402
+from rohrlaser.step_dialog import StepPruefDialog  # noqa: E402
+
+STEP = tmp / "step"
+STEP.mkdir()
+rohr = ohne(quader(500, 40, 40), quader(500, 34, 34, 0, 3, 3))
+schreibe({"123456_REV02": rohr, "777777": rohr, "888888": rohr}, STEP)
+aus = STEP / "m.txt"
+step_messen.main(["--ausgabe", str(aus)] + [str(STEP / f"{n}.step") for n in ("123456_REV02", "777777", "888888")])
+mw = step.lies_messwerte(aus)
+importprofil.anwenden(mw)
+pdf_art.anwenden(mw, [dict(text="123456 20 Stk\n777777 8", datei="liste.pdf"),
+                      dict(text="777777 10 Stk", mail=True, quelle="der Mail")])
+d = StepPruefDialog(None, mw, db.kontext(), None, 1, zukauf_liste=[])
+d.show()
+app.processEvents()
+assert not d.baum.isColumnHidden(d.SP_REVISION) and not d.baum.isColumnHidden(d.SP_ERKENNUNG)
+zeilen = {Path(str(d.messwerte[z.liste[0]].get("datei"))).stem: z for z in d.zeilen}
+r = zeilen["123456_REV02"].it
+assert r.text(d.SP_REVISION) == "REV02" and r.text(d.SP_ERKENNUNG) == "sicher · liste.pdf", r.text(d.SP_ERKENNUNG)
+assert r.background(d.SP_ERKENNUNG).color().name().upper() == stil.farbe(stil.GRUEN_FLAECHE).name().upper()
+assert zeilen["777777"].it.text(d.SP_ERKENNUNG).startswith("Widerspruch"), zeilen["777777"].it.text(d.SP_ERKENNUNG)
+assert "der Mail" in zeilen["777777"].it.toolTip(d.SP_ERKENNUNG) or "Mail" in zeilen["777777"].it.toolTip(d.SP_ERKENNUNG)
+n = zeilen["888888"]
+assert n.it.text(d.SP_ERKENNUNG) == "nicht erkannt" and n.it.text(d.SP_REVISION) == ""
+n.sp.setValue(12)               # von Hand eingetragen: nicht mehr rot
+assert n.it.text(d.SP_ERKENNUNG) == ""
+d.close()
+ok("M12 Prüfdialog: Spalte Revision (REV02), Erkennung „sicher · liste.pdf“ grün, Widerspruch gelb, "
+   "„nicht erkannt“ rot bis zur Eingabe von Hand")
 
 print("Alle Tests bestanden.")
