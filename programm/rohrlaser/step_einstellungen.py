@@ -59,9 +59,13 @@ def mess_argumente(db):
     modus = db.einstellung("step_abwicklungskern") or "an"   # Vorgabe an (Patrick 24.11.2026)
     if modus in ("vergleich", "an"):
         args += ["--abwicklungskern", modus]
-    if (db.einstellung("step_cache") or "ja") == "ja":
+    from .stammdaten import STEP_CACHE_WAHL
+    cache = db.einstellung("step_cache") or STEP_CACHE_WAHL[1]
+    if cache in STEP_CACHE_WAHL[:2]:
         args += ["--cache", str(cache_ordner(db)), "--cache-mb", f"{_zahl(db, 'step_cache_mb', 500):g}",
                  "--kennung", VERSION]
+        if cache == STEP_CACHE_WAHL[1]:     # CAD-Kern 3.0: auch gelesene Körper merken (step_lesecache.py)
+            args.append("--lesecache")
     return args
 
 
