@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.492", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
+    ["0.9.495", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
                 "Höhe und Winkel einer Fase am Rohrende und bei Sonderkonturen mit schräger Schnittfläche auch den Rand "
                 "auf der Innenwand. Ist die 3D-Schnittbearbeitung gewählt, zeigt der Editor beides wie in der STEP und "
                 "rechnet es als 3D-Schnitt (Fase durch die ganze Wand: Kopf um den Fasenwinkel; schräge Kontur: Zeile "
