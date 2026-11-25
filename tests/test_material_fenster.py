@@ -68,7 +68,7 @@ class _K:
 
 
 assert ausgabe.profiltext("I 200x100x5,6x8", _K) == "IPE 200"
-assert ausgabe.profiltext("I 150x80x5", _K) == "I-Träger 150 x 80 x 5"
+assert ausgabe.profiltext("I 150x80x5", _K) == "I-Träger 150x80x5"
 assert profil_id("I-/H-Träger", 160, 160, 8) == "HEB 160" and profil_id("T-Profil", 50, 50, 6) == "T 50"
 ok("Träger, T- und U-Profile: Normbezeichnung (IPE, HEA, HEB, UPN, T) im Angebotstext und beim Profil anlegen")
 

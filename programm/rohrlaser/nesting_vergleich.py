@@ -13,7 +13,7 @@ import csv
 import io
 import time
 
-from . import nesting as ne, nesting_machbarkeit as nm, optimierung as opt, rechnen
+from . import masstext, nesting as ne, nesting_machbarkeit as nm, optimierung as opt, rechnen
 
 BISHER = "bisher"
 AKTUELL = "aktuell"     # gespeicherter Schnittplan (Ergebnis von Optimieren/F9), Nesting-Arbeitsplatz 2.0 (V1)
@@ -393,7 +393,7 @@ def export_csv(v, plan, positionen):
         rest = s["stange"] - opt.verbrauch(h, folge)
         verw = "ja" if ne.verwertbar(g, rest, d["min_rest"], d["min_nutz"]) else "nein"
         for j, t in enumerate(s["teile"], 1):
-            w.writerow([v["titel"], i, z(s["stange"]), s.get("rest") or "", j, t.get("pos"), t.get("artikel") or "",
+            w.writerow([masstext.text(v["titel"]), i, z(s["stange"]), s.get("rest") or "", j, t.get("pos"), t.get("artikel") or "",
                         z(t["laenge"]), z(t["von"]), z(t["bis"]), t.get("trennung") or "", t.get("drehung") or 0,
                         z(rest) if j == len(s["teile"]) else "", verw if j == len(s["teile"]) else ""])
     return puffer.getvalue()

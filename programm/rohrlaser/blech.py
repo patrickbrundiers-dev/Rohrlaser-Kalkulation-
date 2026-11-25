@@ -1165,15 +1165,15 @@ def speichern(e):
 
 
 def bezeichnung_vorschlag(e, zs=None):
-    """z. B. 'Blech 200 × 100 × 3 S235JR' bzw. 'Kantteil 300 × 132 × 2 1.4301 2B (2 Kantungen)'."""
+    """z. B. 'Blech 200x100x3 S235JR' bzw. 'Kantteil 300x132x2 1.4301 2B (2 Kantungen)' (kompakt, masstext)."""
     zs = zs or {}
     s = f"{_z(e.get('dicke')):g}".replace(".", ",")
     werk = e.get("werkstoff") or ""
     n = kantungen(e, zs) if zs else 0
     if e.get("art") == KANTTEIL or n:
-        return (f"Kantteil {_z(zs.get('laenge')):.0f} × {_z(zs.get('breite')):.0f} × {s} {werk} "
+        return (f"Kantteil {_z(zs.get('laenge')):.0f}x{_z(zs.get('breite')):.0f}x{s} {werk} "
                 f"({n} Kantung{'en' if n != 1 else ''})").strip()
-    return f"Blech {_z(zs.get('laenge')):.0f} × {_z(zs.get('breite')):.0f} × {s} {werk}".strip()
+    return f"Blech {_z(zs.get('laenge')):.0f}x{_z(zs.get('breite')):.0f}x{s} {werk}".strip()
 
 
 def querschnitt(e):

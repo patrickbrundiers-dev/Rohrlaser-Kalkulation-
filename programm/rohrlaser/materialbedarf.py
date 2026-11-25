@@ -8,7 +8,7 @@ auf den Stangen übrig bleibt. Kundenmaterial zählt nicht. Reste werden nur gem
 und nicht verrechnet. Nur Anzeige und CSV, bestellt wird wie bisher über die Materialanfrage. Ohne Qt."""
 import datetime
 
-from . import fertigung
+from . import fertigung, masstext
 
 OHNE_TERMIN = "ohne Termin"
 FERTIG_AB = "Material bereit"   # ab diesem Status (und allen danach) ist das Material da
@@ -79,7 +79,7 @@ def csv_text(zeilen):
     def zahl(w, n):
         return "" if w is None else f"{w:.{n}f}".replace(".", ",")
     kopf = "Woche;Profil;Werkstoff;Oberfläche;Stangenlänge [mm];Stangen;Gewicht [kg];Rest [m];Aufträge"
-    return "\n".join([kopf] + [";".join((z["woche"], z["profil"], z["werkstoff"], z["oberflaeche"],
+    return "\n".join([kopf] + [";".join((z["woche"], masstext.profil(z["profil"]), z["werkstoff"], z["oberflaeche"],
                                          zahl(z["stange"], 0), str(z["stangen"]), zahl(z["gewicht"], 1),
                                          zahl(z["rest_m"], 2), ", ".join(str(x) for x in z["auftraege"])))
                                for z in zeilen]) + "\n"

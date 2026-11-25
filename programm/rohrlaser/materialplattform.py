@@ -27,6 +27,7 @@ import io
 import math
 import re
 
+from . import masstext
 from .stammdaten import flaeche_wirksam
 
 EPS = 1e-9
@@ -819,7 +820,7 @@ def _zelle(v, stellen=None):
         return "ja" if v else ""
     if isinstance(v, float):
         return f"{v:.{stellen if stellen is not None else 4}f}".rstrip("0").rstrip(".").replace(".", ",")
-    return "" if v is None else str(v)
+    return "" if v is None else masstext.text(str(v))      # Abmessungen kompakt (masstext)
 
 
 def csv_export(zeilen):
@@ -847,7 +848,7 @@ def xlsx_export(zeilen, pfad, kopf=None, felder=None):
             v = "" if v is None else ("ja" if v else "nein")
         if isinstance(v, (int, float)):
             return f"<c><v>{v}</v></c>"
-        return f'<c t="inlineStr"><is><t xml:space="preserve">{_xml(v)}</t></is></c>'
+        return f'<c t="inlineStr"><is><t xml:space="preserve">{_xml(masstext.text(str(v)))}</t></is></c>'
     reihen = [kopf] + [[z.get(f) for f in felder] for z in zeilen]
     blatt = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats'
              '.org/spreadsheetml/2006/main"><sheetData>' + "".join(
@@ -946,6 +947,8 @@ def preisliste_lesen(text, lieferant=None, k=None):
         if z.get("preis") is None or z["preis"] <= 0:
             fehler.append((nr, "Preis fehlt"))
             continue
+        if k is not None and z["profil_id"] not in k.profile:     # andere Schreibweise ('QR 40 x 40 x 3') zuordnen
+            z["profil_id"] = masstext.finde(z["profil_id"], k.profile) or z["profil_id"]
         if k is not None and z["profil_id"] not in k.profile:
             fehler.append((nr, f"Profil {z['profil_id']} fehlt in den Stammdaten"))
             continue

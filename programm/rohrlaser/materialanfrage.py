@@ -114,7 +114,7 @@ def laenge_text(laenge, vorne=", à "):
 
 
 def zeile_text(z, k, stangen=None, als=None):
-    """'3 Stangen Quadratrohr 40 x 40 x 3, S235 EN10219' (+ ', à 12.000 mm' außer bei 6.000 mm); als = MENGE_ALS
+    """'3 Stangen Quadratrohr 40x40x3, S235 EN10219' (+ ', à 12.000 mm' außer bei 6.000 mm); als = MENGE_ALS
     (Vorgabe nur Stangen, Patrick 18.11.2026: Gewicht in der E-Mail nicht nötig): STANGEN_GEWICHT mit '(ca. 63 kg)',
     NUR_GEWICHT 'ca. 63 kg Quadratrohr …, Stangen à 12.000 mm (3 Stangen)' (ohne bekanntes Gewicht wie Stangen)."""
     n = z["stangen"] if stangen is None else stangen

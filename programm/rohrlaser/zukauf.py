@@ -940,9 +940,9 @@ def _mm(x):
 
 
 def blech_bezeichnung(laenge, breite, dicke, werkstoff=None):
-    """Bezeichnung eines Blechartikels, z. B. 'Blech S235 500 × 300 × 5 mm'; ohne Werkstoff mit Hinweis
+    """Bezeichnung eines Blechartikels, z. B. 'Blech S235 500x300x5 mm'; ohne Werkstoff mit Hinweis
     '(Werkstoff offen)' — ein unbekannter Werkstoff wird nie angenommen."""
-    masse = f"{_mm(laenge)} × {_mm(breite)} × {_mm(dicke)} mm"
+    masse = f"{_mm(laenge)}x{_mm(breite)}x{_mm(dicke)} mm"
     return f"Blech {werkstoff} {masse}" if werkstoff else f"Blech {masse} (Werkstoff offen)"
 
 

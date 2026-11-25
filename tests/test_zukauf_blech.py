@@ -91,8 +91,8 @@ def _():
 
 @fall("Bezeichnung: Werkstoff nur, wenn bekannt; sonst 'Werkstoff offen' (nie S235 angenommen)")
 def _():
-    assert zukauf.blech_bezeichnung(500, 300, 5, "S235") == "Blech S235 500 × 300 × 5 mm"
-    assert zukauf.blech_bezeichnung(500.04, 299.96, 1.5) == "Blech 500 × 300 × 1,5 mm (Werkstoff offen)"
+    assert zukauf.blech_bezeichnung(500, 300, 5, "S235") == "Blech S235 500x300x5 mm"
+    assert zukauf.blech_bezeichnung(500.04, 299.96, 1.5) == "Blech 500x300x1,5 mm (Werkstoff offen)"
 
 
 @fall("Anlage aus gemessenem Blech: Kategorie Blechteile, Stück, Lieferant Technik, ohne Preis, Herkunft STEP")
@@ -193,7 +193,7 @@ def _():
     assert namen == ["Blech von Hand"], namen
     assert s.zellen_text[0]["ek"] == "EK fehlt"
     s.auswaehlen(s.sichtbar[0]["id"])
-    assert "EK fehlt" in s.detail.text() and "Blech 200 × 100 × 2 mm" in s.detail.text(), s.detail.text()
+    assert "EK fehlt" in s.detail.text() and "Blech 200x100x2 mm" in s.detail.text(), s.detail.text()
     assert s.k_ek.isEnabled()
     assert s.ek_eintragen(preis=7.5)
     s.status_filter.setCurrentText("EK fehlt")

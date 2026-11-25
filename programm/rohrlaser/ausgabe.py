@@ -7,7 +7,7 @@ import re
 from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 from pathlib import Path
 
-from . import abruf, fracht_angebot, normprofile, rechnen, stangen_abwicklung, teilbestellung, virtuell, zukauf
+from . import abruf, fracht_angebot, masstext, normprofile, rechnen, stangen_abwicklung, teilbestellung, virtuell, zukauf
 from .angebot import aktiv as position_aktiv, bedingungen_text, ist_baugruppe, ist_zukaufteil, lieferzeit_text
 from .stammdaten import GESCHABT, ROHR_FORMEN
 
@@ -130,24 +130,25 @@ def datum_text(iso):
 
 # ------------------------------------------------------------------ Angebot
 def profiltext(pid, k, dezimal=","):
-    """'Rundrohr Ø 42,4 x 2', 'Quadratrohr 40 x 40 x 3', 'Rechteckrohr 60 x 40 x 3'; Träger, T- und U-Profile mit
+    """'Rundrohr Ø42,4x2', 'Quadratrohr 40x40x3', 'Rechteckrohr 60x40x3' (einheitliche kompakte Schreibweise,
+    masstext, Patrick 25.11.2026); Träger, T- und U-Profile mit
     Normbezeichnung ('IPE 200', 'HEB 160', 'UPN 100'), wenn Profil-ID oder Maße zu einem Normprofil passen; sonst die
     Profil-ID."""
     z = k.profile.get(pid)
     if not z:
-        return str(pid or "")
+        return masstext.profil(str(pid or ""))
     form = z.get("form")
     if form in ("I-/H-Träger", "T-Profil", "U-Profil"):      # Walzprofile mit Normbezeichnung (IPE, HEB, UPN, T …)
         norm = pid if normprofile.daten(pid) else normprofile.name_aus_massen(form, z.get("a"), z.get("b"), z.get("wand"))
         if norm:
-            return str(norm)
+            return masstext.profil(str(norm))
     a, b, wand = (zahl_kurz(z.get(n), dezimal) for n in ("a", "b", "wand"))
-    return {"Rundrohr": f"Rundrohr Ø {a} x {wand}", "Quadratrohr": f"Quadratrohr {a} x {a} x {wand}",
-            "Rechteckrohr": f"Rechteckrohr {a} x {b} x {wand}", "U-Profil": f"U-Profil {a} x {b} x {wand}",
-            "C-Profil": f"C-Profil {a} x {b} x {wand}", "L-Profil": f"L-Profil {a} x {b} x {wand}",
-            "Flachstahl": f"Flachstahl {a} x {wand}",
-            "I-/H-Träger": f"I-Träger {a} x {b} x {wand}", "T-Profil": f"T-Profil {a} x {b} x {wand}"}.get(
-        form, str(pid))
+    return {"Rundrohr": f"Rundrohr Ø{a}x{wand}", "Quadratrohr": f"Quadratrohr {a}x{a}x{wand}",
+            "Rechteckrohr": f"Rechteckrohr {a}x{b}x{wand}", "U-Profil": f"U-Profil {a}x{b}x{wand}",
+            "C-Profil": f"C-Profil {a}x{b}x{wand}", "L-Profil": f"L-Profil {a}x{b}x{wand}",
+            "Flachstahl": f"Flachstahl {a}x{wand}",
+            "I-/H-Träger": f"I-Träger {a}x{b}x{wand}", "T-Profil": f"T-Profil {a}x{b}x{wand}"}.get(
+        form, masstext.profil(str(pid)))
 
 
 def rohrart_text(p, k, kopf=None):
@@ -204,7 +205,7 @@ def angebotstext(p, k, dezimal=",", zusatz=(), kopf=None):
             m = _wert(e.get("menge"))
             menge = f"{kaufm_runden(m, 3):g}".replace(".", dezimal)
             zeilen.append("inkl. " + (f"{menge} {zukauf.EINHEIT_KURZ.get(st.get('einheit'), 'St')} {name}" if m else name))
-    return "\n".join(zeilen)
+    return "\n".join(masstext.text(z) for z in zeilen)      # Abmessungen kompakt, auch aus alten Bezeichnungen
 
 
 def bearbeitung_text(p, dezimal=","):
@@ -233,17 +234,18 @@ def bearbeitung_text(p, dezimal=","):
 
 def zukaufteil_text(p):
     """Text einer Zukaufteil-Position im Angebot: Bezeichnung der Zukaufartikel (bei mehreren mit Menge je Teil),
-    sonst die Bezeichnung der Position, z. B. 'Blech S235 500 × 300 × 5 mm'."""
+    sonst die Bezeichnung der Position, z. B. 'Blech S235 500x300x5 mm' (Abmessungen kompakt, masstext; auch alte
+    Bezeichnungen 'Blech S235 500 × 300 × 5 mm' aus der Datenbank)."""
     namen = []
     eintraege = zukauf.eintraege(p)
     for e in eintraege:
         st = e.get("stand") or {}
-        name = st.get("bezeichnung") or st.get("artikelnr") or ""
+        name = masstext.text(st.get("bezeichnung") or st.get("artikelnr") or "")
         m = _wert(e.get("menge"))
         if len(eintraege) > 1 or m != 1:
             name = f"{kaufm_runden(m, 3):g}".replace(".", ",") + f" {zukauf.EINHEIT_KURZ.get(st.get('einheit'), 'St')} {name}"
         namen.append(name)
-    return ", ".join(n for n in namen if n) or str(p.get("bezeichnung") or p.get("artikel") or "Zukaufteil")
+    return ", ".join(n for n in namen if n) or masstext.text(str(p.get("bezeichnung") or p.get("artikel") or "Zukaufteil"))
 
 
 def _einruecken(vorsatz, text):
@@ -428,7 +430,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             auf_text, auf = _aufstellung(i, menge, gesamt_pos) if (kalk_zeilen[i] or {}).get("muster") != "ja" \
                 else ("", [])
             zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=text + auf_text,
-                               bezeichnung=p.get("bezeichnung") or "",
+                               bezeichnung=masstext.text(p.get("bezeichnung") or ""),
                                menge=p.get("stueck"), preis=pr, gesamt=gesamt_pos,
                                muster=(kalk_zeilen[i] or {}).get("muster") == "ja", preiseinheit=pe,
                                **({"zusatz_aufstellung": auf} if auf else {})))
@@ -472,7 +474,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                 teile = haupt_zuerst([(j, q) for j, q in teile if j != bg[0]])
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
-                                   bezeichnung=q.get("bezeichnung") or "",
+                                   bezeichnung=masstext.text(q.get("bezeichnung") or ""),
                                    text=_einruecken(f"{kaufm_runden(je(q), 0):.0f} x ",
                                                    angebotstext(q, k, dezimal, _zus(j), kopf) + _vorbehalt(q)),
                                    menge=None, preis=None, gesamt=None))
