@@ -14073,8 +14073,11 @@ def kapitel_stammdaten(i):
             "Schritten durch Datei, Spalten, Dubletten, Vorschau und Import.", nummeriert=True, kurz=True)
     i.genauer()
     i.text("<b>Importassistent für Kundenlisten</b> (seit dem Master-Auftrag vom 25.11.2026, gleiche Bedienung wie "
-           "der EK-Import, [[ek_import_assistent]]). Oben steht die Schrittleiste, unten <b>Zurück</b> und "
-           "<b>Weiter</b>; bis zum letzten Schritt ändert nichts die Datenbank.")
+           "der EK-Import, [[ek_import_assistent]]). Oben steht die Schrittleiste, unten <b>◀ Zurück</b> und "
+           "<b>Weiter ▶</b>; bis zum letzten Schritt ändert nichts die Datenbank. <b>Letzte Importe / Rückgängig "
+           "…</b> listet die bisherigen Läufe; <b>Ausgewählten Import rückgängig machen</b> nimmt einen davon "
+           "zurück. (Die frühere Vorschau mit dem Häkchen <i>Vorhandene Kunden nicht ändern (nur neue anlegen)</i> "
+           "ersetzt der Assistent; dafür in Schritt 3 <i>Überspringen</i> wählen.)")
     i.liste("<b>1 Datei und Format</b>: erkannt werden Kodierung (UTF-8, Windows-1252, UTF-16), Trennzeichen "
             "(Semikolon, Komma, Tab), Dezimalzeichen und ob es eine Kopfzeile gibt; auch Listen <b>ohne Kopfzeile</b> "
             "gehen (Spalten A, B, C … zum Zuordnen). <b>Vorhandene Kunden</b>: <i>nur leere Felder ergänzen</i> "
@@ -14413,7 +14416,7 @@ def kapitel_stammdaten(i):
             "<b>wahrscheinlicher Treffer</b> (gelb, z. B. <i>S355J2H</i> ohne Norm → S355 EN 10219; Haken = "
             "bestätigen, <i>Alle wahrscheinlichen Treffer bestätigen</i>), <b>kein Treffer</b> (rot: neues Material "
             "wird vorgeschlagen und angelegt, wenn der Haken <i>Materialien ohne Treffer neu anlegen</i> gesetzt "
-            "ist). Ein Profil, das es in anderer Schreibweise schon gibt, wird nicht doppelt angelegt.",
+            "ist; <i>auch neue Werkstoffe anlegen</i> nur mit Freigabe für Werkstoffe). Ein Profil, das es in anderer Schreibweise schon gibt, wird nicht doppelt angelegt.",
             "<b>4 Preisprüfung</b>: je Material und Lieferant der neueste EK der Datei gegen den letzten bisherigen, "
             "mit Änderung in € und %; rot = teurer, grün = günstiger ab <b>markieren ab</b> (Einstellung <i>EK-Import: "
             "Preisänderung markieren ab</i>, Vorgabe 10 %), gelb = kleinere Änderung. Ein Preis eines anderen "
