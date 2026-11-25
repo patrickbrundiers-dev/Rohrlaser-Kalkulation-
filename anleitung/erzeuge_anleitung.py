@@ -6425,7 +6425,7 @@ def kapitel_optimieren(i):
             "Ausklinkung auf Rundrohr Ø rechnet genauso und ist seit 0.9.93 richtig herum gezeichnet (oben und unten "
             "am längsten).",
             "<b>Endkontur</b> (seit 0.9.488, Rund-, Quadrat- und Rechteckrohr; offene Profile nicht): Knopf "
-            "<i>Endkontur …</i> neben dem Ende, im Menüband <i>Endkontur</i> (An Ende A/B), in den Eigenschaften des "
+            "<i>Endkontur …</i> neben dem Ende, im Menüband unter <i>Gegenrohr</i> (Endkontur an Ende A/B …), in den Eigenschaften des "
             "3D-Editors oder Rechtsklick auf das Ende – in allen Editoren gleich (Rohr, Baugruppe, Satz in 3D). Arten: "
             "<i>Schräg</i> (frei, auch asymmetrisch mit Versatz), <i>V-Spitze</i>, <i>V-Kerbe</i>, <i>U-Kerbe</i> "
             "(runder Grund), <i>U-Zunge</i> (Zapfen), <i>S-Kurve</i>, <i>Bogen konvex</i> und <i>Bogen konkav</i> "

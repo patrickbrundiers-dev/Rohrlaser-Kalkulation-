@@ -294,7 +294,11 @@ class SchneidwegDialog(QDialog):
             for f_ in (w, sa):          # Gehrung bzw. Ausklinkung von Hand: Gegenrohr dieses Endes fällt weg
                 f_.valueChanged.connect(lambda v, s_=seite: v and self.gegen.get(s_) and self.gegenrohr(s_, None))
             self.gegen_knopf[seite] = gk
-            enden.addWidget(gk, r, 8)
+            knoepfe = QVBoxLayout()         # Gegenrohr und Endkontur übereinander (Breite des Dialogs bleibt)
+            knoepfe.setContentsMargins(0, 0, 0, 0)
+            knoepfe.setSpacing(2)
+            knoepfe.addWidget(gk)
+            enden.addLayout(knoepfe, r, 8)
             self._gegen_text(seite)
             self.kontur[seite] = e[seite].get("kontur") if isinstance(e[seite].get("kontur"), dict) else None
             kk = QPushButton()
@@ -303,7 +307,7 @@ class SchneidwegDialog(QDialog):
             for f_ in (w, sa):          # Gehrung bzw. Ausklinkung von Hand: Endkontur dieses Endes fällt weg
                 f_.valueChanged.connect(lambda v, s_=seite: v and self.kontur.get(s_) and self.endkontur(s_, None))
             self.kontur_knopf[seite] = kk
-            enden.addWidget(kk, r, 9)
+            knoepfe.addWidget(kk)
             self._kontur_text(seite)
         self._step_enden(e)
         self.gravur = RechenSpin()

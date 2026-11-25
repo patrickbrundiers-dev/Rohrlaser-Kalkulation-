@@ -25,7 +25,7 @@ NEUERUNGEN = [
                 "lassen sich mit beliebigen Konturen schneiden, nicht nur gerade oder auf Gehrung: Schräg (auch "
                 "asymmetrisch), V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, S-Kurve, Bogen konvex/konkav, Stufen, Freiform "
                 "(Seitenansicht oder direkt auf der Abwicklung) und Kombinationen – an Rund-, Quadrat- und Rechteckrohr, "
-                "in allen Editoren (Knopf bzw. Menüband <i>Endkontur …</i>, Rechtsklick auf das Ende). Vorschau mit "
+                "in allen Editoren (Knopf <i>Endkontur …</i>, Menüband unter <i>Gegenrohr</i>, Rechtsklick auf das Ende). Vorschau mit "
                 "Abwicklung, nicht schneidbare Stellen rot/gelb, exakte Schnittlänge auf dem Mantel. Die Optimierung "
                 "legt jetzt beliebige Endkonturen ineinander, nicht nur ebene Gehrungen: mit Mindestabstand im Raum "
                 "(2 × Schnittverlust + Abstand + Sicherheitsabstand), unabhängiger Kollisionsprüfung, gedreht nur wie "
