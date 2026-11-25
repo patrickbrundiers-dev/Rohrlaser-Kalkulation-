@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.500", "<b>Outlook-Import: Kundenbindung, Stückzahlen und STEP-Zuordnung</b> ([[anfrage_import]]): Der "
+    ["0.9.505", "<b>Outlook-Import: Kundenbindung, Stückzahlen und STEP-Zuordnung</b> ([[anfrage_import]]): Der "
                 "Kunde einer Anfrage (automatisch eindeutig erkannt oder von Hand) gilt bis zum Auftrag; Abweichungen "
                 "aus Mail/Formular sind nur ein Hinweis. Kundenwechsel: offene Angebote der Anfrage wechseln nach "
                 "Rückfrage mit, beauftragte nie automatisch; ein Wechsel im Angebot schreibt die Anfrage nach. "
@@ -31,6 +31,14 @@ NEUERUNGEN = [
                 "_final, _neu, _Bearbeitet): Zuordnung über die Grundnummer, Revision getrennt an der Position "
                 "gespeichert, mehrere Versionen werden angezeigt statt still zugeordnet.",
      "Kunde bleibt gebunden, Stückzahlen mit Fundstelle, STEP-Zuordnung mit Revision (_REV02, -02, _002)"],
+    ["0.9.501", "<b>Freimachungen erkennen</b> ([[schneidweg_rechner]]): Rechteck-Ausschnitte mit runden "
+                "Freimachungen an den Ecken heißen jetzt z. B. <i>Rechteck 60 × 20, Freimachung 4 × Ø10 mittig</i> "
+                "(Kreis um die Ecke) oder <i>… versetzt</i> (Kreismitte um den Radius längs einer Seite neben der "
+                "Ecke). Eine Ausklinkung am Ende mit Freimachungen in den inneren Ecken heißt z. B. <i>Ausklinkung "
+                "20 × 30, Freimachung 2 × Ø10 mittig (erkannt, Umriss wie STEP)</i>. Erkannt wird nur, wenn Rechteck "
+                "und Kreise den gemessenen Umriss überall auf 0,1 mm treffen; geschnitten wird weiter der Umriss der "
+                "STEP.",
+     "Rechteck-Ausschnitte und Ausklinkungen mit Freimachung Ø d mittig/versetzt erkannt"],
     ["0.9.498", "<b>Nesting-Kern: neue Strategien und schnellerer Vergleich</b> ([[nesting]]): Neu sind "
                 "<i>N Gleiche Teile nacheinander</i> (volle Stangen je Artikel, Reste am Stangenende mit der besten "
                 "Füllung), <i>S Satzweise schneiden</i> (Satz aus den Mengen erkannt, Satz nur am Stangenende geteilt) "

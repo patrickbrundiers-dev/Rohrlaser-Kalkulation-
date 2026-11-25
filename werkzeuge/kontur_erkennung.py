@@ -63,7 +63,9 @@ def ende_art(e):
         return "Gehrung"
     er = e.get("kontur_erkannt") or {}
     if endkontur.lesen(er.get("kontur")):
-        return er["kontur"]["typ"]
+        return er["kontur"]["typ"] + (" mit Freimachung" if er.get("freimachung") else "")
+    if er.get("text"):
+        return "Ausklinkung" + (" mit Freimachung" if er.get("freimachung") else "")
     return e.get("form") or "gerade"
 
 
@@ -78,7 +80,7 @@ def auswerten(teile):
                 continue
             er = e.get("kontur_erkannt") or {}
             zeilen.append(dict(artikel=t["artikel"], was=f"Ende {s.upper()}", ergebnis=ende_art(e),
-                               text=endkontur.text(er.get("kontur")) if er else "",
+                               text=endkontur.erkannt_text(er) if er else "",
                                abweichung=er.get("abweichung")))
         for k in t["konturen"]:
             if k.get("art") != "Sonderkontur":
@@ -116,6 +118,10 @@ def vergleich(teile, soll):
         s = soll[n]
         if n.startswith("EK_"):
             e = t["b"]
+            if isinstance(s, dict) and "text" in s:        # Ausklinkung/Freimachung: Anzeige wie Soll
+                ist = endkontur.erkannt_text(e.get("kontur_erkannt"))
+                out.append((n, ist == s["text"], f"Ende B {ist or ende_art(e)} (soll {s['text']})"))
+                continue
             if s is None:
                 ok = ende_art(e) == "Gehrung"
                 out.append((n, ok, f"Ende B {ende_art(e)} (soll Gehrung)"))
