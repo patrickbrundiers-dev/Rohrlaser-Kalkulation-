@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.506", "<b>Outlook-Import: Kundenbindung, Stückzahlen und STEP-Zuordnung</b> ([[anfrage_import]]): Der "
+    ["0.9.507", "<b>Outlook-Import: Kundenbindung, Stückzahlen und STEP-Zuordnung</b> ([[anfrage_import]]): Der "
                 "Kunde einer Anfrage (automatisch eindeutig erkannt oder von Hand) gilt bis zum Auftrag; Abweichungen "
                 "aus Mail/Formular sind nur ein Hinweis. Kundenwechsel: offene Angebote der Anfrage wechseln nach "
                 "Rückfrage mit, beauftragte nie automatisch; ein Wechsel im Angebot schreibt die Anfrage nach. "
@@ -31,6 +31,13 @@ NEUERUNGEN = [
                 "_final, _neu, _Bearbeitet): Zuordnung über die Grundnummer, Revision getrennt an der Position "
                 "gespeichert, mehrere Versionen werden angezeigt statt still zugeordnet.",
      "Kunde bleibt gebunden, Stückzahlen mit Fundstelle, STEP-Zuordnung mit Revision (_REV02, -02, _002)"],
+    ["0.9.505", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
+                "Höhe und Winkel einer Fase am Rohrende und bei Sonderkonturen mit schräger Schnittfläche auch den Rand "
+                "auf der Innenwand. Ist die 3D-Schnittbearbeitung gewählt, zeigt der Editor beides wie in der STEP und "
+                "rechnet es als 3D-Schnitt (Fase durch die ganze Wand: Kopf um den Fasenwinkel; schräge Kontur: Zeile "
+                "Kontur 3D mit dem gemessenen Schwenk). Ohne 3D wird die Innenkante mit 90° durch die Wand projiziert: "
+                "Fasen nicht gelasert, Ende gerade; schräge Konturen mit Umriss und Schnittlänge der Innenkante.",
+     "Fasen-Enden und schräge Konturen mit 3D wie in der STEP, ohne 3D Innenkante 90°"],
     ["0.9.503", "<b>3D-Maus in jeder Belegung</b> ([[mausbelegung_3d]]): In allen 3D-Fenstern (Rohr- und Blech-Editor, "
                 "STEP-Viewer, Baugruppe, Satz, Nesting-3D, Vorschauen) dreht jetzt <b>links ziehen</b> und verschiebt "
                 "<b>rechts ziehen</b>, egal welche Mausbelegung eingestellt ist; das Mausrad zoomt immer. Vorher tat die "

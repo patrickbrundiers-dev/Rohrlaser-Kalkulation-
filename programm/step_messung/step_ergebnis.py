@@ -167,7 +167,8 @@ Versionen von SCHEMA_VERSION:
   Ergänzung 25.11.2026 (zusätzliche Felder, Version bleibt): ein Ende mit "fase" trägt "fase_tiefe" (Außenkante vom
   Ende längs der Achse [mm]), "fase_hoehe" (wie tief die Fase am Ende in die Wand reicht [mm]), "fase_winkel" (Neigung
   gegen die Senkrechte zur Oberfläche [°]) und "fase_ganze_wand" (keine Stirnfläche bleibt stehen); nur bei einer
-  ebenen Außenkante um das Ende.
+  ebenen Außenkante um das Ende. Eine durchgehende Kontur mit "schwenk" ab 0,5° trägt "umriss_innen" (Rand auf der
+  Innenwand [[u, z]], u über den Winkel um die Achse auf die Außenkontur bezogen wie "umriss").
 """
 from datetime import datetime
 

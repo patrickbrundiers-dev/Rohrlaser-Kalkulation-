@@ -1,5 +1,6 @@
-"""Fasen an den Rohrenden im Editor wie in der STEP und als 3D-Schnitt (Patrick 25.11.2026: „Im Editor muss es auch
-so aussehen wie in der STEP“; „Nur wenn Fase durch die komplette Wandstärke geht und 3D-Bearbeitung aktiviert ist“).
+"""Fasen an den Rohrenden und schräge Konturen im Editor und als 3D-Schnitt (Patrick 25.11.2026: „Nur wenn Fase durch
+die komplette Wandstärke geht und 3D-Bearbeitung aktiviert ist“; „wenn 3D ausgewählt dann auch 3D-Schnitt anzeigen,
+wenn nicht 3D dann wie gehabt projizieren an der Innenkante 90°“).
 
 - G1 Messung: Fase durch die ganze Wand (Rundrohr Ø60 × 3, Ende B, 30°) ergibt fase_tiefe 1,732, fase_hoehe 3,
   fase_winkel 30°, fase_ganze_wand ja; eine Teilfase 1,5 × 45° (Ende B) fase_tiefe 1,5, fase_hoehe 1,5, nicht ganze
@@ -8,8 +9,10 @@ so aussehen wie in der STEP“; „Nur wenn Fase durch die komplette Wandstärke
   ganzer Wand.
 - G3 3D-Bearbeitung (dreid) und Schneidweg: ganze Wand + 3D = Zeile „Gehrung 3D Ende B“ mit 30° und Text „Fase 30°
   in 3D“; ohne 3D „Fase nicht gelasert“ mit Hinweis; Teilfase immer „nicht gelasert“, ohne 3D-Zeile.
-- G4 Editor-Modell (rohr3d): der Außenring am Ende liegt um die Fasentiefe zurück, innen bleibt die Länge; die
-  3D-Gegenprobe Editor gegen STEP bleibt unter 0,1 mm.
+- G4 Editor-Modell (rohr3d): mit 3D liegt der Außenring am Ende um die Fasentiefe zurück (wie die STEP); ohne 3D
+  und bei der Teilfase gerade an der längsten Stelle (Innenkante 90°).
+- G5 Schräges Fenster (L-Form, Wände parallel statt radial): gemessen umriss_innen; mit 3D Rand innen wie gemessen
+  und Zeile „Kontur 3D“ mit dem Schwenk; ohne 3D Umriss = Innenkante (90°), Schnittlänge danach.
 
 Aufruf: python tests/test_fase_3d.py
 """
@@ -28,7 +31,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from OCP.Bnd import Bnd_Box  # noqa: E402
 from OCP.BRepBndLib import BRepBndLib  # noqa: E402
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeChamfer  # noqa: E402
-from OCP.BRepPrimAPI import BRepPrimAPI_MakeCone, BRepPrimAPI_MakeCylinder  # noqa: E402
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox, BRepPrimAPI_MakeCone, BRepPrimAPI_MakeCylinder  # noqa: E402
 from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt  # noqa: E402
 from OCP.TopAbs import TopAbs_EDGE  # noqa: E402
 from OCP.TopExp import TopExp_Explorer  # noqa: E402
@@ -139,13 +142,38 @@ assert dreid.bearbeitungen(p_teil, masch) == []
 ok("G3 Schneidweg/3D: ganze Wand + 3D = 3D-Schnitt 30° (Zeile Gehrung 3D Ende B); ohne 3D bzw. Teilfase nicht "
    "gelasert, mit Hinweis")
 
-for e, tiefe in ((e_ohne, TIEFE), (e_teil, 1.5)):
+for e, tiefe in ((dict(e_mit, d3=True), TIEFE), (e_ohne, 0.0), (dict(e_teil, d3=True), 0.0)):
     bau = {}
     assert rohr3d.netz_rechnen(e, profil, 300.0, bau=bau)
     u, v = bau["umriss"][0][0]
     assert nah(300.0 - bau["zb"](u, v), tiefe, 0.03), (300.0 - bau["zb"](u, v), tiefe)
-for name in ("G_ganz", "G_teil"):
-    gp = step.rohr_gegenprobe(MW[name], {"RR 60x3": profil})
-    assert gp is None or gp[0], (name, gp)
-ok("G4 Editor: Außenring am Ende um die Fasentiefe zurück (1,73 bzw. 1,5 mm); Gegenprobe Editor/STEP bestanden")
+ok("G4 Editor: mit 3D Außenring um die Fasentiefe zurück (1,73 mm), ohne 3D und Teilfase gerade (Innenkante 90°)")
+
+fenster = et.cut(et.rundrohr(60, 3, 300), et.verschiebe(BRepPrimAPI_MakeBox(8, 35, 100).Shape(), 8, 5, 100))
+fenster = et.cut(fenster, et.verschiebe(BRepPrimAPI_MakeBox(16, 35, 30).Shape(), 8, 5, 100))
+et.schreibe(fenster, "G_fenster", tmp)
+step_messen.main(["--ausgabe", str(tmp / "f.txt"), "--netze", str(tmp), str(tmp / "G_fenster.step")])
+(mf,) = step.lade_netze(step.lies_messwerte(tmp / "f.txt"), tmp)
+kl = [d for d in json.loads(mf["konturen_liste"]) if d.get("umriss_innen")]
+assert len(kl) == 1 and kl[0]["schwenk"] > 10 and step.sonder_3d(mf) == 1, [(d.get("art"), d.get("schwenk"))
+                                                                              for d in json.loads(mf["konturen_liste"])]
+f3 = step.rechner_eingaben(mf, "Rundrohr", 60, None, d3=True)
+f2 = step.rechner_eingaben(mf, "Rundrohr", 60, None, d3=False)
+k3 = next(z for z in f3["konturen"] if z.get("umriss_innen"))
+k2 = next(z for z in f2["konturen"] if z.get("umriss_step"))
+assert k3["d3"] and k3["schwenk"] > 10 and k3["umriss"] != k3["umriss_innen"]
+assert k2["umriss"] != k2["umriss_step"] and k2["gemessen"] != k2["gemessen_step"] and not k2.get("d3"), k2
+zeilen = dreid.bearbeitungen(dict(laenge=300.0, technik=json.dumps(dict(f3, d3=True))), masch)
+assert [z["art"] for z in zeilen] == [dreid.KONTUR_3D] and nah(zeilen[0]["winkel_eingabe"], k3["schwenk"], 0.01) \
+    and zeilen[0]["winkel"] <= 45, zeilen
+db_f = Datenbank(tmp / "f.db")
+for d3_, soll in ((True, False), (False, True)):
+    ef = step.uebernehmen([dict(mf, _uebernehmen=True)], [], db_f.kontext(), db_f.zeilen("gewinde"), None,
+                          "S235-10219", 1, neue_profile=True, d3=d3_)
+    assert ("nicht senkrecht" in " ".join(ef["bericht"])) == soll, (d3_, ef["bericht"])
+n3 = rohr3d.netz_rechnen(dict(f3, d3=True), profil, 300.0)
+n2 = rohr3d.netz_rechnen(f2, profil, 300.0)
+assert n3 and n2 and n3 != n2
+ok(f"G5 schräges Fenster ({kl[0]['schwenk']:g}°): mit 3D Rand innen wie gemessen + Zeile Kontur 3D; ohne 3D an der "
+   f"Innenkante 90° ({k2['gemessen']:g} statt {k2['gemessen_step']:g} mm)")
 print("Fasen in 3D und im Editor: alle Tests bestanden.")
