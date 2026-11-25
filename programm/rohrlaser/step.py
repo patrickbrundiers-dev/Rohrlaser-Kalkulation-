@@ -307,6 +307,28 @@ def kandidaten_3d(m):
     return gehr, bohr
 
 
+def vergleich_wie_step(rechner):
+    """Eingaben für die 3D-Gegenprobe: schräge Konturen, die ohne 3D an der Innenkante mit 90° geschnitten werden
+    (bewusst anders als die STEP, Patrick 25.11.2026), mit dem Umriss der STEP und 3D wie konstruiert; sonst
+    unverändert."""
+    if not isinstance(rechner, dict) or not any(z_.get("umriss_step") for z_ in rechner.get("konturen") or ()):
+        return rechner
+    kont = [dict(z_, umriss=z_["umriss_step"], umriss_innen=z_["umriss"], d3=True) if z_.get("umriss_step") else z_
+            for z_ in rechner["konturen"]]
+    return dict(rechner, konturen=kont, d3=True)
+
+
+def sonder_3d(m):
+    """Anzahl Sonderkonturen mit schräger Schnittfläche (gemessen 'schwenk' ab 0,5°) und gemessenem Rand auf der
+    Innenwand: mit 3D-Bearbeitung als 3D-Schnitt wie in der STEP (Patrick 25.11.2026)."""
+    try:
+        liste = json.loads(m.get("konturen_liste") or "[]")
+    except (TypeError, ValueError):
+        return 0
+    return sum(1 for d in liste if isinstance(liste, list) and isinstance(d, dict) and d.get("art") != "Bohrung"
+               and d.get("durchgehend") and d.get("umriss_innen") and nicht_senkrecht(d))
+
+
 def fase_3d(d):
     """Fase am Ende (Messung), die durch die ganze Wand geht und deshalb mit 3D-Bearbeitung als 3D-Schnitt gerechnet
     wird (Patrick 25.11.2026); Ende aus konturen_liste."""
@@ -1267,6 +1289,19 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     k["form_erkannt"] = fe_
                     if not k.get("text"):
                         k["text"] = form_erkennung.text(k)
+                ui = _umriss_relativ(dict(d, umriss=d["umriss_innen"]), s_von, s_umfang, bool(r_mess),
+                                     math.pi * ma if mform == "Rundrohr" else
+                                     2 * (mbreit + mschmal) - (8 - 2 * math.pi) * (r_mess or 0)) \
+                    if d.get("umriss_innen") and nicht_senkrecht(d) else None
+                if ui and len(ui) >= 3:
+                    # schräge Schnittfläche (Patrick 25.11.2026): Rand innen wie gemessen; mit 3D am Teil ein
+                    # 3D-Schnitt wie in der STEP, ohne 3D an der Innenkante mit 90° durch die Wand
+                    if d3:
+                        k.update(umriss_innen=ui, d3=True, schwenk=round(float(d["schwenk"]), 2))
+                    else:
+                        k.update(umriss=ui, umriss_step=umriss, gemessen_step=k["gemessen"], gemessen=round(sum(
+                            math.dist(ui[i], ui[(i + 1) % len(ui)]) for i in range(len(ui))), 2),
+                            text=f"schräg {dez(float(d['schwenk']))}° in der STEP: ohne 3D an der Innenkante 90°")
             if d.get("waende"):
                 k["waende"] = list(d["waende"])
         elif art == "Bohrung" and d.get("durchmesser") and (dbr := _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von)) \
@@ -2656,13 +2691,14 @@ def rohr_gegenprobe(m, profile, d3=False):
     try:
         gehr_3d, bohr_3d = kandidaten_3d(m)
         rechner = rechner_eingaben(m, form, profil.get("a") or m.get("abm_a"), profil.get("b") or m.get("abm_b"),
-                                   bool(m.get("_d3", d3)) and bool(gehr_3d or bohr_3d))
+                                   bool(m.get("_d3", d3)) and bool(gehr_3d or bohr_3d or sonder_3d(m)))
         if not rechner:
             return None
         from .schneidweg import konturen_umstellen
         if konturen_umstellen(rechner, dict(profil, profil_id=pid or profil.get("profil_id")))[1]:
             return None     # Konturen werden für das Profil umgestellt: das Übernehmen vergleicht dann nicht
         laenge = round(_z(m, "laenge"), 1)
+        rechner = vergleich_wie_step(rechner)
         ab = step_gegenprobe.abweichung(m, profil, rechner, laenge)
         fasen = fase_zonen(m, laenge)
         if ab and fasen and step_gegenprobe.hinweis(*ab) and form in step_gegenprobe.FORMEN:
@@ -3803,7 +3839,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             # 3D (Häkchen im Prüfdialog, Vorgabe an, wenn die Maschine 3D kann; Patrick 24.10.2026) gilt nur für Teile
             # mit Schnitten, die nicht senkrecht zur Oberfläche stehen; die anderen bleiben 2D
             gehr_3d, bohr_3d = kandidaten_3d(m)
-            mit_3d = bool(m.get("_d3", d3)) and bool(gehr_3d or bohr_3d)
+            mit_3d = bool(m.get("_d3", d3)) and bool(gehr_3d or bohr_3d or sonder_3d(m))
             rechner = rechner_eingaben(m, form, (profile.get(pid) or {}).get("a") or m.get("abm_a"),
                                        (profile.get(pid) or {}).get("b") or m.get("abm_b"), mit_3d)
             br = biegerohr.lesen(m.get("biegerohr"))
@@ -3812,7 +3848,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if bohr_3d and not mit_3d:
                 hinweise.append(f"3D prüfen: {bohr_3d} schräge Bohrung{'en' if bohr_3d > 1 else ''}, ohne "
                                 "3D-Schnittbearbeitung als 2D gerechnet")
-            sonst_3d = schraege_konturen(m)
+            sonst_3d = max(0, schraege_konturen(m) - (sonder_3d(m) if mit_3d else 0))     # mit 3D gerechnet: kein Hinweis
             if sonst_3d:
                 hinweise.append(f"3D prüfen: {sonst_3d} Kontur{'en' if sonst_3d > 1 else ''} nicht senkrecht zur "
                                 "Oberfläche, als 2D gerechnet")
@@ -3842,6 +3878,11 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["innen"] = round(max(p["innen"] + diff, 0.0), 1)
                 kl[2][1] = max(kl[2][1] + diff, 0.0)
                 hinweise.append(text)
+            d_innen = sum(_z(z_, "gemessen") - _z(z_, "gemessen_step") for z_ in (rechner or {}).get("konturen") or ()
+                          if z_.get("umriss_step") and z_.get("gemessen_step"))
+            if abs(d_innen) >= 0.05:    # schräge Kontur ohne 3D: an der Innenkante 90° (Patrick 25.11.2026)
+                p["schneidweg"] = round(p["schneidweg"] + d_innen, 1)
+                p["innen"] = round(max(p["innen"] + d_innen, 0.0), 1)
             if rechner and profile.get(pid):      # Konturen für das Profil der Position (Profil von Hand geändert)
                 from .schneidweg import konturen_umstellen
                 rechner_neu, h_k, d_s, d_g = konturen_umstellen(rechner, dict(profile[pid], profil_id=pid))
@@ -3856,7 +3897,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     # Gegenprobe: das Modell des Editors liegt wie die STEP (Patrick 30.10.2026, Übergabe absichern)
                     from . import step_gegenprobe, tempo
                     with tempo.abschnitt("STEP: Gegenprobe Rohr"):
-                        ab = step_gegenprobe.abweichung(m, profile[pid], rechner, p["laenge"])
+                        ab = step_gegenprobe.abweichung(m, profile[pid], vergleich_wie_step(rechner), p["laenge"])
                     if ab:
                         p["_step_abweichung"] = round(ab[0], 2)
                         h = step_gegenprobe.hinweis(*ab)

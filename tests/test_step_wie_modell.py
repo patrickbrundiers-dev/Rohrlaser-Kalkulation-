@@ -11,6 +11,8 @@ W2 Kastenprofile: Sonderkonturen über eine, zwei und drei Ecken, schräg, gedre
 W3 Bohrungen auf allen vier Seiten (vorher je Ecke 0,43 × Radius verschoben)
 W4 Rundrohr: Rechteck, schräge Sonderkontur, Bohrungen rundum, Rohr in der Datei gedreht (Netz auf 0°)
 W5 komplexes Ende über die Ecken (vorher im 3D gerade)
+Schräge Konturen (Schnittfläche nicht senkrecht zur Wand) werden mit 3D verglichen: nur dann zeigt das Programm sie wie
+die STEP, ohne 3D an der Innenkante mit 90° (Patrick 25.11.2026).
 """
 import math
 import sys
@@ -88,13 +90,27 @@ def netz_wie_konstruiert(d):
     """3D-Netz des Editors (SchneidwegDialog d) mit ebenen Gehrungen in 3D, also wie in der STEP konstruiert. In 2D
     wird eine ebene STEP-Gehrung an der langen Seite um Wand · tan(Winkel) kürzer, wie gefertigt (Patrick
     28.10.2026, Variante a); nur eine schon in der STEP 2D geschnittene Gehrung ('aussen_mass') steht in 2D wie dort."""
+    from PySide6.QtCore import Qt
+    from rohrlaser.schneidweg_dialog import D3_SPALTE
     e = d.eingaben()
     eben = [s for s in ("a", "b") if (e.get(s) or {}).get("winkel") and not e[s].get("aussen_mass")
             and not e[s].get("d3")]
-    if eben:
+    # schräge Kontur, ohne 3D an der Innenkante mit 90° projiziert (Patrick 25.11.2026): wie in der STEP in 3D
+    schraeg = []
+    for r in range(d.tabelle.rowCount()):
+        combo = d.tabelle.cellWidget(r, 0)
+        ex = getattr(combo, "extra", None)
+        if ex and ex[1].get("umriss_step"):
+            x = dict(ex[1], umriss=ex[1]["umriss_step"], umriss_innen=ex[1]["umriss"])
+            x.pop("umriss_step")
+            combo.extra = (ex[0], x)
+            schraeg.append(r)
+    if eben or schraeg:
         d.d3.setChecked(True)
         for s in eben:
             d.ende_3d[s].setChecked(True)
+        for r in schraeg:
+            d.tabelle.item(r, D3_SPALTE).setCheckState(Qt.Checked)
         d.rechnen()
         if getattr(d, "editor", None) is not None:
             d.editor.zeitgeber.stop()
@@ -149,7 +165,12 @@ def main():
             name = Path(m["datei"]).stem
             a_, b_ = float(m["abm_a"]), float(m["abm_b"] or 0) or None
             profil = dict(form=m["profilform"], a=a_, b=b_, wand=float(m["wandstaerke"]), profil_id="X")
-            e = step.rechner_eingaben(m, m["profilform"], a_, b_)
+            # schräge Schnittfläche (gemessen): wie in der STEP nur mit 3D; ohne 3D an der Innenkante 90° (Patrick
+            # 25.11.2026), dann liegt die Kontur außen bewusst anders
+            mit_3d = step.sonder_3d(m) > 0
+            e = step.rechner_eingaben(m, m["profilform"], a_, b_, mit_3d)
+            if mit_3d:
+                e["d3"] = True
             n = rohr3d.netz(e, profil, float(m["laenge"]))
             sn = ansicht3d.entpacken(m["_netz"])
             zeile = [name]
