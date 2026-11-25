@@ -8,27 +8,96 @@ Explosion), rechts die Reiter Erkennung, Konturen, Datei und Leistung. Die Werte
 (step_viewer.py), nie aus dem Anzeigenetz; das Netz ist nur Bild.
 
 Bedienung: Datei öffnen (Strg+O, auch Ziehen ins Fenster), Schließen (Strg+W), Analysestufe Standard/Experte,
-Gesamtansicht/Einzelteil, Konturen nach Art färben, nur rohrlaser-relevante Teile, Hell/Dunkel, Kontur in der Liste
-oder im 3D anklicken = Berechnungsinformationen, Art von Hand ändern (Rechtsklick im Baum), Übernehmen ins Angebot.
+Gesamtansicht/Einzelteil, Konturen färben nach Art, Rolle (Anfang und Ende verschieden) oder Schneidbarkeit, Konturen je
+Rolle ein-/ausblenden, nur rohrlaser-relevante Teile, Hell/Dunkel, Kontur in der Liste, im 3D oder in der Abwicklung
+unter dem 3D anklicken = Berechnungsinformationen (Auswahl in allen dreien gleich), Rolle einer Kontur von Hand ändern
+(Rechtsklick in der Konturliste), Art von Hand ändern (Rechtsklick im Baum), Übernehmen ins Angebot.
 """
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QBrush, QKeySequence
+from PySide6.QtCore import QPointF, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QBrush, QColor, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QFileDialog, QHBoxLayout,
                                QHeaderView, QLabel, QMainWindow, QMenu, QProgressBar, QSplitter, QTableWidget,
-                               QTableWidgetItem, QTabWidget, QToolBar, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-                               QWidget)
+                               QTableWidgetItem, QTabWidget, QToolBar, QToolButton, QTreeWidget, QTreeWidgetItem,
+                               QVBoxLayout, QWidget)
 
+from . import konturrolle as kr
 from . import step_viewer as sv
 from . import stil
 from .ansicht3d import Ansicht3DMitKnoepfen
 
 GESAMT, EINZEL = "Gesamtansicht", "Einzelteil"
 DUNKEL = "Dunkel (CAD)"
-KONTUR_SPALTEN = ("Nr.", "Art", "Maß [mm]", "Lage", "Schnitt [mm]", "Einstich", "Linie 3D [mm]", "Gegenprobe")
+KONTUR_SPALTEN = ("Nr.", "Art", "Maß [mm]", "Lage", "Schnitt [mm]", "Einstich", "Linie 3D [mm]", "Gegenprobe", "Rolle",
+                  "Schneidbarkeit")
+SP_ROLLE, SP_STUFE = 8, 9
+STUFE_FARBE = {k: f for k, _, f in sv.STUFENFARBEN}
+
+
+class Abwicklung2D(QWidget):
+    """Abwicklung des Mantels neben dem 3D (Master-Auftrag 25.11.2026, Abschnitt 6): Umfang senkrecht, Länge waagrecht,
+    jede Kontur in der Farbe des 3D. Klick auf eine Linie wählt die Kontur (Signal gewaehlt mit der Kennung), die
+    gewählte Kontur ist dick gezeichnet; nur Anzeige, die Werte kommen aus der Messung (sv.abwicklung_2d)."""
+    gewaehlt = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        self.abw, self.farben, self.markiert = None, {}, None
+        self.setMinimumHeight(150)
+        self.setToolTip("Abwicklung: Linie anklicken wählt die Kontur (auch im 3D und in der Liste)")
+
+    def setzen(self, abw, farben=None):
+        self.abw, self.farben = abw, dict(farben or {})
+        self.setVisible(abw is not None)
+        self.update()
+
+    def markieren(self, kennung):
+        self.markiert = kennung
+        self.update()
+
+    def _rahmen(self):
+        r = 8.0
+        return r, r, max(self.width() - 2 * r, 1.0), max(self.height() - 2 * r - 14, 1.0)
+
+    def _punkt(self, s, z):
+        x0, y0, w, h = self._rahmen()
+        return QPointF(x0 + z / self.abw["laenge"] * w, y0 + s / self.abw["umfang"] * h)
+
+    def paintEvent(self, _):
+        if not self.abw:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        x0, y0, w, h = self._rahmen()
+        p.setPen(QPen(QColor(stil.farbe("#7F8C8D")), 1, Qt.DashLine))
+        p.drawRect(int(x0), int(y0), int(w), int(h))
+        for li in self.abw["linien"]:
+            dick = li["kennung"] == self.markiert
+            p.setPen(QPen(QColor(self.farben.get(li["kennung"]) or stil.farbe("#7F8C8D")), 3.5 if dick else 1.6))
+            pts = li["punkte"]
+            paare = zip(pts, pts[1:] + ([] if li["gerade"] else pts[:1]))
+            for a, b in paare:
+                if not li["gerade"] and abs(a[0] - b[0]) > self.abw["umfang"] / 2:
+                    continue
+                p.drawLine(self._punkt(*a), self._punkt(*b))
+        p.setPen(QColor(stil.farbe("#555555")))
+        p.drawText(int(x0), int(y0 + h + 12), f"Abwicklung: Länge {sv._dez(self.abw['laenge'], 1)} mm × Umfang "
+                   f"{sv._dez(self.abw['umfang'], 1)} mm (Ende A links)")
+        p.end()
+
+    def mousePressEvent(self, e):
+        if not self.abw:
+            return
+        x0, y0, w, h = self._rahmen()
+        z = (e.position().x() - x0) / w * self.abw["laenge"]
+        s = (e.position().y() - y0) / h * self.abw["umfang"]
+        tol = 6.0 / max(w / self.abw["laenge"], h / self.abw["umfang"], 1e-9)       # 6 Pixel
+        k = sv.treffer_2d(self.abw, s, z, tol)
+        if k:
+            self.gewaehlt.emit(k)
 
 
 def _tabelle_zeilen(baum, zeilen):
@@ -117,6 +186,29 @@ class StepViewer(QMainWindow):
         aktion("farben", "Konturen nach Art", self._farben_anwenden, None, "Bohrungen, Langlöcher, Ausschnitte, "
                "Sonderkonturen, Enden, Gehrungen/Schrägschnitte und Gravuren farbig", check=True)
         self.aktionen["farben"].setChecked(True)
+        self.farbe_nach = QComboBox()
+        self.farbe_nach.addItems(sv.FARBEN_NACH)
+        self.farbe_nach.setCurrentText("Rolle")
+        self.farbe_nach.setToolTip("Konturen färben nach Art (Bohrung, Langloch …), nach Rolle (Anfangsschnitt, "
+                                   "Innenkontur, Durchbruch, Endeschnitt …; Anfang und Ende verschieden) oder nach "
+                                   "Schneidbarkeit (1 eindeutig … 4 nicht sicher)")
+        self.farbe_nach.currentTextChanged.connect(lambda _: self._farben_anwenden())
+        leiste.addWidget(self.farbe_nach)
+        self.rollen_aus = set()
+        self.rollen_knopf = QToolButton()
+        self.rollen_knopf.setText("Konturen ein/aus")
+        self.rollen_knopf.setPopupMode(QToolButton.InstantPopup)
+        self.rollen_knopf.setToolTip("Konturen je Rolle im 3D und in der Abwicklung ein- und ausblenden")
+        menue = QMenu(self.rollen_knopf)
+        self.rollen_aktionen = {}
+        for rolle, text, _ in sv.ROLLENFARBEN:
+            a = menue.addAction(text)
+            a.setCheckable(True)
+            a.setChecked(True)
+            a.toggled.connect(lambda an, r=rolle: self.rolle_zeigen(r, an))
+            self.rollen_aktionen[rolle] = a
+        self.rollen_knopf.setMenu(menue)
+        leiste.addWidget(self.rollen_knopf)
         aktion("relevant", "Nur Rohrlaser-Teile", lambda: self.zeigen(self.gezeigt), None, "Gesamtansicht: Normteile, "
                "Bleche und Dreh-/Frästeile ausblenden; Einzelteil: Anbauteile und Innenwand ausblenden", check=True)
         aktion("pruefung", "Farben nach Prüfung", lambda: self.zeigen(None), None, "Gesamtansicht nach der "
@@ -153,7 +245,14 @@ class StepViewer(QMainWindow):
         self.titel = QLabel()
         self.titel.setStyleSheet("font-weight: 600; padding: 2px 4px;")
         ml.addWidget(self.titel)
-        ml.addWidget(self.ansicht, 1)
+        mitte_teil = QSplitter(Qt.Vertical)
+        mitte_teil.addWidget(self.ansicht)
+        self.abwicklung = Abwicklung2D()
+        self.abwicklung.gewaehlt.connect(self._2d_gewaehlt)
+        self.abwicklung.setVisible(False)
+        mitte_teil.addWidget(self.abwicklung)
+        mitte_teil.setSizes([600, 170])
+        ml.addWidget(mitte_teil, 1)
         haupt.addWidget(mitte)
         self.reiter = QTabWidget()
         self.erkennung = _zwei_spalten()
@@ -183,6 +282,8 @@ class StepViewer(QMainWindow):
         self.konturen.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.konturen.verticalHeader().setVisible(False)
         self.konturen.itemSelectionChanged.connect(self._kontur_gewaehlt)
+        self.konturen.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.konturen.customContextMenuRequested.connect(self._kontur_menue)
         kl.addWidget(self.konturen, 2)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
@@ -409,6 +510,7 @@ class StepViewer(QMainWindow):
         self.ansicht.ansicht.kosten_setzen()
         if i is None:
             self.ansicht_art, self.gezeigt = GESAMT, None
+            self.abwicklung.setzen(None)
             alle = range(len(mes.messwerte))
             if self.aktionen["relevant"].isChecked():
                 alle = [k for k in alle if sv.gruppe(mes.messwerte[k]) == sv.ROHR]
@@ -441,6 +543,8 @@ class StepViewer(QMainWindow):
                 from .ansicht3d import ohne_arten
                 netz = ohne_arten(netz, {"AN", "GA", "I"})
         self.zeilen = sv.konturen(m, roh)
+        if netz and self.rollen_aus:
+            netz = sv.ohne_konturen(netz, sv.ausgeblendet(self.zeilen, self.rollen_aus))
         info = "" if netz else "Für diesen Körper gibt es kein 3D-Netz (nicht messbar oder ältere Messung)."
         self._anzeigen(netz, "", info, erstes)
         self.titel.setText(f"{mes.pfad.name} – {sv.name(m)}")
@@ -475,13 +579,18 @@ class StepViewer(QMainWindow):
         for r, z in enumerate(self.zeilen):
             werte = (str(z["nr"]), z["art"], z["mass"], z["lage"], sv._dez(z["schnitt"], 2) if z["schnitt"] else "",
                      "1" if z["einstich"] else "", sv._dez(z["netz_mm"], 2) if z["netz_mm"] is not None else "",
-                     z["gegenprobe"])
+                     z["gegenprobe"], (z.get("rolle") or "") + (" (Hand)" if z.get("hand") else ""),
+                     f"{z['stufe']} {z['stufe_text']}" if z.get("stufe") and z.get("rolle") != "kein Schnitt" else "")
             for c, w in enumerate(werte):
                 it = QTableWidgetItem(w)
                 if c in (0, 4, 5, 6):
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
                 if z["hinweis"]:
                     it.setToolTip(z["hinweis"])
+                if c in (SP_ROLLE, SP_STUFE) and z.get("grund"):
+                    it.setToolTip(z["grund"])
+                if c == SP_STUFE and w:
+                    it.setForeground(QBrush(stil.farbe(STUFE_FARBE.get(z["stufe"], stil.TEXT))))
                 t.setItem(r, c, it)
         t.resizeColumnsToContents()
         t.blockSignals(False)
@@ -498,11 +607,65 @@ class StepViewer(QMainWindow):
 
     def _farben_anwenden(self):
         a = self.ansicht.ansicht
-        if self.ansicht_art != EINZEL or not self.aktionen["farben"].isChecked() or not self.zeilen:
+        einzel = self.ansicht_art == EINZEL and bool(self.zeilen) and self.gezeigt is not None
+        linien, legende = sv.konturfarben(self.zeilen or [], self.farbe_nach.currentText(), self.rollen_aus) \
+            if einzel else ({}, [])
+        if einzel:
+            m = self.mes.messwerte[self.gezeigt]
+            farben2d = linien or sv.konturfarben(self.zeilen, "Rolle", self.rollen_aus)[0]
+            self.abwicklung.setzen(sv.abwicklung_2d(m, self.zeilen, self.rollen_aus), farben2d)
+        else:
+            self.abwicklung.setzen(None)
+        if not einzel or not self.aktionen["farben"].isChecked():
             a.kosten_setzen()
             return
-        linien, legende = sv.konturfarben(self.zeilen)
         a.kosten_setzen(linien=linien, legende=legende)
+
+    def rolle_zeigen(self, rolle, an):
+        """Konturen der Rolle im 3D und in der Abwicklung ein-/ausblenden (Menü „Konturen ein/aus“)."""
+        (self.rollen_aus.discard if an else self.rollen_aus.add)(rolle)
+        if self.rollen_aktionen[rolle].isChecked() != an:
+            self.rollen_aktionen[rolle].blockSignals(True)
+            self.rollen_aktionen[rolle].setChecked(an)
+            self.rollen_aktionen[rolle].blockSignals(False)
+        if self.ansicht_art == EINZEL and self.gezeigt is not None:
+            self.zeigen(self.gezeigt)
+
+    def _2d_gewaehlt(self, kennung):
+        nr = sv.kontur_nr(kennung)
+        if nr is not None:
+            self.reiter.setCurrentIndex(1)
+            self.kontur_waehlen(nr)
+
+    def _kontur_menue(self, pos):
+        r = self.konturen.rowAt(pos.y())
+        if not 0 <= r < len(self.zeilen) or self.gezeigt is None:
+            return
+        z = self.zeilen[r]
+        menue = QMenu(self)
+        unter = menue.addMenu("Rolle ändern")
+        for rolle in kr.ROLLEN:
+            a = unter.addAction(rolle)
+            a.setCheckable(True)
+            a.setChecked(rolle == z.get("rolle"))
+            a.triggered.connect(lambda _=False, nr=z["nr"], ro=rolle: self.rolle_aendern(nr, ro))
+        if z.get("hand"):
+            menue.addAction("Gemessene Rolle wiederherstellen", lambda nr=z["nr"]: self.rolle_aendern(nr, None))
+        menue.exec(self.konturen.viewport().mapToGlobal(pos))
+
+    def rolle_aendern(self, nr, rolle):
+        """Handkorrektur der Rolle (Rechtsklick in der Konturliste); None = wieder die gemessene. Die Korrektur steht
+        in den Messwerten und wird je Geometrie gemerkt (sv.ROLLE_GELERNT); der Import setzt sie wieder, so geht sie
+        mit „Ins Angebot übernehmen“ in die Position."""
+        m = self.mes.messwerte[self.gezeigt] if self.gezeigt is not None else None
+        if m is None or not sv.rolle_setzen(m, nr, rolle):
+            return False
+        # gemerkt wie die Art: „Ins Angebot übernehmen“ misst neu und setzt die Rolle beim Import wieder
+        if self.db is not None and not getattr(self.db, "nur_lesen", False):
+            sv.rollen_merken(self.db, m)
+        self.zeigen(self.gezeigt)
+        self.kontur_waehlen(nr)
+        return True
 
     def _dunkel(self):
         from . import visualisierung
@@ -563,6 +726,7 @@ class StepViewer(QMainWindow):
             return
         z = self.zeilen[r]
         a.markieren([z["kennung"]])
+        self.abwicklung.markieren(z["kennung"])
         _tabelle_zeilen(self.kontur_feld, sv.kontur_info(z, self.mes.messwerte[self.gezeigt]))
 
     def kontur_waehlen(self, nr):
@@ -641,6 +805,7 @@ class StepViewer(QMainWindow):
         self.baum.clear()
         self.erkennung.clear()
         self.konturen.setRowCount(0)
+        self.abwicklung.setzen(None)
         self.datei_feld.clear()
         self.leistung.clear()
         self.summe.clear()

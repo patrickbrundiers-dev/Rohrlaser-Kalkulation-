@@ -31,6 +31,44 @@ NEUERUNGEN = [
                 "_final, _neu, _Bearbeitet): Zuordnung über die Grundnummer, Revision getrennt an der Position "
                 "gespeichert, mehrere Versionen werden angezeigt statt still zugeordnet.",
      "Kunde bleibt gebunden, Stückzahlen mit Fundstelle, STEP-Zuordnung mit Revision (_REV02, -02, _002)"],
+    ["0.9.494", "<b>EK-CSV-Import und Kundenlisten-Import mit Assistent</b> ([[ek_import_assistent]], [[kunden_csv]]): "
+                "beide Importe laufen jetzt auf einer gemeinsamen Importbasis (Kodierung, Trennzeichen, Dezimalformat, "
+                "mit oder ohne Kopfzeile, Spaltennamen deutsch und englisch, Importprofile auch bei anderer "
+                "Spaltenreihenfolge, Vorschau ohne Datenbankänderung, Importlauf mit Rückgängig, Fehlerbericht). "
+                "<b>EK-Import in 6 Schritten</b>: Datei/Lieferant/Format, Spalten, Materialerkennung in drei Stufen "
+                "(exakt automatisch, wahrscheinlich zum Bestätigen, kein Treffer = neues Material), Preisprüfung je "
+                "Lieferant mit € und % (Markierung ab Einstellung, Vorgabe 10 %; ein anderer Lieferant wird nie "
+                "überschrieben), Vorschau, Abschluss. <i>RR 50/50/3</i> = 50x50x3, Mengeneinheiten mm/Stück/kg, "
+                "fremde Währung als Fehler, keine Profil-Dublette in anderer Schreibweise. <b>Kundenimport in 5 "
+                "Schritten</b>: Spalten (Firma, Customer, Mail, ZIP, City, VAT ID …; <i>Name</i> nur als Vorschlag), "
+                "Dublettenprüfung über Kundennummer, Name, E-Mail, Telefon, Anschrift und USt-ID mit den Optionen "
+                "aktualisieren / neu anlegen / überspringen / manuell zuordnen, nur leere Felder ergänzen oder "
+                "überschreiben, Ansprechpartner, Liefer-/Rechnungsadresse und Rabatt. Kundennummern werden nie "
+                "vergeben und nie geändert; Angebote und Aufträge bleiben verknüpft. Kalkulationen rechnen unverändert.",
+     "Importassistenten: EK-CSV (6 Schritte, Preisprüfung je Lieferant) und Kundenliste (5 Schritte, Dubletten)"],
+    ["0.9.493", "<b>Rolle und Schneidbarkeit je Kontur</b> ([[importanalyse]]): Die Importanalyse zeigt zu jeder "
+                "Kontur, ob sie Anfangsschnitt, Endeschnitt, Anschlusskontur, Innenkontur, Durchbruch, Ausschnitt, "
+                "Freiformkontur oder nicht eindeutig ist, und wie sicher sie geschnitten wird (1 eindeutig, "
+                "2 wahrscheinlich, 3 problematisch, 4 nicht sicher, mit Grund). Problematische Konturen findet "
+                "<i>Nächstes zu prüfen</i>. Neu ist auch die <b>Schneidweg-Bilanz</b>: Jede geschnittene Kante muss "
+                "zu genau einer Kontur gehören, sonst nennt ein Hinweis fehlende oder doppelte Kanten. Dazu kommen "
+                "10 Referenzteile mit Sollmaßen aus der Konstruktion als Test. Der <b>STEP-Viewer</b> ([[step_viewer]]) "
+                "färbt nach Rolle (Anfang und Ende verschieden) oder Schneidbarkeit. Konturen lassen sich je Rolle "
+                "ein- und ausblenden. Unter dem 3D zeigt er die Abwicklung, und die Auswahl ist in 3D, Abwicklung "
+                "und Liste gleich. Die Rolle lässt sich per Rechtsklick von Hand ändern. Messwerte und Preise bleiben "
+                "gleich.",
+     "Rolle und Schneidbarkeit (1–4) je Kontur, Schneidweg-Bilanz, STEP-Viewer mit Abwicklung und Farben je Rolle."],
+    ["0.9.492", "<b>Erkennung von Endkonturen und Sonderkonturen</b> ([[schneidweg_rechner]], [[nesting]]): Komplexe "
+                "Enden aus der STEP werden mit ihrer Konturart erkannt (V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, Bogen "
+                "konvex/konkav, S-Kurve, Schräg, Stufen) samt Maßen, wenn sie den gemessenen Umriss überall auf 0,1 mm "
+                "treffen; der Umriss der STEP bleibt maßgebend, <i>Endkontur …</i> öffnet die erkannte Kontur zum "
+                "Bearbeiten. Sonderkonturen in der Wand bekommen ihre Form als Bemerkung: Kreis, Langloch und Rechteck "
+                "(mit Eckradius) in beliebiger Lage, Dreieck, Quadrat, Sechseck und andere Vielecke, sonst Freiform mit "
+                "Geraden und Bögen. Endkonturen rechnen an Quadrat- und Rechteckrohren mit dem echten Eckradius. Die "
+                "Verschachtelung nimmt bei 2D-Schnitten keinen Zuschlag für den Schwenk mehr an (gemessene Enden "
+                "rücken bis zu 3 mm näher zusammen). Prüfsatz und Werkzeug <i>werkzeuge/kontur_erkennung.py</i>: "
+                "24 von 24 Enden und 14 von 14 Sonderkonturen richtig.",
+     "Konturart komplexer STEP-Enden und Form von Sonderkonturen erkannt, Verschachtelung 2D genauer"],
     ["0.9.491", "<b>Fasen an den Rohrenden wie in der STEP</b> ([[step]]): Im Editor und in der 3D-Ansicht "
                 "liegt das Ende mit Fase jetzt wie in der STEP (vorher gerade an der längsten Stelle, bis 3 mm "
                 "daneben). Der Import misst Tiefe, Höhe und Winkel der Fase. Geht sie durch die ganze Wand und ist die "

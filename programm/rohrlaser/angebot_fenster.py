@@ -10896,6 +10896,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 formular_bericht = anwenden()
         # Art wie beim letzten Mal von Hand gewählt (Blech, Rohr/Profil, Dreh-/Frästeil; Patrick 04.11.2026)
         step.arten_gelernt_anwenden(messwerte, self.db.einstellung(step.ART_GELERNT) or {})
+        # Rollen der Konturen wie im STEP-Viewer von Hand gesetzt (Master-Auftrag 25.11.2026, nur Anzeige)
+        from . import step_viewer
+        step_viewer.rollen_gelernt_anwenden(messwerte, self.db.einstellung(step_viewer.ROLLE_GELERNT) or {})
         # Profil wie beim letzten Mal bei diesem Kunden von Hand gewählt (Optimierungsplan C3, automatisch, gelb)
         profil_regeln = self.db.einstellung(step.PROFIL_GELERNT) or {}
         step.profile_gelernt_anwenden(messwerte, profil_regeln.get(str(self.kopf.get("kundennr") or "")) or {},
