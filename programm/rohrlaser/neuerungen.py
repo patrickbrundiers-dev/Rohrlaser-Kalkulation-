@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.503", "<b>3D-Maus in jeder Belegung</b> ([[mausbelegung_3d]]): In allen 3D-Fenstern (Rohr- und Blech-Editor, "
+                "STEP-Viewer, Baugruppe, Satz, Nesting-3D, Vorschauen) dreht jetzt <b>links ziehen</b> und verschiebt "
+                "<b>rechts ziehen</b>, egal welche Mausbelegung eingestellt ist; das Mausrad zoomt immer. Vorher tat die "
+                "rechte Taste mit der Belegung <i>wie Inventor</i> nichts, obwohl unten „rechte verschieben“ stand. Die "
+                "Zeile unten im 3D nennt jetzt die Tasten der eingestellten Belegung. Mausräder und Touchpads, die nur "
+                "waagrecht oder in Pixeln melden, zoomen ebenfalls.",
+     "3D: links dreht, rechts verschiebt in jeder Mausbelegung; Hinweis nennt die Tasten"],
     ["0.9.501", "<b>Freimachungen erkennen</b> ([[schneidweg_rechner]]): Rechteck-Ausschnitte mit runden "
                 "Freimachungen an den Ecken heißen jetzt z. B. <i>Rechteck 60 × 20, Freimachung 4 × Ø10 mittig</i> "
                 "(Kreis um die Ecke) oder <i>… versetzt</i> (Kreismitte um den Radius längs einer Seite neben der "
