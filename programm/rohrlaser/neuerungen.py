@@ -31,6 +31,18 @@ NEUERUNGEN = [
                 "20 Fällen: A bis H und P liefern genau dieselben Pläne wie vorher, große Aufträge rechnen 40 bis "
                 "46 % schneller (Baugruppe 6/12 m: 4,8 → 2,9 s, 500 Teile 6/12 m: 2,8 → 1,5 s).",
      "Neue Strategien Gleiche Teile, Satzweise, Automatisch; gleiche Pläne zusammengefasst, bis 46 % schneller"],
+    ["0.9.493", "<b>Rolle und Schneidbarkeit je Kontur</b> ([[importanalyse]]): Die Importanalyse zeigt zu jeder "
+                "Kontur, ob sie Anfangsschnitt, Endeschnitt, Anschlusskontur, Innenkontur, Durchbruch, Ausschnitt, "
+                "Freiformkontur oder nicht eindeutig ist, und wie sicher sie geschnitten wird (1 eindeutig, "
+                "2 wahrscheinlich, 3 problematisch, 4 nicht sicher, mit Grund). Problematische Konturen findet "
+                "<i>Nächstes zu prüfen</i>. Neu ist auch die <b>Schneidweg-Bilanz</b>: Jede geschnittene Kante muss "
+                "zu genau einer Kontur gehören, sonst nennt ein Hinweis fehlende oder doppelte Kanten. Dazu kommen "
+                "10 Referenzteile mit Sollmaßen aus der Konstruktion als Test. Der <b>STEP-Viewer</b> ([[step_viewer]]) "
+                "färbt nach Rolle (Anfang und Ende verschieden) oder Schneidbarkeit. Konturen lassen sich je Rolle "
+                "ein- und ausblenden. Unter dem 3D zeigt er die Abwicklung, und die Auswahl ist in 3D, Abwicklung "
+                "und Liste gleich. Die Rolle lässt sich per Rechtsklick von Hand ändern. Messwerte und Preise bleiben "
+                "gleich.",
+     "Rolle und Schneidbarkeit (1–4) je Kontur, Schneidweg-Bilanz, STEP-Viewer mit Abwicklung und Farben je Rolle."],
     ["0.9.492", "<b>Erkennung von Endkonturen und Sonderkonturen</b> ([[schneidweg_rechner]], [[nesting]]): Komplexe "
                 "Enden aus der STEP werden mit ihrer Konturart erkannt (V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, Bogen "
                 "konvex/konkav, S-Kurve, Schräg, Stufen) samt Maßen, wenn sie den gemessenen Umriss überall auf 0,1 mm "

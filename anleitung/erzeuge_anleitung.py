@@ -5352,8 +5352,25 @@ def kapitel_step(i):
             "Positionen mit Verstoß als Hinweis.")
     i.text("Außerdem zeigt die Importanalyse rechts neben den Merkmalen eine <b>3D-Ansicht</b> des gewählten "
            "Teils: ein Klick auf ein Merkmal (auch auf einen Fertigbarkeits-Befund) färbt seinen Bereich im 3D. "
-           "<b>Nächstes zu prüfen ▸</b> springt über alle Teile zum nächsten Merkmal, das nicht sicher erkannt ist "
-           "oder eine Regel verletzt.", kurz=True)
+           "<b>Nächstes zu prüfen ▸</b> springt über alle Teile zum nächsten Merkmal, das nicht sicher erkannt ist, "
+           "als problematisch oder nicht sicher schneidbar gilt oder eine Regel verletzt.", kurz=True)
+    i.text("<b>Rolle und Schneidbarkeit je Kontur</b> (ab 0.9.493): Die Merkmale zeigen zu jeder Kontur die Spalten "
+           "<b>Rolle</b> und <b>Schneidbarkeit</b>. Die Rolle sagt, wo die Kontur liegt und was sie ist: "
+           "<i>Anfangsschnitt</i> (Ende A), <i>Endeschnitt</i> (Ende B), <i>Anschlusskontur</i> (Sattel gegen ein "
+           "Gegenrohr), <i>Innenkontur</i> (Bohrung, Langloch, Senkung), <i>Durchbruch</i> (Durchgang durch beide "
+           "Wände), <i>Ausschnitt</i>, <i>Freiformkontur</i> (ohne Grundform) oder <i>nicht eindeutig</i>. Die "
+           "Schneidbarkeit hat vier Stufen: <b>1 eindeutig</b> (Grundform erkannt), <b>2 wahrscheinlich</b> (Form aus "
+           "den Flächen, z. B. Sattel oder schräge Bohrung), <b>3 problematisch</b> (Kontur ohne Grundform, Fase, "
+           "über mehrere Wände, Öffnung kleiner als die Wand) und <b>4 nicht sicher</b> (Werte fehlen). Der Grund "
+           "steht im Tooltip und, wenn es keinen anderen Hinweis gibt, in der Spalte Hinweis. Stufe 3 und 4 findet "
+           "<b>Nächstes zu prüfen ▸</b>. Rolle und Stufe sind nur Anzeige: Schnittlänge, Laserzeit und Preis "
+           "ändern sich dadurch nicht. Positionen, die vor dieser Version übernommen wurden, zeigen die Spalten "
+           "leer, bis sie neu eingelesen werden.")
+    i.text("<b>Schneidweg-Bilanz</b> (ab 0.9.493): Beim Messen prüft das Programm, dass jede Kante, die der Laser "
+           "schneidet (Kante zwischen Außenmantel und Schnittfläche), zu genau einer Kontur gehört: keine fehlt, "
+           "keine ist doppelt gezählt. Stimmt alles, steht unter Erkennung „schneidweg geprüft“. Sonst erscheint ein "
+           "Hinweis, z. B. „Schneidweg-Bilanz: 2 Schnittkante(n) ohne Kontur (31,4 mm) – Schneidweg bitte prüfen“, und "
+           "das Teil hat etwas weniger Konfidenz. Die Bilanz ändert keinen Messwert und keinen Preis.")
     i.liste("<b>Gewinde, Senkungen, Fließlöcher mit Zeichnung</b>: liegt zum Teil eine Zeichnung oder ein Formular "
             "vor, gleicht die Analyse den Gewinde-Vorschlag aus dem Kernloch damit ab. Stimmt Größe und Anzahl, gilt er "
             "als sicher („bestätigt durch Zeichnung“); weicht die Anzahl ab, bleibt er zu prüfen mit beiden Werten; "
@@ -5613,6 +5630,24 @@ def kapitel_step(i):
             "unsicher, blau reparierbar, rot fehlerhaft, dunkelgrau ausgeschlossene Normteile); auffällige Körper "
             "stehen auch im Baum farbig, und beim Anklicken zeigt das Feld Erkennung Toleranz, Fehler, Reparatur-Probe "
             "und den Abgleich mit den Prüfwerten des CAD (siehe [[geometriepruefung]]).",
+            "<b>Farben nach Art, Rolle oder Schneidbarkeit</b> (ab 0.9.493, Auswahlfeld neben <i>Konturen nach "
+            "Art</i>, Vorgabe Rolle): <i>Rolle</i> färbt Anfangsschnitt (orange) und Endeschnitt (rot) verschieden, "
+            "dazu Anschlusskontur, Innenkontur, Durchbruch, Ausschnitt, Freiformkontur und nicht eindeutige Konturen; "
+            "<i>Schneidbarkeit</i> färbt 1 eindeutig grün, 2 wahrscheinlich blau, 3 problematisch orange, "
+            "4 nicht sicher rot (siehe [[importanalyse]]). <b>Konturen ein/aus</b> blendet Konturen je Rolle im 3D "
+            "und in der Abwicklung aus. Die Konturliste hat die Spalten <i>Rolle</i> und <i>Schneidbarkeit</i> "
+            "(Grund im Tooltip).",
+            "<b>Abwicklung unter dem 3D</b> (Einzelteil): der Mantel aufgerollt, Ende A links, Umfang senkrecht, "
+            "jede Kontur in derselben Farbe wie im 3D. Ein Klick auf eine Linie wählt die Kontur in der Liste und "
+            "im 3D; eine Kontur, die in der Liste oder im 3D gewählt ist, wird in der Abwicklung dick gezeichnet. "
+            "So lassen sich 3D und Abwicklung direkt vergleichen. Die Höhe stellt der Trenner zwischen 3D und "
+            "Abwicklung ein.",
+            "<b>Rolle von Hand ändern:</b> Rechtsklick auf eine Kontur → <i>Rolle ändern</i>, z. B. wenn ein "
+            "Sattel eigentlich ein Endeschnitt ist. Die Liste zeigt dann „(Hand)“, die Schneidbarkeit bleibt die "
+            "gemessene. <i>Gemessene Rolle wiederherstellen</i> nimmt die Änderung zurück. Die Korrektur wird je "
+            "Geometrie gemerkt: <i>Ins Angebot übernehmen</i> und jeder spätere Import desselben Teils setzen sie "
+            "wieder (Importanalyse). Schnittlänge und Preis ändern sich "
+            "nicht.",
             "<b>Gegenprobe:</b> Die Spalte <i>Linie 3D</i> ist die Länge der Konturlinien im 3D-Bild, unabhängig "
             "von der Messung zusammengezählt; ✓ heißt: sie passt zur Schnittlänge (2 %, mindestens 0,5 mm). Bei "
             "offenen Profilen zählt eine Seite der Wand, Bohrungen im Rundrohr zeigen <i>✓ 2D-Schnitt</i> (der "

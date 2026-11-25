@@ -28,6 +28,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from . import konturrolle as kr
+
 STANDARD, EXPERTE = "Standard", "Experte"
 STUFEN = (STANDARD, EXPERTE)
 STUFE_TEXT = {STANDARD: "Standard: vollständige Messung wie beim Import, 3D-Grunddarstellung",
@@ -56,6 +58,23 @@ KONTURFARBEN = (
     ("Nicht", "nicht gelasert", "#7F8C8D"),
 )
 FARBE_JE = {k: f for k, _, f in KONTURFARBEN}
+# Konturfarben nach Rolle (konturrolle.ROLLEN, Master-Auftrag 25.11.2026): Anfang und Ende verschieden
+ROLLENFARBEN = (
+    ("Anfangsschnitt", "Anfangsschnitt (Ende A)", "#F28E2B"),
+    ("Endeschnitt", "Endeschnitt (Ende B)", "#C62828"),
+    ("Anschlusskontur", "Anschlusskontur (Sattel)", "#6D4C41"),
+    ("Innenkontur", "Innenkontur", "#1F6FD1"),
+    ("Durchbruch", "Durchbruch (beide Wände)", "#00A3A3"),
+    ("Ausschnitt", "Ausschnitt", "#8E44AD"),
+    ("Freiformkontur", "Freiformkontur", "#E91E63"),
+    ("nicht eindeutig", "nicht eindeutig", "#7F8C8D"),
+    ("kein Schnitt", "Gravur / nicht gelasert", "#2E7D32"),
+)
+ROLLE_FARBE = {k: f for k, _, f in ROLLENFARBEN}
+# Farben nach Schneidbarkeit (konturrolle.STUFEN)
+STUFENFARBEN = ((1, "1 eindeutig", "#2E7D32"), (2, "2 wahrscheinlich", "#1F6FD1"), (3, "3 problematisch", "#E67E22"),
+                (4, "4 nicht sicher", "#C62828"))
+FARBEN_NACH = ("Art", "Rolle", "Schneidbarkeit")
 
 _SCHEMA = (("AP242", "AP242 (ISO 10303-242)"), ("MANAGED_MODEL_BASED_3D_ENGINEERING", "AP242 (ISO 10303-242)"),
            ("AP203_CONFIGURATION_CONTROLLED_3D_DESIGN", "AP203 2. Ausgabe (ISO 10303-203)"),
@@ -503,6 +522,8 @@ def konturen(m, netz=None):
     # wird eine (Schnittlänge = halbe Kantenlänge, step_geometrie._offen_konturen)
     offen = any(isinstance(d, dict) and ("querschnitt" in d or "querlage" in d) for d in liste)
     rundrohr = m.get("profilform") == "Rundrohr"
+    wand = _f(m, "wandstaerke") or None
+    sicher = _sicherheit(m).get("konturen") != "unsicher"     # „wahrscheinlich“ kommt von einzelnen Konturen
     out = []
     for nr, d in enumerate(liste):
         if not isinstance(d, dict):
@@ -512,7 +533,7 @@ def konturen(m, netz=None):
         aussen = schnitt                # Länge der Außenlinie (Gegenprobe)
         hinweis = str(d.get("hinweis") or "")
         ende = {"Ende A": "ende_a", "Ende B": "ende_b"}.get(str(d.get("art") or ""))
-        if ende and m.get(ende) not in (None, "") and _f(m, ende) > schnitt + 1e-6:
+        if ende and m.get(ende) not in (None, "") and _f(m, ende) > schnitt + 0.05:   # Rundung (2 Stellen) ist kein Steg
             # Ende mit Innensteg/Innenwand: die Messung rechnet den Schnitt durch den Steg mit (ende_a/ende_b)
             hinweis = (hinweis + "; " if hinweis else "") + f"inkl. Innensteg {_dez(_f(m, ende) - schnitt)} mm"
             schnitt = _f(m, ende)
@@ -534,10 +555,12 @@ def konturen(m, netz=None):
                 # Bohrung im Rundrohr als 2D-Schnitt (dreid.bohrung_2d_rundrohr): die 3D-Linie (Sattelkurve) liegt
                 # zwischen π·Ø und dem längeren 2D-Schnitt, der gerechnet wird
                 probe = "✓ 2D-Schnitt"
+        r = kr.rolle(d, wand, sicher)
         out.append(dict(nr=nr, art=str(d.get("art") or ""), klasse=kl, mass=kontur_mass(d), lage=kontur_lage(d),
                         schnitt=schnitt, einstich=1 if gelasert and schnitt > 0 else 0, durch=bool(d.get("durchgehend")),
                         netz_mm=lg, gegenprobe=probe, hinweis=hinweis, kennung=f"{KONTUR}{nr}",
-                        schwenk=d.get("schwenk"), daten=d))
+                        schwenk=d.get("schwenk"), daten=d, rolle=r["rolle"] if r["schnitt"] else "kein Schnitt",
+                        stufe=r["stufe"], stufe_text=r["stufe_text"], grund=r["grund"], hand=bool(r.get("hand"))))
     return out
 
 
@@ -567,6 +590,9 @@ def kontur_info(z, m):
         if z["gegenprobe"] == "✓ 2D-Schnitt":
             out.append(("Erklärung", "Bohrung im Rundrohr: der Laser schneidet 2D (Strahl zur Rohrmitte), außen "
                         "länger als die konstruierte Bohrung; gerechnet wird der 2D-Schnitt"))
+    if z.get("rolle"):
+        out.append(("Rolle", z["rolle"] + (" (von Hand)" if z.get("hand") else "")))
+        out.append(("Schneidbarkeit", f"{z['stufe']} {z['stufe_text']}: {z['grund']}"))
     if z["hinweis"]:
         out.append(("Hinweis", z["hinweis"]))
     out.append(("Anteil am Schneidweg", f"{_dez(100 * z['schnitt'] / _f(m, 'schneidweg'), 1)} %"
@@ -586,11 +612,131 @@ def mit_konturkennung(netz):
     return out
 
 
-def konturfarben(zeilen):
-    """Farben je Linienkennung für ansicht3d.kosten_setzen und die Legende (nur vorhandene Arten)."""
+def konturfarben(zeilen, nach="Art", aus=()):
+    """Farben je Linienkennung für ansicht3d.kosten_setzen und die Legende (nur vorhandene Arten/Rollen/Stufen).
+    nach: "Art" (KONTURFARBEN), "Rolle" (ROLLENFARBEN, Anfang und Ende verschieden) oder "Schneidbarkeit"
+    (STUFENFARBEN); aus: Rollen, die ausgeblendet sind (ohne Farbe, nicht in der Legende)."""
+    zeilen = [z for z in zeilen if z.get("rolle") not in aus]
+    if nach == "Rolle":
+        linien = {z["kennung"]: ROLLE_FARBE.get(z.get("rolle"), "#7F8C8D") for z in zeilen}
+        da = {z.get("rolle") for z in zeilen}
+        return linien, [(t, f) for k, t, f in ROLLENFARBEN if k in da]
+    if nach == "Schneidbarkeit":
+        farbe = {k: f for k, _, f in STUFENFARBEN}
+        zeilen = [z for z in zeilen if z.get("rolle") != "kein Schnitt"]
+        linien = {z["kennung"]: farbe.get(z.get("stufe"), "#7F8C8D") for z in zeilen}
+        da = {z.get("stufe") for z in zeilen}
+        return linien, [(t, f) for k, t, f in STUFENFARBEN if k in da]
     linien = {z["kennung"]: FARBE_JE[z["klasse"]] for z in zeilen}
     da = {z["klasse"] for z in zeilen}
     return linien, [(t, f) for k, t, f in KONTURFARBEN if k in da]
+
+
+def ohne_konturen(netz, kennungen):
+    """Netz ohne die Linienzüge der Konturen kennungen (netz 'li' der Viewer-Kopie, mit_konturkennung): Konturen
+    einer Rolle ausblenden. Dreiecke bleiben; ohne kennungen kommt das Netz unverändert zurück."""
+    if not netz or not kennungen or not isinstance(netz.get("li"), dict):
+        return netz
+    kennungen = set(kennungen)
+    out = dict(netz)
+    neu_l, neu_li = {}, {}
+    for art, zuege in (netz.get("l") or {}).items():
+        kn = netz["li"].get(art) or []
+        behalten = [i for i in range(len(zuege)) if not (i < len(kn) and kn[i] in kennungen)]
+        neu_l[art] = [zuege[i] for i in behalten]
+        if art in netz["li"]:
+            neu_li[art] = [kn[i] for i in behalten if i < len(kn)]
+    out["l"], out["li"] = neu_l, neu_li
+    out.pop("ln", None)
+    out.pop("lk", None)
+    return out
+
+
+def ausgeblendet(zeilen, aus):
+    """Kennungen der Konturen, deren Rolle in aus liegt."""
+    return {z["kennung"] for z in zeilen if z.get("rolle") in aus}
+
+
+def rolle_setzen(m, nr, rolle):
+    """Handkorrektur: Rolle der Kontur nr in den Messwerten m setzen (konturen_liste[nr]["rolle_hand"]; None = wieder
+    die gemessene). Die Position übernimmt die Messwerte mit der Korrektur. True = geändert."""
+    liste = konturen_liste(m)
+    if not (0 <= nr < len(liste)) or not isinstance(liste[nr], dict):
+        return False
+    if rolle is not None and rolle not in kr.ROLLEN:
+        return False
+    if rolle is None:
+        if "rolle_hand" not in liste[nr]:
+            return False
+        liste[nr].pop("rolle_hand")
+    else:
+        liste[nr]["rolle_hand"] = rolle
+    m["konturen_liste"] = json.dumps(liste, ensure_ascii=False, separators=(",", ":"))
+    return True
+
+
+# ------------------------------------------------------------------ Abwicklung 2D (neben dem 3D)
+def umfang(m):
+    """Außenumfang des Profils für die 2D-Abwicklung [mm] (Rundrohr π·Ø, Quadrat-/Rechteckrohr mit Außenradius),
+    sonst die längste gerade Endkontur; None = keine Abwicklung (offene Profile, Bleche)."""
+    form = m.get("profilform") or ""
+    a, b, r = _f(m, "abm_a"), _f(m, "abm_b"), _f(m, "radius")
+    if form == "Rundrohr" and a > 0:
+        return math.pi * a
+    if form in ("Quadratrohr", "Rechteckrohr") and a > 0:
+        b = b or a
+        return 2 * (a + b) - (8 - 2 * math.pi) * r
+    enden = [d for d in konturen_liste(m) if isinstance(d, dict) and d.get("form") == "gerade"]
+    return max((float(d.get("schnittlaenge") or 0) for d in enden), default=0.0) or None
+
+
+def abwicklung_2d(m, zeilen, aus=()):
+    """Abwicklung des Mantels für die Ansicht neben dem 3D: dict(umfang, laenge, linien=[dict(nr, kennung, rolle,
+    stufe, punkte [(s, z)], gerade)]). Konturen mit Umriss (Abwicklung der Messung, s = Umfang ab 0°) als Linienzug,
+    gerade Enden ohne Umriss als Linie über den ganzen Umfang bei z. Nur Anzeige; None ohne Umfang oder Länge."""
+    u, lg = umfang(m), _f(m, "laenge")
+    if not u or lg <= 0:
+        return None
+    linien = []
+    for z in zeilen:
+        if z.get("rolle") in aus:
+            continue
+        d = z.get("daten") or {}
+        pts = []
+        for p in d.get("umriss") or ():
+            try:
+                pts.append((float(p[0]) % u, float(p[1])))
+            except (TypeError, ValueError, IndexError):
+                continue
+        gerade = False
+        if not pts and str(d.get("art") or "").startswith("Ende") and d.get("z") is not None:
+            zz = float(d["z"])
+            pts, gerade = [(0.0, zz), (u, zz)], True
+        if pts:
+            linien.append(dict(nr=z["nr"], kennung=z["kennung"], rolle=z.get("rolle"), stufe=z.get("stufe"),
+                               punkte=pts, gerade=gerade))
+    return dict(umfang=u, laenge=lg, linien=linien)
+
+
+def treffer_2d(abw, s, z, tol=3.0):
+    """Kontur der 2D-Abwicklung, die am Punkt (s, z) liegt (Abstand höchstens tol mm), als Kennung; sonst None."""
+    beste, best_d = None, tol
+    for li in (abw or {}).get("linien") or ():
+        p = li["punkte"]
+        for a, b in zip(p, p[1:] + ([] if li["gerade"] else p[:1])):
+            if not li["gerade"] and abs(a[0] - b[0]) > abw["umfang"] / 2:      # Sprung über die Naht der Abwicklung
+                continue
+            d_ = _abstand_strecke((s, z), a, b)
+            if d_ < best_d:
+                beste, best_d = li["kennung"], d_
+    return beste
+
+
+def _abstand_strecke(p, a, b):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    n = dx * dx + dy * dy
+    t = 0.0 if n == 0 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / n))
+    return math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy)
 
 
 def gesamt_netz(mes, sichtbar, hervor=(), nach_pruefung=False):
@@ -745,6 +891,42 @@ def korrekturen_merken(db, messwerte):
     if zk_neu:
         db.einstellung_setzen(zukaufteile.GELERNT, zukaufteile.merken(zk_alt, zk_neu))
     return len(arten_neu) + len(zk_neu)
+
+
+ROLLE_GELERNT = "step_rolle_gelernt"   # Einstellung: {art_schluessel: {Konturnummer: Rolle}} (Handkorrektur Viewer)
+ROLLE_GELERNT_MAX = 2000
+
+
+def rollen_merken(db, m):
+    """Handkorrekturen der Rollen eines Teils (rolle_hand) für den Import merken: „Ins Angebot übernehmen“ misst die
+    Datei neu, dabei setzt rollen_gelernt_anwenden die Rollen wieder. Ohne Geometrie-Schlüssel nichts. Ergebnis:
+    True = gemerkt."""
+    from . import step
+    schl = step.art_schluessel(m)
+    if not schl or db is None:
+        return False
+    hand = {str(i): d["rolle_hand"] for i, d in enumerate(konturen_liste(m))
+            if isinstance(d, dict) and d.get("rolle_hand") in kr.ROLLEN}
+    alt = dict(db.einstellung(ROLLE_GELERNT) or {})
+    alt.pop(schl, None)
+    if hand:
+        alt[schl] = hand
+    db.einstellung_setzen(ROLLE_GELERNT, dict(list(alt.items())[-ROLLE_GELERNT_MAX:]))
+    return True
+
+
+def rollen_gelernt_anwenden(messwerte, gelernt):
+    """Gemerkte Rollen (ROLLE_GELERNT) auf frisch gemessene Teile setzen; Zahl der gesetzten Rollen."""
+    from . import step
+    n = 0
+    for m in messwerte or ():
+        hand = (gelernt or {}).get(step.art_schluessel(m)) if step.art_schluessel(m) else None
+        for nr, rolle in (hand or {}).items():
+            try:
+                n += bool(rolle_setzen(m, int(nr), rolle))
+            except (TypeError, ValueError):
+                continue
+    return n
 
 
 # ------------------------------------------------------------------ Leistung
