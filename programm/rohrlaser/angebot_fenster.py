@@ -10245,6 +10245,21 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return None
         return rechnen.laengen_schluessel(rechnen.gruppe_der_stange(st[nr - 1])), nr
 
+    def _nesting_schluessel(self):
+        """Prüfsumme aller Eingaben des Strategievergleichs (Angebot, Positionen, Einstellungen, gespeicherter Plan,
+        Stamm- und Tabellenstand). Gleiche Prüfsumme = gleiches Ergebnis: Der Nesting-Arbeitsplatz rechnet beim
+        erneuten Öffnen nicht noch einmal (Supportpaket 25.11.2026: 5 von 15 Läufen doppelt). None = keine sichere
+        Prüfsumme möglich, dann wird gerechnet."""
+        import hashlib
+        try:
+            text = repr((self.kopf, self.positionen, self.einst, self.ergebnis, self.nesting_tabellen().get(
+                "lager_reste"), id(self.k), id(self.tabellen)))
+        except Exception:           # noqa: BLE001 – ohne Darstellung kein Merker
+            return None
+        if " at 0x" in text:
+            return None
+        return hashlib.blake2b(text.encode("utf-8", "surrogatepass"), digest_size=16).digest()
+
     def nesting_von_stange(self, nr, dialog=None):
         """Sprung aus dem Stangenbild (Rechtsklick): Nesting-Arbeitsplatz bei dieser Abmessung und Stange öffnen."""
         return self.nesting_arbeitsplatz(dialog=dialog, start=self.nesting_start(nr))
@@ -10273,25 +10288,32 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                     ende["v"] = self.nesting_vergleich(fortschritt, abbrechen.is_set, status)
             except BaseException as e:      # noqa: BLE001 – im Hauptthread weitergeben
                 ende["fehler"] = e
-        t = threading.Thread(target=lauf, name="Nesting", daemon=True)
-        t.start()
-        hintergrund.melden(t)
-        dlg = QProgressDialog("Strategien rechnen …", "Abbrechen", 0, 1000, self)
-        dlg.setWindowTitle("Nesting-Arbeitsplatz")
-        dlg.setWindowModality(Qt.WindowModal)
-        dlg.setMinimumDuration(400)
-        while t.is_alive():
-            t.join(0.03)
-            if dlg.wasCanceled():
-                abbrechen.set()
-            dlg.setValue(int(1000 * stand["schritt"] / stand["schritte"]))
-            dlg.setLabelText(f"Strategien rechnen: {stand['text']}" + nesting_dialog.status_text(dict(live)))
-            QApplication.processEvents()
-        dlg.close()
-        if "fehler" in ende:
-            raise ende["fehler"]
-        if abbrechen.is_set():
-            return None
+        schluessel = self._nesting_schluessel()
+        merker = getattr(self, "_nesting_merker", None)
+        if schluessel is not None and merker and merker[0] == schluessel:
+            ende["v"] = copy.deepcopy(merker[1])      # gleiche Eingaben: nicht noch einmal rechnen (Diagnose 25.11.)
+        else:
+            t = threading.Thread(target=lauf, name="Nesting", daemon=True)
+            t.start()
+            hintergrund.melden(t)
+            dlg = QProgressDialog("Strategien rechnen …", "Abbrechen", 0, 1000, self)
+            dlg.setWindowTitle("Nesting-Arbeitsplatz")
+            dlg.setWindowModality(Qt.WindowModal)
+            dlg.setMinimumDuration(400)
+            while t.is_alive():
+                t.join(0.03)
+                if dlg.wasCanceled():
+                    abbrechen.set()
+                dlg.setValue(int(1000 * stand["schritt"] / stand["schritte"]))
+                dlg.setLabelText(f"Strategien rechnen: {stand['text']}" + nesting_dialog.status_text(dict(live)))
+                QApplication.processEvents()
+            dlg.close()
+            if "fehler" in ende:
+                raise ende["fehler"]
+            if abbrechen.is_set():
+                return None
+            if schluessel is not None:
+                self._nesting_merker = (schluessel, copy.deepcopy(ende["v"]))
         d = nesting_dialog.NestingDialog(ende["v"], self.positionen, self, nur_lesen=bool(self.db.nur_lesen),
                                          start=start)
         if not (dialog(d) if dialog else d.exec() == QDialog.Accepted):

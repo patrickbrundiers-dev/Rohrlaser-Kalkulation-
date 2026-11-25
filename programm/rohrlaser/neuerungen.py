@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.487", "<b>PPEASE-Text bei mehreren Gewinden richtig</b> ([[csv_export]]): Stand in einer Position mehr als "
+                "ein Gewinde (<i>6xM5; 4xM10</i>), enthielt die CSV für PPEASE ein Semikolon im Text. PPEASE beachtet "
+                "die Anführungszeichen der CSV nicht, trennte dort eine neue Spalte ab, und alle folgenden Spalten "
+                "rutschten: Im Zusatztext stand <i>181.4301 EN10217-7Länge: 2245mm</i> statt <i>Quadratrohr "
+                "100x100x5 …</i> (Angebot 2026-00167). Jetzt enthält kein Feld der PROfirst/PPEASE-Datei mehr ein "
+                "Semikolon, Anführungszeichen oder einen Zeilenumbruch (<i>Gewinde 6xM5, 4xM10</i>, in den "
+                "Arbeitsgängen <i>Gewinde [6xM5 / 4xM10]</i>). Bitte betroffene Angebote noch einmal als CSV "
+                "ausgeben. <b>Update im Firmennetz</b>: Bricht der Download ab und lehnt das Netz das Weitermachen "
+                "mit HTTP 403 ab, lädt das Programm die Datei einmal von vorn, statt aufzugeben. <b>Nesting-"
+                "Arbeitsplatz</b>: erneutes Öffnen ohne Änderung rechnet den Strategievergleich nicht noch einmal.",
+     "PPEASE-Text bei mehreren Gewinden richtig, Update lädt nach 403 von vorn, Nesting-Vergleich mit Merker"],
     ["0.9.486", "<b>Einfacher Modus</b> ([[einfacher_modus]]): eine zweite, aufgeräumte Oberfläche neben dem "
                 "Experten-Pro-Modus. Sie führt in sechs Schritten durch die Kalkulation: Neue Kalkulation (STEP, "
                 "CAD, vorhandenes Bauteil, Angebot öffnen), Bauteile mit 3D-Vorschau, Material mit Preis und "

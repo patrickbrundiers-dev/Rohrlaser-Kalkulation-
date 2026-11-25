@@ -76,6 +76,21 @@ nachher = [x["stange"] for x in s.ergebnis["stangen"]]
 assert sum(nachher) < sum(vorher) and all(x.get("nesting") == ne.A for x in s.ergebnis["stangen"]), nachher
 print("OK     Strategie übernommen:", sorted(nachher), "statt", len(vorher), "× 6 m")
 
+# Merker (Supportpaket 25.11.2026: 5 von 15 Nesting-Vergleichen doppelt): erneutes Öffnen ohne Änderung rechnet nicht
+# noch einmal; nach einer Änderung der Positionen wird neu gerechnet
+laeufe = []
+_nv = s.nesting_vergleich
+s.nesting_vergleich = lambda *a, **k: (laeufe.append(1), _nv(*a, **k))[1]
+gesehen = []
+assert s.nesting_arbeitsplatz(dialog=lambda d: (gesehen.append(d.vergleich), False)[1]) is False
+assert s.nesting_arbeitsplatz(dialog=lambda d: (gesehen.append(d.vergleich), False)[1]) is False
+assert len(laeufe) == 1 and gesehen[0] == gesehen[1] and gesehen[0] is not gesehen[1], len(laeufe)
+s.positionen[0] = dict(s.positionen[0], stueck=int(s.positionen[0]["stueck"]) + 1)
+assert s.nesting_arbeitsplatz(dialog=lambda d: False) is False and len(laeufe) == 2
+s.nesting_vergleich = _nv
+s.neu_laden()
+print("OK     Nesting-Arbeitsplatz: gleiche Eingaben aus dem Merker, nach Änderung neu gerechnet")
+
 # Belegung von Hand: ein Teil umsetzen; Ziel zu voll -> Meldung, nichts geändert
 d = nesting_dialog.NestingDialog(s.nesting_vergleich(), s.positionen, s)
 d.resize(1300, 800)

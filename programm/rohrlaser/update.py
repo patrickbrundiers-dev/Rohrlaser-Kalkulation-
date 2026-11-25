@@ -528,7 +528,17 @@ def holen(quelle, ziel=None, fortschritt=None, timeout=30, grenze=None, warten=(
     gemeldet = [0]
     for versuch in range(len(warten) + 1):
         try:
-            _einmal(quelle, ziel, fortschritt, timeout, grenze, gemeldet)
+            try:
+                _einmal(quelle, ziel, fortschritt, timeout, grenze, gemeldet)
+            except urllib.error.HTTPError as e:
+                # Fortsetzen (HTTP Range) abgelehnt: viele Firmen-Webfilter sperren Teil-Downloads, weil sie sie nicht
+                # auf Viren prüfen können, und antworten 403 (Supportpaket 25.11.2026: Abbruch bei 442.368 von
+                # 461.276 Byte, dann 403). Dann einmal ganz von vorn laden.
+                if not (_ist_url(quelle) and e.code in (403, 416) and ziel.is_file() and ziel.stat().st_size):
+                    raise
+                _log.info("Update: Fortsetzen abgelehnt (%s), lade von vorn: %s", e, quelle)
+                ziel.unlink(missing_ok=True)
+                _einmal(quelle, ziel, fortschritt, timeout, grenze, gemeldet)
             return ziel
         except Abbruch:
             raise
