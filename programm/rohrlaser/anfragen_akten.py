@@ -1747,7 +1747,10 @@ def arbeitskopie(akte, jetzt=None):
         shutil.copy2(d["pfad"], z)
         neu.append(z)
     anf = anfragen.Anfrage(akte.betreff, o, neu, akte.kunde or None)
-    anf.kunde_fest = bool(akte.stand.get("kunde_bestaetigt"))      # von Hand: im Prüfdialog nicht neu erkennen
+    # von Hand bzw. bestätigt, seit 25.11.2026 auch automatisch eindeutig erkannt (kundenbindung): im Prüfdialog nicht
+    # neu erkennen, Abweichungen der Mail/des Formulars nur als Hinweis
+    from . import kundenbindung
+    anf.kunde_fest = kundenbindung.gebunden(akte)
     return anf
 
 

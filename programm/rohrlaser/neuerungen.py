@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.509", "<b>Fracht und Verpackung 2.0</b> ([[fracht_vergleich]], [[fracht_packmittel]]): <i>Tarifvorlagen "
+    ["0.9.511", "<b>Fracht und Verpackung 2.0</b> ([[fracht_vergleich]], [[fracht_packmittel]]): <i>Tarifvorlagen "
                 "laden</i> legt Listenpreise von DHL (2026 und ab 2027, national und EU), GLS und Hermes mit Quelle und "
                 "Preisstand an, dazu <b>Tariflücken</b> ohne Preise für MBE, UPS, FedEx, DPD, Cargoboard und "
                 "Speditionen: sie werden nie automatisch gewählt, ein Angebot kommt per CSV hinein. Paketregeln je "
@@ -34,6 +34,16 @@ NEUERUNGEN = [
                 "Einstellung (Vorgabe aus). Bestehende Angebote rechnen unverändert.",
      "Fracht 2.0: Tarifvorlagen und Tariflücken, Paketregeln, Packmittel mit Aufsetzrahmen, Preisvergleich, Fracht "
      "als eigene Position"],
+    ["0.9.510", "<b>Outlook-Import: Kundenbindung, Stückzahlen und STEP-Zuordnung</b> ([[anfrage_import]]): Der "
+                "Kunde einer Anfrage (automatisch eindeutig erkannt oder von Hand) gilt bis zum Auftrag; Abweichungen "
+                "aus Mail/Formular sind nur ein Hinweis. Kundenwechsel: offene Angebote der Anfrage wechseln nach "
+                "Rückfrage mit, beauftragte nie automatisch; ein Wechsel im Angebot schreibt die Anfrage nach. "
+                "Stückzahlen auch aus „Menge: 20“, „Stückzahl 20“, „50x benötigt“, „12 pcs“, je Position mit "
+                "Fundstelle, Warnung bei Widerspruch Mail/PDF und rot „nicht erkannt“ statt einer erfundenen Zahl. "
+                "Neues zentrales Modul für Artikelnummer und Revision (123456_REV02, -02, _002, _A, Rev_A, V02, "
+                "_final, _neu, _Bearbeitet): Zuordnung über die Grundnummer, Revision getrennt an der Position "
+                "gespeichert, mehrere Versionen werden angezeigt statt still zugeordnet.",
+     "Kunde bleibt gebunden, Stückzahlen mit Fundstelle, STEP-Zuordnung mit Revision (_REV02, -02, _002)"],
     ["0.9.508", "<b>Echte Innenkante bei 3D-Schnitten an den Enden</b> ([[nesting]]): Beim Verschachteln beliebiger "
                 "Endkonturen nimmt ein ebener Schnitt (Gehrung oder schräg in zwei Richtungen) mit "
                 "3D-Schnittbearbeitung die Innenkante jetzt dort an, wo die Schnittebene die Innenwand trifft, wie in "

@@ -185,7 +185,33 @@ def speicherwert(m, gewinde_vorschlag=None, jetzt=None):
         d["plausibel"] = list(m["_plausibel"])[:12]
     if m.get("_geprueft"):      # „Passt“ im Prüfdialog (M3): gilt als geprüft, der Angebots-Check zählt es nicht mehr
         d["geprueft"] = dict(am=str(jetzt), wer="Prüfdialog „Passt“")
+    if (e := erkennung(m)):     # 25.11.2026: Artikel, Revision, Stückzahl-Quelle und Status der Anfrage-Erkennung
+        d["erkennung"] = e
     return json.dumps(d, ensure_ascii=False)
+
+
+def erkennung(m):
+    """Verknüpfung der Position mit der Anfrage (Master-Auftrag Outlook-Import 25.11.2026): dict(artikel, revision,
+    datei, stueck, stueck_status 'sicher'/'unsicher'/'von Hand'/'nicht erkannt', stueck_quelle, widerspruch, hinweis,
+    zeichnung). Leer ohne Erkennung aus Mail/PDF."""
+    from . import artikelnr
+    t = artikelnr.zerlegen(m.get("datei") or "")
+    e = dict(artikel=str(m.get("artikel") or ""), revision=m.get("_revision") or t.revision,
+             datei=str(m.get("datei") or ""))
+    if "_stueck_formular" in m:
+        hand = m.get("_stueck_vorschlag") is not None and m.get("_stueck") != m.get("_stueck_vorschlag")
+        e.update(stueck=m.get("_stueck"), stueck_status="von Hand" if hand else
+                 ("sicher" if m["_stueck_formular"] else "unsicher"),
+                 stueck_quelle=m.get("_stueck_fundstelle") or m.get("_stueck_quelle") or "")
+    elif m.get("_stueck_fehlt"):
+        e.update(stueck_status="nicht erkannt")
+    for k, n in (("_stueck_widerspruch", "widerspruch"), ("_stueck_hinweis", "hinweis"),
+                 ("_zeichnung_quelle", "zeichnung")):
+        if m.get(k):
+            e[n] = str(m[k])[:300]
+    if not e["revision"]:
+        e.pop("revision")
+    return e if len(e) > 2 or e.get("revision") else {}
 
 
 def gelb_ungeprueft(p):

@@ -4425,14 +4425,29 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         kundennr = (kundennr or "").strip() or None
         if self._laden or kundennr == self.kopf.get("kundennr"):
             return
+        # Kundenbindung (25.11.2026): ein beauftragtes Angebot (Auftrag) wechselt den Kunden nie versehentlich
+        if (self.kopf.get("vorgang") == "Beauftragt" or self.kopf.get("auftragsnr")) and self.kopf.get("kundennr"):
+            if not self.f.stumm and QMessageBox.question(
+                    self, "Kunde im Auftrag ändern", f"Angebot {self.kopf.get('nummer') or ''} ist beauftragt "
+                    f"(Kunde {self.kopf.get('kundennr')}). Kunden wirklich auf {kundennr or 'ohne Kunde'} ändern?") \
+                    != QMessageBox.Yes:
+                self.f.meldung("Beauftragtes Angebot: Kunde nicht geändert.")
+                self.neu_laden()
+                return
         k = self.db.kunde_uebernehmen(self.id, kundennr)
+        try:            # Anfrage folgt dem Angebot (gleicher Kunde in Anfrage, Angebot, Mail-Antworten)
+            from . import kundenbindung
+            akten = kundenbindung.akte_folgen(self.db, self.id, kundennr, (k or {}).get("name") or "")
+        except Exception:       # noqa: BLE001 – Ablage nicht erreichbar: Angebot ist geändert
+            akten = []
         vorgaben = (k or {}).get("vorgaben")
         from . import kundenhinweis
         hw = kundenhinweis.hinweis(self.db.kunde(kundennr)) if k else ""
-        self.f.meldung(f"Kunde {k['name']} übernommen (Name und Zahlungsbedingungen"
-                       + (f"; Kundenvorgaben: {', '.join(vorgaben)}" if vorgaben else "") + ")."
-                       + (f" Kundenhinweis: {hw}" if hw else "") if k
-                       else "Kundennummer gespeichert (nicht im Kundenstamm).")
+        self.f.meldung((f"Kunde {k['name']} übernommen (Name und Zahlungsbedingungen"
+                        + (f"; Kundenvorgaben: {', '.join(vorgaben)}" if vorgaben else "") + ")."
+                        + (f" Kundenhinweis: {hw}" if hw else "") if k
+                        else "Kundennummer gespeichert (nicht im Kundenstamm).")
+                       + (f" Kunde auch in Anfrage {', '.join(akten)} geändert." if akten else ""))
         if k and fracht_angebot.auto(self.kopf):     # automatische Fracht: Ziel des neuen Kunden
             plz, land = fracht_angebot.ziel_aus_kunde(k)
             if plz:
