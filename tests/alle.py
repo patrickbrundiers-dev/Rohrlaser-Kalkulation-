@@ -49,6 +49,7 @@ TESTS = [
     ("test_3d_step.py", QT),
     ("test_step_viewer.py", QT),
     ("test_step_fase.py", {}),
+    ("test_fase_3d.py", QT),
     ("test_step_export.py", QT),
     ("test_baugruppe_step.py", QT),
     ("test_step_mutter.py", QT),
