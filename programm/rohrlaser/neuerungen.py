@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.491", "<b>Nesting-Kern: neue Strategien und schnellerer Vergleich</b> ([[nesting]]): Neu sind "
+    ["0.9.493", "<b>Nesting-Kern: neue Strategien und schnellerer Vergleich</b> ([[nesting]]): Neu sind "
                 "<i>N Gleiche Teile nacheinander</i> (volle Stangen je Artikel, Reste am Stangenende mit der besten "
                 "Füllung), <i>S Satzweise schneiden</i> (Satz aus den Mengen erkannt, Satz nur am Stangenende geteilt) "
                 "und <i>X Automatisch</i>. X bewertet alle Pläne nach Material, Beladungen, Artikelwechseln, "
@@ -31,6 +31,23 @@ NEUERUNGEN = [
                 "20 Fällen: A bis H und P liefern genau dieselben Pläne wie vorher, große Aufträge rechnen 40 bis "
                 "46 % schneller (Baugruppe 6/12 m: 4,8 → 2,9 s, 500 Teile 6/12 m: 2,8 → 1,5 s).",
      "Neue Strategien Gleiche Teile, Satzweise, Automatisch; gleiche Pläne zusammengefasst, bis 46 % schneller"],
+    ["0.9.492", "<b>Erkennung von Endkonturen und Sonderkonturen</b> ([[schneidweg_rechner]], [[nesting]]): Komplexe "
+                "Enden aus der STEP werden mit ihrer Konturart erkannt (V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, Bogen "
+                "konvex/konkav, S-Kurve, Schräg, Stufen) samt Maßen, wenn sie den gemessenen Umriss überall auf 0,1 mm "
+                "treffen; der Umriss der STEP bleibt maßgebend, <i>Endkontur …</i> öffnet die erkannte Kontur zum "
+                "Bearbeiten. Sonderkonturen in der Wand bekommen ihre Form als Bemerkung: Kreis, Langloch und Rechteck "
+                "(mit Eckradius) in beliebiger Lage, Dreieck, Quadrat, Sechseck und andere Vielecke, sonst Freiform mit "
+                "Geraden und Bögen. Endkonturen rechnen an Quadrat- und Rechteckrohren mit dem echten Eckradius. Die "
+                "Verschachtelung nimmt bei 2D-Schnitten keinen Zuschlag für den Schwenk mehr an (gemessene Enden "
+                "rücken bis zu 3 mm näher zusammen). Prüfsatz und Werkzeug <i>werkzeuge/kontur_erkennung.py</i>: "
+                "24 von 24 Enden und 14 von 14 Sonderkonturen richtig.",
+     "Konturart komplexer STEP-Enden und Form von Sonderkonturen erkannt, Verschachtelung 2D genauer"],
+    ["0.9.491", "<b>Fasen an den Rohrenden wie in der STEP</b> ([[step]]): Im Editor und in der 3D-Ansicht "
+                "liegt das Ende mit Fase jetzt wie in der STEP (vorher gerade an der längsten Stelle, bis 3 mm "
+                "daneben). Der Import misst Tiefe, Höhe und Winkel der Fase. Geht sie durch die ganze Wand und ist die "
+                "3D-Schnittbearbeitung am Teil aktiviert, wird sie als 3D-Schnitt gerechnet (Kopf um den Fasenwinkel "
+                "geschwenkt); sonst wird sie wie bisher nicht gelasert.",
+     "Fasen-Enden im Editor wie in der STEP, Fase durch die ganze Wand mit 3D als 3D-Schnitt"],
     ["0.9.490", "<b>Einheitliche Maßschreibweise</b> ([[massschreibweise]]): Material- und Profilabmessungen stehen "
                 "überall kompakt ohne Leerzeichen, z. B. <i>50x50x3</i>, <i>Ø60x3</i>, <i>40x20x2,5</i> statt "
                 "„50 x 50 x 3“ – in Anzeigen, Angebots- und Werkstatt-PDFs, Angebotsakte, E-Mails, Materialanfragen und "

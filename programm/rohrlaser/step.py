@@ -12,7 +12,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from . import anbau, biegerohr, bohrbild, naht, ovalprofile, rechnen, rp_profile, step_pruefung, virtuell
+from . import anbau, biegerohr, bohrbild, endkontur, form_erkennung, naht, ovalprofile, rechnen, rp_profile, \
+    step_pruefung, virtuell
 
 # Dateien, die der STEP-Import liest: STEP und IGES (Patrick 05.11.2026 „Iges import einbauen“)
 # TUBX (TRUMPF TubeCAM, 20.11.2026) und BLM ArTube/BPF (24.11.2026) wie STEP
@@ -286,7 +287,8 @@ def _versatz_quer(d, seite, breit, schmal):
 
 def kandidaten_3d(m):
     """Was die Messung für die 3D-Schnittbearbeitung anbietet: (Gehrungen an den Enden, schräge Bohrungen ab 0,5°)
-    als Anzahl. Fasen zählen nicht (Patrick 22.10.2026: in 3D in der Praxis nicht sauber)."""
+    als Anzahl. Fasen zählen nur, wenn sie durch die ganze Wand gehen (Patrick 25.11.2026: dann als 3D-Schnitt mit
+    3D-Bearbeitung; sonst wie 22.10.2026: in 3D in der Praxis nicht sauber, nicht gelasert)."""
     try:
         liste = json.loads(m.get("konturen_liste") or "[]")
     except (TypeError, ValueError):
@@ -298,9 +300,17 @@ def kandidaten_3d(m):
         if d.get("art") in ("Ende A", "Ende B") and d.get("form") in ("Gehrung", "Schrägschnitt zweiachsig") \
                 and d.get("gehrung") and nicht_senkrecht(d):
             gehr += 1
+        elif d.get("art") in ("Ende A", "Ende B") and fase_3d(d):
+            gehr += 1
         elif d.get("art") == "Bohrung" and d.get("durchgehend") and float(d.get("schraeg") or 0) >= SCHRAEG_3D:
             bohr += 1
     return gehr, bohr
+
+
+def fase_3d(d):
+    """Fase am Ende (Messung), die durch die ganze Wand geht und deshalb mit 3D-Bearbeitung als 3D-Schnitt gerechnet
+    wird (Patrick 25.11.2026); Ende aus konturen_liste."""
+    return bool(d.get("fase")) and d.get("fase_ganze_wand") is True and float(d.get("fase_winkel") or 0) >= SCHRAEG_3D
 
 
 SCHRAEG_3D = 0.5        # Grad, wie step_geometrie.SCHRAEG_3D und SCHWENK_3D
@@ -1123,6 +1133,14 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     e["aussen_mass"] = True     # schon 2D in der STEP: Außenkante auf der Gehrungsfläche wie dort
             if d.get("schwenk") is not None:
                 e["schwenk"] = round(float(d["schwenk"]), 2)
+            if d.get("fase") and _z(d, "fase_tiefe") > 0:
+                # Fase am Ende (Patrick 25.11.2026): im Editor wie in der STEP; durch die ganze Wand und mit
+                # 3D-Bearbeitung ein 3D-Schnitt mit der Neigung der Fase, sonst nicht gelasert (22.10.2026)
+                e["fase"] = dict(tiefe=round(_z(d, "fase_tiefe"), 3), ganze_wand=d.get("fase_ganze_wand") is True,
+                                 hoehe=round(_z(d, "fase_hoehe"), 3) or None,
+                                 winkel=round(_z(d, "fase_winkel"), 2) if d.get("fase_winkel") is not None else None)
+                if d3 and fase_3d(d):
+                    e["d3"] = True
             if d.get("flaechen") and d.get("huelle"):        # 3D-Ende (STEP-JSON 1.8): Flächen der Messung
                 e.update(flaechen=d["flaechen"], huelle=d["huelle"])
             if d.get("form") == "komplex" and offen and d.get("zuege"):
@@ -1162,6 +1180,13 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     e.pop("schwenk", None)
                 elif um and not gg:
                     e["umriss"] = um
+                    if not ausflug:         # Konturart erkennen (V/U/Bogen/Stufen …), der Umriss bleibt maßgebend
+                        try:
+                            er = endkontur.erkennen(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), um)
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            er = None
+                        if er:
+                            e["kontur_erkannt"] = er
                     for zug in ausflug:     # Schnitt vom Ende ins Teil und zurück: Sonderkontur am Ende
                         k = _ende_ausflug(zug, art[-1], m, mform, s_von, s_umfang, mbreit, mschmal, bool(r_mess))
                         if k:
@@ -1169,6 +1194,9 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                             if mp:
                                 k["messprofil"] = mp
                             eing["konturen"].append(k)
+            um_ = e.get("umriss")
+            if e.get("fase") and um_ and max(float(q[1]) for q in um_) - min(float(q[1]) for q in um_) < 0.1:
+                e.pop("umriss")     # Umriss = Außenkante der Fase (gerade um das Rohr): die Fase zeichnet das Ende
             if e["gemessen"] > 0:
                 eing["a" if art == "Ende A" else "b"] = e
             continue
@@ -1232,6 +1260,11 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k.update(art="Sonderkontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
             if umriss:
                 k["umriss"] = umriss
+                fe_ = form_erkennung.erkennen(umriss)   # Form beschreiben (Langloch schräg, Sechseck …)
+                if fe_:
+                    k["form_erkannt"] = fe_
+                    if not k.get("text"):
+                        k["text"] = form_erkennung.text(k)
             if d.get("waende"):
                 k["waende"] = list(d["waende"])
         elif art == "Bohrung" and d.get("durchmesser") and (dbr := _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von)) \
@@ -1327,6 +1360,9 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     k.update(art="Sonderkontur", umriss=um_[0])
                     if um_[1]:
                         k["muendung"] = um_[1]
+                    elif fe_ := form_erkennung.erkennen(um_[0]):    # geschlossen: Form beschreiben
+                        k["form_erkannt"] = fe_
+                        k.setdefault("text", form_erkennung.text(k))
                     if um_[2] > 0.05:
                         k["text"] = "Teil der Kontur auf der Abkantung: nicht gezeichnet, Länge gemessen"
         if mp:

@@ -117,7 +117,9 @@ def text(k):
         teile.append(f"R {_zahl(k['radius'])}")
     if _z(k.get("versatz")):
         teile.append(f"Versatz {_zahl(k['versatz'])}")
-    if k["typ"] in (STUFEN, FREI, FREI_S):
+    if k["typ"] == STUFEN and 0 < len(paare(k.get("stufen"))) <= 4:
+        teile.append("; ".join(f"{_zahl(round(b, 1))} × {_zahl(round(t, 1))}" for b, t in paare(k.get("stufen"))))
+    elif k["typ"] in (STUFEN, FREI, FREI_S):
         n = len(paare(k.get("stufen" if k["typ"] == STUFEN else "punkte")))
         teile.append(f"{n} {'Stufen' if k['typ'] == STUFEN else 'Punkte'}")
     if _z(k.get("richtung")):
@@ -275,9 +277,14 @@ def _verlauf_fn(qs, k):
                     return d0 + (d1 - d0) * ((s - s0) / (s1 - s0) if s1 > s0 else 0.0)
             return pk[-1][1]
         return fs, ss
+    from . import skizze as sk
     r = _z(k.get("richtung")) % 360
     sn, cs = math.sin(math.radians(r)), math.cos(math.radians(r))
     wmin, wmax = _wbereich(qs, r)
+
+    def w_von(u, v):            # Lage auf der echten Außenkontur (Eckradius wie STEP und 3D, skizze.rund_ort)
+        ur, vr, _ = sk.rund_ort(qs, u, v)
+        return ur * sn + vr * cs
     knicke = _knicke_w(k, wmin, wmax)
     stellen = []
     # Stellen s zu den Knicken: auf dem Umriss dort, wo w den Wert erreicht (fein abgetastet, dann linear)
@@ -286,14 +293,22 @@ def _verlauf_fn(qs, k):
     for i in range(n + 1):
         s = qs.umfang * i / n
         (u, v), _ = qs.s_zu_uv(min(s, qs.umfang - 1e-9))
-        w = u * sn + v * cs
+        w = w_von(u, v)
         if vorher is not None:
             s0, w0 = vorher
             for wk, _sp in knicke:
                 if (w0 - wk) * (w - wk) <= 0 and abs(w - w0) > 1e-12:
-                    stellen.append(s0 + (s - s0) * (wk - w0) / (w - w0))
+                    a, b, wa = s0, s, w0             # genau suchen (am Rundrohr ist w nicht linear in s)
+                    for _ in range(30):
+                        m = (a + b) / 2
+                        wm = w_von(*qs.s_zu_uv(min(m, qs.umfang - 1e-9))[0])
+                        if (wa - wk) * (wm - wk) <= 0:
+                            b = m
+                        else:
+                            a, wa = m, wm
+                    stellen.append((a + b) / 2)
         vorher = (s, w)
-    return (lambda s, u, v: _roh_w(k, u * sn + v * cs, wmin, wmax)), stellen
+    return (lambda s, u, v: _roh_w(k, w_von(u, v), wmin, wmax)), stellen
 
 
 def _rechnen_umriss(qs, k):
@@ -301,7 +316,7 @@ def _rechnen_umriss(qs, k):
     n = max(360, min(MAX_PUNKTE, int(qs.umfang / SCHRITT)))
     ss = {round(qs.umfang * i / n, 6) for i in range(n)}
     for s in stellen:                       # Knicke genau, Sprünge (Stufen) als zwei Punkte dicht nebeneinander
-        for ds in (-2e-4, 0.0, 2e-4):
+        for ds in (-0.2, -0.1, -0.05, -0.02, -2e-4, 0.0, 2e-4, 0.02, 0.05, 0.1, 0.2):  # steile Stellen fein
             ss.add(round((s + ds) % qs.umfang, 6))
     pk = []
     for s in sorted(ss):
@@ -553,12 +568,16 @@ def geo(schluessel):
     return _GEO.get(schluessel)
 
 
-def ende_verlauf_zellen(qs, gk, e, gespiegelt=False):
+def ende_verlauf_zellen(qs, gk, e, gespiegelt=False, d3=None):
     """Sicherer Verlauf des Endes e (Eingabe des Schneidweg-Rechners) je Zelle der Geometrie gk: kleinstes d der Zelle
     (Material reicht dort höchstens so weit), bei 3D-Schnitten (Gehrung in 3D, gemessener Schwenk) um die Wand × tan
     (Winkel) weiter vorn angenommen (die Innenkante kann vor der Außenkante liegen). gespiegelt: Teil gewendet
     (Enden getauscht, rechts <-> links). None, wenn das Ende sich nicht beschreiben lässt (Nasen einer
-    Steckverbindung)."""
+    Steckverbindung).
+    d3: Teil wird in 3D geschnitten (Eingabe d3 des Schneidweg-Rechners). False = 2D: der Strahl steht senkrecht zur
+    Oberfläche, die Innenkante liegt unter der Außenkante – kein Zuschlag für einen gemessenen Schwenk (Patrick
+    25.11.2026 „Erkennung weiter verbessern“: V-Spitze 20 mm am Rechteckrohr lag sonst 3 mm zu weit vorn). None =
+    wie bisher (Schwenk zählt)."""
     from . import skizze as sk
     g = _GEO.get(gk)
     if g is None or not isinstance(e, dict):
@@ -570,7 +589,7 @@ def ende_verlauf_zellen(qs, gk, e, gespiegelt=False):
     w = abs(_z(e.get("winkel")))
     if e.get("d3") and w:
         zusatz = (qs.wand or 0.0) * math.tan(math.radians(min(w, 80)))
-    elif _z(e.get("schwenk")) >= 0.5:
+    elif _z(e.get("schwenk")) >= 0.5 and d3 is not False:
         zusatz = (qs.wand or 0.0) * math.tan(math.radians(min(_z(e.get("schwenk")), 80)))
     for i in range(g.n):
         werte = []
@@ -715,3 +734,348 @@ def echter_abstand(qs, e_b, r1, e_a, r2, x, n=720):
             if d < best:
                 best = d
     return best
+
+
+# ------------------------------------------------------------------ Erkennung aus dem gemessenen Umriss (STEP)
+ERKENNUNG_TOL = 0.1     # mm: so genau muss die erkannte Kontur den gemessenen Umriss überall treffen (wie Gehrung)
+ERKENNUNG_TYPEN = (V_SPITZE, V_KERBE, U_KERBE, U_ZUNGE, BOGEN_VEX, BOGEN_KAV, S_KURVE, SCHRAEG, STUFEN)
+
+
+def kurven_abstand(pa, pb, umfang, fenster=2.0, beide=False):
+    """Größter Abstand zweier geschlossener Verläufe [[s, d]] auf dem abgewickelten Mantel (Hausdorff, in mm):
+    wie weit ein Punkt der einen Kurve höchstens von der anderen weg liegt. Sprünge (Stufen) zählen als senkrechte
+    Strecke, eine um 0,05 mm versetzte Stufe ist also 0,05 mm daneben, nicht die ganze Stufenhöhe. Ab fenster mm
+    Abstand wird nicht weiter gesucht (Ergebnis dann ≥ fenster). beide: (pa -> pb, pb -> pa) getrennt."""
+    import bisect
+
+    def ring(p):
+        p = sorted((float(s) % umfang, float(d)) for s, d in p)
+        return [(s - umfang, d) for s, d in p] + p + [(s + umfang, d) for s, d in p]
+
+    def einseitig(a, b):
+        ss = [s for s, _ in b]
+        groesst = 0.0
+        for s0, d0 in sorted((float(s) % umfang, float(d)) for s, d in a):
+            i0 = max(bisect.bisect_right(ss, s0 - fenster) - 1, 0)
+            i1 = min(bisect.bisect_left(ss, s0 + fenster), len(b) - 1)
+            best = fenster
+            for j in range(i0, max(i1, i0 + 1)):
+                (s1, d1), (s2, d2) = b[j], b[j + 1]
+                ds, dd = s2 - s1, d2 - d1
+                lg = ds * ds + dd * dd
+                t = min(max(((s0 - s1) * ds + (d0 - d1) * dd) / lg, 0.0), 1.0) if lg > 1e-18 else 0.0
+                best = min(best, math.hypot(s1 + t * ds - s0, d1 + t * dd - d0))
+            groesst = max(groesst, best)
+            if groesst >= fenster:
+                break
+        return groesst
+    if not pa or not pb or not umfang:
+        return (float("inf"), float("inf")) if beide else float("inf")
+    x = (einseitig(pa, ring(pb)), einseitig(pb, ring(pa)))
+    return x if beide else max(x)
+
+
+def _nelder_mead(f, x0, schritte, n_max=160):
+    """Einfaches Nelder-Mead (ohne scipy) für 1–3 Maße."""
+    n = len(x0)
+    pts = [list(x0)] + [[x0[j] + (schritte[j] if j == i else 0.0) for j in range(n)] for i in range(n)]
+    werte = [f(p) for p in pts]
+    for _ in range(n_max):
+        ordn = sorted(range(n + 1), key=lambda i: werte[i])
+        pts, werte = [pts[i] for i in ordn], [werte[i] for i in ordn]
+        if werte[-1] - werte[0] < 1e-10:
+            break
+        mitte = [sum(p[j] for p in pts[:-1]) / n for j in range(n)]
+        refl = [mitte[j] + (mitte[j] - pts[-1][j]) for j in range(n)]
+        fr = f(refl)
+        if fr < werte[0]:
+            exp = [mitte[j] + 2 * (mitte[j] - pts[-1][j]) for j in range(n)]
+            fe = f(exp)
+            pts[-1], werte[-1] = (exp, fe) if fe < fr else (refl, fr)
+        elif fr < werte[-2]:
+            pts[-1], werte[-1] = refl, fr
+        else:
+            kon = [mitte[j] + 0.5 * (pts[-1][j] - mitte[j]) for j in range(n)]
+            fk = f(kon)
+            if fk < werte[-1]:
+                pts[-1], werte[-1] = kon, fk
+            else:
+                for i in range(1, n + 1):
+                    pts[i] = [pts[0][j] + 0.5 * (pts[i][j] - pts[0][j]) for j in range(n)]
+                    werte[i] = f(pts[i])
+    i = min(range(n + 1), key=lambda i: werte[i])
+    return pts[i], werte[i]
+
+
+def _richtungen(qs, proben):
+    """Mögliche Schnittrichtungen [°]: Durchgangsschnitt = Verlauf spiegelbildlich zur Achse w (Punkt und sein
+    Spiegelbild quer zur Richtung haben dasselbe d). Kastenrohr 0/90°, Rundrohr fein gesucht. Je Richtung r auch
+    r + 180° (Schräg, Stufen und versetzte Konturen sind gerichtet)."""
+    from . import skizze as sk
+    f = proben["f"]
+
+    def fehler(r):
+        sn, cs = math.sin(math.radians(r)), math.cos(math.radians(r))
+        groesst = 0.0
+        for _, u, v, d in proben["p"]:
+            q = u * cs - v * sn
+            s2 = sk.uv_zu_s(qs, u - 2 * q * cs, v + 2 * q * sn)
+            f2 = f(s2)
+            steil = max(abs(f(s2 - 0.3) - f2), abs(f(s2 + 0.3) - f2))   # an Sprüngen/Flanken 0,3 mm Lage frei
+            groesst = max(groesst, max(abs(f2 - d) - steil, 0.0))
+        return groesst
+    if qs.r:
+        grob = [(fehler(r), r) for r in range(0, 180, 3)]
+        kand = []
+        for i, (x, r) in enumerate(grob):           # örtliche Minima, fein nachgesucht
+            if x <= min(grob[i - 1][0], grob[(i + 1) % len(grob)][0]):
+                a, b = r - 3.0, r + 3.0
+                for _ in range(30):
+                    m1, m2 = a + (b - a) * 0.382, a + (b - a) * 0.618
+                    if fehler(m1) < fehler(m2):
+                        b = m2
+                    else:
+                        a = m1
+                fein = round((a + b) / 2, 2) % 180
+                ganz = round(fein) % 180            # Sprünge (Stufen, U-Kerbe): Fehler springt, glatte Werte zuerst
+                kand.append(min((fehler(ganz), ganz), (fehler(fein), fein), (x, float(r))))
+        kand = sorted(kand)[:3]
+    else:
+        kand = [(fehler(r), float(r)) for r in (0, 90)]
+    out = []
+    for x, r in sorted(kand):
+        if x <= 4 * ERKENNUNG_TOL:
+            out += [r, (r + 180) % 360]
+    return out
+
+
+def _start_werte(typ, ws, ds, wmin, wmax):
+    """Startmaße je Art aus dem Verlauf d(w): (Namen, Werte, Schrittweiten) oder None."""
+    halb = (wmax - wmin) / 2
+    mitte = (wmin + wmax) / 2
+    t = max(ds) - min(ds)
+    if t < 0.2:
+        return None
+    lo = [w for w, d in zip(ws, ds) if d <= min(ds) + 0.05 * t]
+    hi = [w for w, d in zip(ws, ds) if d >= max(ds) - 0.05 * t]
+    m_lo = (min(lo) + max(lo)) / 2 - mitte
+    m_hi = (min(hi) + max(hi)) / 2 - mitte
+    if typ == SCHRAEG:
+        return ("tiefe",), [t], [t * 0.1]
+    if typ in (V_SPITZE, S_KURVE):
+        return ("tiefe", "versatz"), [t, m_lo if typ == V_SPITZE else 0.0], [t * 0.1, halb * 0.1]
+    if typ == V_KERBE:
+        breite = max(w for w, d in zip(ws, ds) if d > min(ds) + 0.5 * t) - min(
+            w for w, d in zip(ws, ds) if d > min(ds) + 0.5 * t)
+        return ("tiefe", "breite", "versatz"), [t, 2 * max(breite, 0.5), m_hi], [t * 0.1, halb * 0.1, halb * 0.05]
+    if typ in (U_KERBE, U_ZUNGE):
+        sel = [w for w, d in zip(ws, ds) if (d > min(ds) + 0.02 * t if typ == U_KERBE else d < max(ds) - 0.02 * t)]
+        breite = max(sel) - min(sel) if sel else halb
+        m = (max(sel) + min(sel)) / 2 - mitte if sel else 0.0
+        return ("tiefe", "breite", "versatz"), [t, max(breite, 0.5), m], [t * 0.1, halb * 0.1, halb * 0.05]
+    if typ in (BOGEN_VEX, BOGEN_KAV):
+        m = m_lo if typ == BOGEN_VEX else m_hi
+        x = halb + abs(m)
+        r = (x * x + t * t) / (2 * t)
+        return ("radius", "versatz"), [r, m], [r * 0.05, halb * 0.05]
+    return None
+
+
+def _stufen_aus(ws, ds, wmin, wmax):
+    """Stufen [[Breite, Tiefe]] von der langen Seite (w_max) aus: Höhen d zu Gruppen zusammenfassen (je Gruppe ein
+    zusammenhängender Bereich in w), Proben im Sprung selbst (Zwischenhöhe, wenige Punkte) zählen nicht. Grenze
+    zwischen zwei Stufen in der Mitte zwischen ihren Bereichen (genau dann _stufen_genau)."""
+    gruppen = []                            # [Höhe, [w …]]
+    for d, w in sorted(zip(ds, ws)):
+        if gruppen and d - gruppen[-1][0] <= 0.3:
+            g = gruppen[-1]
+            g[1].append(w)
+            g[0] = d if len(g[1]) == 1 else g[0]
+            g.append(d)
+        else:
+            gruppen.append([d, [w], d])
+    stufen = []
+    for g in gruppen:
+        hoehen = g[2:]
+        if len(g[1]) < 3 or max(g[1]) - min(g[1]) < 0.5:
+            continue                        # Proben im Sprung (Messpunkte an der senkrechten Kante)
+        stufen.append((max(g[1]), min(g[1]), sum(hoehen) / len(hoehen)))
+    stufen.sort(reverse=True)
+    if len(stufen) < 2 or len(stufen) > 12:
+        return None
+    for (o1, u1, _), (o2, u2, _) in zip(stufen, stufen[1:]):
+        if o2 > u1 + 1.5:                   # Bereiche überlappen: kein Stufenschnitt in dieser Richtung
+            return None
+    out, oben = [], wmax
+    for i, (o, u, h) in enumerate(stufen):
+        unten = (u + stufen[i + 1][0]) / 2 if i + 1 < len(stufen) else wmin
+        out.append([oben - unten, h])
+        oben = unten
+    if any(b_ < 0.2 for b_, _ in out):
+        return None
+    return out
+
+
+def _stufen_genau(stufen, f, qs, sn, cs, wmax):
+    """Sprungstellen der Stufen auf dem gemessenen Umriss genau suchen (Halbierung an der Stelle, wo der Umriss
+    zwischen den Stufenhöhen wechselt)."""
+    U = qs.umfang
+    n = max(400, int(U / 0.5))
+    ss = [U * i / n for i in range(n)]
+    from . import skizze as sk
+    pkt = [(s,) + sk.rund_ort(qs, *qs.s_zu_uv(s)[0])[:2] for s in ss]
+    pos = wmax
+    out = []
+    for i, (breite, tiefe_) in enumerate(stufen[:-1]):
+        grenze = pos - breite
+        naechste = stufen[i + 1][1]
+        mitte_h = (tiefe_ + naechste) / 2
+        best = None
+        for (s0, u0, v0), (s1, u1, v1) in zip(pkt, pkt[1:] + pkt[:1]):
+            w0, w1 = u0 * sn + v0 * cs, u1 * sn + v1 * cs
+            if min(w0, w1) - 1.0 <= grenze <= max(w0, w1) + 1.0 and abs(w1 - w0) > 1e-6:
+                a, b = s0, s1 if s1 > s0 else s1 + U
+                fa = f(a) - mitte_h
+                fb = f(b) - mitte_h
+                if fa * fb > 0:
+                    continue
+                for _ in range(40):
+                    m = (a + b) / 2
+                    if (f(m) - mitte_h) * fa > 0:
+                        a = m
+                    else:
+                        b = m
+                u, v, _ = sk.rund_ort(qs, *qs.s_zu_uv(((a + b) / 2) % U)[0])
+                best = u * sn + v * cs
+                break
+        if best is not None:
+            grenze = best
+        out.append([pos - grenze, tiefe_])
+        pos = grenze
+    out.append([stufen[-1][0] + (pos - (pos if not out else pos)), stufen[-1][1]])
+    gesamt = sum(b for b, _ in out[:-1])
+    out[-1][0] = max(sum(b for b, _ in stufen) - gesamt, 0.2)
+    return out
+
+
+def _runden(k, stellen):
+    out = dict(k)
+    for sch in ("tiefe", "breite", "versatz", "radius", "richtung"):
+        if sch in out:
+            out[sch] = round(float(out[sch]), stellen)
+            if sch in ("versatz", "richtung") and abs(out[sch]) < 10 ** -stellen:
+                out.pop(sch)
+    if "stufen" in out:
+        out["stufen"] = [[round(b, stellen), round(t, stellen)] for b, t in out["stufen"]]
+    return out
+
+
+def erkennen(qs, umriss_gemessen, tol=ERKENNUNG_TOL):
+    """Konturart eines gemessenen Endes (Umriss [[s, Abstand]] aus dem STEP-Import) erkennen: dict(kontur=…,
+    abweichung=mm) oder None. Erkannt gilt nur eine Kontur, deren Verlauf den gemessenen Umriss überall auf tol trifft
+    (kurven_abstand, Grundregel 100 % wie die STEP). Der gemessene Umriss bleibt trotzdem maßgebend; die Kontur
+    beschreibt ihn nur (Anzeige, Endkontur-Dialog). Gerade, Gehrung und Gegenrohr erkennt step.py vorher."""
+    from . import skizze as sk
+    if not umriss_gemessen or not qs.umfang or not (qs.r or qs.form in ("Quadratrohr", "Rechteckrohr")):
+        return None
+    f = sk._ende_umriss(qs, umriss_gemessen)
+    if f is None:
+        return None
+    U = qs.umfang
+    n = max(240, min(480, int(U / 1.0)))
+    ss = sorted({U * i / n for i in range(n)} | {float(s) % U for s, _ in umriss_gemessen})
+    proben = dict(f=f, p=[])
+    for s in ss:                            # echte Außenkontur (Eckradius), wie _verlauf_fn
+        u, v, _ = sk.rund_ort(qs, *qs.s_zu_uv(min(s, U - 1e-9))[0])
+        proben["p"].append((s, u, v, f(s)))
+    tiefe_ges = max(p[3] for p in proben["p"]) - min(p[3] for p in proben["p"])
+    if tiefe_ges < 0.2:
+        return None
+    gemessen_pk = [[float(s) % U, max(float(d), 0.0)] for s, d in umriss_gemessen]
+    kandidaten = []
+    for r in _richtungen(qs, proben):
+        sn, cs = math.sin(math.radians(r)), math.cos(math.radians(r))
+        wmin, wmax = _wbereich(qs, r)
+        ws = [u * sn + v * cs for _, u, v, _ in proben["p"]]
+        ds = [p[3] for p in proben["p"]]
+        for typ in ERKENNUNG_TYPEN:
+            if typ in (V_SPITZE, V_KERBE, U_KERBE, U_ZUNGE, BOGEN_VEX, BOGEN_KAV) and r >= 180:
+                continue                    # symmetrische Arten: r + 180° ist dieselbe Kontur mit −Versatz
+            if typ == STUFEN:
+                st = _stufen_aus(ws, ds, wmin, wmax)
+                if not st:
+                    continue
+                st = _stufen_genau(st, f, qs, sn, cs, wmax)
+                k = dict(typ=STUFEN, stufen=st, richtung=r)
+                if st[0][1] > st[-1][1] + 1e-6:     # wie im Dialog: von der Seite ohne Tiefe aus
+                    k = dict(typ=STUFEN, stufen=[list(x) for x in reversed(st)], richtung=(r + 180) % 360)
+                kandidaten.append(k)
+                continue
+            sw_ = _start_werte(typ, ws, ds, wmin, wmax)
+            if not sw_:
+                continue
+            namen, x0, schr = sw_
+
+            def k_aus(x, typ=typ, namen=namen, r=r):
+                k = dict(typ=typ, richtung=r)
+                for nm, val in zip(namen, x):
+                    k[nm] = val
+                return k
+
+            def kosten(x, k_aus=k_aus, wmin=wmin, wmax=wmax):
+                k = k_aus(x)
+                if any(k.get(nm, 1.0) <= 0 for nm in ("tiefe", "breite", "radius")):
+                    return 1e12
+                raw = [_roh_w(k, w, wmin, wmax) for w in ws]
+                c = min(raw)
+                return sum((d - (x_ - c)) ** 2 for d, x_ in zip(ds, raw)) / len(ds)
+            x, wert = _nelder_mead(kosten, x0, schr)
+            k = k_aus(x)
+            if typ in (V_KERBE, U_KERBE, U_ZUNGE) and _z(k.get("breite")) > wmax - wmin + 2 * tol:
+                continue                    # breiter als das Rohr: keine Kerbe/Zunge (dann Bogen, Spitze …)
+            if wert <= 1.0:                 # grob passend; genau entscheidet der Kurvenabstand unten
+                kandidaten.append(k)
+                if "tiefe" in namen:        # Sprünge (U-Kerbe/-Zunge) ziehen die Tiefe beim Ausgleich: wie gemessen
+                    kandidaten.append(dict(k, tiefe=x0[namen.index("tiefe")]))
+            if kosten(x0) <= 1.0:
+                kandidaten.append(k_aus(x0))
+    beste = None
+    symm = (V_SPITZE, V_KERBE, U_KERBE, U_ZUNGE, BOGEN_VEX, BOGEN_KAV)
+    for k in kandidaten:
+        r = _z(k.get("richtung")) % 360
+        if k["typ"] in symm and r >= 180 - 1e-6:            # gleiche Kontur von der anderen Seite
+            k = dict(k, richtung=r - 180, versatz=-_z(k.get("versatz")))
+        if k["typ"] in (BOGEN_VEX, BOGEN_KAV):
+            pk = umriss(qs, k)
+            k = dict(k, tiefe=max(d for _, d in pk) if pk else 0.0)
+        r = _z(k.get("richtung"))
+        richtungen = [r] if not qs.r else sorted({round(r / 5) * 5.0, float(round(r)), round(r, 1), r},
+                                                 key=lambda x: (x % 5 != 0, x % 1 != 0, abs(x - r)))
+        fertig = False
+        for rr in richtungen:
+            for stellen in (1, 2):
+                rr_, vz = (rr - 180, -1) if k["typ"] in symm and rr % 360 >= 180 - 1e-6 else (rr, 1)
+                kk = _runden(dict(k, richtung=rr_ % 360, versatz=vz * _z(k.get("versatz"))), stellen)
+                if kk["typ"] in (BOGEN_VEX, BOGEN_KAV) and "radius" in kk:
+                    ohne = {x: y for x, y in kk.items() if x != "radius"}      # Radius aus der Tiefe, wenn gleich
+                    if abs(_bogen_r(ohne, (lambda a, b: (b - a) / 2)(*_wbereich(qs, _z(kk.get("richtung")))))
+                           - kk["radius"]) < 0.05:
+                        kk = ohne
+                pk = umriss(qs, kk)
+                if not pk:
+                    continue
+                # jeder gemessene Punkt (Kante der STEP) auf tol an der Kontur; umgekehrt darf die Kontur zwischen
+                # den Messpunkten etwas mehr abweichen (die Messung verbindet ihre Punkte gerade, an steilen Stellen
+                # wie der Wand einer U-Kerbe liegt die Sehne bis 0,2 mm neben der echten Kante), nur keine fehlende
+                # Form (3 × tol)
+                x, x_rueck = kurven_abstand(gemessen_pk, pk, U, beide=True)
+                if x <= tol and x_rueck <= 3 * tol:
+                    if beste is None or x < beste[0] - 1e-3:
+                        beste = (x, kk)
+                    fertig = True
+                    break
+            if fertig:
+                break
+    if not beste:
+        return None
+    return dict(kontur=beste[1], abweichung=round(beste[0], 3))
