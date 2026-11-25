@@ -1,0 +1,235 @@
+{
+ "stand": "2026-11-25",
+ "toleranz": {
+  "laenge_mm": 0.1,
+  "laenge_rel": 0.002,
+  "lage_mm": 0.05,
+  "winkel": 0.1
+ },
+ "teile": {
+  "R01_RE60x40x3_gerade": {
+   "profil": "Rechteckrohr",
+   "laenge": 500,
+   "konturen": [
+    {
+     "rolle": "Anfangsschnitt",
+     "schnittlaenge": 189.6991,
+     "z": 0,
+     "formel": "2·(60+40) − 8·6 + 2π·6"
+    },
+    {
+     "rolle": "Endeschnitt",
+     "schnittlaenge": 189.6991,
+     "z": 500,
+     "formel": "2·(60+40) − 8·6 + 2π·6"
+    }
+   ]
+  },
+  "R02_RR48-3x3_Gehrung45": {
+   "profil": "Rundrohr",
+   "konturen": [
+    {
+     "rolle": "Anfangsschnitt",
+     "schnittlaenge": 151.7389,
+     "z": 0,
+     "formel": "π·48,3"
+    },
+    {
+     "rolle": "Endeschnitt",
+     "schnittlaenge": 184.5156,
+     "gehrung": 45,
+     "formel": "Ellipsenumfang a = r/cos 45°, b = r, r = 24,15"
+    }
+   ]
+  },
+  "R03_QR50x3_schraeg_20_10": {
+   "profil": "Quadratrohr",
+   "konturen": [
+    {
+     "rolle": "Anfangsschnitt",
+     "schnittlaenge": 200.0,
+     "z": 0,
+     "formel": "4·50"
+    },
+    {
+     "rolle": "Endeschnitt",
+     "schnittlaenge": 208.1538,
+     "gehrung": 22.2687,
+     "formel": "Umfang der Schnittebene (Normale um X 20°, um Y 10°) mit dem Quadrat 50 × 50"
+    }
+   ]
+  },
+  "R04_RR60-3x3_Seitenloch20": {
+   "profil": "Rundrohr",
+   "konturen": [
+    {
+     "rolle": "Anfangsschnitt",
+     "schnittlaenge": 189.438,
+     "z": 0,
+     "formel": "π·60,3"
+    },
+    {
+     "rolle": "Endeschnitt",
+     "schnittlaenge": 189.438,
+     "z": 400,
+     "formel": "π·60,3"
+    },
+    {
+     "rolle": "Innenkontur",
+     "art": "Bohrung",
+     "durchmesser": 20,
+     "z": 200,
+     "schnittlaenge": 67.0129,
+     "schnittlaenge_3d": 63.2869,
+     "formel": "2D-Schnitt (Strahl zur Rohrmitte): innen Ø 20 maßhaltig, außen radiale Projektion auf Ø 60,3 (numerisch); schnittlaenge_3d = Schnittkurve Zylinder Ø 20 mit dem Außenmantel"
+    }
+   ]
+  },
+  "R05_RE80x40x3_Langloch40x10": {
+   "profil": "Rechteckrohr",
+   "konturen": [
+    {
+     "rolle": "Anfangsschnitt",
+     "schnittlaenge": 240.0,
+     "z": 0,
+     "formel": "2·(80+40)"
+    },
+    {
+     "rolle": "Endeschnitt",
+     "schnittlaenge": 240.0,
+     "z": 400,
+     "formel": "2·(80+40)"
+    },
+    {
+     "rolle": "Innenkontur",
+     "art": "Langloch",
+     "laenge": 40,
+     "breite": 10,
+     "z": 200,
+     "schnittlaenge": 91.4159,
+     "formel": "2·30 + π·10"
+    }
+   ]
+  },
+  "R06_QR60x3_Durchbrueche": {
+   "profil": "Quadratrohr",
+   "konturen": [
+    {
+     "rolle": "Anfangsschnitt",
+     "schnittlaenge": 240.0,
+     "z": 0,
+     "formel": "4·60"
+    },
+    {
+     "rolle": "Endeschnitt",
+     "schnittlaenge": 240.0,
+     "z": 500,
+     "formel": "4·60"
+    },
+    {
+     "rolle": "Durchbruch",
+     "art": "Bohrung",
+     "durchmesser": 12,
+     "z": 100,
+     "schnittlaenge": 37.6991,
+     "formel": "π·12 je Wand"
+    },
+    {
+     "rolle": "Durchbruch",
+     "art": "Bohrung",
+     "durchmesser": 12,
+     "z": 100,
+     "schnittlaenge": 37.6991,
+     "formel": "π·12 je Wand"
+    },
+    {
+     "rolle": "Ausschnitt",
+     "art": "Rechteckausschnitt",
+     "z": 250,
+     "schnittlaenge": 90.0,
+     "formel": "2·(30+15)"
+    },
+    {
+     "rolle": "Ausschnitt",
+     "art": "Rechteckausschnitt",
+     "z": 380,
+     "schnittlaenge": 90.0,
+     "formel": "2·(30+15)"
+    }
+   ]
+  },
+  "R07_RR42-4x2_Sattel60-3": {
+   "profil": "Rundrohr",
+   "konturen": [
+    {
+     "rolle": "Anfangsschnitt",
+     "schnittlaenge": 133.2035,
+     "z": 0,
+     "formel": "π·42,4"
+    },
+    {
+     "rolle": "Anschlusskontur",
+     "gegenrohr": 60.3,
+     "stufe": 2,
+     "schnittlaenge": 138.6608,
+     "formel": "Eintrittskurve Ø 42,4 in Zylinder Ø 60,3, Achsen senkrecht (numerisch)"
+    }
+   ]
+  },
+  "R08_RR33-7_60Grad_aussermittig": {
+   "profil": "Rundrohr",
+   "konturen": [
+    {
+     "rolle": "Anfangsschnitt",
+     "schnittlaenge": 105.8717,
+     "z": 0,
+     "formel": "π·33,7"
+    },
+    {
+     "rolle": "Anschlusskontur",
+     "gegenrohr": 60.3,
+     "stufe": 2,
+     "schnittlaenge": 120.9636,
+     "formel": "Eintrittskurve Ø 33,7 in Zylinder Ø 60,3, Achsen 60°, Versatz 8 mm (numerisch)"
+    }
+   ]
+  },
+  "R09_RE60x40x3_Ende_mehrfach": {
+   "profil": "Rechteckrohr",
+   "konturen": [
+    {
+     "rolle": "Anfangsschnitt",
+     "schnittlaenge": 200.0,
+     "z": 0,
+     "formel": "2·(60+40)"
+    },
+    {
+     "rolle": "Endeschnitt",
+     "schnittlaenge": 240,
+     "stufe": 3,
+     "formel": "200 − 20 + 3·20 (Ausklinkung im Endschnitt)"
+    },
+    {
+     "rolle": "Innenkontur",
+     "art": "Bohrung",
+     "durchmesser": 8,
+     "z": 365,
+     "schnittlaenge": 25.1327,
+     "formel": "π·8"
+    }
+   ]
+  },
+  "R10_Baugruppe": {
+   "baugruppe": [
+    "R01_RE60x40x3_gerade",
+    "R02_RR48-3x3_Gehrung45",
+    "R07_RR42-4x2_Sattel60-3"
+   ],
+   "platte": {
+    "x": 200,
+    "y": 100,
+    "dicke": 5
+   }
+  }
+ }
+}

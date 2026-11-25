@@ -8,7 +8,8 @@ im Prüfdialog (3D, Art, Profil, „Passt“), Kalkulation ist „Übernehmen“
 Importanalyse (Knopf im Prüfdialog), alles aus bauteil_analyse/baugruppe_analyse, nichts wird neu gemessen:
 - Bauteile: je verschiedenes Teil Kategorie, Konfidenz, Stufe, Profil, Länge, Anzahl, Bearbeitungen, Komplexität
 - Merkmale: alle erkannten Bearbeitungen des gewählten Teils mit Lage, Abmessung, Orientierung, Schnittlänge,
-  Bearbeitung und Konfidenz
+  Bearbeitung, Rolle der Kontur (Anfangsschnitt, Innenkontur, Durchbruch …), Schneidbarkeit 1 … 4 mit Grund
+  (konturrolle.py, Tooltip) und Konfidenz
 - Baugruppen: Struktur (Knoten), gleiche Teile mit Stückzahl, Varianten, Schweißverbindungen, Materialbedarf
 - Dateien: Befunde des Imports (ZIP, Herstellerformate, leere/defekte/doppelte Dateien)
 - Geometrieprüfung (Master-Auftrag CAD-Importkern 24.11.2026, step_qualitaet): je Körper Status in Farbe (grün korrekt,
@@ -25,9 +26,12 @@ from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QHeaderVi
 
 from . import bauteil_analyse as ba
 from . import baugruppe_analyse as bga
+from . import konturrolle as kr
 from . import stil
 
 STUFE_FARBE = {"sicher": stil.GRUEN, "prüfen": "#B7791F", "unsicher": stil.ROT}
+# Schneidbarkeit je Kontur (konturrolle.STUFEN): 1 eindeutig … 4 nicht sicher
+SCHNEIDBAR_FARBE = {1: stil.GRUEN, 2: "#2E6DA4", 3: "#B7791F", 4: stil.ROT}
 SCHRITTE = ("Import", "Analyse", "Ergebnis", "Kontrolle", "Korrektur", "Kalkulation")
 ZIFFERN = "①②③④⑤⑥"
 
@@ -170,7 +174,8 @@ class ImportanalyseDialog(QDialog):
     BAUTEIL_SPALTEN = ("Datei", "Pos.", "Bezeichnung", "Anzahl", "Kategorie", "Konfidenz", "Profil", "Länge [mm]",
                        "Bearbeitungen", "Fertigbar", "Komplexität", "Unsicherheiten")
     MERKMAL_SPALTEN = ("Merkmal", "x [mm]", "Lage", "Abmessung", "Orientierung", "Schnittlänge [mm]", "Bearbeitung",
-                       "Konfidenz", "Hinweis")
+                       "Rolle", "Schneidbarkeit", "Konfidenz", "Hinweis")
+    SP_SCHNEIDBAR, SP_KONFIDENZ = 8, 9
 
     def __init__(self, parent, messwerte, ampel=None):
         """ampel = (sicher, prüfen, nicht übernehmbar) des Prüfdialogs für die Schrittleiste (mit fehlenden
@@ -270,8 +275,9 @@ class ImportanalyseDialog(QDialog):
         nebeneinander.setSizes([760, 420])
         ul.addWidget(nebeneinander, 1)
         self.naechstes_knopf = QPushButton("Nächstes zu prüfen ▸")
-        self.naechstes_knopf.setToolTip("Springt zum nächsten Merkmal, das nicht sicher erkannt ist oder eine "
-                                        "Konstruktionsregel verletzt, und zeigt es im 3D.")
+        self.naechstes_knopf.setToolTip("Springt zum nächsten Merkmal, das nicht sicher erkannt ist, als problematisch "
+                                        "oder nicht sicher schneidbar gilt oder eine Konstruktionsregel verletzt, und "
+                                        "zeigt es im 3D.")
         self.naechstes_knopf.clicked.connect(lambda: self.naechstes_pruefen())
         ul.addWidget(self.naechstes_knopf, 0, Qt.AlignLeft)
         w.addWidget(unten)
@@ -307,11 +313,19 @@ class ImportanalyseDialog(QDialog):
             anz = f"{x['anzahl']}× " if (x.get("anzahl") or 1) > 1 else ""
             stufe = "sicher" if x.get("konfidenz", 0) >= ba.GRUEN_AB else "prüfen" if x.get("konfidenz", 0) >= 70 \
                 else "unsicher"
+            sb = x.get("schneidbar")
             werte = (anz + x.get("merkmal", ""), _zahl(x.get("x")) if x.get("x") is not None else "", lage,
                      x.get("abmessung") or "", x.get("orientierung") or "", _zahl(x.get("schnittlaenge")),
-                     x.get("bearbeitung") or "", f"{x.get('konfidenz', 0)} %", x.get("hinweis") or "")
+                     x.get("bearbeitung") or "", x.get("rolle") or "",
+                     f"{sb} {x.get('schneidbar_text') or ''}" if sb else "", f"{x.get('konfidenz', 0)} %",
+                     x.get("hinweis") or x.get("rolle_grund") or "")
             for c, v in enumerate(werte):
-                self.merkmale.setItem(r_, c, _item(v, STUFE_FARBE.get(stufe) if c == 7 else None, c in (1, 5, 7)))
+                farbe = STUFE_FARBE.get(stufe) if c == self.SP_KONFIDENZ else \
+                    SCHNEIDBAR_FARBE.get(sb) if c == self.SP_SCHNEIDBAR else None
+                it = _item(v, farbe, c in (1, 5, self.SP_KONFIDENZ))
+                if c == self.SP_SCHNEIDBAR and x.get("rolle_grund"):
+                    it.setToolTip(x["rolle_grund"])
+                self.merkmale.setItem(r_, c, it)
 
     def _merkmal_markieren(self):
         r = self.merkmale.currentRow()
@@ -324,7 +338,8 @@ class ImportanalyseDialog(QDialog):
         return bereich
 
     def naechstes_pruefen(self):
-        """Nächstes Merkmal mit Konfidenz unter grün (oder Fertigbarkeit) nach der Auswahl, über alle Teile; True =
+        """Nächstes Merkmal mit Konfidenz unter grün, Schneidbarkeit 3/4 (problematisch, nicht sicher) oder Fertigbarkeit
+        nach der Auswahl, über alle Teile; True =
         gefunden (Teil und Merkmal gewählt, im 3D markiert)."""
         n = len(self.zeilen)
         if not n:
@@ -336,7 +351,7 @@ class ImportanalyseDialog(QDialog):
             liste = sorted(a.get("merkmale") or [], key=lambda x: x.get("merkmal") != ba.M_FERTIG)
             ab = start_m + 1 if schritt == 0 else 0
             for i in range(ab, len(liste)):
-                if liste[i].get("konfidenz", 100) < ba.GRUEN_AB:
+                if liste[i].get("konfidenz", 100) < ba.GRUEN_AB or (liste[i].get("schneidbar") or 0) >= kr.PRUEFEN_AB:
                     if t != self.bauteile.currentRow():
                         self.bauteile.selectRow(t)
                     self.merkmale.selectRow(i)
