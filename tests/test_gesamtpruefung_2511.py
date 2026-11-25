@@ -15,6 +15,7 @@ docs/system-audit/GESAMTPRUEFUNG_2511.md).
 Aufruf: python tests/test_gesamtpruefung_2511.py
 """
 import itertools
+import math
 import random
 import sys
 import time
@@ -227,6 +228,22 @@ assert any("Anzahl bzw. Reihen prüfen" in f for f in r["fehler"]), r["fehler"]
 assert sum(s_["anzahl"] for s_ in r["schritte"] if s_.get("art") == sw.BOHRUNG) == 2      # übrige Zeilen gerechnet
 assert time.perf_counter() - t0 < 5
 print("OK    Konturzeile mit vertippter Anzahl/Reihen (10.000.000): Fehlermeldung statt vollem Arbeitsspeicher")
+
+# G-06: NaN/unendlich in einem Maß -> Meldung statt NaN-Schneidweg (alle Konturarten mit Maß d bzw. Länge)
+nan_arten = 0
+for art in (sw.BOHRUNG, sw.LANGLOCH, sw.RECHTECK):
+    for wert in (float("nan"), float("inf")):
+        try:
+            lg, hk, n = sw.kontur(dict(art=art, anzahl=1, d=wert, l=wert, b=wert, laenge=wert, breite=wert))
+        except ValueError:
+            nan_arten += 1
+            continue
+        assert math.isfinite(lg), (art, wert, lg)
+r = sw.rechnen(dict(a={}, b={}, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=float("nan"), x=100),
+                                          dict(art=sw.BOHRUNG, anzahl=2, d=8.5, x=200)]), PROFIL, REGEL)
+assert any("keine gültige Zahl" in f for f in r["fehler"]), r["fehler"]
+assert all(math.isfinite(v) for v in (r.get("schneidweg", 0.0), r.get("gravur", 0.0)) if isinstance(v, float))
+print(f"OK    Ungültige Zahl (NaN/unendlich) im Maß: Meldung statt NaN-Schneidweg ({nan_arten} Fälle)")
 
 
 # ------------------------------------------------------------------ 4. RP-Profile: Umriss für alle

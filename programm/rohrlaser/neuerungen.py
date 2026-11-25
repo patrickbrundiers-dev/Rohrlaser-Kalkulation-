@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.514", "<b>Gesamtprüfung, Teil 2</b>: Eine Konturzeile mit einem ungültigen Zahlenwert (z. B. aus einer "
+                "beschädigten Importdatei) meldet jetzt <i>Maß ist keine gültige Zahl – Kontur prüfen</i>, statt einen "
+                "ungültigen Schneidweg still in Zeit und Preis zu übernehmen; die übrigen Zeilen rechnen weiter "
+                "([[schneidweg_rechner]]).",
+     "Gesamtprüfung 2: Meldung bei ungültigen Zahlen in Konturen"],
     ["0.9.513", "<b>Gesamtprüfung Rechenkerne</b>: Die Stangenoptimierung merkt sich beim Auflösen schwacher Stangen, "
                 "welche Teile auf welche Stange nicht passen, und prüft sie nicht erneut. Große Serien mit schrägen "
                 "Enden rechnen dadurch bis zu 30-mal schneller (10.000 Teile 158 s → 5 s, 4.000 Teile 28 s → 1,6 s), "
