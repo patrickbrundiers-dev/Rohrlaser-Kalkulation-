@@ -178,25 +178,25 @@ def _daten(m):
 
 
 def groesse_gemessen(m, kategorie=None):
-    """Größe aus der Messung als Text ('Ø24 × 2,5, Bohrung Ø13'); '' wenn nichts gemessen ist."""
+    """Größe aus der Messung als Text ('Ø24x2,5, Bohrung Ø13'); '' wenn nichts gemessen ist."""
     d = _daten(m)
     if d.get("durchmesser"):
         innen = f"/Ø{_mm(d['innen'])}" if d.get("innen") else ""
-        return f"Ø{_mm(d['durchmesser'])}{innen} × {_mm(d.get('laenge') or 0)}"
+        return f"Ø{_mm(d['durchmesser'])}{innen}x{_mm(d.get('laenge') or 0)}"
     form = m.get("profilform")
     if form == "Blech" and _z(m, "abm_a"):
         loch = str(m.get("bohrungen") or "").split(":")[0]
         rund = abs(_z(m, "abm_a") - _z(m, "abm_b")) <= 0.02 * _z(m, "abm_a")
-        text = (f"Ø{_mm(_z(m, 'abm_a'))}" if rund else f"{_mm(_z(m, 'abm_a'))} × {_mm(_z(m, 'abm_b'))}") \
-            + f" × {_mm(_z(m, 'wandstaerke'))}"
+        text = (f"Ø{_mm(_z(m, 'abm_a'))}" if rund else f"{_mm(_z(m, 'abm_a'))}x{_mm(_z(m, 'abm_b'))}") \
+            + f"x{_mm(_z(m, 'wandstaerke'))}"
         try:
             return text + (f", Bohrung Ø{_mm(float(loch))}" if loch and m.get("innen_konturen") in (1, "1") else "")
         except ValueError:
             return text
     if form == "Rundstahl" and _z(m, "abm_a"):
-        return f"Ø{_mm(_z(m, 'abm_a'))} × {_mm(_z(m, 'laenge'))}"
+        return f"Ø{_mm(_z(m, 'abm_a'))}x{_mm(_z(m, 'laenge'))}"
     if form == "Rundrohr" and _z(m, "abm_a"):
-        return f"Ø{_mm(_z(m, 'abm_a'))} × {_mm(_z(m, 'wandstaerke'))} × {_mm(_z(m, 'laenge'))}"
+        return f"Ø{_mm(_z(m, 'abm_a'))}x{_mm(_z(m, 'wandstaerke'))}x{_mm(_z(m, 'laenge'))}"
     return ""
 
 
@@ -210,17 +210,17 @@ def aus_form(m):
     if form == "Blech" and a and abs(a - b) <= 0.02 * a and a <= SCHEIBE_D_MAX and \
             0 < _z(m, "wandstaerke") <= SCHEIBE_DICKE_MAX and str(m.get("innen_konturen")) == "1" and \
             str(m.get("konturen")) == "2" and str(m.get("n_flaechen")) == "4":
-        return SCHEIBE, f"runde Scheibe Ø{_mm(a)} × {_mm(_z(m, 'wandstaerke'))} mit einem Loch in der Mitte"
+        return SCHEIBE, f"runde Scheibe Ø{_mm(a)}x{_mm(_z(m, 'wandstaerke'))} mit einem Loch in der Mitte"
     if form == "Rundstahl" and 0 < a <= STIFT_D_MAX and 0 < lg <= STIFT_L_MAX and str(m.get("konturen") or "0") == "0":
-        return STIFT, f"glatter Rundstahl Ø{_mm(a)} × {_mm(lg)}"
+        return STIFT, f"glatter Rundstahl Ø{_mm(a)}x{_mm(lg)}"
     if d.get("art") == "Drehteil" and not d.get("normteil"):
         dm, innen, aussen = float(d.get("durchmesser") or 0), float(d.get("innen") or 0), d.get("durchmesser_liste") or []
         if d.get("nur_abmessung") and innen and dm <= HUELSE_D_MAX:
-            return HUELSE, f"kurzes dickwandiges Rohr Ø{_mm(dm)}/Ø{_mm(innen)} × {_mm(d.get('laenge') or 0)}"
+            return HUELSE, f"kurzes dickwandiges Rohr Ø{_mm(dm)}/Ø{_mm(innen)}x{_mm(d.get('laenge') or 0)}"
         if len(aussen) == 2 and 0 < dm <= NIET_D_MAX and not d.get("zusatz"):
             kopf = next((x for x in (d.get("kennwerte") or {}).get("aussen") or () if abs(x["d"] - dm) < 1e-6), None)
             if kopf and kopf["l"] <= 0.6 * dm and float(d.get("laenge") or 0) > kopf["l"]:
-                text = f"Kopf Ø{_mm(dm)} × {_mm(kopf['l'])} mit Schaft Ø{_mm(min(aussen))}"
+                text = f"Kopf Ø{_mm(dm)}x{_mm(kopf['l'])} mit Schaft Ø{_mm(min(aussen))}"
                 if innen:
                     return NIET, text + f", hohl Ø{_mm(innen)} (Blindniet?)"
                 return KOPFTEIL, text + " (Schraube, Niet oder Bolzen mit Kopf)"

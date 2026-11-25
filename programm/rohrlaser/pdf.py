@@ -18,7 +18,7 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame,
                                 Image, NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 from reportlab.pdfgen import canvas as rl_canvas
 
-from . import ausgabe, design, leistung, querschnitt, rechnen, stangen_abwicklung
+from . import ausgabe, design, leistung, masstext, querschnitt, rechnen, stangen_abwicklung
 from .rechnen import kostenarten
 from .stammdaten import zahl_als_text
 
@@ -71,7 +71,7 @@ def _b(t):
 
 
 def _p(text, stil=S):
-    t = "" if text is None else str(text)
+    t = "" if text is None else masstext.text(str(text))     # Abmessungen kompakt ('QR 40x40x3', masstext)
     return Paragraph(t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>"), stil)
 
 

@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (QFrame, QSizePolicy,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QApplication, QFileDialog, QSpinBox, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
-from . import admin_schutz, stil
+from . import admin_schutz, masstext, stil
 from .klartext import fehler_text
 from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, funktionen, hilfe, lizenzbedingungen, pdf, schneiddaten_standard, tabellen_eingabe, tastatur, teilen, update
 from .angebot import kuerzel_sauber
@@ -153,8 +153,8 @@ class StammdatenModell(QAbstractTableModel):
         if rolle == Qt.ItemDataRole.ToolTipRole and (abw := self.standard_wert(index.row(), index.column())):
             return f"{wert_als_text(s, w) or 'leer'} – Standard: {wert_als_text(s, abw[1]) or 'leer'}"
         if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
-            if art == "feld":
-                return wert_als_text(s, w)
+            if art == "feld":       # Abmessungen kompakt anzeigen ('QR 40x40x3'), gespeichert bleibt der Wert (masstext)
+                return masstext.text(wert_als_text(s, w))
             if art == "berechnet":
                 return zahl_als_text(w, s[2]) if w is not None else ""
             return w
@@ -257,7 +257,18 @@ class Sortierung(QSortFilterProxyModel):
         if self.nur_auffaellig is not None:
             if not str(self.sourceModel().roh(zeile, self.nur_auffaellig) or "").startswith(("FEHLER", "WARNUNG")):
                 return False
+        if self.such:           # Suche: Schreibweise der Abmessung egal ('40 x 40 x 3' findet 'QR 40x40x3' und umgekehrt)
+            m = self.sourceModel()
+            return any(self.such in masstext.suchschluessel(m.data(m.index(zeile, sp, eltern)) or "")
+                       for sp in range(m.columnCount(eltern)))
         return super().filterAcceptsRow(zeile, eltern)
+
+    such = ""
+
+    def suchen(self, text):
+        """Suchtext setzen (statt setFilterFixedString): Abmessungen in alter und neuer Schreibweise finden."""
+        self.such = masstext.suchschluessel(text)
+        self.invalidateFilter()
 
     def lessThan(self, links, rechts):
         a, b = links.data(Qt.ItemDataRole.UserRole), rechts.data(Qt.ItemDataRole.UserRole)
@@ -447,7 +458,7 @@ class StammdatenSeite(QWidget):
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Suchen …")
         self.suche.setClearButtonEnabled(True)
-        self.suche.textChanged.connect(self.filter.setFilterFixedString)
+        self.suche.textChanged.connect(self.filter.suchen)
         tastatur.suche_esc(self.suche)
         self.anzahl = QLabel()
         self.pruefspalte = next((i for i, (art, _) in enumerate(self.modell.spalten) if art == "pruefung"), None)

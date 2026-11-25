@@ -1022,7 +1022,7 @@ class SchneidwegDialog(QDialog):
         for pid, pr in (getattr(k, "profile", None) or {}).items():
             if passt(pr):
                 return pid
-        return f"{form} {rechnen.zahl(a, 1)} × {rechnen.zahl(b or a, 1)}" + (f" × {rechnen.zahl(t, 1)}" if t else "")
+        return f"{form} {rechnen.zahl(a, 1)}x{rechnen.zahl(b or a, 1)}" + (f"x{rechnen.zahl(t, 1)}" if t else "")
 
     def zeichnung_pdf(self, pfad=None):
         """Zeichnung als PDF (zeichnung.py). Ohne pfad: in die Ablage des Angebots schreiben und öffnen."""

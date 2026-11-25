@@ -2756,10 +2756,10 @@ def rohre_gegenprobe(messwerte, profile, d3=False):
 
 
 def blech_text(m):
-    """Kurztext eines Blechs, z. B. 'Blech 500 × 300 × 5 mm'."""
+    """Kurztext eines Blechs, z. B. 'Blech 500x300x5 mm' (kompakt, masstext)."""
     b = blech(m) or {}
     f = lambda x: dez(round(float(x or 0), 1))
-    return f"{m.get('profilform')} {f(b.get('laenge'))} × {f(b.get('breite'))} × {f(b.get('dicke'))} mm"
+    return f"{m.get('profilform')} {f(b.get('laenge'))}x{f(b.get('breite'))}x{f(b.get('dicke'))} mm"
 
 
 FLACHSTAHL_BIS = 150.0      # mm, Vorgabe der Einstellung flachstahl_bis

@@ -75,7 +75,7 @@ qr, rr = schl[("QR 40x40x3", 6000)], schl[("RR 42,4x2,0", 6000)]
 n_qr = sum(1 for st in s.ergebnis["stangen"] if st["profil"] == "QR 40x40x3")
 assert qr["stangen"] == n_qr >= 3 and qr["lieferant"] == "Stahlhandel Nord" and rr["lieferant"] is None
 assert qr["pos"] == ["10", "20"] and "dokumente" not in qr
-assert qr["text"].startswith(f"{n_qr} Stangen Quadratrohr 40 x 40 x 3") and "mm" not in qr["text"] and "kg" not in qr["text"], qr["text"]   # 6 m und Gewicht nicht genannt (18.11.2026)
+assert qr["text"].startswith(f"{n_qr} Stangen Quadratrohr 40x40x3") and "mm" not in qr["text"] and "kg" not in qr["text"], qr["text"]   # 6 m und Gewicht nicht genannt (18.11.2026)
 assert ma.lieferanten(db.zeilen("zukauf_lieferanten")) == {"Stahlhandel Nord": "anfrage@stahl-nord.example"}
 ok("M1 Bedarf: Stangen je Profil + Werkstoff + Lieferlänge aus der Optimierung, Kundenmaterial nicht, Lieferant")
 
@@ -106,7 +106,7 @@ def anfrage_bedienen(d):
 
 d = s.material_anfragen(dialog=anfrage_bedienen, ausfuehren=outlook_ok)
 assert gesehen["lieferant"] == "Stahlhandel Nord" and gesehen["an"] == "anfrage@stahl-nord.example"
-assert len(gesehen["gewaehlt"]) == 1 and "Quadratrohr 40 x 40 x 3" in gesehen["text"] and "Rundrohr" not in gesehen["text"]
+assert len(gesehen["gewaehlt"]) == 1 and "Quadratrohr 40x40x3" in gesehen["text"] and "Rundrohr" not in gesehen["text"]
 assert "Angebot A-2026-0100" in gesehen["text"] and "Muster Laser GmbH" not in gesehen["text"]   # Signatur: Outlook
 assert "Zeichnung" not in gesehen["text"]
 assert f"{qr['stangen'] + 2} Stangen Quadratrohr" in gesehen["text2"]
@@ -116,7 +116,7 @@ assert daten["an"] == "anfrage@stahl-nord.example"
 assert daten["betreff"] == "Materialanfrage zu Angebot A-2026-0100 (MA A-2026-0100/1)", daten["betreff"]   # Kennung
 assert not daten.get("anhaenge") and "Stangen" in daten["text"]
 assert daten["signatur"] is True and "Muster Laser GmbH" not in daten["text"]       # Outlook setzt die Signatur
-assert "Quadratrohr 40 x 40 x 3" in daten["html"] and "<br>" in daten["html"]
+assert "Quadratrohr 40x40x3" in daten["html"] and "<br>" in daten["html"]
 assert skript.index("$m.Display") < skript.index("HTMLBody") and "Insert(" in skript    # Text vor die Signatur
 assert d.ergebnis == "outlook" and "in Outlook geöffnet" in fenster.statusBar().currentMessage()
 ok("M2 Vorschau: Lieferant mit E-Mail, nur seine Zeilen, Menge änderbar, ohne Anhang; Outlook nur Display, nie Send, "
@@ -139,7 +139,7 @@ d = s.material_anfragen(dialog=ohne_lieferant, ausfuehren=outlook_fehlt)
 assert d.ergebnis == "eml" and "nicht ansteuern" in d.meldung and geoeffnet and geoeffnet[0].suffix == ".eml"
 mail = email.message_from_bytes(geoeffnet[0].read_bytes(), policy=policy.default)
 assert mail["To"] == "einkauf@rohr.example" and mail["X-Unsent"] == "1"
-assert "Rundrohr Ø 42,4 x 2" in mail.get_body().get_content() and "Quadratrohr" not in mail.get_body().get_content()
+assert "Rundrohr Ø42,4x2" in mail.get_body().get_content() and "Quadratrohr" not in mail.get_body().get_content()
 assert mail.get_body().get_content().rstrip().endswith("Mit freundlichen Grüßen\nMuster Laser GmbH")  # eigene Signatur
 assert not list(mail.iter_attachments())
 pfad = ma.eml(tmp / "mit.eml", "a@b.example", "Test", "Text", [tmp / "Z-100.pdf"])

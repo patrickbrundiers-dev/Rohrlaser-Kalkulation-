@@ -57,7 +57,7 @@ def tafel_gruppen(liste, einst):
         n = sum(int(x[2]) for x in teile)
         titel = f"{wst} {s:g} mm: {len(teile)} Position(en), {n} Teile"
         if t:
-            titel += (f" auf {t['tafeln']} Tafel(n) {t['format'][0]:g} × {t['format'][1]:g} mm, Ausnutzung "
+            titel += (f" auf {t['tafeln']} Tafel(n) {t['format'][0]:g}x{t['format'][1]:g} mm, Ausnutzung "
                       f"{zahl_als_text(t['ausnutzung'] * 100, 0)} %")
             if t["fehlt"]:
                 titel += f" · passt auf keine Tafel: Pos. {', '.join(sorted(set(t['fehlt'])))}"
@@ -102,7 +102,7 @@ class BlecheDialog(QDialog):
             zs = erg.get("zuschnitt") or {}
             werte = (str(p.get("pos") or z["zeile"] + 1), p.get("bezeichnung") or p.get("artikel") or "",
                      e.get("werkstoff") or "", _z(e.get("dicke"), 2),
-                     f"{_z(zs.get('laenge'), 1)} × {_z(zs.get('breite'), 1)}" if zs else "",
+                     f"{_z(zs.get('laenge'), 1)}x{_z(zs.get('breite'), 1)}" if zs else "",
                      _z(p.get("stueck"), 0), _z(erg.get("gewicht"), 3), _z(erg.get("zeit"), 1),
                      ", ".join(n for n, *_ in blech.RICHTWERTE if n in (erg.get("eigene") or {})) or "–",
                      _z(erg.get("richtpreis") or st.get("richtpreis"), 2),
