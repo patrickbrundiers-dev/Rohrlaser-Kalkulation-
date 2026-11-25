@@ -1126,7 +1126,7 @@ def kontur_enden(p, profil, a_gerade, b_gerade):
             keys = {}
             for seite, gerade in (("a", a_gerade), ("b", b_gerade)):
                 keys[seite] = None if gerade else endkontur.profil_schluessel(
-                    endkontur.ende_verlauf_zellen(qs, gk, quelle[seite] or {}, gewendet))
+                    endkontur.ende_verlauf_zellen(qs, gk, quelle[seite] or {}, gewendet, d3=e.get("d3") is True))
             out = (keys["a"], keys["b"], gk)
     except (ValueError, TypeError, ZeroDivisionError, KeyError, AttributeError):
         out = (None, None, "")

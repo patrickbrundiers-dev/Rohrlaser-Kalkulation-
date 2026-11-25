@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.489", "<b>Erkennung von Endkonturen und Sonderkonturen</b> ([[schneidweg_rechner]], [[nesting]]): Komplexe "
+                "Enden aus der STEP werden mit ihrer Konturart erkannt (V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, Bogen "
+                "konvex/konkav, S-Kurve, Schräg, Stufen) samt Maßen, wenn sie den gemessenen Umriss überall auf 0,1 mm "
+                "treffen; der Umriss der STEP bleibt maßgebend, <i>Endkontur …</i> öffnet die erkannte Kontur zum "
+                "Bearbeiten. Sonderkonturen in der Wand bekommen ihre Form als Bemerkung: Kreis, Langloch und Rechteck "
+                "(mit Eckradius) in beliebiger Lage, Dreieck, Quadrat, Sechseck und andere Vielecke, sonst Freiform mit "
+                "Geraden und Bögen. Endkonturen rechnen an Quadrat- und Rechteckrohren mit dem echten Eckradius. Die "
+                "Verschachtelung nimmt bei 2D-Schnitten keinen Zuschlag für den Schwenk mehr an (gemessene Enden "
+                "rücken bis zu 3 mm näher zusammen). Prüfsatz und Werkzeug <i>werkzeuge/kontur_erkennung.py</i>: "
+                "24 von 24 Enden und 14 von 14 Sonderkonturen richtig.",
+     "Konturart komplexer STEP-Enden und Form von Sonderkonturen erkannt, Verschachtelung 2D genauer"],
     ["0.9.488", "<b>Endkonturen universell + Konturverschachtelung</b> ([[schneidweg_rechner]], [[nesting]]): Rohrenden "
                 "lassen sich mit beliebigen Konturen schneiden, nicht nur gerade oder auf Gehrung: Schräg (auch "
                 "asymmetrisch), V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, S-Kurve, Bogen konvex/konkav, Stufen, Freiform "

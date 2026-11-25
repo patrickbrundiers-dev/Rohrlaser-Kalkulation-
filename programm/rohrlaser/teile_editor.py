@@ -90,7 +90,9 @@ def kontur_text(i, z):
     lage = ""
     if z.get("x") is not None:
         lage = f" bei x = {_z(z['x'], 0)}" + (f", y = {_z(z['y'], 0)}" if z.get("y") is not None else "")
-    return f"{i + 1}. {art}" + (f" {', '.join(masse)}" if masse else "") + (f" × {n}" if n > 1 else "") + lage
+    form = z.get("form_erkannt") if isinstance(z.get("form_erkannt"), dict) else None    # Sonderkontur: erkannte Form
+    return f"{i + 1}. {art}" + (f" ({form['text']})" if form and form.get("text") else "") + \
+        (f" {', '.join(masse)}" if masse else "") + (f" × {n}" if n > 1 else "") + lage
 
 
 def ende_text(x):
@@ -101,7 +103,15 @@ def ende_text(x):
         return f"Sattel auf Ø {_z(x['sattel'])}"
     if x.get("achse") == sw.ACHSE_ZWEI:
         return f"Schrägschnitt {_z(x.get('winkel_h'))}° / {_z(x.get('winkel_b'))}°"
+    from . import endkontur
     w = sw._z(x.get("winkel"))
+    kontur = endkontur.lesen(x.get("kontur"))
+    if kontur and not w:                    # Endkontur (V/U/Bogen/Stufen …) aus dem Endkontur-Dialog
+        return f"Endkontur {endkontur.text(kontur)}"
+    erkannt = x.get("kontur_erkannt") if isinstance(x.get("kontur_erkannt"), dict) else None
+    if not w and erkannt and endkontur.lesen(erkannt.get("kontur")) and x.get("umriss"):
+        # komplexes Ende, als Konturart erkannt (Umriss bleibt maßgebend, Patrick 25.11.2026)
+        return f"{endkontur.text(erkannt['kontur'])} (erkannt, Umriss wie STEP)"
     if not w:      # komplexes Ende aus der STEP (z. B. Ausschnitt bis ans Ende, Ecke schräg): nicht „gerade“ nennen
         return "gerade" if x.get("form") in (None, "", "gerade") else f"{x['form']} (Umriss wie STEP)"
     return f"Gehrung {_z(w)}°" + (f" {x['achse']}" if x.get("achse") else "") + (" 3D" if x.get("d3") else "")

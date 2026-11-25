@@ -3872,7 +3872,10 @@ def abschnitte_profirst_angebot(i):
            "genau wie bisher. Der Vergleich zeigt je Abmessung die Zeile <i>ohne Konturverschachtelung</i> "
            "(ursprüngliche Belegung) und die Spalten <i>Enden ineinander</i>, <i>davon Endkonturen</i> und "
            "<i>Trennschnitte</i>; die Karte <i>Status</i> nennt die Einsparung (Stangen, m, €, %). In der "
-           "Stangenabwicklung und im 3D ist jede Verschachtelung prüfbar.")
+           "Stangenabwicklung und im 3D ist jede Verschachtelung prüfbar. Seit 0.9.489 rechnet ein gemessenes Ende "
+           "eines Teils ohne 3D-Schnittbearbeitung ohne Zuschlag für den Schwenk (2D: der Strahl steht senkrecht "
+           "zur Oberfläche, die Innenkante liegt unter der Außenkante); vorher lag z. B. eine V-Spitze 20 mm am "
+           "Rechteckrohr 80 × 40 für das Verschachteln 3 mm zu weit vorn.")
     i.text("<b>Welcher Rechenweg?</b> Das Programm wählt ihn selbst: je Lieferlänge rechnet die exakte Optimierung "
            "(Muster, Simplex, Branch-and-Bound) die kleinste Stangenzahl und beweist sie meist gegen die Untergrenze; "
            "ein genetischer Algorithmus oder Simulated Annealing würde dort keine Stange sparen und rechnet deshalb "
@@ -6388,6 +6391,20 @@ def kapitel_optimieren(i):
             "Bohrungen gleichen Ø (Doppelbohrung, lag als eine Bohrung bis 3 mm daneben), eine Bohrung auf der "
             "Rundung eines Quadrat-/Rechteckrohrs (Text <i>Bohrung Ø … auf der Rundung: Umriss wie STEP</i>) und "
             "bei Flachstahl und Winkeln z. B. ein Sechskant (wurde Langloch) genau wie gezeichnet in den Editor.",
+            "<b>Erkennung von Endkonturen und Sonderkonturen</b> (seit 0.9.489): Ein Ende, das weder gerade noch "
+            "Gehrung noch Gegenrohr ist, wird mit seiner <i>Konturart</i> erkannt: V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, "
+            "Bogen konvex/konkav, S-Kurve, Schräg oder Stufen, mit Maßen (Tiefe, Breite, Radius, Versatz, Richtung). "
+            "Erkannt gilt nur, was den gemessenen Umriss an jedem Messpunkt auf 0,1 mm trifft (wie bei der Gehrung). "
+            "Der Umriss und die Schnittlänge der STEP bleiben maßgebend; das Ende heißt dann z. B. <i>V-Kerbe t 15 "
+            "b 36 (erkannt, Umriss wie STEP)</i>, der Schneidweg-Rechner zeigt <i>erkannt: … (± 0,03 mm)</i>, und "
+            "<i>Endkontur …</i> öffnet den Dialog mit der erkannten Kontur vorbelegt – erst <i>OK</i> macht daraus "
+            "eine bearbeitbare Endkontur (sie ersetzt dann den gemessenen Umriss). Eine <i>Sonderkontur</i> in der "
+            "Wand bekommt ihre Form als Bemerkung: <i>Kreis</i>, <i>Langloch</i> und <i>Rechteck</i> (auch mit "
+            "Eckradius) in beliebiger Lage mit Winkel zur Achse, <i>Dreieck</i>, <i>Quadrat</i>, regelmäßige "
+            "Vielecke (z. B. <i>Sechseck SW 17,3</i>); alles andere als <i>Freiform</i> mit der Zahl der Geraden "
+            "und Bögen und deren Radien, z. B. <i>Freiform: 3 Geraden, 1 Bogen (R7)</i> für ein Schlüsselloch. "
+            "Geschnitten wird immer der Umriss der STEP. Erkennungsquote prüfen: "
+            "<i>werkzeuge/kontur_erkennung.py</i> (Prüfsatz mit 39 Teilen oder ein eigener Ordner mit STEPs).",
             "<b>Enden mit Hinterschnitt</b> (seit 0.9.240): T-Schlitz, Schlüsselloch-Schlitz, Schwalbenschwanz, "
             "Haken oder eine Bohrung halb über das Ende laufen vom Ende ins Teil und wieder zurück. Der "
             "hinterschnittene Teil steht als <i>Sonderkontur „Teil von Ende …“</i> (zum Ende hin offen) im Editor, "
