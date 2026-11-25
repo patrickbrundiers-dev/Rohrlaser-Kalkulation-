@@ -5290,8 +5290,20 @@ def kapitel_step(i):
             "Positionen mit Verstoß als Hinweis.")
     i.text("Außerdem zeigt die Importanalyse rechts neben den Merkmalen eine <b>3D-Ansicht</b> des gewählten "
            "Teils: ein Klick auf ein Merkmal (auch auf einen Fertigbarkeits-Befund) färbt seinen Bereich im 3D. "
-           "<b>Nächstes zu prüfen ▸</b> springt über alle Teile zum nächsten Merkmal, das nicht sicher erkannt ist "
-           "oder eine Regel verletzt.", kurz=True)
+           "<b>Nächstes zu prüfen ▸</b> springt über alle Teile zum nächsten Merkmal, das nicht sicher erkannt ist, "
+           "als problematisch oder nicht sicher schneidbar gilt oder eine Regel verletzt.", kurz=True)
+    i.text("<b>Rolle und Schneidbarkeit je Kontur</b> (ab 0.9.489): Die Merkmale zeigen zu jeder Kontur die Spalten "
+           "<b>Rolle</b> und <b>Schneidbarkeit</b>. Die Rolle sagt, wo die Kontur liegt und was sie ist: "
+           "<i>Anfangsschnitt</i> (Ende A), <i>Endeschnitt</i> (Ende B), <i>Anschlusskontur</i> (Sattel gegen ein "
+           "Gegenrohr), <i>Innenkontur</i> (Bohrung, Langloch, Senkung), <i>Durchbruch</i> (Durchgang durch beide "
+           "Wände), <i>Ausschnitt</i>, <i>Freiformkontur</i> (ohne Grundform) oder <i>nicht eindeutig</i>. Die "
+           "Schneidbarkeit hat vier Stufen: <b>1 eindeutig</b> (Grundform erkannt), <b>2 wahrscheinlich</b> (Form aus "
+           "den Flächen, z. B. Sattel oder schräge Bohrung), <b>3 problematisch</b> (Kontur ohne Grundform, Fase, "
+           "über mehrere Wände, Öffnung kleiner als die Wand) und <b>4 nicht sicher</b> (Werte fehlen). Der Grund "
+           "steht im Tooltip und, wenn es keinen anderen Hinweis gibt, in der Spalte Hinweis. Stufe 3 und 4 findet "
+           "<b>Nächstes zu prüfen ▸</b>. Rolle und Stufe sind nur Anzeige: Schnittlänge, Laserzeit und Preis "
+           "ändern sich dadurch nicht. Positionen, die vor dieser Version übernommen wurden, zeigen die Spalten "
+           "leer, bis sie neu eingelesen werden.")
     i.liste("<b>Gewinde, Senkungen, Fließlöcher mit Zeichnung</b>: liegt zum Teil eine Zeichnung oder ein Formular "
             "vor, gleicht die Analyse den Gewinde-Vorschlag aus dem Kernloch damit ab. Stimmt Größe und Anzahl, gilt er "
             "als sicher („bestätigt durch Zeichnung“); weicht die Anzahl ab, bleibt er zu prüfen mit beiden Werten; "

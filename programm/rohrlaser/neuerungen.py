@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.489", "<b>Rolle und Schneidbarkeit je Kontur</b> ([[importanalyse]]): Die Importanalyse zeigt zu jeder "
+                "Kontur, ob sie Anfangsschnitt, Endeschnitt, Anschlusskontur, Innenkontur, Durchbruch, Ausschnitt, "
+                "Freiformkontur oder nicht eindeutig ist, und wie sicher sie geschnitten wird (1 eindeutig, "
+                "2 wahrscheinlich, 3 problematisch, 4 nicht sicher, mit Grund). Problematische Konturen findet "
+                "<i>Nächstes zu prüfen</i>. Dazu 10 Referenzteile mit Sollmaßen aus der Konstruktion als Test. Nur "
+                "Anzeige, Messwerte und Preise bleiben gleich.",
+     "Rolle und Schneidbarkeit (1–4) je Kontur in der Importanalyse, 10 Referenzteile mit Sollmaßen."],
     ["0.9.488", "<b>Endkonturen universell + Konturverschachtelung</b> ([[schneidweg_rechner]], [[nesting]]): Rohrenden "
                 "lassen sich mit beliebigen Konturen schneiden, nicht nur gerade oder auf Gehrung: Schräg (auch "
                 "asymmetrisch), V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, S-Kurve, Bogen konvex/konkav, Stufen, Freiform "

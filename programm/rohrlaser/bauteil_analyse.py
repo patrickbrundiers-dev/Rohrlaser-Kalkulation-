@@ -12,7 +12,9 @@ Je Teil:
 - konfidenz: 0 … 100 %, erklärt die Ampel: grün ≥ 90, gelb 50 … 89, rot < 50. Die Stufe bestimmt allein die Ampel
   (step.ampel) – die Zahl macht nur sichtbar, wie viel fehlt. Abzüge stehen in "unsicherheiten".
 - merkmale: jede erkannte Bearbeitung mit Merkmal (Bohrung, Langloch, Schlitz, Gehrungsschnitt …), Lage (x ab Ende A,
-  Winkel bzw. Seite am Umfang), Abmessung, Orientierung, Schnittlänge, zugeordneter Bearbeitung und eigener Konfidenz
+  Winkel bzw. Seite am Umfang), Abmessung, Orientierung, Schnittlänge, zugeordneter Bearbeitung und eigener Konfidenz;
+  Konturen der Messung zusätzlich mit Rolle (Anfangsschnitt, Innenkontur, Durchbruch …) und Schneidbarkeit 1 … 4 samt
+  Grund (konturrolle.py, ab 25.11.2026; ältere gespeicherte Analysen haben diese Felder nicht)
 - kennzahlen: Profil, Wand, Länge, Volumen, Gewicht (Stahl 7,85 kg/dm³, nur Richtwert – die Kalkulation rechnet mit dem
   Werkstoff der Position), Schneidweg, Anzahl Bohrungen/Ausschnitte/Gravuren/Einstiche, Komplexitätsgrad
 
@@ -147,11 +149,15 @@ def _ausdehnung(d):
     return round(z - r, 1), round(z + r, 1)
 
 
-def _kontur_merkmal(d, sicher):
+def _kontur_merkmal(d, sicher, wand=None):
     e = _kontur_merkmal_ohne_lage(d, sicher)
     aus = _ausdehnung(d)
     if aus:
         e["x0"], e["x1"] = aus
+    # Rolle und Schneidbarkeit (Master-Auftrag 25.11.2026, konturrolle.py): nur abgeleitet, ändert keinen Wert
+    from . import konturrolle as kr
+    r = kr.rolle(d, wand, sicher)
+    e.update(rolle=r["rolle"], schneidbar=r["stufe"], schneidbar_text=r["stufe_text"], rolle_grund=r["grund"])
     return e
 
 
@@ -293,7 +299,8 @@ def _mit_zeichnung(out, m):
 def merkmale(m, gewinde_tabelle=None):
     """Alle erkannten Bearbeitungen eines Teils (Liste von dicts, siehe Modultext)."""
     sicher = _sicherheit(m).get("konturen", "sicher") == "sicher"
-    out = [_kontur_merkmal(d, sicher) for d in _json(m.get("konturen_liste"), []) or () if isinstance(d, dict)]
+    wand = _f(m.get("wandstaerke")) or None
+    out = [_kontur_merkmal(d, sicher, wand) for d in _json(m.get("konturen_liste"), []) or () if isinstance(d, dict)]
     for (dm, sd), n in _paare(m.get("senkungen")):
         out.append(dict(merkmal=M_SENKUNG, art="Senkung", d=dm, abmessung=f"Ø {dm:g} / Senk-Ø {sd:g} mm", anzahl=n,
                         bearbeitung=SENKEN, konfidenz=90))
