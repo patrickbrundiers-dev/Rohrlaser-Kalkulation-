@@ -578,12 +578,6 @@ def zip_schreiben(pfad, kopfzeile, pos_zeilen, bg_zeilen=None):
     _sicher_schreiben(pfad, puffer.getvalue())
 
 
-def zip_name(kopf):
-    """'Angebot_2613000461.zip' (unzulässige Zeichen der Nummer als _)."""
-    nr = re.sub(r'[\\/:*?"<>|\x00-\x1f\s]', "_", _text(kopf.get("nummer"))) or "ohne_Nummer"
-    return f"Angebot_{nr}.zip"
-
-
 # ------------------------------------------------------------------ ProFirst-Vorlage (Patrick 20.11.2026)
 # Nachbau der Dateien, die PROfirst selbst schreibt (Vorlage 2613000479.CSV und 2613000479_HEADER.CSV aus dem
 # Supportpaket 20.11.2026): Dateinamen „<Angebotsnummer>.CSV“ (Positionen) und „<Angebotsnummer>_HEADER.CSV“ (Kopf),

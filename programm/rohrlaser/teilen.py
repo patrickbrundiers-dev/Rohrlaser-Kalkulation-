@@ -758,11 +758,6 @@ def ordner_name(k):
     return austausch.ordner_name(k)
 
 
-def haupt_datei(o, k):
-    """Hauptdatei des Kürzels k im Ordner o (Format 2), sonst die alte Einzeldatei (Format 1), sonst None."""
-    return austausch.OrdnerWeg(o).haupt(k)
-
-
 def monat_datei(monat):
     return f"{MONAT_PRAEFIX}{monat}.sqlite"
 
@@ -962,10 +957,6 @@ def _spiegel_lesen(spiegel):
         finally:
             con.close()
     return alt
-
-
-def _hinlegen(quelle, ziel):
-    austausch.hinlegen(quelle, ziel)
 
 
 def schreiben(db, uebernehmen=False, offen=None, voll=False):

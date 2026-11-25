@@ -132,18 +132,6 @@ def bg_info(positionen, zu=()):
     return out
 
 
-def bg_zelltext(s, zu=False):
-    """Spalte Satz einer Schweißbaugruppe: an der Baugruppe ⚙ Name und Anzahl, sonst der Name."""
-    if not s["erste"]:
-        return s["name"]
-    t = "⚙ " + s["name"]
-    if s["saetze"]:
-        t += f" · {s['saetze']} Stk."
-    if zu and s["teile"]:
-        t += f" · {s['teile']} Einzelteile"
-    return t
-
-
 def kurz(text, laenge=34):
     """Statustext für die Liste kürzen (ganzer Text im Tooltip): an einer Wortgrenze mit …"""
     text = str(text or "")
