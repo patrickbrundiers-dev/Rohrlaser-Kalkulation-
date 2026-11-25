@@ -17,11 +17,15 @@ from . import nesting as ne, nesting_machbarkeit as nm, optimierung as opt, rech
 
 BISHER = "bisher"
 AKTUELL = "aktuell"     # gespeicherter Schnittplan (Ergebnis von Optimieren/F9), Nesting-Arbeitsplatz 2.0 (V1)
+# Universelle Konturverschachtelung (Patrick 25.11.2026): Vergleich „ohne Konturverschachtelung“ (nur ebene Gehrungen
+# ineinander, wie vor 0.9.487) je Abmessung mit Endkonturen – ursprüngliche gegen optimierte Stangenbelegung
+OHNE_KONTUR = "ohne_kontur"
 SPALTEN = (("name", "Strategie"), ("laengen", "Stangen"), ("gekauft_m", "Eingekauft [m]"),
            ("einkauf", "Einkauf [€]"), ("kalkulatorisch", "kalkulatorisch [€]"), ("teile_m", "Teile [m]"),
            ("schnitt_mm", "Schnittverluste [mm]"), ("rest_verwertbar_mm", "verwertbarer Rest [mm]"),
            ("verschnitt_mm", "Verschnitt [mm]"), ("ausnutzung", "Ausnutzung"), ("eur_teil", "€ je Teil"),
            ("beladungen", "Beladungen"), ("belegungen", "Belegungen"), ("ersparnis", "Einkauf ggü. bisher [€]"),
+           ("ineinander", "Enden ineinander"), ("konturen", "davon Endkonturen"), ("trennschnitte", "Trennschnitte"),
            ("machbar", "Machbarkeit"), ("zeit", "Rechenzeit [s]"))
 
 
@@ -66,6 +70,7 @@ def zeile(name, werte, bisher=None, zs=None, zeit=None):
                 schnitt_mm=w.get("schnitt_mm"), rest_verwertbar_mm=w.get("rest_verwertbar_mm"),
                 verschnitt_mm=w.get("verschnitt_mm"), ausnutzung=w.get("ausnutzung"), eur_teil=w.get("eur_teil"),
                 beladungen=w["beladungen"], belegungen=w.get("belegungen"), ersparnis=ersparnis, zeit=zeit,
+                ineinander=w.get("ineinander"), konturen=w.get("konturen"), trennschnitte=w.get("trennschnitte"),
                 zuschnitt=bool(zs), machbar="zulässig", zulaessig=True)
 
 
@@ -148,6 +153,14 @@ def vergleich(kopf, positionen, k, tabellen, einst, abbruch=None, fortschritt=No
                                                                    daten["min_rest"], daten["min_nutz"]),
                                      "so wie das Programm bisher rechnet (Stangenlänge des Angebots)")
             zeiten[BISHER] = time.perf_counter() - t
+            ohne = ohne_konturen(g)
+            if ohne is not None:            # ursprüngliche Belegung ohne Konturverschachtelung zum Vergleich
+                t = time.perf_counter()
+                st0 = [(g.stange, f, "") for f in opt.optimiere(ohne)]
+                plaene[OHNE_KONTUR] = ne.Plan(OHNE_KONTUR, st0, [], ne.kennzahlen(
+                    ohne, st0, [], laengen or [ne.Laenge(g.stange)], daten["reste"], daten["je_beladung"],
+                    daten["min_rest"], daten["min_nutz"]), "ohne Konturverschachtelung (nur ebene Gehrungen ineinander)")
+                zeiten[OHNE_KONTUR] = time.perf_counter() - t
         akt = aktueller_plan(g, ergebnis, positionen)
         nummern = None
         if akt is not None:
@@ -187,7 +200,8 @@ def vergleich(kopf, positionen, k, tabellen, einst, abbruch=None, fortschritt=No
         befunde = {s: _machbarkeit(g, p, mg or m, k, daten["reste"]) for s, p in plaene.items()}
         zeilen = []
         for s, p in plaene.items():
-            name = {BISHER: "bisher", AKTUELL: "aktuell (gespeichert)"}.get(s) or f"{s} {ne.STRATEGIEN[s]}"
+            name = {BISHER: "bisher", AKTUELL: "aktuell (gespeichert)",
+                    OHNE_KONTUR: "ohne Konturverschachtelung"}.get(s) or f"{s} {ne.STRATEGIEN[s]}"
             z_ = dict(zeile(name, p.werte, wb, zs.get(s), round(zeiten.get(s, 0.0), 2)), strategie=s)
             z_.update(machbar=nm.text(befunde[s], 2), zulaessig=nm.zulaessig(befunde[s]))
             zeilen.append(z_)
@@ -196,7 +210,7 @@ def vergleich(kopf, positionen, k, tabellen, einst, abbruch=None, fortschritt=No
                 zeilen.append(dict(zeile(f"{s} {ne.STRATEGIEN[s]}", dict(je_laenge={}, gekauft_mm=0, beladungen=0,
                                                                          teile_mm=None), wb, z,
                                          round(zeiten.get(s, 0.0), 2)), strategie=s))
-        emp = ne.empfehlung({s: p for s, p in plaene.items() if s not in (BISHER, AKTUELL)
+        emp = ne.empfehlung({s: p for s, p in plaene.items() if s not in (BISHER, AKTUELL, OHNE_KONTUR)
                              and nm.zulaessig(befunde.get(s, ()))}, wb)
         if emp[0] in zs:                                   # Zeile zeigt die Zuschnitt-Variante: Text danach
             r = next(z for z in zeilen if z["strategie"] == emp[0])
@@ -219,6 +233,30 @@ def vergleich(kopf, positionen, k, tabellen, einst, abbruch=None, fortschritt=No
     if fortschritt:
         fortschritt(schritte, schritte, "fertig")
     return out
+
+
+def ohne_konturen(g):
+    """Die Gruppe ohne Konturverschachtelung (Verläufe der Enden entfernt) oder None, wenn sie keine hat."""
+    if not g.kontur_geo or not any(t.a_kontur or t.b_kontur for t in g.teile):
+        return None
+    from dataclasses import replace
+    return replace(g, kontur_geo="", kontur_zugabe=0.0, bewiesen=False, schranke=0,
+                   teile=[replace(t, a_kontur=None, b_kontur=None) for t in g.teile])
+
+
+def kontur_einsparung(v):
+    """Einsparung der Konturverschachtelung je Gruppe (Eintrag von vergleich): dict(stangen, mm, eur, prozent,
+    stellen, ausnutzung_vorher, ausnutzung_nachher) des bisherigen Plans gegenüber „ohne Konturverschachtelung“ oder None."""
+    ohne, mit = v["plaene"].get(OHNE_KONTUR), v["plaene"].get(BISHER)
+    if ohne is None or mit is None:
+        return None
+    wo, wm = ohne.werte, mit.werte
+    eur = (wo["einkauf"] - wm["einkauf"]) if wo.get("einkauf") is not None and wm.get("einkauf") is not None \
+        else None
+    mm = wo["gekauft_mm"] - wm["gekauft_mm"]
+    return dict(stangen=wo["stangen"] - wm["stangen"], mm=mm, eur=eur, stellen=wm.get("konturen", 0),
+                prozent=(mm / wo["gekauft_mm"]) if wo["gekauft_mm"] else 0.0,
+                ausnutzung_vorher=wo["ausnutzung"], ausnutzung_nachher=wm["ausnutzung"])
 
 
 def veraltet(ergebnis, kopf, positionen, k, tabellen, einst):
@@ -386,7 +424,16 @@ def protokoll(v):
         zeilen.append(f"{s}: {p.warum}. {w['stangen']} Stangen ({ne.laengen_text(w['je_laenge'])}), Ausnutzung "
                       f"{z(100 * w['ausnutzung'], 1)} %, Verschnitt {z(w['verschnitt_mm'], 0)} mm, Rechenzeit "
                       f"{z(v.get('zeiten', {}).get(s, 0.0), 2)} s; geprüft (jedes Teil einmal, keine Stange überbelegt, "
-                      f"Längenbilanz); Machbarkeit: {nm.text(b)}")
+                      f"Längenbilanz); Machbarkeit: {nm.text(b)}"
+                      + (f"; Enden ineinander {w['ineinander']}, davon Endkonturen {w['konturen']}"
+                         if w.get("konturen") else ""))
+    ke = kontur_einsparung(v)
+    if ke is not None:
+        zeilen.append(f"Konturverschachtelung: {ke['stellen']} Stellen mit Endkonturen ineinander; gegenüber der "
+                      f"Belegung ohne Konturverschachtelung {ke['stangen']} Stangen, {z(ke['mm'] / 1000)} m"
+                      + (f", {z(ke['eur'])} €" if ke["eur"] is not None else "")
+                      + f" weniger ({z(100 * ke['prozent'], 1)} %); Ausnutzung {z(100 * ke['ausnutzung_vorher'], 1)} %"
+                      f" → {z(100 * ke['ausnutzung_nachher'], 1)} %")
     return zeilen
 
 

@@ -9,6 +9,7 @@ Angebot), k (stammdaten.Kontext), tabellen (dict mit 'preise', 'schneiddaten', '
 """
 import contextlib
 import copy
+import dataclasses
 import hashlib
 import math
 import json
@@ -958,6 +959,9 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
     std = kopf.get("stange") if isinstance(kopf.get("stange"), (int, float)) else None
     gruppen, fehler = {}, []
     from . import wenden
+    # Universelle Konturverschachtelung (Patrick 25.11.2026): beliebige Endkonturen ineinander (Einstellung, Vorgabe ja)
+    kontur_an = str((einst or {}).get("kontur_verschachtelung") or "ja").lower() != "nein"
+    kontur_zugabe = _n(einstellung_wert(einst, "kontur_sicherheit")) if kontur_an else 0.0
     for i, p in enumerate(positionen):
         r = ZEILE0 + i
         p = wenden.ansicht(p)       # Teil wenden (G8): gewendetes Duplikat mit getauschten Enden
@@ -1064,10 +1068,77 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
                                                 else seite, pr)
                     if ann:
                         geh[seite + "_gehrung"], geh["angenommen"] = ann, True
+        if kontur_an and not (a_ger and b_ger):
+            # Universelle Endkonturen (endkontur.py): Verlauf je Ende für das Verschachteln beliebiger Konturen
+            ka, kb, gk = kontur_enden(p, profil_im_angebot(pr, kopf, pid, wst, k), a_ger, b_ger)
+            if gk and (ka or kb):
+                g.kontur_geo, g.kontur_zugabe = gk, kontur_zugabe
+                geh.update(a_kontur=ka, b_kontur=kb)
         for n in range(1, (rohrstuecke(p) if stk_n else 0) + 1):     # Halbschalen: je Umfang aus einem Rohrstück
             g.teile.append(opt.Teil(r, p.get("pos"), name, n, laenge, a_ger, b_ger, a_s, b_s, rest=rest,
                                     ende_frei=ende_frei, **geh))
+    if kontur_an:
+        _konturen_nur_wo_noetig(gruppen.values())
     return list(gruppen.values()), fehler, neue_profile
+
+
+def _konturen_nur_wo_noetig(gruppen):
+    """Gruppen, in denen außer ebenen Gehrungen keine Endkontur vorkommt, rechnen wie bisher (ebene Gehrungen mit
+    der bewährten Formel, gleiche Ergebnisse): dort fallen die Verläufe wieder weg."""
+    for g in gruppen:
+        if not g.kontur_geo:
+            continue
+        noetig = any((t.a_kontur and t.a_gehrung is None) or (t.b_kontur and t.b_gehrung is None) for t in g.teile)
+        if not noetig:
+            g.kontur_geo, g.kontur_zugabe = "", 0.0
+            g.teile[:] = [dataclasses.replace(t, a_kontur=None, b_kontur=None) if (t.a_kontur or t.b_kontur) else t
+                          for t in g.teile]
+
+
+_KONTUR_ENDEN = {}
+
+
+def kontur_enden(p, profil, a_gerade, b_gerade):
+    """(Schlüssel Verlauf Ende A, Ende B, Schlüssel Geometrie) einer Position für das Verschachteln beliebiger
+    Endkonturen (endkontur.py). Gewendetes Duplikat (wenden.ansicht): Enden getauscht und gespiegelt. Gerade Enden
+    und Enden ohne beschreibbaren Verlauf (Nasen einer Steckverbindung) = None; offene Profile: alles None."""
+    from . import endkontur, skizze as sk, schneidweg as sw
+    if not profil:
+        return None, None, ""
+    gewendet = bool(p.get("_gewendet"))
+    schl = (p.get("technik") or "", p.get("a_ende"), p.get("b_ende"), p.get("a_schnitt"), p.get("b_schnitt"),
+            p.get("a_gerade"), p.get("b_gerade"), gewendet, repr(sorted(profil.items(), key=lambda x: x[0])))
+    if schl in _KONTUR_ENDEN:
+        return _KONTUR_ENDEN[schl]
+    out = (None, None, "")
+    try:
+        qs = sk.Querschnitt(sw.mit_radius(profil, sw.lesen(p.get("technik"))))
+        gk = endkontur.geo_schluessel(qs)
+        if gk:
+            # aus_position braucht die Felder der ungewendeten Position (Enden der Messung je Ende)
+            roh = dict(p)
+            if gewendet:
+                for a, b in wenden_felder():
+                    roh[a], roh[b] = p.get(b), p.get(a)
+                roh["a_ende"], roh["b_ende"] = p.get("b_ende"), p.get("a_ende")
+            e = sw.aus_position(sw.lesen(p.get("technik")), roh, profil)[0]
+            quelle = {"a": e.get("b"), "b": e.get("a")} if gewendet else {"a": e.get("a"), "b": e.get("b")}
+            keys = {}
+            for seite, gerade in (("a", a_gerade), ("b", b_gerade)):
+                keys[seite] = None if gerade else endkontur.profil_schluessel(
+                    endkontur.ende_verlauf_zellen(qs, gk, quelle[seite] or {}, gewendet))
+            out = (keys["a"], keys["b"], gk)
+    except (ValueError, TypeError, ZeroDivisionError, KeyError, AttributeError):
+        out = (None, None, "")
+    if len(_KONTUR_ENDEN) > 4000:
+        _KONTUR_ENDEN.clear()
+    _KONTUR_ENDEN[schl] = out
+    return out
+
+
+def wenden_felder():
+    from . import wenden
+    return wenden.FELDER_TAUSCH[:2]
 
 
 def gruppe_schluessel(g):
@@ -1149,6 +1220,8 @@ def teil_kennung(t):
     d3 = (("3D-Greifmaß", t.rest),) if t.rest else ()       # ohne 3D wie bisher (Angebote bleiben aktuell)
     if t.ende_frei:                                          # Teil am Stangenende (A1); sonst wie bisher
         d3 += ("Stangenende",)
+    if t.a_kontur or t.b_kontur:                             # Endkonturen verschachtelt (endkontur.py); sonst wie bisher
+        d3 += (("Endkontur", t.a_kontur, t.b_kontur),)
     if neu == (None, None, opt.FREI, None) and t.a_gerade == t.b_gerade:
         return alt + d3
     return alt + neu + ("nie wenden",) + d3

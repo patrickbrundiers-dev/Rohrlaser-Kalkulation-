@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.487", "<b>Endkonturen universell + Konturverschachtelung</b> ([[schneidweg_rechner]], [[nesting]]): Rohrenden "
+                "lassen sich mit beliebigen Konturen schneiden, nicht nur gerade oder auf Gehrung: Schräg (auch "
+                "asymmetrisch), V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, S-Kurve, Bogen konvex/konkav, Stufen, Freiform "
+                "(Seitenansicht oder direkt auf der Abwicklung) und Kombinationen – an Rund-, Quadrat- und Rechteckrohr, "
+                "in allen Editoren (Knopf bzw. Menüband <i>Endkontur …</i>, Rechtsklick auf das Ende). Vorschau mit "
+                "Abwicklung, nicht schneidbare Stellen rot/gelb, exakte Schnittlänge auf dem Mantel. Die Optimierung "
+                "legt jetzt beliebige Endkonturen ineinander, nicht nur ebene Gehrungen: mit Mindestabstand im Raum "
+                "(2 × Schnittverlust + Abstand + Sicherheitsabstand), unabhängiger Kollisionsprüfung, gedreht nur wie "
+                "erlaubt. Neue Strategie <b>P Präzisionsoptimierung</b>; Vergleich <i>ohne Konturverschachtelung</i> "
+                "mit Einsparung in Stangen, m, € und %. Einstellungen <i>Verschachtelung: beliebige Endkonturen ineinanderlegen</i> und "
+                "<i>Verschachtelung Endkonturen: Sicherheitsabstand</i>. Angebote ohne Endkonturen rechnen genau wie bisher.",
+     "Endkonturen (V, U, S, Bogen, Stufen, Freiform) + Konturverschachtelung in der Optimierung, Strategie P"],
     ["0.9.486", "<b>Einfacher Modus</b> ([[einfacher_modus]]): eine zweite, aufgeräumte Oberfläche neben dem "
                 "Experten-Pro-Modus. Sie führt in sechs Schritten durch die Kalkulation: Neue Kalkulation (STEP, "
                 "CAD, vorhandenes Bauteil, Angebot öffnen), Bauteile mit 3D-Vorschau, Material mit Preis und "

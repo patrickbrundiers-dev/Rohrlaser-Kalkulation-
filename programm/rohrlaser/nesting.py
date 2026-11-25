@@ -40,12 +40,16 @@ A, B, C, D, E = "A", "B", "C", "D", "E"
 # Nesting-Arbeitsplatz 2.0 (Patrick 24.11.2026): F wenigste Stangen, G geringster Verschnitt, H Schnellrechnung.
 # E (ausgewogen) bewertet weiter nur A … D, damit gespeicherte Angebote mit E bitgleich bleiben.
 F, G, H = "F", "G", "H"
+# Universelle Konturverschachtelung (Patrick 25.11.2026): P Präzisionsoptimierung (mehr Reihenfolgen und Drehungen je
+# Stange, längere exakte Suche). Die Strategien des Auftrags: A max. Materialausnutzung = A, B Schnelloptimierung = H,
+# C Präzisionsoptimierung = P, D Fertigungsoptimierung = D (alle mit Konturverschachtelung).
+P = "P"
 STRATEGIEN = {A: "Minimaler Materialverbrauch", B: "Geringste Materialkosten", C: "Maximale Reststückverwertung",
               D: "Schnellste Fertigung", E: "Ausgewogen", F: "Wenigste Stangen", G: "Geringster Verschnitt",
-              H: "Schnellrechnung"}
+              H: "Schnellrechnung", P: "Präzisionsoptimierung"}
 KURZ = {A: "wenig Material", B: "günstigster Einkauf", C: "Reste zuerst", D: "schnell fertigen", E: "ausgewogen",
-        F: "wenigste Stangen", G: "wenig Verschnitt", H: "schnell gerechnet"}
-REIHE = (A, B, C, D, E, F, G, H)        # Reihenfolge im Vergleich
+        F: "wenigste Stangen", G: "wenig Verschnitt", H: "schnell gerechnet", P: "präzise verschachtelt"}
+REIHE = (A, B, C, D, E, F, G, H, P)     # Reihenfolge im Vergleich
 SCHWANZ_MAX = 6          # so viele am schwächsten belegte Stangen werden höchstens neu auf Mischungen verteilt
 MISCH_VERSUCHE = 30      # Mischungen je Schwanzgröße, die mit vorrat_planen geprüft werden
 SCHWANZ_RUNDEN = 3       # so oft wird der Schwanz nach einer Verbesserung erneut probiert
@@ -392,7 +396,13 @@ def kennzahlen(g, plan_stangen, uebrig, laengen, reste=(), je_beladung=0.0, min_
         mm_position=dict(sorted(je_zeile_mm.items())),
         beladungen=n, belegungen=opt.belegungen(folgen) if folgen else 0,
         fertigung=je_beladung * n, gesamt=None if fehlt else kalk + je_beladung * n,
-        nicht_eingeplant=len(uebrig), teile=n_teile)
+        nicht_eingeplant=len(uebrig), teile=n_teile,
+        # Verschachtelung (Patrick 25.11.2026): Stellen mit ineinanderliegenden Enden, davon beliebige Endkonturen,
+        # und Trennschnitte (gemeinsamer Schnitt = 1, sonst 2) als Maß für den Fertigungsaufwand
+        ineinander=sum(opt.gehrungen_ineinander(g, f) for f in folgen),
+        konturen=sum(opt.konturen_ineinander(g, f) for f in folgen),
+        trennschnitte=sum(sum(1 if opt.lage(t1, r1)[1] and opt.lage(t2, r2)[0] else 2
+                              for (t1, r1), (t2, r2) in zip(f, f[1:])) for f in folgen))
 
 
 def pruefe(g, plan_stangen, uebrig, laengen=None, reste=()):
@@ -500,7 +510,7 @@ def _kopie(p):
 
 def _grundplaene(g, laengen):
     """(Einzelpläne je Länge, Mischplan) der Gruppe, gemerkt: dieselben für A, B, C, D (vorher je Strategie neu)."""
-    key = ("grund", _gkey(g), tuple(laengen))
+    key = ("grund", _gkey(g), tuple(laengen)) + (("P",) if opt.praezision_an() else ())
     if key in _MERKER:
         einzeln, misch = _MERKER[key][1]
     else:
@@ -647,6 +657,18 @@ def _planen(g, strategie, laengen, reste=(), je_beladung=0.0, min_rest=0.0, min_
         if p is not None:
             p.werte["untergrenze"] = opt.untergrenze(h)
         return p
+    if strategie == P:
+        # Präzision: dieselbe Suche wie A, aber jede Stange mit lokaler Suche über Reihenfolge und Drehung (mehr
+        # Kombinationen der Endkonturen) und längerer exakter Suche; nie schlechter als A
+        a = planen(g, A, laengen, reste, je_beladung, min_rest, min_nutz, mehrverschnitt, bisher, gewichte, buendeln_an)
+        with opt.praezision():
+            e2, m2 = _grundplaene(g, laengen)
+            st = _kosten_suche(g, laengen, "mm", e2, m2)
+        kw = _kostenwert("mm", laengen)
+        if a is not None and (st is None or (_wert(a.stangen, kw), len(a.stangen)) <= (_wert(st, kw), len(st))):
+            st = [(x, list(f), r) for x, f, r in a.stangen]
+        return fertig(P, st, "Präzisionsoptimierung: mehr Reihenfolgen, Drehungen und Konturkombinationen je Stange "
+                             "(lokale Suche, längere exakte Suche); nie mehr Material als A")
     if strategie == E:
         plaene = [planen(g, s, laengen, reste, je_beladung, min_rest, min_nutz, mehrverschnitt, bisher,
                          buendeln_an=buendeln_an) for s in (A, B, C, D) if s != C or reste]

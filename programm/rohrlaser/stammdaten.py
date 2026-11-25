@@ -1558,6 +1558,12 @@ EINSTELLUNGEN = (
     # „bisher“: offene Angebote behalten ihren Schnittplan und Preis; je Abmessung wählt man im Nesting-Arbeitsplatz
     Einstellung("nesting_strategie", "Verschachtelung: Strategie für alle Abmessungen (bisher = wie bisher)",
                 "Lieferlängen", "auswahl", "bisher", auswahl="nesting"),
+    # Universelle Konturverschachtelung (endkontur.py, Patrick 25.11.2026): beliebige Endkonturen (V, U, S, Bogen,
+    # Stufen, Freiform, STEP-Umriss, Gegenrohr) ineinanderlegen. Gruppen nur mit ebenen Gehrungen rechnen wie bisher
+    Einstellung("kontur_verschachtelung", "Verschachtelung: beliebige Endkonturen ineinanderlegen (nicht nur Gehrungen)",
+                "Lieferlängen", "auswahl", "ja", auswahl="janein"),
+    Einstellung("kontur_sicherheit", "Verschachtelung Endkonturen: Sicherheitsabstand zusätzlich zu 2 × Schnittverlust "
+                "+ Abstand (Toleranzen) [mm]", "Lieferlängen", "zahl", 0.5, 0, 20),
     Einstellung("nesting_eur_belegung", "Verschachtelung ausgewogen: € je verschiedene Stangenbelegung (Programm)",
                 "Lieferlängen", "zahl", 5.0, 0, 10000),
     Einstellung("rest_min_nutz", "Reststücke: verwertbar erst, wenn nach Endbeschnitt und Greiferrest so viel bleibt "

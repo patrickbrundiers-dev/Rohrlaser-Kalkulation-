@@ -587,6 +587,13 @@ class EditorRahmen(QObject):
             k.setEnabled(d.knick_knopf.isEnabled())
             if not funktionen.an("funktion_knick_steck"):    # Funktion ausgeschaltet (funktionen.py)
                 k.hide()
+            km = QMenu(self.band)
+            km.addAction("An Ende A …", lambda: d.endkontur("a"))
+            km.addAction("An Ende B …", lambda: d.endkontur("b"))
+            k = g.knopf("Endkontur", "v_ausschnitt", lambda: d.endkontur(self._gewaehltes_ende() or "a"), menue=km,
+                        tipp="Freie Anfangs-/Endkontur: schräg, V, U, S, Bogen, Stufen, Freiform oder mehrere "
+                             "überlagert; die Stangenoptimierung legt passende Konturen ineinander")
+            k.setEnabled(d.kontur_knopf["a"].isEnabled())
             gm = QMenu(self.band)
             gm.addAction("An Ende A …", lambda: d.gegenrohr("a"))
             gm.addAction("An Ende B …", lambda: d.gegenrohr("b"))
@@ -2238,7 +2245,10 @@ class EditorRahmen(QObject):
         art, _, nr = mid.partition(":")
         if self.art == "rohr":
             if art == "ende" and nr in d._ende_step:
-                w, achse, sattel, richtung, wb, gegen = d._ende_step[nr][0]
+                w, achse, sattel, richtung, wb, gegen = d._ende_step[nr][0][:6]
+                kontur = d._ende_step[nr][0][6] if len(d._ende_step[nr][0]) > 6 else "null"
+                d.kontur[nr] = json.loads(kontur)
+                d._kontur_text(nr)
                 d.gegen[nr] = json.loads(gegen)
                 d._gegen_text(nr)
                 d.achse[nr].setCurrentText(achse)

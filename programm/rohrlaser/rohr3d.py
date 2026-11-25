@@ -56,9 +56,10 @@ def _knick_anteile(qs, poly, enden, extra=()):
     out = {}
     stellen = list(extra)
     for es in enden:
-        if not es.get("umriss") or _z(es.get("winkel")):
+        liste = sk.ende_umriss_von(qs, es)
+        if not liste:
             continue
-        um = sk._ende_umriss_merken(qs, es["umriss"])
+        um = sk._ende_umriss_merken(qs, liste)
         stellen += list(getattr(um, "stellen", ()) if um else ())
     orte = []
     for s in stellen:

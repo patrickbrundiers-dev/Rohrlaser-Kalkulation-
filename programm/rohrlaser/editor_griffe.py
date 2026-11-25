@@ -194,6 +194,8 @@ def ende_eben(e):
         return False
     if e.get("form") not in EBENE_FORMEN:
         return False
+    if e.get("kontur"):                 # Endkontur (V, U, S, Bogen, Stufen …): keine Ebene
+        return False
     return not (e.get("umriss") and not sw._z(e.get("winkel")))
 
 
@@ -732,6 +734,10 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
         eintrag("Gegenrohr …", lambda: d.gegenrohr(nr), d.gegen_knopf[nr].isEnabled())
         if d.gegen.get(nr):
             eintrag("Gegenrohr entfernen", lambda: d.gegenrohr(nr, None))
+        if hasattr(d, "kontur_knopf"):      # universelle Endkontur (V, U, S, Bogen, Stufen, Freiform …)
+            eintrag("Endkontur …", lambda: d.endkontur(nr), d.kontur_knopf[nr].isEnabled())
+            if d.kontur.get(nr):
+                eintrag("Endkontur entfernen", lambda: d.endkontur(nr, None))
         eintrag("Auf STEP-Wert zurücksetzen", lambda: rahmen.zuruecksetzen(mid), zurueck)
     if hasattr(rahmen, "zusatz_anlegen"):     # CAD-009: Zusatzarbeit am Merkmal (Bohrung, Kontur, Ende, Teil)
         from .zusatz_3d import MENUE
