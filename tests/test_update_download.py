@@ -112,6 +112,19 @@ try:
     assert ziel.stat().st_size == 3000, ziel.stat().st_size
     ok("Dauerhafte Abbrüche: Meldung nennt Firmennetz/Proxy, Geladenes bleibt erhalten")
 
+    # 4b) Supportpaket 25.11.2026: Abbruch kurz vor Ende, Fortsetzen (Range) mit 403 abgelehnt (Firmen-Webfilter
+    #     sperren Teil-Downloads) -> einmal ganz von vorn, Datei und Fortschritt stimmen
+    ziel.unlink()
+    f403 = urllib.error.HTTPError(URL, 403, "Forbidden", None, None)
+    update._oeffnen = s = Server(daten, [lambda d, a: Antwort(d, a, abbruch_nach=len(d) - 5000, kurz=True),
+                                         lambda d, a: f403 if a else Antwort(d, 0, 200),
+                                         lambda d, a: Antwort(d, a, 200)])
+    gemeldet = []
+    update.holen(URL + "x.zip", ziel, gemeldet.append, grenze=len(daten), warten=(0, 0), schlafen=schlafen)
+    assert ziel.read_bytes() == daten and sum(gemeldet) == len(daten), sum(gemeldet)
+    assert s.aufrufe == [0, len(daten) - 5000, 0], s.aufrufe
+    ok("Fortsetzen mit 403 abgelehnt (Webfilter sperrt Teil-Downloads): von vorn geladen, Datei stimmt")
+
     # 5) Sperrseite statt Datei, HTTP 403, Zertifikat: kein sinnloses Wiederholen, klare Ursache
     ziel.unlink()
     update._oeffnen = s = Server(daten, [lambda d, a: Antwort(b"<html>Blocked by policy</html>", typ="text/html")])

@@ -619,7 +619,7 @@ def _zeitstempel(w):
 PPEASE_TEXTSPALTEN = ("Werkstofftyp", "Artikeltext", "Kommentar", "Liste der Arbeitsgänge")
 _PPEASE_ERSATZ = (("Ø ", ""), ("Ø", ""), ("ø", ""), ("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("Ä", "Ae"), ("Ö", "Oe"),
                   ("Ü", "Ue"), ("ß", "ss"), ("°", " Grad"), ("×", "x"), ("€", "EUR"), ("²", "2"), ("³", "3"),
-                  ("µ", "u"), ("±", "+/-"), ("–", "-"), ("—", "-"), ("„", '"'), ("“", '"'), ("”", '"'), ("‚", "'"),
+                  ("µ", "u"), ("±", "+/-"), ("–", "-"), ("—", "-"), ("„", "'"), ("“", "'"), ("”", "'"), ("‚", "'"),
                   ("‘", "'"), ("’", "'"), ("\u00a0", " "))
 
 
@@ -632,6 +632,19 @@ def ppease_text(w):
         t = t.replace(alt, neu)
     t = unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode("ascii")
     return re.sub(r"  +", " ", t).strip()
+
+
+def ppease_feld(w):
+    """Ein Feld der PROfirst/PPEASE-Datei ohne Semikolon, Anführungszeichen und Zeilenumbruch. PPEASE liest die CSV
+    ohne Anführungszeichen-Regel: ein Semikolon im Text („Gewinde [6xM5; 4xM10]“) trennt dort eine neue Spalte, alle
+    folgenden Spalten rutschen, und im Zusatztext stand „181.4301 EN10217-7“ statt „Quadratrohr 100x100x5“
+    (Supportpaket 25.11.2026, Angebot 2026-00167). In eckigen Klammern wird aus „;“ ein „ /“, sonst ein Komma."""
+    if not isinstance(w, str):
+        return w
+    t = ", ".join(x.strip() for x in w.splitlines() if x.strip()) if ("\n" in w or "\r" in w) else w
+    t = re.sub(r"\[[^\]]*\]", lambda m: re.sub(r"\s*;\s*", " / ", m.group(0)), t)   # Gewinde [6xM5 / 4xM10]
+    t = re.sub(r"\s*;\s*", ", ", t).replace('"', "'")
+    return re.sub(r"(, )+", ", ", t).strip().strip(",").strip()
 
 
 def profirst(kopf, kopfzeile, pos_zeilen, kunde=None):
@@ -653,6 +666,7 @@ def profirst(kopf, kopfzeile, pos_zeilen, kunde=None):
     k[ki["Kundenkurzbez."]] = _text(kunde.get("kurzname")).upper() or name.upper()
     summe = sum(_zahl(z[pi["Preis"]]) or 0.0 for z in pos_zeilen)
     k[ki["Preis"]] = geld(summe)
+    k = [ppease_feld(w) for w in k]
     out = []
     for z in pos_zeilen:
         z = list(z)
@@ -661,7 +675,7 @@ def profirst(kopf, kopfzeile, pos_zeilen, kunde=None):
         z[pi["Date"]] = erstellt or z[pi["Date"]]
         for s in PPEASE_TEXTSPALTEN:
             z[pi[s]] = ppease_text(z[pi[s]])
-        out.append(z)
+        out.append([ppease_feld(w) for w in z])
     return k, out
 
 

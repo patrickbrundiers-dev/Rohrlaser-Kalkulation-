@@ -317,4 +317,27 @@ pz = list(csv.reader(io.StringIO(pf[1].read_bytes().decode("cp1252"), newline=""
 assert len(pz) == 5, pz
 ok("C10 Satz als eine Zeile wie PROfirst (Menge = Sätze, Satzpreis wie im PDF), Texte für PPEASE ohne Ø/Umlaute")
 
+# ------------------------------------------------------------------ C11 kein Semikolon im Feld für PPEASE (25.11.)
+# Supportpaket 25.11.2026 (Angebot 2026-00167): „inkl. Gewinde 6xM5; 4xM10“ und „Gewinde [6xM5; 4xM10]“ standen in
+# Anführungszeichen in der CSV; PPEASE beachtet sie nicht, trennt am Semikolon, alle folgenden Spalten rutschen und
+# der Zusatztext zeigte „181.4301 EN10217-7Länge: 2245mm“ statt „Quadratrohr 100x100x5 …“.
+db.position_neu(b, dict(pos=5, artikel="60909-00197", profil_id="RE 120x60x3", werkstoff_id="S235-10219",
+                        laenge=2245, stueck=1, schneidweg=400, einstiche=2, gewinde="6xM5, 4xM10",
+                        bezeichnung='Halter "oben"; links'))
+db.angebot_aendern(b, "bemerkung", 'Hinweis; bitte "eilig"\nzweite Zeile')
+s = fenster.angebot_oeffnen(b)
+assert s.optimieren()
+pf = s.csv_export(ordner=str(tmp / "pf10"))
+for p, spalten in ((pf[0], export.KOPF_SPALTEN), (pf[1], export.POSITION_SPALTEN)):
+    zeilen = p.read_bytes().decode("cp1252").split("\r\n")
+    assert zeilen[-1] == "" and all(z.count(";") == len(spalten) and '"' not in z for z in zeilen[:-1]), zeilen
+pz = [z.split(";") for z in pf[1].read_bytes().decode("cp1252").split("\r\n")[:-1]]   # so liest PPEASE
+P11 = {z[pz[0].index("ArtikelNr.")]: dict(zip(pz[0], z)) for z in pz[1:]}["60909-00197"]
+assert "Gewinde 6xM5, 4xM10" in P11["Artikeltext"], P11["Artikeltext"]
+assert P11["Liste der Arbeitsgänge"].startswith("Profile [") and "Gewinde [6xM5 / 4xM10]" in P11[
+    "Liste der Arbeitsgänge"], P11["Liste der Arbeitsgänge"]
+assert P11["Werkstofftyp"] and P11["L."] == "2245", P11
+assert export.ppease_feld('a; b "c"\r\nd') == "a, b 'c', d" and export.ppease_feld(2.5) == 2.5
+ok("C11 PPEASE: kein Semikolon, Anführungszeichen oder Zeilenumbruch in einem Feld, Spalten rutschen nicht")
+
 print("OK: CSV-Export Angebotskopf/Angebotspositionen")
