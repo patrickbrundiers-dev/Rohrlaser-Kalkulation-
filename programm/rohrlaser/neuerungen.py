@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.489", "<b>Supportpaket 25.11.: BLM-Programme mit Fasen, Schnitt auf 0, Transportschiene</b> "
+                "([[blm_programm]], [[null_schnitt]]): BPF/ARTUBE vom LT7 mit Fasen-Enden (3D-Kopf) ließen sich nicht "
+                "lesen (<i>BPF-Datei beschädigt</i>, ein Behälter von 2 KB stand in einem eigenen Block) und hingen "
+                "beim Ausschneiden; jetzt in 10 s, Volumen wie das BLM-Programm (307.774 statt 307.763 mm³). Endet "
+                "ein Schnitt genau in der Ebene der Innenwand („auf 0“, Transportschiene QR 100×5), misst der Import "
+                "ihn mit 0,1 mm Aufmaß – mit Hinweis am Teil, Einstellung auf der neuen Seite <i>STEP-Import: "
+                "Messung und Toleranzen</i>. Die Transportschiene aus der Kundendatei hatte im Editor Ende A mit "
+                "1273 mm und kein Ende B; jetzt beide 636,75 mm wie die von Hand geänderte Datei. Absturz des "
+                "Info-Panels beim Wechsel der Seite behoben.",
+     "BPF/ARTUBE mit Fasen-Enden, Schnitt auf 0 mit 0,1 mm Aufmaß, Enden der Transportschiene richtig"],
     ["0.9.488", "<b>Endkonturen universell + Konturverschachtelung</b> ([[schneidweg_rechner]], [[nesting]]): Rohrenden "
                 "lassen sich mit beliebigen Konturen schneiden, nicht nur gerade oder auf Gehrung: Schräg (auch "
                 "asymmetrisch), V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, S-Kurve, Bogen konvex/konkav, Stufen, Freiform "

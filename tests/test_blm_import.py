@@ -112,9 +112,9 @@ def bpf_block(wurzel, gross=2048):
     return [bytes(kopf), bytes(st)] + gross_
 
 
-def bpf_datei(wurzel, ziel):
+def bpf_datei(wurzel, ziel, gross=2048):
     roh = bytearray(b"\xe7>(c) Adige S.p.A. BLMGroup 2008 \x00\x03\x01" + bytes(380))
-    for b in bpf_block(wurzel):
+    for b in bpf_block(wurzel, gross):
         roh += zlib.compress(b, 9)
     nesting = ET.Element("nesting", version="1.0")
     ET.SubElement(nesting, "Length").text = "0"
@@ -369,6 +369,76 @@ def _a3():
             raise AssertionError(f"{n} ohne Fehler")
         except ValueError as e:
             assert wort in str(e), e
+
+
+@fall("B4 Supportpaket 25.11.: Behälter ab 1024 Byte im eigenen Block, Fase-Enden mit Anfahrt (LT7, 3D-Kopf), "
+      "Schlitz mündet in Fenster: Körper richtig und schnell")
+def _b4():
+    import time
+    ro, ri, wand, L_in, n = 30.0, 27.0, 3.0, 100.0, 120
+    tg = math.tan(math.radians(30))
+    rund_a = [("b", (0, 0, 0), ro, 360)]
+    rund_i = [("b", (0, 0, 0), ri, 360)]
+
+    def auf(x, th, r=ro):
+        return (x, r * math.cos(th), r * math.sin(th))
+
+    def ende(x_ring, x_anfang, kipp):
+        """Anfahrt längs der Achse bei 90° (Brenner kippt von 0 auf 30°), dann Ring mit 30° Neigung."""
+        pk = []
+        for i in range(8):
+            f = i / 7
+            x = x_anfang + (x_ring - x_anfang) * f
+            w = math.radians(30 * f) * kipp
+            pk.append(((x, 0.0, ro), (math.sin(w), 0.0, math.cos(w))))
+        w = math.radians(30) * kipp
+        for i in range(1, n + 1):
+            th = math.pi / 2 - 2 * math.pi * i / n
+            pk.append((auf(x_ring, th), (math.sin(w), math.cos(w) * math.cos(th), math.cos(w) * math.sin(th))))
+        return (2, [(10, pk)])
+
+    def feld(x0, x1, t0, t1, offen=False, m=24):
+        """Rechteck in (x, Winkel) auf dem Rohr, Brenner radial; offen: dritte Seite fehlt (Schlitz)."""
+        def bogen(x, a, b):
+            return [auf(x, a + (b - a) * i / m) for i in range(m + 1)]
+        pk = [auf(x, t0) for x in (x0, x1)] + bogen(x1, t0, t1)[1:] + [auf(x0, t1)]
+        if not offen:
+            pk += bogen(x0, t1, t0)[1:]
+        return (3 if offen else 1, [(10, [(p, (0.0, p[1] / ro, p[2] / ro)) for p in pk])])
+    xa, xb = wand * tg, L_in - wand * tg                # Schneidweg außen; innen reicht das Rohr von 0 bis L_in
+    kont = [ende(xa, 0.0, 1), feld(20, 60, math.radians(60), math.radians(120)),
+            feld(60, 90, math.radians(87), math.radians(93), offen=True), ende(xb, L_in, -1)]
+    pr = projekt("Fase", L_in, rund_a, rund_i, dict(name="Kreisf?rmig", tipo=1, dim_x=60, dim_y=60, spessore=3,
+                                                  raggiatura=0), kont)
+    ET.SubElement(pr, "note").text = "N" * 1500     # ein Behälter mit 1502 Byte, eigener Block wie im echten BPF
+    bpf_datei(pr, TMP / "Fase.bpf", gross=1100)
+    roh = (TMP / "Fase.bpf").read_bytes()
+    bl = step_blm._bloecke(roh)
+    assert any(1100 <= len(b) < 2048 and b[:4] != step_blm.KENNUNG for b in bl), [len(b) for b in bl]
+    teil = step_blm.bpf_teil(roh, "Fase")           # vorher: „BPF-Datei beschädigt: index out of range“
+    assert len(teil["konturen"]) == 4 and abs(teil["laenge"] - L_in) < 1e-6, teil
+    t0 = time.perf_counter()
+    form, _m = step_blm.bpf_koerper(teil)
+    dauer = time.perf_counter() - t0
+    fase = 2 * math.pi * tg * ((ro ** 3 - ri ** 3) / 3 - ri * (ro ** 2 - ri ** 2) / 2)   # je Ende
+    rohr = math.pi * (ro ** 2 - ri ** 2) * L_in
+    # Fenster und Schlitz einzeln vom Rohr ohne Enden: zusammen muss genauso viel fehlen
+    weg = 0.0
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakePrism
+    from OCP.gp import gp_Vec
+    nackt = step_blm._bool("cut", BRepPrimAPI_MakePrism(BRepBuilderAPI_MakeFace(
+        step_blm._querschnitt_draht(teil["querschnitt"]["aussen"]), True).Face(), gp_Vec(L_in, 0, 0)).Shape(),
+        [BRepPrimAPI_MakePrism(BRepBuilderAPI_MakeFace(step_blm._querschnitt_draht(teil["querschnitt"]["innen"]),
+                                                       True).Face(), gp_Vec(L_in, 0, 0)).Shape()])
+    for k in teil["konturen"][1:3]:
+        a = step_blm.kontur_aufbereiten(k)
+        w = step_blm._occ_dreiecke_koerper(step_blm.werkzeug_dreiecke(a["punkte"], a["richtung"], wand * 1.5))
+        weg += step_blm.volumen(nackt) - step_blm.volumen(step_blm._bool("cut", nackt, [w]))
+    soll = rohr - 2 * fase - weg
+    v = step_blm.volumen(form)
+    assert weg > 0 and abs(v - soll) < 0.003 * soll, (v, soll, rohr, fase, weg)
+    assert dauer < 30, dauer
 
 
 @fall("P1 Programm: .artube/.bpf wie .step im Ablegen, in der Dateiauswahl, im Ordner und in Anfragen")
