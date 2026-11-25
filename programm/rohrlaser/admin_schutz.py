@@ -73,7 +73,7 @@ ORDNER = "Admin"
 
 # Vorschlag nach Risiko (Plan): Geld, Stammdaten mit Preis- oder Zeitwirkung, Firma und Steuerung
 VORGABE = ("e_funktionen", "e_firma", "e_ablage", "e_zuschlaege", "e_gewinn_gestaffelt", "e_kosten",
-           "e_neue_angebote", "e_automatik", "e_lieferlaengen", "e_blech",
+           "e_neue_angebote", "e_automatik", "e_lieferlaengen", "e_verschachtelung", "e_blech",
            "preise", "werkstoffe", "maschinen", "schneiddaten", ZEITVORGABEN, "zusatzarbeiten",
            "arbeitsgang_regeln", FRACHT, KI)
 # immer frei: eigener Arbeitsplatz; Profile, damit „Unbekannte Abmessung anlegen“ im Popup weiter geht

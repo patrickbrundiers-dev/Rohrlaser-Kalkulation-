@@ -21,13 +21,23 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.495", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
+    ["0.9.499", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
                 "Höhe und Winkel einer Fase am Rohrende und bei Sonderkonturen mit schräger Schnittfläche auch den Rand "
                 "auf der Innenwand. Ist die 3D-Schnittbearbeitung gewählt, zeigt der Editor beides wie in der STEP und "
                 "rechnet es als 3D-Schnitt (Fase durch die ganze Wand: Kopf um den Fasenwinkel; schräge Kontur: Zeile "
                 "Kontur 3D mit dem gemessenen Schwenk). Ohne 3D wird die Innenkante mit 90° durch die Wand projiziert: "
                 "Fasen nicht gelasert, Ende gerade; schräge Konturen mit Umriss und Schnittlänge der Innenkante.",
      "Fasen-Enden und schräge Konturen mit 3D wie in der STEP, ohne 3D Innenkante 90°"],
+    ["0.9.498", "<b>Nesting-Kern: neue Strategien und schnellerer Vergleich</b> ([[nesting]]): Neu sind "
+                "<i>N Gleiche Teile nacheinander</i> (volle Stangen je Artikel, Reste am Stangenende mit der besten "
+                "Füllung), <i>S Satzweise schneiden</i> (Satz aus den Mengen erkannt, Satz nur am Stangenende geteilt) "
+                "und <i>X Automatisch</i>. X bewertet alle Pläne nach Material, Beladungen, Artikelwechseln, "
+                "Zwischenlager und Schneidzeit, die Gewichte sind einstellbar. Gleiche Pläne stehen im Vergleich in "
+                "einer Zeile, übertroffene sind grau. Neue Spalten: Schnitte, Artikelwechsel, Zwischenlager, "
+                "Maschinenzeit. Die Präzisionsoptimierung P rechnet nur noch, wo sie etwas ändern kann. Gemessen an "
+                "20 Fällen: A bis H und P liefern genau dieselben Pläne wie vorher, große Aufträge rechnen 40 bis "
+                "46 % schneller (Baugruppe 6/12 m: 4,8 → 2,9 s, 500 Teile 6/12 m: 2,8 → 1,5 s).",
+     "Neue Strategien Gleiche Teile, Satzweise, Automatisch; gleiche Pläne zusammengefasst, bis 46 % schneller"],
     ["0.9.494", "<b>EK-CSV-Import und Kundenlisten-Import mit Assistent</b> ([[ek_import_assistent]], [[kunden_csv]]): "
                 "beide Importe laufen jetzt auf einer gemeinsamen Importbasis (Kodierung, Trennzeichen, Dezimalformat, "
                 "mit oder ohne Kopfzeile, Spaltennamen deutsch und englisch, Importprofile auch bei anderer "
