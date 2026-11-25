@@ -76,7 +76,7 @@ class Abwicklung2D(QWidget):
         p.drawRect(int(x0), int(y0), int(w), int(h))
         for li in self.abw["linien"]:
             dick = li["kennung"] == self.markiert
-            p.setPen(QPen(QColor(self.farben.get(li["kennung"], "#444444")), 3.5 if dick else 1.6))
+            p.setPen(QPen(QColor(self.farben.get(li["kennung"]) or stil.farbe("#444444")), 3.5 if dick else 1.6))
             pts = li["punkte"]
             paare = zip(pts, pts[1:] + ([] if li["gerade"] else pts[:1]))
             for a, b in paare:
