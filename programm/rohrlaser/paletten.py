@@ -53,7 +53,9 @@ MISCHEN = (MISCHEN_RESTE, MISCHEN_NIE, MISCHEN_IMMER)
 FUELLGRAD = 0.9             # Vorgabe Lagenausnutzung (Bündel, Umreifung, Kantenschutz)
 GITTERBOX = "Gitterbox"
 KARTON = "Karton"
-INNEN = (GITTERBOX, KARTON)  # Maße sind Innenmaße: die Ladung steht im Ladungsträger, nicht auf ihm
+SONDERBEHAELTER = "Sonderbehälter"
+RAHMEN = "Palette mit Aufsetzrahmen"   # Fracht 2.0: so viele Rahmen, wie die Ladung hoch ist (rahmen_hoehe/_max)
+INNEN = (GITTERBOX, KARTON, SONDERBEHAELTER)  # Maße sind Innenmaße: die Ladung steht im Ladungsträger
 WURZEL3_2 = math.sqrt(3) / 2
 
 
@@ -237,12 +239,29 @@ def traeger_waehlen(masse, std, lg):
 
 
 
+def gesamthoehe(z, v):
+    """Max. Höhe des fertigen Packstücks inkl. Ladungsträger [mm]: Wert des Packmittels, sonst Einstellung."""
+    return _n(z.get("max_hoehe")) or v["hoehe_gesamt"]
+
+
 def stapelhoehe(z, v):
     """Für die Ladung nutzbare Höhe [mm]: max. Höhe inkl. Ladungsträger − dessen Höhe (Gitterbox, Karton:
-    Innenhöhe)."""
+    Innenhöhe; Palette mit Aufsetzrahmen: höchstens max. Anzahl × Rahmenhöhe)."""
+    hg = gesamthoehe(z, v)
     if z.get("art") in INNEN and _n(z.get("hoehe")):
-        return min(_n(z["hoehe"]), v["hoehe_gesamt"])
-    return v["hoehe_gesamt"] - _n(z.get("hoehe"))
+        return min(_n(z["hoehe"]), hg)
+    if z.get("art") == RAHMEN and _n(z.get("rahmen_hoehe")) and _n(z.get("rahmen_max")):
+        return min(_n(z["rahmen_hoehe"]) * _n(z["rahmen_max"]), hg - _n(z.get("hoehe")))
+    return hg - _n(z.get("hoehe"))
+
+
+def rahmen_anzahl(z, stapel):
+    """Aufsetzrahmen für eine Ladung der Höhe stapel [mm] (mindestens 1, höchstens rahmen_max); 0 ohne Rahmen-Art."""
+    rh = _n(z.get("rahmen_hoehe"))
+    if z.get("art") != RAHMEN or rh <= 0:
+        return 0
+    n = max(1, math.ceil(stapel / rh - 1e-6))
+    return int(min(n, _n(z.get("rahmen_max")) or n))
 
 
 def nutzlast(z, v):
@@ -471,13 +490,19 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
                     t += f", {zahl_als_text(s['gewicht'] * n, 0)} kg"
                 aufbau.append(t)
             hoehe = pal["hoehe"] + (_n(z.get("hoehe")) if z.get("art") not in INNEN else 0.0) if pal["hoehe"] else None
+            rahmen = rahmen_anzahl(z, pal["hoehe"])
+            if rahmen:                # Fracht 2.0: Palette + Rahmen; die Ladung steht in den Rahmen
+                hoehe = _n(z.get("hoehe")) + rahmen * _n(z["rahmen_hoehe"])
+                aufbau.append(f"{rahmen} Aufsetzrahmen à {_mm(z['rahmen_hoehe'])} mm (Ladung {_mm(pal['hoehe'])} mm)")
             paletten.append(dict(lht_id=lht_id, bezeichnung=z.get("bezeichnung") or lht_id,
                                  inhalt=[(k, n) for k, n in pal["inhalt"]], netto=netto,
-                                 brutto=netto + _n(z.get("eigengewicht")), hoehe=hoehe, aufbau=aufbau,
+                                 brutto=netto + _n(z.get("eigengewicht")) + rahmen * _n(z.get("rahmen_gewicht")),
+                                 hoehe=hoehe, aufbau=aufbau, rahmen=rahmen,
+                                 aussen=aussenmass(z, hoehe, [stuecke[k] for k, _ in pal["inhalt"]]),
                                  schichten=[dict(k=k, stueck=n, lagen=lagen) for k, n, lagen in pal["aufbau"]],
                                  masse=(_n(z.get("laenge")), _n(z.get("breite")), _n(z.get("hoehe"))),
                                  art=z.get("art"), zwischenlage=v["zwischenlage"],
-                                 hoehe_max=stapelhoehe(z, v) if z.get("art") == KARTON else v["hoehe_gesamt"]))
+                                 hoehe_max=stapelhoehe(z, v) if z.get("art") == KARTON else gesamthoehe(z, v)))
     for nr, pal in enumerate(paletten, start=1):
         pal["nr"] = nr
     gewichte = [s["gewicht"] for s in stuecke]
@@ -485,14 +510,92 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
                 netto=sum(g * s["stueck"] for g, s in zip(gewichte, stuecke) if g is not None))
 
 
+def aussenmass(z, hoehe, stuecke=()):
+    """Außenmaß (l, b, h) [mm] des fertigen Packstücks: Gitterbox, Karton, Sonderbehälter ihr Außenmaß (sonst
+    Innenmaß), Paletten ihre Grundfläche, länger um überstehende Teile; Höhe = Gesamthöhe (bzw. Außenhöhe)."""
+    l, b = _n(z.get("laenge")), _n(z.get("breite"))
+    if z.get("art") in INNEN:
+        al, ab, ah = _n(z.get("aussen_laenge")) or l, _n(z.get("aussen_breite")) or b, _n(z.get("aussen_hoehe"))
+        return (max(al, ab), min(al, ab), ah or _n(z.get("hoehe")))
+    if z.get("art") == RAHMEN:
+        l, b = _n(z.get("aussen_laenge")) or l, _n(z.get("aussen_breite")) or b
+    else:
+        for s in stuecke:
+            if s.get("masse") and s["masse"][0] > max(l, b) + EPS and (s.get("plan_geo") or {}).get("ueber"):
+                l = max(l, s["masse"][0])
+    return (max(l, b), min(l, b), _n(hoehe))
+
+
+def lht_liste(e):
+    """Ladungsträger einer Packliste für die Fracht: [{lht_id, anzahl}] wie bisher; Kartons zusätzlich mit brutto_je
+    (Bruttogewicht je Paket, für Preise je Paket) und masse (Außenmaß), Paletten mit Aufsetzrahmen mit rahmen (Summe
+    der Rahmen) – Fracht 2.0."""
+    out = []
+    for k, n in e["je_lht"].items():
+        if not n:
+            continue
+        x = dict(lht_id=k, anzahl=n)
+        pals = [p for p in e["paletten"] if p["lht_id"] == k]
+        if pals and pals[0].get("art") == KARTON:
+            x["brutto_je"] = [round(p["brutto"], 3) for p in pals]
+            x["masse"] = list(pals[0].get("aussen") or ())
+        if any(p.get("rahmen") for p in pals):
+            x["rahmen"] = sum(p.get("rahmen") or 0 for p in pals)
+        out.append(x)
+    return out
+
+
 def ladung(positionen, werte, lht_zeilen, std_id, lg_id, einst=None):
-    """Ladungsträger für die Fracht wie fracht.packvorschlag: ([{lht_id, anzahl}], hinweise)."""
+    """Ladungsträger für die Fracht wie fracht.packvorschlag: ([{lht_id, anzahl, …}], hinweise) (lht_liste)."""
     e = packen(positionen, werte, lht_zeilen, std_id, lg_id, einst)
-    return [dict(lht_id=k, anzahl=n) for k, n in e["je_lht"].items() if n], e["hinweise"]
+    return lht_liste(e), e["hinweise"]
+
+
+def packmittel_kosten(eintraege, lht_zeilen, satz_verpackung=0.0):
+    """Kosten der Packmittel einer Sendung (Fracht 2.0): je Ladungsträger Preis (Kauf bzw. Miete; Tausch 0 € mit
+    Hinweis auf den Pfand) + Sicherungsmaterial + Packzeit × Stundensatz Verpackung, dazu die Aufsetzrahmen.
+    eintraege = [{lht_id, anzahl, rahmen?}]. Ergebnis: dict(gesamt, zeilen [(Text, €)], hinweise, mit_preis
+    (mindestens ein Packmittel hat einen Preis))."""
+    lht = {z["lht_id"]: z for z in lht_zeilen or () if z.get("lht_id")}
+    zeilen, hinweise, mit_preis = [], [], False
+    for e in eintraege or ():
+        z, n = lht.get(e.get("lht_id")), int(_n(e.get("anzahl")))
+        if not z or n <= 0:
+            continue
+        name = z.get("bezeichnung") or z["lht_id"]
+        tausch = z.get("abrechnung") == "Tausch"
+        teile = []
+        if _zahl(z.get("preis")) and not tausch:
+            teile.append((f"{n} × {name} ({z.get('abrechnung') or 'Kauf'})", n * _n(z["preis"])))
+            mit_preis = True
+        elif tausch:
+            hinweise.append(f"{name}: Tausch" + (f", Pfand {zahl_als_text(_n(z.get('pfand')), 2)} € je Stück"
+                                                  if _n(z.get("pfand")) else "") + " (keine Kosten berechnet)")
+            mit_preis = True
+        else:
+            hinweise.append(f"{name}: Preis fehlt (Packmittel → Preis je Stück)")
+        if _n(z.get("sicherung")):
+            teile.append((f"Sicherungsmaterial {n} × {zahl_als_text(_n(z['sicherung']), 2)} €", n * _n(z["sicherung"])))
+            mit_preis = True
+        if _n(z.get("packzeit")) and _n(satz_verpackung):
+            teile.append((f"Packzeit {n} × {zahl_als_text(_n(z['packzeit']), 1)} min × "
+                          f"{zahl_als_text(_n(satz_verpackung), 2)} €/h", n * _n(z["packzeit"]) / 60 * _n(satz_verpackung)))
+            mit_preis = True
+        r = int(_n(e.get("rahmen")))
+        if r and _n(z.get("rahmen_preis")):
+            teile.append((f"{r} Aufsetzrahmen × {zahl_als_text(_n(z['rahmen_preis']), 2)} €", r * _n(z["rahmen_preis"])))
+            mit_preis = True
+        elif r:
+            hinweise.append(f"{name}: Preis der Aufsetzrahmen fehlt")
+        zeilen += teile
+    from .ausgabe import kaufm_runden
+    zeilen = [(t, kaufm_runden(b, 2)) for t, b in zeilen]
+    return dict(gesamt=kaufm_runden(sum(b for _, b in zeilen), 2), zeilen=zeilen, hinweise=hinweise,
+                mit_preis=mit_preis)
 
 
 # ------------------------------------------------------------------ günstigste Ladungsträger (Patrick 29.10.2026, 3a)
-OHNE_WAHL = ("Langgut", "Sonderladung", KARTON)   # nie Standard-Palette: Langgut nur für lange Teile, Kartons
+OHNE_WAHL = ("Langgut", "Sonderladung", KARTON)   # (Palette mit Aufsetzrahmen, Sonderbehälter: wählbar)   # nie Standard-Palette: Langgut nur für lange Teile, Kartons
 PAKET_NICHT = ("größer als", "länger als", "Gewicht fehlt", "Maße unbekannt", "schwerer als")  # dann kein Paket
 
 
@@ -518,7 +621,7 @@ def guenstigste(positionen, werte, lht_zeilen, std_id, lg_id, einst, preis, pake
     out = []
     for z in kandidaten(lht_zeilen, lg_id):
         e = packen(positionen, werte, lht_zeilen, z["lht_id"], lg_id, einst)
-        lht = [dict(lht_id=k, anzahl=n) for k, n in e["je_lht"].items() if n]
+        lht = lht_liste(e)
         out.append(dict(std_id=z["lht_id"], bezeichnung=z.get("bezeichnung") or z["lht_id"], lht=lht, packliste=e,
                         gesamt=preis(lht) if lht else None, hinweise=e["hinweise"], paket=False))
     if paket:
@@ -534,7 +637,7 @@ def karton_varianten(positionen, werte, lht_zeilen, einst, preis):
     out = []
     for z in kartons(lht_zeilen):
         e = packen(positionen, werte, lht_zeilen, z["lht_id"], None, einst)
-        lht = [dict(lht_id=k, anzahl=n) for k, n in e["je_lht"].items() if n]
+        lht = lht_liste(e)
         if not lht or any(t in h for h in e["hinweise"] for t in PAKET_NICHT):
             continue
         out.append(dict(std_id=z["lht_id"], bezeichnung=z.get("bezeichnung") or z["lht_id"], lht=lht, packliste=e,

@@ -157,6 +157,9 @@ _REV = re.compile(r"[\s._-]*(?:rev(?:ision)?|index|idx|stand|v)[\s._-]*[0-9a-z]{
 def stamm(name):
     """Dateiname ohne Endung und ohne Revisionsanhang („Halter_Rev B“ -> „halter“)."""
     s = Path(str(name)).stem.strip()
+    from . import artikelnr     # 25.11.2026: auch 123456_002, 123456-02, _final (artikelnr)
+    g = artikelnr.zerlegen(s).grund
+    s = g if g.strip() else s
     return (_REV.sub("", s) or s).strip().casefold()
 
 

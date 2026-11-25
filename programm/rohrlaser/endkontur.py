@@ -804,10 +804,15 @@ def kurven_abstand(pa, pb, umfang, fenster=2.0, beide=False):
             if groesst >= fenster:
                 break
         return groesst
+    # Kein "a if beide else b" mit Tupel/Zahl: Cython (Windows-Build) lehnt gemischte Typen im Bedingungsausdruck ab.
     if not pa or not pb or not umfang:
-        return (float("inf"), float("inf")) if beide else float("inf")
+        if beide:
+            return (math.inf, math.inf)
+        return math.inf
     x = (einseitig(pa, ring(pb)), einseitig(pb, ring(pa)))
-    return x if beide else max(x)
+    if beide:
+        return x
+    return max(x)
 
 
 def _nelder_mead(f, x0, schritte, n_max=160):

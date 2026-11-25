@@ -815,6 +815,8 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
                          "werkstoffe": list(k.werkstoffe.values()), "maschinen": list(k.maschinen.values()),
                          "oberflaechen": list(k.oberflaechen.values())}, k.profilformen, k.kategorien)
     from . import zusatz_global      # Stückpreise der Stufe nur aus den Positionen (allgemeine Zusatzarbeiten extra)
+    if fracht_angebot.umlage(kopf) == fracht_angebot.EIGENE:   # Fracht 2.0: Fracht als eigene Zeile, Stufen ohne
+        kopf = dict(kopf, fracht_position_aus="ja")
     kz, summen = rechnen.kalkulation(zusatz_global.ohne(kopf), lauf, erg, k, tabellen, einst)
     gemeinsam = []
     if summen.get("fracht_hinweis"):

@@ -128,6 +128,22 @@ def anwenden(kopf, positionen, zeilen, summen, k, tabellen, einst):
 
     # 3. G2 Verpackung
     verpackung = (tabellen or {}).get("verpackung") or ()
+    from . import fracht_angebot
+    if fracht_angebot.packmittel_aktiv(kopf) and kopf.get("verpackung") != "nein":
+        # Fracht 2.0 (25.11.2026): Packmittel der Packliste (Preis, Sicherung, Packzeit, Aufsetzrahmen) statt Tabelle
+        werte_l = [rechnen.position_werte(p, kopf, k, tabellen) if z and z.get("stueck") else None
+                   for p, z in zip(positionen, zeilen)]
+        satz_v = _n(rechnen.stundensaetze(tabellen).get("Verpackung"))
+        pm = fracht_angebot.packmittel(kopf, positionen, werte_l, satz_v)
+        if pm and pm["gesamt"] > 0:
+            gewichte = {id(z): _n((w or {}).get("gewicht")) * z["stueck"] for w, z in zip(werte_l, zeilen)
+                        if z and z.get("stueck")}
+            for i, w in _verteilen(aktiv, pm["gesamt"], gewichte if sum(gewichte.values()) else
+                                   {id(z): z["stueck"] for z in aktiv}).items():
+                plus[i]["verpackung"] = w
+            info.update(verpackung_text="; ".join(t for t, _ in pm["zeilen"]) + " (Packliste)",
+                        verpackung_anzahl=len(pm["zeilen"]))
+        verpackung = ()
     if verpackung and kopf.get("verpackung") != "nein":
         werte = {id(z): rechnen.position_werte(p, kopf, k, tabellen) for p, z in zip(positionen, zeilen)
                  if z and z.get("stueck")}

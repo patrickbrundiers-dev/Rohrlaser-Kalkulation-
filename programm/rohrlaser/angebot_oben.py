@@ -708,7 +708,8 @@ class KopfBereich(QWidget):
                                      "in den Staffelpreisen je Menge neu; keine Fracht (Abholung, ab Werk) und im "
                                      "Artikelpreis enthalten: 0 € in der Kalkulation, Hinweis im Angebot")
         self.fracht_umlage.setToolTip("je Stück: jedes Teil trägt gleich viel; nach Gewicht: Anteil des Teilegewichts "
-                                      "am Gesamtgewicht")
+                                      "am Gesamtgewicht; nach Volumen: Anteil des Packmaßes; eigene Position: Fracht "
+                                      "und Verpackung als eigene Zeile im Angebot (Staffelpreise ohne Fracht)")
         for cb, name in ((self.fracht_modus, "fracht_modus"), (self.fracht_umlage, "fracht_umlage")):
             cb.currentTextChanged.connect(lambda t, name=name: seite._kopf_speichern(KOPF_FELD[name], t or None))
         # automatisch: Ziel-PLZ (zwei Stellen reichen) und Land; Gewicht, Ladungsträger und Tarif rechnet das Programm
