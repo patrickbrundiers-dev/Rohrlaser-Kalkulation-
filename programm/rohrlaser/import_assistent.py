@@ -212,7 +212,7 @@ class DateiSchritt(QWidget):
         if laeufe:
             z = QHBoxLayout()
             self.laeufe_k = QPushButton("Letzte Importe / Rückgängig …")
-            self.laeufe_k.clicked.connect(self.laeufe_zeigen)
+            self.laeufe_k.clicked.connect(lambda: self.laeufe_zeigen())
             z.addWidget(self.laeufe_k)
             z.addStretch(1)
             lay.addLayout(z)
@@ -235,7 +235,7 @@ class LaeufeDialog(QDialog):
         self.t = tabelle(("Nr.", "Zeit", "Datei", "Benutzer", "neu", "aktualisiert", "Fehler", "Status"),
                          (50, 140, 220, 90, 60, 80, 60))
         self.k = QPushButton("Ausgewählten Import rückgängig machen")
-        self.k.clicked.connect(self.zuruecknehmen)
+        self.k.clicked.connect(lambda: self.zuruecknehmen())
         self.info = QLabel()
         self.info.setWordWrap(True)
         lay = QVBoxLayout(self)
