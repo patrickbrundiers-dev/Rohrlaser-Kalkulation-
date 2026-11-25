@@ -15,7 +15,7 @@ Schnittlängen und Preise bleiben gleich, solange kein Test einen Fehler nachwei
 | P1 | Testsammlung: 10 Referenzteile mit Sollmaßen aus der Konstruktion | PR A |
 | P2 | Rolle (8) und Schneidbarkeit (1–4) je Kontur, Importanalyse | PR A |
 | P3 | Schneidweg-Bilanz: jede Schnittkante genau einer Kontur | PR A |
-| P4 | echte Innenkante bei 3D-Schnitten statt Wand × tan | nach dem Endkonturen-PR |
+| P4 | echte Innenkante bei 3D-Schnitten statt Wand × tan | PR B (0.9.506) |
 | P5 | Viewer 3D/2D: Farben je Rolle, Schalter, Auswahl, Handkorrektur | PR A |
 
 ## P1 Testsammlung
@@ -88,6 +88,23 @@ Bilanz: 0,02 s bei 54 s Messung (0,03 %).
   Stellen kleiner war als ende_a/ende_b (Schwelle jetzt 0,05 mm, nur Anzeige).
 
 Test: `tests/test_konturen_viewer_2511.py` (Kern lokal grün, Fenster in der CI).
+
+## P4 Innenkante bei 3D-Schnitten an den Enden
+
+Regel Patrick 25.11.2026: mit 3D-Schnittbearbeitung wie in der STEP, ohne 3D an der Innenkante 90°. Für die
+Verschachtelung beliebiger Endkonturen nahm `endkontur.ende_verlauf_zellen` bei einem 3D-Schnitt die Innenkante
+pauschal Wand × tan(Winkel) vor der Außenkante an. Für ebene Schnitte (Gehrung, schräg in zwei Richtungen) mit `d3`
+rechnet es jetzt je Stützstelle den Punkt, an dem die Ebene die Innenwand trifft (`_innen_3d`), und nimmt je Zelle
+die weitere von zwei sicheren Grenzen (echte Innenkante, bisheriger Zuschlag). `kanten_punkte` (Gegenproben) setzt die
+Innenpunkte bei 3D ebenso. Ohne 3D, bei gemessenen Umrissen, Endkonturen, Gegenrohren und Nasen: unverändert.
+
+Ergebnis (`tests/test_innenkante_3d_enden.py`): kein Material vor dem Verlauf (21 Stützstellen je Zelle, außen und
+innen), nie schlechter als bisher; im Mittel gewonnen bei Wand 3: 45° Rundrohr 2,06 / Quadratrohr 2,24 /
+Rechteckrohr 2,49 mm von 3,00 mm, 20° schräg 0,68–0,75 von 1,09 mm. Gegenprobe STEP: R02 (RR 48,3 × 3, 45°)
+Innenkante 3,000–45,300 mm hinter der Spitze, genau wie die Innenkante der Schnittfläche in der STEP. R03 (QR 50 × 3
+scharfkantig, 20°/10°): Außenkante 27,28 / 27,30 mm; innen nimmt das Programm im Eckblock Punkte im Material an, die
+Innenkante also höchstens früher (0,56 mm statt 1,64 mm hinter der Spitze), nie später. Angebote nur mit ebenen
+Gehrungen rechnen über den Gehrungsweg und bleiben gleich; es wirkt dort, wo Endkonturen verschachtelt werden.
 
 ## Abgrenzung
 
