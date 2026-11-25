@@ -34,7 +34,7 @@ auf_seiten = {n for s in ordnung.SEITEN for a in s.abschnitte for n in a.namen}
 fracht = {e.name for e in EINSTELLUNGEN if e.gruppe == ordnung.EIGENER_REITER}
 assert auf_seiten <= set(EINSTELLUNG), auf_seiten - set(EINSTELLUNG)
 assert set(EINSTELLUNG) - auf_seiten == fracht | ordnung.INTERN, set(EINSTELLUNG) - auf_seiten - fracht
-assert len(ordnung.SEITEN) == 30 and len({s.schluessel for s in ordnung.SEITEN}) == 30     # + ERP-Preisimport, + STEP-Messung
+assert len(ordnung.SEITEN) == 31 and len({s.schluessel for s in ordnung.SEITEN}) == 31     # + ERP-Preisimport, + STEP-Messung, + Verschachtelung
 assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN if s.schluessel != "e_funktionen") <= 25
 assert sum(len(a.namen) for a in ordnung.SEITEN[0].abschnitte) <= 35      # Funktionen: nur Schalter (je eine Zeile), + ERP-Preisimport, + zentrale Zukaufartikel, + Schnellimport
 doppelt = [n for n in auf_seiten if len(ordnung.seiten_von(n)) > 1]

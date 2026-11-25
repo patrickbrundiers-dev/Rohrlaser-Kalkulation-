@@ -1352,7 +1352,8 @@ class Einstellung:
 # Strategien der Verschachtelung (nesting.STRATEGIEN), erste Stelle = Kennbuchstabe
 STEP_CACHE_WAHL = ("ja", "ja, mit gelesenen Körpern", "nein")     # [1] = Vorgabe     # Einstellung step_cache (CAD-Kern 3.0)
 NESTING_AUSWAHL = ("bisher", "A Minimaler Materialverbrauch", "B Geringste Materialkosten",
-                   "C Maximale Reststückverwertung", "D Schnellste Fertigung", "E Ausgewogen")
+                   "C Maximale Reststückverwertung", "D Schnellste Fertigung", "E Ausgewogen",
+                   "N Gleiche Teile nacheinander", "S Satzweise schneiden", "X Automatisch (alle Ziele)")
 
 EINSTELLUNGEN = (
     Einstellung("zuschlag_material", "Zuschlag Material", "Kalkulation", "anteil", 0, 0, 5),
@@ -1566,6 +1567,17 @@ EINSTELLUNGEN = (
                 "+ Abstand (Toleranzen) [mm]", "Lieferlängen", "zahl", 0.5, 0, 20),
     Einstellung("nesting_eur_belegung", "Verschachtelung ausgewogen: € je verschiedene Stangenbelegung (Programm)",
                 "Lieferlängen", "zahl", 5.0, 0, 10000),
+    # Nesting-Kern (Patrick 25.11.2026): Mehrzielbewertung der Strategie X „Automatisch“ und Variantenzahl im Vergleich
+    Einstellung("nesting_eur_artikelwechsel", "Verschachtelung automatisch: € je Artikelwechsel in der Schnittfolge "
+                "(Umstellen, Sortieren bei der Entnahme)", "Lieferlängen", "zahl", 0.5, 0, 1000),
+    Einstellung("nesting_eur_zwischenlager", "Verschachtelung automatisch: € je Teil, das auf einen fertigen Satz "
+                "wartet (Zwischenlager, höchster Stand)", "Lieferlängen", "zahl", 0.2, 0, 1000),
+    Einstellung("nesting_zeit_bewerten", "Verschachtelung automatisch: Schneidzeit der Trennschnitte mit dem "
+                "Stundensatz der Maschine bewerten", "Lieferlängen", "auswahl", "ja", auswahl="janein"),
+    Einstellung("nesting_saetze", "Verschachtelung satzweise: Zahl der Sätze (0 = aus den Mengen erkennen)",
+                "Lieferlängen", "ganz", 0, 0, 100000),
+    Einstellung("nesting_varianten_max", "Nesting-Arbeitsplatz: höchstens so viele verschiedene Strategien zeigen "
+                "(0 = alle; gleiche Pläne stehen immer in einer Zeile)", "Lieferlängen", "ganz", 0, 0, 20),
     Einstellung("rest_min_nutz", "Reststücke: verwertbar erst, wenn nach Endbeschnitt und Greiferrest so viel bleibt "
                 "[mm]", "Lager und Fertigung", "zahl", 100.0, 0, 20000),
     Einstellung("laenge_auto_huellkreis", "Lieferlängen: ohne Eintrag lieferbar ab Hüllkreis-Ø [mm] (0 = aus)",

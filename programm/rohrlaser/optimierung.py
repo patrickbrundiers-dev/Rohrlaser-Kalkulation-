@@ -841,6 +841,51 @@ def praezision_an():
     return getattr(_modus, "an", False)
 
 
+# Nesting-Kern (Patrick 25.11.2026, Variantenlogik): die Präzision ändert gegenüber der normalen Rechnung nur zwei
+# Dinge, die lokale Suche beim Anordnen (nur mit Enden zum Ineinanderlegen) und die längere exakte Suche (nur, wo sie
+# in der normalen Rechnung nicht vollständig war). Gezählt werden die Gruppen, deren Stangenzahl nicht bewiesen ist
+# und für die die exakte Suche gilt: ist die Zahl 0 und gibt es keine Enden zum Ineinanderlegen, rechnet P genau
+# wie A (gleiches Ergebnis ohne zweite Rechnung).
+class offen_zaehlen:
+    """with optimierung.offen_zaehlen() as z: z.n = Gruppen mit nicht vollständiger exakter Suche (je Thread,
+    verschachtelt: die äußere Zählung bekommt die innere dazu)."""
+
+    def __enter__(self):
+        self._vorher = getattr(_modus, "offen", None)
+        self._z = [0]
+        _modus.offen = self._z
+        return self
+
+    @property
+    def n(self):
+        return self._z[0]
+
+    def __exit__(self, *_):
+        _modus.offen = self._vorher
+        if self._vorher is not None:
+            self._vorher[0] += self._z[0]
+        return False
+
+
+def offen_dazu(n):
+    """n Gruppen mit offener exakter Suche der laufenden Zählung hinzufügen (Ergebnis aus einem Zwischenspeicher)."""
+    z = getattr(_modus, "offen", None)
+    if z is not None and n:
+        z[0] += n
+
+
+def _offen_melden(g):
+    if not g.bewiesen and len(g.teile) <= EXAKT_MAX_TEILE:
+        offen_dazu(1)
+
+
+def praezision_wirkt(g):
+    """Kann die lokale Suche der Präzision in dieser Gruppe überhaupt etwas ändern (Enden zum Ineinanderlegen oder
+    feste Naht in einer Gruppe mit Querschnitt bzw. Endkonturen)?"""
+    return _nestbar(g) and (sum(verschachtelbar(g, t) for t in g.teile) >= 2 or any(t.drehung == FEST
+                                                                                   for t in g.teile))
+
+
 def _lokal_suchen(g, folge, naht_stange):
     """Lokale Suche über die Reihenfolge (Präzisionsmodus): verschieben und tauschen, solange der Verbrauch der
     Trennungen sinkt; höchstens PRAEZ_SCHRITTE Bewertungen. Ergebnis (Summe, Reihenfolge)."""
@@ -943,9 +988,11 @@ def optimiere(g):
         _ablegen(schl, erg)
     if erg is not None:         # dieselbe Rechnung lief schon (Hilfsprozess oder früherer Lauf)
         folgen, g.bewiesen, g.schranke = erg
+        _offen_melden(g)
         return [[(g.teile[i], d) for i, d in f] for f in folgen]
     folgen = _optimiere(g)
     _merken(schl, g, folgen)
+    _offen_melden(g)
     return folgen
 
 
