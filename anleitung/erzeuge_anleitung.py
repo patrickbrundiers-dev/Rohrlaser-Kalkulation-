@@ -10467,7 +10467,12 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Arbeitsgänge; den Artikeltext übernimmt es nicht. Weil PPEASE Sonderzeichen falsch liest (aus "
            "<i>Oberfläche</i> wurde <i>Oberfl che</i>, aus Ø ein <i>?</i>), schreibt das Programm Werkstofftyp, "
            "Artikeltext, Kommentar und Arbeitsgänge wie PROfirst nur mit einfachen Zeichen: <i>Rundrohr 54x2</i> "
-           "ohne Ø, Umlaute als ae/oe/ue, ß als ss, ° als <i>Grad</i>.")
+           "ohne Ø, Umlaute als ae/oe/ue, ß als ss, ° als <i>Grad</i>. PPEASE beachtet außerdem keine "
+           "Anführungszeichen: Ein Semikolon im Text würde dort eine neue Spalte beginnen, alle folgenden Spalten "
+           "rutschen, und im Positionstext stünden Zahlen wie <i>181.4301 EN10217-7</i> statt des Profils. Deshalb "
+           "enthält in der PROfirst-Datei kein Feld ein Semikolon, ein Anführungszeichen oder einen Zeilenumbruch: "
+           "<i>inkl. Gewinde 6xM5, 4xM10</i>, in der Liste der Arbeitsgänge <i>Gewinde [6xM5 / 4xM10]</i>, "
+           "Anführungszeichen als Hochkomma, mehrzeilige Kommentare in einer Zeile mit Komma.")
     i.text("Format: Semikolon, UTF-8 mit BOM (bisheriges Format), Zeilenende CRLF (Windows), Dezimalpunkt (79.98) ohne Tausendertrennzeichen, Beträge mit "
            "2 Stellen, Zeiten <i>HH:MM:SS</i>, Datum <i>TT.MM.JJJJ</i>. Texte mit Semikolon, Anführungszeichen oder "
            "Zeilenumbruch stehen in Anführungszeichen. Spaltentitel und Reihenfolge sind fest vorgegeben, es gibt "
@@ -15943,7 +15948,8 @@ def kapitel_pflege(i):
             "<i>HTTP Error 404</i>, einfach <i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen.",
             "<b>Download bricht ab (z. B. im Firmennetz)</b>: Reißt die Verbindung ab, versucht das Programm es von "
             "selbst bis zu sechsmal und macht an der Abbruchstelle weiter (Hinweis <i>Verbindung unterbrochen, neuer "
-            "Versuch …</i>). Scheitert es trotzdem, bleibt das schon Geladene liegen: <i>Hilfe → Nach Updates "
+            "Versuch …</i>). Lehnt das Netz das Weitermachen ab (HTTP 403, viele Firmen-Webfilter sperren "
+            "Teil-Downloads), lädt das Programm die Datei einmal ganz von vorn. Scheitert es trotzdem, bleibt das schon Geladene liegen: <i>Hilfe → Nach Updates "
             "suchen …</i> setzt dort fort. Die Meldung nennt die wahrscheinliche Ursache: Firewall, Proxy oder "
             "Virenscanner im Firmennetz, eine Sperrseite statt der Datei, HTTP 403 (gesperrt) oder ein fremdes "
             "Zertifikat. Dann die IT bitten, <i>github.com</i> und <i>*.githubusercontent.com</i> freizugeben, oder in "
