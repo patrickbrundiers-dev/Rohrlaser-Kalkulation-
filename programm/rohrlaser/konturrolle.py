@@ -137,6 +137,8 @@ def _innen(d, art, wand, sicher):
         r, text = AUSSCHNITT, "Ausschnitt" if art != "Rechteckausschnitt" else "Rechteckausschnitt"
     elif art == "Sonderkontur":
         erk = d.get("form_erkannt")
+        if isinstance(erk, dict):       # Endkonturen-Thread (form_erkennung.py): {typ, …}
+            erk = erk.get("typ") or erk.get("form") or ""
         if erk:
             return _ergebnis(AUSSCHNITT, WAHRSCHEINLICH, f"Sonderkontur, Grundform {erk} aus dem Umriss")
         if len(d.get("waende") or ()) > 1:
