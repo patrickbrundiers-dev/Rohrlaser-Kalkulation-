@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.491", "<b>EK-CSV-Import und Kundenlisten-Import mit Assistent</b> ([[ek_import_assistent]], [[kunden_csv]]): "
+    ["0.9.492", "<b>EK-CSV-Import und Kundenlisten-Import mit Assistent</b> ([[ek_import_assistent]], [[kunden_csv]]): "
                 "beide Importe laufen jetzt auf einer gemeinsamen Importbasis (Kodierung, Trennzeichen, Dezimalformat, "
                 "mit oder ohne Kopfzeile, Spaltennamen deutsch und englisch, Importprofile auch bei anderer "
                 "Spaltenreihenfolge, Vorschau ohne Datenbankänderung, Importlauf mit Rückgängig, Fehlerbericht). "
@@ -36,6 +36,12 @@ NEUERUNGEN = [
                 "überschreiben, Ansprechpartner, Liefer-/Rechnungsadresse und Rabatt. Kundennummern werden nie "
                 "vergeben und nie geändert; Angebote und Aufträge bleiben verknüpft. Kalkulationen rechnen unverändert.",
      "Importassistenten: EK-CSV (6 Schritte, Preisprüfung je Lieferant) und Kundenliste (5 Schritte, Dubletten)"],
+    ["0.9.491", "<b>Fasen an den Rohrenden wie in der STEP</b> ([[step]]): Im Editor und in der 3D-Ansicht "
+                "liegt das Ende mit Fase jetzt wie in der STEP (vorher gerade an der längsten Stelle, bis 3 mm "
+                "daneben). Der Import misst Tiefe, Höhe und Winkel der Fase. Geht sie durch die ganze Wand und ist die "
+                "3D-Schnittbearbeitung am Teil aktiviert, wird sie als 3D-Schnitt gerechnet (Kopf um den Fasenwinkel "
+                "geschwenkt); sonst wird sie wie bisher nicht gelasert.",
+     "Fasen-Enden im Editor wie in der STEP, Fase durch die ganze Wand mit 3D als 3D-Schnitt"],
     ["0.9.490", "<b>Einheitliche Maßschreibweise</b> ([[massschreibweise]]): Material- und Profilabmessungen stehen "
                 "überall kompakt ohne Leerzeichen, z. B. <i>50x50x3</i>, <i>Ø60x3</i>, <i>40x20x2,5</i> statt "
                 "„50 x 50 x 3“ – in Anzeigen, Angebots- und Werkstatt-PDFs, Angebotsakte, E-Mails, Materialanfragen und "
