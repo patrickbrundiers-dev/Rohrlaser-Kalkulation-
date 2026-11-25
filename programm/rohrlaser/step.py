@@ -12,7 +12,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from . import anbau, biegerohr, bohrbild, naht, ovalprofile, rechnen, rp_profile, step_pruefung, virtuell
+from . import anbau, biegerohr, bohrbild, endkontur, form_erkennung, naht, ovalprofile, rechnen, rp_profile, \
+    step_pruefung, virtuell
 
 # Dateien, die der STEP-Import liest: STEP und IGES (Patrick 05.11.2026 „Iges import einbauen“)
 # TUBX (TRUMPF TubeCAM, 20.11.2026) und BLM ArTube/BPF (24.11.2026) wie STEP
@@ -1179,6 +1180,13 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     e.pop("schwenk", None)
                 elif um and not gg:
                     e["umriss"] = um
+                    if not ausflug:         # Konturart erkennen (V/U/Bogen/Stufen …), der Umriss bleibt maßgebend
+                        try:
+                            er = endkontur.erkennen(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), um)
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            er = None
+                        if er:
+                            e["kontur_erkannt"] = er
                     for zug in ausflug:     # Schnitt vom Ende ins Teil und zurück: Sonderkontur am Ende
                         k = _ende_ausflug(zug, art[-1], m, mform, s_von, s_umfang, mbreit, mschmal, bool(r_mess))
                         if k:
@@ -1252,6 +1260,11 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k.update(art="Sonderkontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
             if umriss:
                 k["umriss"] = umriss
+                fe_ = form_erkennung.erkennen(umriss)   # Form beschreiben (Langloch schräg, Sechseck …)
+                if fe_:
+                    k["form_erkannt"] = fe_
+                    if not k.get("text"):
+                        k["text"] = form_erkennung.text(k)
             if d.get("waende"):
                 k["waende"] = list(d["waende"])
         elif art == "Bohrung" and d.get("durchmesser") and (dbr := _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von)) \
@@ -1347,6 +1360,9 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     k.update(art="Sonderkontur", umriss=um_[0])
                     if um_[1]:
                         k["muendung"] = um_[1]
+                    elif fe_ := form_erkennung.erkennen(um_[0]):    # geschlossen: Form beschreiben
+                        k["form_erkannt"] = fe_
+                        k.setdefault("text", form_erkennung.text(k))
                     if um_[2] > 0.05:
                         k["text"] = "Teil der Kontur auf der Abkantung: nicht gezeichnet, Länge gemessen"
         if mp:
