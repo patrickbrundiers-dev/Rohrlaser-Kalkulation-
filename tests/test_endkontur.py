@@ -250,7 +250,27 @@ def test_schneidweg_rechnen():
     print("OK     Schneidweg-Rechner: Kontur-Enden mit Kurvenlänge, Optimierung bekommt die Verläufe")
 
 
-for t in (test_arten, test_pruefen, test_verschachteln, test_abstand_kollision, test_sonderfaelle,
+def test_kennung():
+    import json
+    eing = dict(a=dict(kontur=V_K), b=dict(kontur=V_S), konturen=[], quelle=sw.QUELLE)
+    g = opt.Gruppe(profil="P", werkstoff="S", stange=6000, endbeschnitt=10, greiferrest=142, kerf=0.2, abstand=2.5)
+    g.kontur_geo, g.kontur_zugabe = "Gx", 0.5
+    g2 = dataclasses.replace(g, kontur_zugabe=2.0)
+    echt = rechnen.gruppen_bilden
+    from types import SimpleNamespace
+    K = SimpleNamespace(maschinen={}, profile={}, werkstoffe={})
+    try:
+        werte = []
+        for gr in (g, g2):
+            rechnen.gruppen_bilden = lambda *a, gr=gr: ([gr], [], [])
+            werte.append(rechnen.eingabe_kennung({}, [dict(technik=json.dumps(eing))], K, {}, {}))
+    finally:
+        rechnen.gruppen_bilden = echt
+    pruef(werte[0] != werte[1], "Sicherheitsabstand nicht in der Kennung des gespeicherten Plans")
+    print("OK     Kennung des gespeicherten Plans enthält den Sicherheitsabstand der Endkonturen")
+
+
+for t in (test_kennung, test_arten, test_pruefen, test_verschachteln, test_abstand_kollision, test_sonderfaelle,
           test_gehrung_bitgleich, test_strategie_p, test_vergleich, test_schneidweg_rechnen):
     try:
         t()

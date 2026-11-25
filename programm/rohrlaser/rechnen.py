@@ -1257,6 +1257,8 @@ def eingabe_kennung(kopf, positionen, k, tabellen=None, einst=None):
                [teil_kennung(t) for t in g.teile]) + ((g.oberflaeche,) if g.oberflaeche else ())
               + (("Stangenende", g.ende_bonus),) * (g.ende_bonus > EPS)
               + ((g.beistellung,) if g.beistellung else ()) + ((MUSTER,) if g.muster else ())
+              # Endkonturen verschachtelt: Sicherheitsabstand gehört dazu (sonst gilt ein zu enger Plan als aktuell)
+              + ((("Endkontur", g.kontur_geo, g.kontur_zugabe),) if g.kontur_geo else ())
               for g in gruppen],
              [sorted(f.items()) for f in fehler], [sorted(n.items()) for n in neue]]
     laengen = laengen_eingaben(gruppen, kopf, k, tabellen, einst)
