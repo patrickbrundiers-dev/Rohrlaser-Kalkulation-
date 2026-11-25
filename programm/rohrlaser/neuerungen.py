@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.490", "<b>Einheitliche Maßschreibweise</b> ([[massschreibweise]]): Material- und Profilabmessungen stehen "
+                "überall kompakt ohne Leerzeichen, z. B. <i>50x50x3</i>, <i>Ø60x3</i>, <i>40x20x2,5</i> statt "
+                "„50 x 50 x 3“ – in Anzeigen, Angebots- und Werkstatt-PDFs, Angebotsakte, E-Mails, Materialanfragen und "
+                "CSV-/Excel-Exporten (auch PPEASE). Gespeicherte Daten bleiben unverändert, formatiert wird bei der "
+                "Ausgabe; Suche und Zuordnung finden alte und neue Schreibweise. Werkstoffe, Ø als Durchschnitt und "
+                "Rechnungen mit × bleiben, Rechenwerte ändern sich nicht.",
+     "Abmessungen überall kompakt (50x50x3, Ø60x3), Suche findet beide Schreibweisen"],
     ["0.9.489", "<b>Supportpaket 25.11.: BLM-Programme mit Fasen, Schnitt auf 0, Transportschiene</b> "
                 "([[blm_programm]], [[null_schnitt]]): BPF/ARTUBE vom LT7 mit Fasen-Enden (3D-Kopf) ließen sich nicht "
                 "lesen (<i>BPF-Datei beschädigt</i>, ein Behälter von 2 KB stand in einem eigenen Block) und hingen "

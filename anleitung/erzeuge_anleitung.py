@@ -686,7 +686,7 @@ def kapitel_ueberblick(i):
            "Schreibweise ohne Leerzeichen: <b>50x50x3</b>, <b>100x50x4</b>, <b>Ø60x3</b>, <b>40x20x2,5</b>. Das "
            "gilt für Anzeigen und Tabellen, Angebots- und Werkstatt-PDFs, Angebotsakte, E-Mails und "
            "Materialanfragen, CSV- und Excel-Exporte (auch für PPEASE) und die Bezeichnungen neuer Zukauf-, Blech- "
-           "und Vollmaterialartikel (seit 0.9.489).", kurz=True)
+           "und Vollmaterialartikel (seit 0.9.490).", kurz=True)
     i.tabelle(["Bisher", "Jetzt"], [["50 x 50 x 3", "50x50x3"], ["50X50X3", "50x50x3"], ["50 x50x 3", "50x50x3"],
                                     ["Ø 60 x 3", "Ø60x3"], ["40 x 20 x 2,5", "40x20x2,5"],
                                     ["Blech 500 × 300 × 5 mm", "Blech 500x300x5 mm"]], [80, 80], kurz=True)
