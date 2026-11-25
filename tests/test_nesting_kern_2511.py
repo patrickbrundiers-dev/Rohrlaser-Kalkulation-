@@ -114,6 +114,8 @@ assert ne.planen(gruppe([(1000, 7, True), (500, 3, True)]), ne.S, L6) is None
 # S mit Vorgabe der Satzzahl über die Gewichte
 s10 = ne.planen(g, ne.S, L6, gewichte=dict(saetze=10))
 assert s10.werte["saetze"] == 10
+assert s10.werte["zwischenlager"] == ne.fertigung_kennzahlen(g, [f for _, f, _ in s10.stangen],
+                                                            ne.satz_erkennen(g.teile, 10))["zwischenlager"]
 print("OK     N gleiche Teile nacheinander, S satzweise: jedes Teil einmal, geprüft, nie weniger Material als A")
 
 # ---------------------------------------------------------------- X Automatisch

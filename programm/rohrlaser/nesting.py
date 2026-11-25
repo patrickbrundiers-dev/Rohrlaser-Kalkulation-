@@ -444,7 +444,7 @@ def satz_erkennen(teile, saetze=0):
     return n, [(k, len(v) // n) for k, v in je.items()]
 
 
-def fertigung_kennzahlen(g, folgen):
+def fertigung_kennzahlen(g, folgen, satz=None):
     """Kennzahlen der Schnittfolge (Patrick 25.11.2026): Artikelwechsel (Sorte ändert sich zum Vorgänger in der
     Folge aller Stangen), Schnitte (Trennschnitte + Anfang und Ende je Stange), geschnittene Endenlänge [mm]
     (Schätzung: je Ende der Mittelwert der Schnittlängen beider Enden, gemeinsamer Schnitt einmal) und bei
@@ -468,7 +468,7 @@ def fertigung_kennzahlen(g, folgen):
                 schnitte += 2
     out = dict(artikelwechsel=wechsel, schnitte=schnitte, enden_mm=round(enden_mm, 1), zwischenlager=None,
                satz_erster=None)
-    sz = satz_erkennen(g.teile)
+    sz = satz if satz is not None else satz_erkennen(g.teile)
     if sz is not None:
         n, aufbau = sz
         je = dict(aufbau)
@@ -959,6 +959,9 @@ def _planen(g, strategie, laengen, reste=(), je_beladung=0.0, min_rest=0.0, min_
         p = fertig(strategie, st, text, ordnen=False)
         if strategie == S and p is not None:
             n, aufbau = satz_erkennen(g.teile, (gewichte or {}).get("saetze", 0))
+            # Zwischenlager und erster Satz mit derselben Satzzahl wie die Belegung (Vorgabe statt ggT)
+            p.werte.update({k: v for k, v in fertigung_kennzahlen(g, [f for _, f, _ in p.stangen], (n, aufbau)).items()
+                            if k in ("zwischenlager", "satz_erster")})
             p.werte["saetze"] = n
             p.werte["satz_aufbau"] = satz_text(g, aufbau)
         return p
