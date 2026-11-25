@@ -241,4 +241,21 @@ if "--ohne-step" not in sys.argv:
     assert out["parallel"][2] == out["nacheinander"][2], "3D-Netze verschieden"
     ok("STEP offenes U-Profil: Boolesche Operationen parallel = nacheinander (JSON, Tabelle, Netze)")
 
+# --------------------------------------------------------------------- 5. Paket 4: beschädigte Körper nicht still weg
+if "--ohne-step" not in sys.argv:
+    sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
+    sys.path.insert(0, str(HIER.parent / "werkzeuge"))
+    import step_geometrie as sg
+    import step_robust
+    quelle = HIER / "step_rp" / "RP06_0106-35_Verbund_L500.step"
+    _, info = sg.lies_step_info(quelle)
+    assert not any("Volumenkörpern der Datei" in m for m in info["meldungen"]), info["meldungen"]
+    kaputt = tmp / "RP06_ein_koerper_kaputt.step"
+    kaputt.write_bytes(step_robust.ein_koerper_kaputt(quelle.read_text(encoding="latin-1")).encode("latin-1"))
+    koerper, info = sg.lies_step_info(kaputt)
+    assert len([k for k in koerper if k[0] == "Volumenkörper"]) == 1, koerper
+    assert info["meldungen"] and info["meldungen"][0].startswith("1 von 2 Volumenkörpern der Datei nicht lesbar"), \
+        info["meldungen"]
+    ok("STEP mit einem beschädigten Körper: Hinweis „1 von 2 Volumenkörpern … nicht lesbar“, gute Datei ohne")
+
 print("Alle Prüfungen bestanden.")

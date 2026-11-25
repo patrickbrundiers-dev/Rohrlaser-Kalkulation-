@@ -723,7 +723,7 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
                 nr = auftrag[1]
                 if k is None:                   # beim Lesen der Datei abgestürzt
                     abschliessen(nr, _fehler_ergebnis(Path(auftraege[nr][0]),
-                                                      "Messung abgebrochen (Absturz beim Lesen der Datei)"))
+                                                      "Messung abgebrochen (Absturz beim Lesen der Datei – Datei vermutlich beschädigt, bitte neu exportieren)"))
                     continue
                 auslassen[nr][k] = f"Zeitlimit {zeitlimit:g} s überschritten" if zu_lang else "Messung abgestürzt"
                 if auftrag[0] == "koerper":     # verteilt: ohne diesen Körper weiter, er kommt in den Abschluss
