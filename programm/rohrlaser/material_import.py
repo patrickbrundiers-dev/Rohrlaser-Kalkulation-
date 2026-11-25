@@ -25,7 +25,7 @@ import io
 import json
 import re
 
-from . import erp_preise
+from . import csv_import, erp_preise
 from . import materialplattform as mp
 
 FELDER = (("materialnr", "Materialnummer / Artikelnr."), ("bezeichnung", "Bezeichnung"), ("werkstoff", "Werkstoff"),
@@ -33,7 +33,7 @@ FELDER = (("materialnr", "Materialnummer / Artikelnr."), ("bezeichnung", "Bezeic
           ("wand", "Wandstärke [mm]"), ("laenge", "Länge [mm]"), ("preis", "EK-Preis"), ("einheit", "Preiseinheit"),
           ("lieferant", "Lieferant"), ("gewicht", "Gewicht [kg/m]"), ("gueltig_ab", "Gültig ab"),
           ("oberflaeche", "Oberfläche"), ("handelsname", "Handelsbezeichnung"),
-          ("bestellnr", "Bestellnummer (Lieferant)"))
+          ("bestellnr", "Bestellnummer (Lieferant)"), ("gueltig_bis", "Gültig bis"), ("waehrung", "Währung"))
 FELD_TITEL = dict(FELDER)
 PFLICHT = ("preis",)                 # dazu Bezeichnung oder Abmessung/Maße (prüft analysieren)
 PROFILE = "material_importprofile"   # Einstellung (intern, nur dieser PC): {Name: dict(kopf, spalten, einheit, lieferant)}
@@ -54,29 +54,26 @@ _KOPF = {"materialnr": ("artikelnummer", "artikelnr", "artnr", "materialnummer",
          "einheit": ("preiseinheit", "einheit", "me", "mengeneinheit", "pe", "unit", "basis"),
          "lieferant": ("lieferant", "hauptlieferant", "kreditor", "supplier", "hersteller"),
          "gewicht": ("gewicht", "gewichtjem", "kgm", "kgjem", "metergewicht", "weight"),
-         "gueltig_ab": ("gueltigab", "gültigab", "gueltig", "gültig", "datum", "preisdatum", "stand"),
+         "gueltig_ab": ("gueltigab", "gültigab", "gueltigvon", "gültigvon", "gueltig", "gültig", "datum", "preisdatum",
+                        "stand", "validfrom"),
+         "gueltig_bis": ("gueltigbis", "gültigbis", "ablaufdatum", "validuntil", "validto"),
+         "waehrung": ("waehrung", "währung", "whrg", "currency"),
          "oberflaeche": ("oberflaeche", "oberfläche", "ausfuehrung", "ausführung", "finish"),
          "handelsname": ("handelsbezeichnung", "handelsname", "markenname"),
          "bestellnr": ("bestellnummer", "bestellnr", "lieferantenartikelnummer", "lieferantenartnr",
                        "lieferantenartikelnr", "herstellerartikelnummer", "herstellernummer", "supplierpartno",
                        "orderno", "bestellcode")}
 _REIHE = ("bestellnr", "materialnr", "bezeichnung", "werkstoff", "abmessung", "wand", "preis", "einheit", "lieferant", "gewicht",
-          "gueltig_ab", "laenge", "oberflaeche", "handelsname", "form", "a", "b")
+          "gueltig_bis", "gueltig_ab", "laenge", "oberflaeche", "handelsname", "form", "a", "b", "waehrung")
 
 NEU, AKTUALISIERT, PREIS, GLEICH, DOPPELT, FEHLER, OFFEN = (
     "neu", "aktualisiert", "Preisänderung", "unverändert", "doppelt", "fehlerhaft", "nicht zuordenbar")
 GRUPPEN = (NEU, PREIS, AKTUALISIERT, GLEICH, DOPPELT, FEHLER, OFFEN)
 AUSFUEHRBAR = (NEU, PREIS, AKTUALISIERT)
-SPRUNG_PCT = 15.0           # Preiswarnung in der Vorschau ab ±15 % zum bisherigen Preis
+SPRUNG_PCT = 15.0           # Preiswarnung in der Vorschau ab ±15 % zum bisherigen Preis (ohne Einstellung ek_preis_markierung)
 GEWICHT_TOL = 0.05          # Gewicht aus dem ERP weicht mehr als 5 % vom berechneten kg/m ab: Hinweis
 
-TABELLEN_SQL = (
-    "CREATE TABLE IF NOT EXISTS material_importe (id INTEGER PRIMARY KEY, zeit TEXT, datei TEXT, importprofil TEXT, "
-    "benutzer TEXT, zeilen INTEGER, neu INTEGER, aktualisiert INTEGER, preise INTEGER, unveraendert INTEGER, "
-    "doppelt INTEGER, fehler INTEGER, offen INTEGER, status TEXT, protokoll TEXT)",
-    "CREATE TABLE IF NOT EXISTS material_import_posten (id INTEGER PRIMARY KEY, import_id INTEGER, tabelle TEXT, "
-    "zeilen_id INTEGER, aktion TEXT, alt TEXT, neu TEXT)",
-)
+TABELLEN_SQL = csv_import.TABELLEN_SQL      # Importläufe und Posten: gemeinsame Importbasis (Spalte art)
 
 
 class ImportFehler(Exception):
@@ -84,8 +81,7 @@ class ImportFehler(Exception):
 
 
 def einrichten(con):
-    for sql in TABELLEN_SQL:
-        con.execute(sql)
+    csv_import.einrichten(con)
 
 
 def _jetzt():
@@ -110,8 +106,8 @@ def lesen(roh, dateiname=""):
             raise ImportFehler("Die Excel-Datei ist nicht lesbar.")
         roh = text
     try:
-        return erp_preise.lesen(roh)
-    except erp_preise.ErpFehler as e:
+        return csv_import.datei_lesen(roh, bekannte=[w for ws in _KOPF.values() for w in ws])
+    except csv_import.ImportFehler as e:
         raise ImportFehler(str(e)) from None
 
 
@@ -139,22 +135,37 @@ def profile(db):
 
 
 def profil_speichern(db, name, kopf, spalten, einheit=None, lieferant=None):
-    alle = profile(db)
-    alle[name] = dict(kopf="|".join(_norm(k) for k in kopf), spalten={f: int(i) for f, i in spalten.items()},
-                      einheit=einheit or "", lieferant=lieferant or "")
-    db.einstellung_setzen(PROFILE, alle)
+    csv_import.profil_speichern(db, PROFILE, name, kopf, spalten, einheit=einheit or "", lieferant=lieferant or "")
 
 
 def profil_loeschen(db, name):
-    alle = profile(db)
-    alle.pop(name, None)
-    db.einstellung_setzen(PROFILE, alle)
+    csv_import.profil_loeschen(db, PROFILE, name)
 
 
-def profil_fuer(db, kopf):
-    """(Name, Profil) des gespeicherten Importprofils mit genau diesen Spaltenköpfen oder (None, None)."""
-    sig = "|".join(_norm(k) for k in kopf)
-    return next(((n, p) for n, p in profile(db).items() if p.get("kopf") == sig), (None, None))
+def profil_fuer(db, kopf, lieferant=None):
+    """(Name, Profil) des gespeicherten Importprofils für diese Spaltenköpfe oder (None, None): genau gleicher Kopf,
+    sonst ein Profil, dessen Spalten (über den Namen) alle vorkommen – dann mit den Spaltennummern dieser Datei."""
+    n, p, sp = csv_import.profil_passend(profile(db), kopf, lieferant)
+    return (n, dict(p, spalten=sp)) if n else (None, None)
+
+
+def spalten_erkennen(daten):
+    """{Feld: dict(spalte, sicherheit, grund)}: Spaltennamen wie spalten_vorschlag, Gegenprobe am Inhalt."""
+    out = {}
+    inhalt = {"preis": lambda a: a["zahl"], "gueltig_ab": lambda a: a["datum"], "gueltig_bis": lambda a: a["datum"],
+              "gewicht": lambda a: a["zahl"], "wand": lambda a: a["zahl"], "laenge": lambda a: a["zahl"]}
+    for f, i in spalten_vorschlag(daten["kopf"]).items():
+        s_, grund = csv_import.SICHER, f"Spaltenname „{daten['kopf'][i]}“"
+        werte = csv_import.spalten_werte(daten, i)
+        if f in inhalt and any(c.strip() for c in werte) and inhalt[f](csv_import.inhalt_art(werte)) < 0.5:
+            s_, grund = csv_import.VORSCHLAG, grund + ", aber der Inhalt passt nicht dazu – bitte prüfen"
+        out[f] = dict(spalte=i, sicherheit=s_, grund=grund)
+    if not daten.get("mit_kopf", True):
+        return csv_import.spalten_erkennen(daten, {f: () for f in _KOPF}, reihe=("bezeichnung", "preis",
+                                                                                  "materialnr"),
+                                           inhalt=dict(inhalt, bezeichnung=erp_preise._inhalt_bezeichnung,
+                                                       materialnr=erp_preise._inhalt_artikelnr))
+    return out
 
 
 def fehlende(spalten):
@@ -214,11 +225,14 @@ def _profil(text, form, a, b, wand, k):
     return None, None
 
 
-def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=None, heute=None, hand=None):
+def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=None, heute=None, hand=None,
+                ersetzen=(), fortschritt=None):
     """Vorschau: [dict(zeile, gruppe, materialnr, bezeichnung, profil_id, profil_neu, werkstoff_id, werkstoff_neu,
     oberflaeche, basis, preis, preis_m, alt_m, pct, laenge, lieferant, gueltig_ab, hinweis, roh)]. Ändert nichts.
     hand = {Dateizeile: dict(profil_id, werkstoff_id, oberflaeche)}: in der Vorschau von Hand zugeordnete Zeilen
-    (Ausbau 1.3); sie gehen vor jeder Erkennung und tragen hand=True."""
+    (Ausbau 1.3); sie gehen vor jeder Erkennung und tragen hand=True. Gehört der aktive Preis einem anderen
+    Lieferanten oder ist er neuer, bleibt er (lieferant_konflikt, Hinweis); Dateizeilen in ersetzen dürfen ihn
+    ersetzen (von Hand bestätigt)."""
     from . import erp_anlegen
     heute = heute or datetime.date.today()
     k = db.kontext()
@@ -238,7 +252,12 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
     nummern = material_stamm.nummern(db)    # vorhandene Werte über Artikel- und Bestellnummer erkennen (23.11.2026)
     neue_ws = {}
     gesehen, out = {}, []
+    sprung = db.einstellung(erp_preise.PREIS_MARKE)
+    sprung = SPRUNG_PCT if sprung in (None, "") else float(sprung)
+    dez = daten.get("dezimal")
     for n, z in enumerate(daten["zeilen"], daten.get("erste", 2)):
+        if fortschritt and n % 500 == 0:
+            fortschritt(n, len(daten["zeilen"]))
         roh = list(z)
         def zelle(f):
             return _zelle(z, spalten, f)
@@ -251,7 +270,7 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
             e.update(gruppe=FEHLER, hinweis=["leere Zeile"])
             continue
         p_text = zelle("preis")
-        p = erp_preise.zahl(p_text)
+        p = erp_preise.zahl(p_text, dez)
         ein = einheit_lesen(zelle("einheit"), einheit_vorgabe)
         if p is None or p <= 0:
             e.update(gruppe=FEHLER, hinweis=[f"EK-Preis „{p_text}“ nicht lesbar oder ≤ 0"])
@@ -260,8 +279,18 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
             e.update(gruppe=FEHLER, hinweis=[f"Preiseinheit „{zelle('einheit')}“ unbekannt (€/m, €/kg, €/t, "
                                              "€/100 m, €/Stange, €/Stück)"])
             continue
+        w_text = zelle("waehrung")
+        if w_text and w_text.lower().strip(". ") not in ("eur", "euro", "€"):
+            e.update(gruppe=FEHLER, hinweis=[f"Währung {w_text}: nur Euro wird übernommen"])
+            continue
+        bis_text = zelle("gueltig_bis")
+        bis = erp_preise.datum(bis_text) if bis_text else None
+        if bis is not None and bis < heute:
+            e.update(gruppe=FEHLER, hinweis=[f"Preis abgelaufen (gültig bis {bis.strftime('%d.%m.%Y')})"])
+            continue
+        e["gueltig_bis"] = bis.isoformat() if bis else None
         e["basis"], e["preis"] = ein[0], round(p * ein[1], 6)
-        lg = erp_preise.zahl(zelle("laenge"))
+        lg = erp_preise.zahl(zelle("laenge"), dez)
         e["laenge"] = lg if lg and 500 <= lg <= 30000 else (lg * 1000 if lg and 0.5 <= lg <= 30 else None)
         if e["basis"] == "€/Stange" and not e["laenge"]:
             e["laenge"] = 6000.0
@@ -277,7 +306,7 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
             e["hinweis"].append(f"Lieferant „{lief}“ nicht im Lieferantenstamm: Preis ohne Lieferant")
         text = " ".join(x for x in (e["bezeichnung"], zelle("abmessung"), zelle("werkstoff"), zelle("oberflaeche"))
                         if x) + erp_preise.artikelnr_hinweis(e["materialnr"])
-        a, b, w = (erp_preise.zahl(zelle(f)) for f in ("a", "b", "wand"))
+        a, b, w = (erp_preise.zahl(zelle(f), dez) for f in ("a", "b", "wand"))
         if not w and zelle("abmessung") and a is None:
             w = None
         merk = gemerkt.get(e["materialnr"]) if e["materialnr"] else None
@@ -341,7 +370,7 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
             from .stammdaten import flaeche_berechnet
             fl = flaeche_berechnet(vorschlag)
             kgm = fl * float(ws.get("dichte") or 7.85) / 1000 if fl else None
-        gew = erp_preise.zahl(zelle("gewicht"))
+        gew = erp_preise.zahl(zelle("gewicht"), dez)
         if gew and kgm and abs(gew / kgm - 1) > GEWICHT_TOL:
             e["hinweis"].append(f"Gewicht laut ERP {gew:.3f} kg/m, berechnet {kgm:.3f} kg/m (Abmessung prüfen)")
         e["preis_m"] = mp.je_meter(e["basis"], e["preis"], kgm, e["laenge"] or 6000)
@@ -350,9 +379,21 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
             e["alt_m"] = mp.je_meter(alt.get("basis"), alt.get("preis"), kgm, alt.get("lieferlaenge") or 6000)
         if e["alt_m"] and e["preis_m"]:
             e["pct"] = (e["preis_m"] / e["alt_m"] - 1) * 100
-            if abs(e["pct"]) >= SPRUNG_PCT:
+            if abs(e["pct"]) >= sprung:
                 e["hinweis"].append(f"Preissprung {'+' if e['pct'] >= 0 else '−'}{abs(e['pct']):.1f} % – bitte prüfen"
                                    .replace(".", ","))
+                e["markiert"] = True
+        # Master-Auftrag 25.11.2026: ein neuer Lieferantenpreis ersetzt nie unbemerkt den aktiven Preis eines anderen
+        # Lieferanten, und ein älterer Preis nie einen neueren
+        if alt is not None and not e["oberflaeche"] and n not in ersetzen:
+            a_lief = (alt.get("lieferant") or "").strip()
+            if a_lief and e["lieferant"] and a_lief != e["lieferant"]:
+                e["lieferant_konflikt"] = True
+                e["hinweis"].append(f"aktiver Preis ist von {a_lief}: bleibt; der Preis von {e['lieferant']} wird als "
+                                    "Lieferantenpreis gespeichert (aktiven Preis ersetzen nur von Hand)")
+            elif alt.get("gueltig_ab") and str(alt["gueltig_ab"]) > e["gueltig_ab"]:
+                e["lieferant_konflikt"] = True
+                e["hinweis"].append(f"älter als der aktive Preis (gültig ab {alt['gueltig_ab']}): aktiver Preis bleibt")
         sz = stamm.get((e["profil_id"], wid, e["oberflaeche"] or ""))
         if sz and e["materialnr"] and sz.get("materialnr") and str(sz["materialnr"]) != str(e["materialnr"]):
             e["hinweis"].append(f"Materialnummer {sz['materialnr']} → {e['materialnr']}")
@@ -362,7 +403,8 @@ def analysieren(db, daten, spalten, einheit_vorgabe="€/m", lieferant_vorgabe=N
                 e["hinweis"].append(f"Profil {vorschlag['profil_id']} wird angelegt")
             if wneu:
                 e["hinweis"].append(f"Werkstoff {wid} wird angelegt ({wneu.get('norm')})")
-        elif alt is None or e["alt_m"] is None or abs((e["preis_m"] or 0) - e["alt_m"]) >= 0.005:
+        elif (alt is None or e["alt_m"] is None or abs((e["preis_m"] or 0) - e["alt_m"]) >= 0.005) and \
+                not (e.get("lieferant_konflikt") and not e["lieferant"]):
             e["gruppe"] = PREIS
         elif any((e[f] or "") != (sz.get(f2) or "") for f, f2 in (("materialnr", "materialnr"),
                                                                     ("bezeichnung", "bezeichnung"),
@@ -438,37 +480,15 @@ def fehler_csv(posten):
 
 
 # ------------------------------------------------------------------ 4. Ausführen mit Protokoll / 5. Rückgängig
-class _Lauf:
-    def __init__(self, db, import_id):
-        self.db, self.id = db, import_id
-
-    def merken(self, tabelle, zeilen_id, aktion, alt=None, neu=None):
-        with self.db.con:
-            self.db.con.execute("INSERT INTO material_import_posten (import_id, tabelle, zeilen_id, aktion, alt, neu) "
-                                "VALUES (?, ?, ?, ?, ?, ?)", (self.id, tabelle, zeilen_id, aktion,
-                                                              json.dumps(alt, default=str) if alt else None,
-                                                              json.dumps(neu, default=str) if neu else None))
-
-    def neu(self, tabelle, werte):
-        i = self.db.neu(tabelle, werte)
-        self.merken(tabelle, i, "neu", neu=werte)
-        return i
-
-    def aendern(self, tabelle, zeile, werte):
-        alt = {f: zeile.get(f) for f in werte if zeile.get(f) != werte[f]}
-        if not alt:
-            return False
-        for f in alt:
-            self.db.aendern(tabelle, zeile["id"], f, werte[f])
-        kontext = {f: zeile.get(f) for f in ("profil_id", "werkstoff_id", "lieferant", "basis") if zeile.get(f)}
-        self.merken(tabelle, zeile["id"], "geaendert", alt=alt, neu=dict({f: werte[f] for f in alt},
-                                                                          _kontext=kontext))
-        return True
+_Lauf = csv_import.Lauf         # gemeinsame Importbasis (Posten gesammelt, ein Schreibvorgang)
 
 
-def ausfuehren(db, posten, gruppen=AUSFUEHRBAR, datei="", importprofil="", sichern=True):
+def ausfuehren(db, posten, gruppen=AUSFUEHRBAR, datei="", importprofil="", sichern=True, fortschritt=None,
+               aktiv_ersetzen=()):
     """Bestätigte Gruppen übernehmen. Ergebnis dict(import_id, neu, aktualisiert, preise, profile, werkstoffe,
-    sicherung). Jeder Fehler nimmt den ganzen Lauf zurück (ImportFehler)."""
+    sicherung). Jeder Fehler nimmt den ganzen Lauf zurück (ImportFehler). Materialstamm, Preise und
+    Lieferantenpreise werden einmal gelesen (nicht je Zeile). Den aktiven Preis eines anderen Lieferanten ersetzt
+    eine Zeile nur, wenn ihre Dateizeile in aktiv_ersetzen steht (sonst nur Lieferantenpreis)."""
     from . import erp_anlegen  # noqa: F401  (Werkstoff-Vorlagen)
     sich = None
     if sichern:
@@ -478,75 +498,87 @@ def ausfuehren(db, posten, gruppen=AUSFUEHRBAR, datei="", importprofil="", siche
             from . import protokoll
             protokoll.warnung("Materialimport: Sicherung nicht möglich")
     z = zaehlen(posten)
-    benutzer = db.einstellung("benutzer_name") or ""
-    with db.con:
-        cur = db.con.execute(
-            "INSERT INTO material_importe (zeit, datei, importprofil, benutzer, zeilen, neu, aktualisiert, preise, "
-            "unveraendert, doppelt, fehler, offen, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (_jetzt(), str(datei), importprofil or "", benutzer, len(posten), 0, 0, 0, z[GLEICH], z[DOPPELT],
-             z[FEHLER], z[OFFEN], "läuft"))
-    import_id = cur.lastrowid if cur.lastrowid else db.con.execute("SELECT MAX(id) FROM material_importe").fetchone()[0]
-    lauf = _Lauf(db, import_id)
+    lieferanten = sorted({e["lieferant"] for e in posten if e.get("lieferant") and e["gruppe"] in gruppen})
+    lauf = csv_import.lauf_beginnen(db, csv_import.ART_MATERIAL, datei, importprofil, len(posten),
+                                    ", ".join(lieferanten)[:200],
+                                    dict(unveraendert=z[GLEICH], doppelt=z[DOPPELT], fehler=z[FEHLER],
+                                         offen=z[OFFEN]))
+    import_id = lauf.id
     erg = dict(import_id=import_id, neu=0, aktualisiert=0, preise=0, profile=0, werkstoffe=0, sicherung=sich)
     heute = datetime.date.today().isoformat()
+    k = db.kontext()
+    werkstoffe, profile_ = set(k.werkstoffe), set(k.profile)
+    stamm = {(s.get("profil_id"), s.get("werkstoff_id"), s.get("oberflaeche") or ""): s
+             for s in db.zeilen("materialstamm")}
+    preise = {}
+    for p_ in db.zeilen("preise"):
+        preise.setdefault((p_.get("profil_id"), p_.get("werkstoff_id")), p_)
+    lief = {}
+    for x in db.zeilen(mp.LIEFERANTEN_TABELLE):
+        if not x.get("ab_menge"):
+            lief.setdefault((x.get("profil_id"), x.get("werkstoff_id"), x.get("lieferant"), x.get("laenge") or None), x)
+    zu = [e for e in posten if e["gruppe"] in gruppen]
     try:
-        for e in posten:
-            if e["gruppe"] not in gruppen:
-                continue
+        for i, e in enumerate(zu):
+            if fortschritt and i % 200 == 0:
+                fortschritt(i, len(zu))
             wneu = e.get("werkstoff_neu")
-            if wneu and wneu["werkstoff_id"] not in db.kontext().werkstoffe:
+            if wneu and wneu["werkstoff_id"] not in werkstoffe:
                 lauf.neu("werkstoffe", {kk: v for kk, v in wneu.items() if v is not None})
+                werkstoffe.add(wneu["werkstoff_id"])
                 erg["werkstoffe"] += 1
             pv = e.get("profil_neu")
-            if pv and pv["profil_id"] not in db.kontext().profile:
+            if pv and pv["profil_id"] not in profile_:
                 lauf.neu("profile", {kk: v for kk, v in dict(profil_id=pv["profil_id"], form=pv["form"], a=pv["a"],
                                                              b=pv.get("b"), wand=pv["wand"],
                                                              bemerkung="aus ERP-Materialimport").items()
                                      if v is not None})
+                profile_.add(pv["profil_id"])
                 erg["profile"] += 1
             pid, wid, ober = e["profil_id"], e["werkstoff_id"], e["oberflaeche"] or ""
             # Materialstamm
-            sz = next((s for s in db.zeilen("materialstamm") if (s.get("profil_id"), s.get("werkstoff_id"),
-                                                                  s.get("oberflaeche") or "") == (pid, wid, ober)), None)
+            sz = stamm.get((pid, wid, ober))
             werte = {f: e[f] for f in ("materialnr", "bezeichnung", "handelsname") if e.get(f)}
             if e.get("lieferant"):
                 werte["lieferant"] = e["lieferant"]
             if sz is None:
-                lauf.neu("materialstamm", dict(werte, profil_id=pid, werkstoff_id=wid, oberflaeche=ober or None,
-                                               aktiv="ja", angelegt=heute, geaendert=heute,
-                                               quelle=f"ERP-Import {heute}"))
+                w = dict(werte, profil_id=pid, werkstoff_id=wid, oberflaeche=ober or None, aktiv="ja", angelegt=heute,
+                         geaendert=heute, quelle=f"ERP-Import {heute}")
+                stamm[(pid, wid, ober)] = dict(w, id=lauf.neu("materialstamm", w))
                 erg["neu"] += 1
             elif lauf.aendern("materialstamm", sz, dict(werte, geaendert=heute)):
                 erg["aktualisiert"] += 1 if e["gruppe"] == AKTUALISIERT else 0
             if ober:            # Preise gelten für Rohware; Oberfläche ist ein Aufpreis
                 continue
-            # aktiver Preis
-            alt = next((p for p in db.zeilen("preise") if (p.get("profil_id"), p.get("werkstoff_id")) == (pid, wid)),
-                       None)
+            # aktiver Preis (nie unbemerkt den Preis eines anderen Lieferanten oder einen neueren ersetzen)
+            alt = preise.get((pid, wid))
             pw = dict(basis=e["basis"], preis=e["preis"], gueltig_ab=e["gueltig_ab"])
             if e.get("lieferant"):
                 pw["lieferant"] = e["lieferant"]
             if e["basis"] == "€/Stange" or (e.get("laenge") and alt is None):
                 pw["lieferlaenge"] = e["laenge"]
             if alt is None:
-                lauf.neu("preise", dict(pw, profil_id=pid, werkstoff_id=wid))
+                w = dict(pw, profil_id=pid, werkstoff_id=wid)
+                preise[(pid, wid)] = dict(w, id=lauf.neu("preise", w))
                 erg["preise"] += 1
+            elif e.get("lieferant_konflikt") and e["zeile"] not in aktiv_ersetzen:
+                pass
             elif lauf.aendern("preise", alt, pw):
                 erg["preise"] += 1
             # Lieferantenpreis
             if e.get("lieferant"):
                 lg = e.get("laenge")
-                lz = next((x for x in db.zeilen(mp.LIEFERANTEN_TABELLE) if (x.get("profil_id"), x.get("werkstoff_id"),
-                           x.get("lieferant")) == (pid, wid, e["lieferant"]) and (x.get("laenge") or None) == lg
-                           and not x.get("ab_menge")), None)
+                lz = lief.get((pid, wid, e["lieferant"], lg or None))
                 lw = dict(basis=e["basis"], preis=e["preis"], gueltig_ab=e["gueltig_ab"])
                 if e.get("bestellnr") or e.get("materialnr"):
                     lw["artikelnr"] = e.get("bestellnr") or e["materialnr"]
                 if lz is None:
-                    lauf.neu(mp.LIEFERANTEN_TABELLE, dict(lw, profil_id=pid, werkstoff_id=wid,
-                                                          lieferant=e["lieferant"], laenge=lg))
-                else:
-                    lauf.aendern(mp.LIEFERANTEN_TABELLE, lz, lw)
+                    w = dict(lw, profil_id=pid, werkstoff_id=wid, lieferant=e["lieferant"], laenge=lg)
+                    lief[(pid, wid, e["lieferant"], lg or None)] = dict(w, id=lauf.neu(mp.LIEFERANTEN_TABELLE, w))
+                    if e.get("lieferant_konflikt"):
+                        erg["preise"] += 1
+                elif lauf.aendern(mp.LIEFERANTEN_TABELLE, lz, lw) and e.get("lieferant_konflikt"):
+                    erg["preise"] += 1
             if e.get("materialnr"):     # Einkäufe (erp_preise) mit derselben Artikelnummer zählen für dieses Material
                 try:
                     erp_preise.zuordnung_merken(db, erp_preise.schluessel(e["materialnr"], e["bezeichnung"]),
@@ -554,14 +586,14 @@ def ausfuehren(db, posten, gruppen=AUSFUEHRBAR, datei="", importprofil="", siche
                 except Exception:       # noqa: BLE001
                     from . import protokoll
                     protokoll.warnung("Materialimport: EK-Zuordnung nicht gemerkt")
+        lauf.flush()
     except Exception as ex:     # noqa: BLE001  (alles zurücknehmen, dann melden)
+        lauf.flush()
         rueckgaengig(db, import_id, status="abgebrochen, zurückgenommen")
         raise ImportFehler(f"Import abgebrochen und vollständig zurückgenommen: {ex}") from ex
-    with db.con:
-        db.con.execute("UPDATE material_importe SET neu=?, aktualisiert=?, preise=?, status=?, protokoll=? WHERE id=?",
-                       (erg["neu"], erg["aktualisiert"], erg["preise"], "übernommen",
-                        json.dumps(dict(profile=erg["profile"], werkstoffe=erg["werkstoffe"],
-                                        sicherung=str(sich or ""))), import_id))
+    csv_import.lauf_abschliessen(db, lauf, erg["neu"], erg["aktualisiert"], erg["preise"],
+                                 protokoll=dict(profile=erg["profile"], werkstoffe=erg["werkstoffe"],
+                                                sicherung=str(sich or "")))
     from . import ki_protokoll
     ki_protokoll.schreiben(db, "Materialprüfung", "ERP-Materialimport",
                            ergebnis=f"{erg['neu']} neu, {erg['preise']} Preise, {erg['profile']} Profile, "
@@ -570,9 +602,9 @@ def ausfuehren(db, posten, gruppen=AUSFUEHRBAR, datei="", importprofil="", siche
 
 
 def laeufe(db):
-    """Importhistorie, neueste zuerst: [dict(id, zeit, datei, importprofil, benutzer, zeilen, neu, aktualisiert,
-    preise, unveraendert, doppelt, fehler, offen, status)]."""
-    return [dict(r) for r in db.con.execute("SELECT * FROM material_importe ORDER BY id DESC")]
+    """Importhistorie (alle Importarten), neueste zuerst: [dict(id, zeit, datei, importprofil, benutzer, zeilen, neu,
+    aktualisiert, preise, unveraendert, doppelt, fehler, offen, status, art, lieferant)]."""
+    return csv_import.laeufe(db)
 
 
 def letzter_lauf(db):
@@ -584,35 +616,20 @@ def letzter_lauf(db):
     return dict(r) if r else None
 
 
-def posten_des_laufs(db, import_id):
-    return [dict(r, alt=json.loads(r["alt"]) if r["alt"] else None, neu=json.loads(r["neu"]) if r["neu"] else None)
-            for r in db.con.execute("SELECT * FROM material_import_posten WHERE import_id=? ORDER BY id",
-                                    (import_id,))]
+posten_des_laufs = csv_import.posten_des_laufs
 
 
 def rueckgaengig(db, import_id, status="rückgängig gemacht"):
-    """Einen Importlauf zurücknehmen: in umgekehrter Reihenfolge neue Zeilen löschen und geänderte Felder auf den
-    alten Wert setzen. Später von Hand geänderte Felder werden nicht überschrieben (Meldung). Ergebnis: (Anzahl
-    zurückgenommen, [Meldungen])."""
-    n, meldungen = 0, []
-    for p in reversed(posten_des_laufs(db, import_id)):
-        zeile = next((z for z in db.zeilen(p["tabelle"]) if z.get("id") == p["zeilen_id"]), None)
-        if zeile is None:
-            continue
-        if p["aktion"] == "neu":
-            db.loeschen(p["tabelle"], [p["zeilen_id"]])
-            n += 1
-        else:
-            for f, v in (p["alt"] or {}).items():
-                if zeile.get(f) != (p["neu"] or {}).get(f):
-                    meldungen.append(f"{p['tabelle']} Zeile {p['zeilen_id']}: {f} inzwischen von Hand geändert, "
-                                     "bleibt")
-                    continue
-                db.aendern(p["tabelle"], p["zeilen_id"], f, v)
-            n += 1
-    with db.con:
-        db.con.execute("UPDATE material_importe SET status=? WHERE id=?", (status, import_id))
-    return n, meldungen
+    """Einen Importlauf zurücknehmen (jede Importart: EK-Einkäufe und Kunden mit ihren eigenen Posten). Ergebnis:
+    (Anzahl zurückgenommen, [Meldungen])."""
+    r = db.con.execute("SELECT art FROM material_importe WHERE id=?", (import_id,)).fetchone()
+    art = (r[0] if r else None) or csv_import.ART_MATERIAL
+    if art == csv_import.ART_EK:
+        return erp_preise.rueckgaengig(db, import_id, status)
+    if art == csv_import.ART_KUNDEN:
+        from . import kunden_csv
+        return kunden_csv.rueckgaengig(db, import_id, status)
+    return csv_import.rueckgaengig(db, import_id, status)
 
 
 def preis_aenderungen(db, import_id=None):

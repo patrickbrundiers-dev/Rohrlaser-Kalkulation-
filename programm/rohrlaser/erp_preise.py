@@ -19,14 +19,12 @@ Die CSV enthält je Kauf Kaufdatum, Menge [m], Meterpreis [€/m], Artikelnummer
 
 Die Käufe stehen nur in der eigenen Datendatei (erp_kaeufe) und werden nicht mit den Kollegen abgeglichen; die im
 Angebot gewählten Preise gehen mit dem Angebot an alle Plätze. Ohne Qt-Fenster."""
-import csv
 import datetime
-import io
 import math
 import re
 from statistics import median
 
-from . import db_verbindung, kunden_csv
+from . import csv_import, db_verbindung
 
 FELDER = (("datum", "Kaufdatum"), ("menge", "Menge [m]"), ("preis", "Meterpreis [€/m]"),
           ("artikelnr", "Artikelnummer"), ("bezeichnung", "EK-Artikel (Bezeichnung)"),
@@ -34,7 +32,11 @@ FELDER = (("datum", "Kaufdatum"), ("menge", "Menge [m]"), ("preis", "Meterpreis 
           # („EN 10219- S235 HL 6m gestrahlt“), Preiseinheit PE (Preis je PE Meter)
           ("zusatz", "Zusatztext (Norm, Güte)"), ("pe", "Preiseinheit"),
           # Patrick 23.11.2026: Lieferzeit je Material = Liefertermin (L-Termin) minus Kaufdatum (Datum Erf.)
-          ("liefertermin", "Liefertermin"))
+          ("liefertermin", "Liefertermin"),
+          # Master-Auftrag EK-CSV-Import 25.11.2026: weitere Spalten aus ERP-, Warenwirtschafts- und Lieferantendateien
+          ("lieferant", "Lieferant"), ("bestellnr", "Lieferantenartikelnummer"), ("werkstoff", "Werkstoff"),
+          ("abmessung", "Abmessung / Profil"), ("oberflaeche", "Oberfläche"), ("einheit", "Mengeneinheit"),
+          ("waehrung", "Währung"), ("laenge", "Stangenlänge [mm]"))
 FELD_TITEL = dict(FELDER)
 PFLICHT = ("datum", "menge", "preis", "bezeichnung")      # Artikelnummer darf fehlen (dann zählt die Bezeichnung)
 VORLAGEN = "erp_vorlagen"       # Einstellung (intern): {Spaltenkopf mit | getrennt: {Feld: Spaltennummer}}
@@ -42,16 +44,40 @@ GRUEN, GELB, ROT = "grün", "gelb", "rot"
 
 # Spaltenköpfe je Feld, normalisiert (klein, nur Buchstaben/Ziffern): erst gleich, dann enthalten
 _KOPF = {"datum": ("kaufdatum", "datumerf", "bestelldatum", "datum", "belegdatum", "lieferdatum", "eingangsdatum",
-                   "rechnungsdatum", "wareneingang", "buchungsdatum"),
-         "preis": ("meterpreis", "preisjem", "preism", "eurom", "ekpreis", "einkaufspreis", "einzelpreis", "preis"),
-         "artikelnr": ("artikelnummer", "artikelnr", "artnr", "materialnummer", "materialnr", "matnr", "nummer"),
-         "menge": ("mengeinmeter", "mengem", "menge", "meter", "laenge", "länge"),
-         "bezeichnung": ("ekartikel", "artikelbezeichnung", "bezeichnung", "artikeltext", "beschreibung", "text",
-                         "artikel", "material"),
-         "zusatz": ("zusatztext", "zusatz", "langtext"),
-         "pe": ("pe", "preiseinheit", "preiseinh"),
-         "liefertermin": ("ltermin", "liefertermin", "lieferterminbestaetigt", "liefertermingeplant", "wunschtermin")}
-_REIHE = ("preis", "artikelnr", "liefertermin", "datum", "menge", "zusatz", "bezeichnung", "pe")    # „Meterpreis“ enthält „meter“: Preis zuerst
+                   "rechnungsdatum", "wareneingang", "buchungsdatum", "erfassungsdatum", "auftragsdatum", "date",
+                   "orderdate", "purchasedate", "invoicedate"),
+         "preis": ("meterpreis", "preisjem", "preism", "eurom", "ekpreis", "einkaufspreis", "einzelpreis",
+                   "nettopreis", "nettoeinzelpreis", "stueckpreis", "preisjeeinheit", "preis", "ek", "price",
+                   "unitprice", "netprice", "purchaseprice"),
+         "artikelnr": ("artikelnummer", "artikelnr", "artnr", "materialnummer", "materialnr", "matnr", "sachnummer",
+                       "itemno", "itemnumber", "articleno", "articlenumber", "sku", "nummer"),
+         "menge": ("mengeinmeter", "mengem", "menge", "bestellmenge", "liefermenge", "eingangsmenge", "meter",
+                   "quantity", "qty", "laenge", "länge"),
+         "bezeichnung": ("ekartikel", "artikelbezeichnung", "materialbezeichnung", "bezeichnung", "artikeltext",
+                         "kurztext", "beschreibung", "text", "description", "artikel", "material"),
+         "zusatz": ("zusatztext", "zusatz", "langtext", "bezeichnung2", "zusatzbezeichnung"),
+         "pe": ("pe", "preiseinheit", "preiseinh", "priceunit"),
+         "liefertermin": ("ltermin", "liefertermin", "lieferterminbestaetigt", "liefertermingeplant", "wunschtermin"),
+         "lieferant": ("lieferant", "lieferantenname", "lieferantname", "kreditor", "kreditorname", "supplier",
+                       "vendor", "hersteller", "haendler", "händler"),
+         "bestellnr": ("lieferantenartikelnummer", "lieferantenartikelnr", "lieferantenartnr", "artikelnrlieferant",
+                       "artikelnummerlieferant", "herstellerartikelnummer", "supplierpartno", "vendorpartno",
+                       "supplieritemno", "fremdartikelnummer", "fremdartnr"),
+         "werkstoff": ("werkstoff", "werkstoffnummer", "guete", "güte", "stahlsorte", "stahlguete", "qualitaet",
+                       "qualität", "grade", "materialqualitaet"),
+         "abmessung": ("abmessung", "abmessungen", "dimension", "masse", "maße", "groesse", "größe", "profil",
+                       "profilabmessung", "size"),
+         "oberflaeche": ("oberflaeche", "oberfläche", "ausfuehrung", "ausführung", "finish", "surface"),
+         "einheit": ("mengeneinheit", "me", "einheit", "unit", "uom", "basismengeneinheit"),
+         "waehrung": ("waehrung", "währung", "whrg", "wahrung", "currency", "cur"),
+         "laenge": ("stangenlaenge", "stangenlänge", "lieferlaenge", "lieferlänge", "fixlaenge", "laengemm")}
+# spezifische Felder zuerst: „Meterpreis“ enthält „meter“, „Lieferantenartikelnummer“ enthält „artikelnummer“
+_REIHE = ("preis", "bestellnr", "artikelnr", "liefertermin", "datum", "menge", "zusatz", "bezeichnung", "pe",
+          "lieferant", "werkstoff", "abmessung", "oberflaeche", "einheit", "waehrung", "laenge")
+NUR_GENAU = ("pe", "liefertermin", "einheit", "waehrung", "laenge")   # nur gleicher Name (kurze Wörter stecken in vielen)
+IMPORTPROFILE = "ek_importprofile"      # Einstellung (intern): Importprofile des EK-Imports (csv_import.profil_*)
+PREIS_MARKE = "ek_preis_markierung"     # Einstellung: Preisänderung ab so viel Prozent markieren (Vorgabe 10 %)
+PREIS_MARKE_VORGABE = 10.0
 
 
 class ErpFehler(ValueError):
@@ -63,43 +89,20 @@ def _norm(t):
 
 
 # ------------------------------------------------------------------ 1. Datei lesen
-def lesen(roh):
-    """CSV (Bytes oder Text) -> dict(kopf, zeilen [Zellen], erste = Dateizeile der ersten Datenzeile).
-    Kodierung und Trennzeichen wie beim Kunden-Import; die Kopfzeile ist die erste Zeile mit mindestens drei
-    Textzellen (eine Titelzeile davor wird übersprungen)."""
-    text = kunden_csv._text(roh)
-    zeilen = text.splitlines()
-    if not any(z.strip() for z in zeilen):
-        raise ErpFehler("Die Datei ist leer.")
-    trenner, sep_zeile = _trenner(zeilen)
-    if sep_zeile:
-        zeilen = zeilen[1:]
-    alle = [[kunden_csv._excel_wert(c).strip() for c in z] for z in csv.reader(io.StringIO("\n".join(zeilen)),
-                                                                               delimiter=trenner)]
-    for i, z in enumerate(alle[:15]):
-        texte = [c for c in z if c and zahl(c) is None and datum(c) is None]
-        if len(texte) >= 3:
-            daten = [r for r in alle[i + 1:] if any(c for c in r)]
-            return dict(kopf=z, zeilen=daten, erste=i + 2 + (1 if sep_zeile else 0))
-    raise ErpFehler("Keine Kopfzeile gefunden: die Datei braucht eine Zeile mit den Spaltennamen (z. B. Kaufdatum; "
-                    "Menge; Meterpreis; Artikelnummer; EK-Artikel).")
+def lesen(roh, dateiname=""):
+    """CSV (Bytes oder Text, auch .xlsx) -> dict(kopf, zeilen [Zellen], erste = Dateizeile der ersten Datenzeile,
+    mit_kopf, kodierung, trenner, dezimal, meldungen) über die gemeinsame Importbasis (csv_import.datei_lesen):
+    Kodierung, Trennzeichen, Kopfzeile (Titelzeilen davor werden übersprungen) oder Datei ohne Kopfzeile (Spalten
+    werden dann am Inhalt erkannt, spalten_erkennen)."""
+    try:
+        return csv_import.datei_lesen(roh, dateiname, bekannte=[w for ws in _KOPF.values() for w in ws])
+    except csv_import.ImportFehler as e:
+        raise ErpFehler(str(e)) from None
 
 
 def _trenner(zeilen):
-    """Trennzeichen wie kunden_csv._trenner, aber nach Gleichmäßigkeit statt nach der größten Anzahl in einer Zeile:
-    das Zeichen, das in den meisten der ersten Zeilen so oft steht wie in der Kopfzeile. Sonst gewinnt in einer
-    kurzen Liste mit Semikolon eine Zeile mit drei Dezimalkommas („Rohr 42,4x2,0 …;2,60“) und nichts wird gelesen."""
-    t, sep_zeile = kunden_csv._trenner(zeilen)
-    if sep_zeile:
-        return t, True
-    probe = [z for z in zeilen[:15] if z.strip()]
-    if not probe:
-        return t, False
-
-    def guete(c):
-        n = probe[0].count(c)
-        return (sum(1 for z in probe if z.count(c) == n) if n else 0, n, c == ";", c == t)
-    return max(kunden_csv.TRENNER, key=guete), False
+    """Trennzeichen nach Gleichmäßigkeit (csv_import.trenner_erkennen)."""
+    return csv_import.trenner_erkennen(zeilen)
 
 
 def spalten_vorschlag(kopf):
@@ -111,7 +114,7 @@ def spalten_vorschlag(kopf):
             if feld in out:
                 continue
             for wort in _KOPF[feld]:
-                if not gleich and feld in ("pe", "liefertermin"):
+                if not gleich and (feld in NUR_GENAU or len(wort) < 3):
                     break               # „pe“ steckt in vielen Wörtern, der Liefertermin darf kein Datum wegnehmen: nur genau
                 treffer = [i for i in sorted(frei) if (namen[i] == wort if gleich else wort in namen[i])]
                 if treffer:
@@ -121,12 +124,56 @@ def spalten_vorschlag(kopf):
     return out
 
 
+def _inhalt_bezeichnung(a):
+    return max(a["masse"], 0.9 * a["text"] if a["masse"] >= 0.2 else 0)
+
+
+def _inhalt_artikelnr(a):
+    """Artikelnummern: Ziffern oder kurze Codes, meist verschieden, keine Abmessung, kein Datum."""
+    if a["masse"] >= 0.1 or a["datum"] >= 0.1 or a["eindeutig"] < 0.05:
+        return 0
+    return 1.0 if a["ganz"] > 0.9 or (a["text"] > 0.5 and a["zahl"] < 0.1) else 0
+
+
+# Gegenprobe und Erkennung ohne Kopfzeile: welcher Inhalt passt zu welchem Feld (csv_import.inhalt_art)
+INHALT = {"datum": lambda a: a["datum"],
+          "liefertermin": lambda a: a["datum"],
+          "preis": lambda a: a["zahl"] if a["datum"] < 0.5 and a["ganz"] < 0.6 else (0.4 if a["zahl"] > 0.9 else 0),
+          "menge": lambda a: a["zahl"] if a["datum"] < 0.5 else 0,
+          "bezeichnung": _inhalt_bezeichnung,
+          "artikelnr": _inhalt_artikelnr}
+
+
+def spalten_erkennen(daten):
+    """{Feld: dict(spalte, sicherheit, grund)} über die gemeinsame Spaltenerkennung: erst nach Spaltennamen (wie
+    spalten_vorschlag), Gegenprobe am Inhalt (Spalte „Preis“ mit Datumswerten = nur Vorschlag); ohne Kopfzeile
+    Datum, Preis, Menge, EK-Artikel und Artikelnummer am Inhalt (immer nur Vorschlag zum Bestätigen)."""
+    if daten.get("mit_kopf", True):
+        out = {}
+        for f, i in spalten_vorschlag(daten["kopf"]).items():
+            s, grund = csv_import.SICHER, f"Spaltenname „{daten['kopf'][i]}“"
+            werte = csv_import.spalten_werte(daten, i)
+            if f in INHALT and any(c.strip() for c in werte) and INHALT[f](csv_import.inhalt_art(werte)) < 0.5:
+                s, grund = csv_import.VORSCHLAG, grund + ", aber der Inhalt passt nicht dazu – bitte prüfen"
+            out[f] = dict(spalte=i, sicherheit=s, grund=grund)
+        return out
+    return csv_import.spalten_erkennen(daten, {f: () for f in _KOPF},
+                                       reihe=("datum", "liefertermin", "bezeichnung", "preis", "menge", "artikelnr"),
+                                       inhalt=INHALT)
+
+
 def vorlage_schluessel(kopf):
     return "|".join(_norm(k) for k in kopf)
 
 
-def zuordnung_fuer(kopf, vorlagen):
-    """Gespeicherte Zuordnung für genau diesen Spaltenkopf, sonst der Vorschlag. Ergebnis (zuordnung, gespeichert)."""
+def zuordnung_fuer(kopf, vorlagen, profile=None):
+    """Gespeicherte Zuordnung für genau diesen Spaltenkopf (Vorlage aus dem letzten Import), sonst ein passendes
+    Importprofil (auch bei anderer Spaltenreihenfolge, csv_import.profil_passend), sonst der Vorschlag.
+    Ergebnis (zuordnung, gespeichert)."""
+    if profile and vorlage_schluessel(kopf) not in (vorlagen or {}):
+        _n, _p, sp = csv_import.profil_passend(profile, kopf)
+        if sp:
+            return sp, True
     v = (vorlagen or {}).get(vorlage_schluessel(kopf))
     if v and all(isinstance(i, int) and 0 <= i < len(kopf) for i in v.values()):
         v = dict(v)
@@ -142,37 +189,8 @@ def fehlende(zuordnung):
     return [f for f in PFLICHT if f not in zuordnung]
 
 
-def zahl(t):
-    """Zahl aus Text: 1.234,56 / 1,234.56 / 12,5 / 12.5 / „3,45 €“ / „120 m“; None, wenn keine Zahl."""
-    s = str(t or "").replace(" ", " ").strip()
-    s = re.sub(r"(?i)\s*(€|eur|euro|€/m|m|lfm|lfdm)\.?$", "", s).replace("€", "").replace(" ", "")
-    if not re.fullmatch(r"[-+]?[\d.,]*\d[\d.,]*", s or "x"):
-        return None
-    if "," in s and "." in s:
-        s = s.replace(".", "").replace(",", ".") if s.rfind(",") > s.rfind(".") else s.replace(",", "")
-    elif "," in s:
-        s = s.replace(".", "").replace(",", ".") if s.count(",") == 1 else s.replace(",", "")
-    elif s.count(".") > 1 or re.fullmatch(r"[-+]?\d{1,3}\.\d{3}", s):
-        s = s.replace(".", "")              # 1.250 = 1250 (deutsche Tausenderpunkte)
-    try:
-        return float(s)
-    except ValueError:
-        return None
-
-
-def datum(t):
-    """Datum aus TT.MM.JJJJ, TT.MM.JJ, JJJJ-MM-TT, TT/MM/JJJJ (auch mit Uhrzeit) oder Excel-Tageszahl; sonst None."""
-    s = str(t or "").strip().split(" ")[0].split("T")[0]
-    for f in ("%d.%m.%Y", "%d.%m.%y", "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y.%m.%d", "%Y%m%d"):
-        try:
-            d = datetime.datetime.strptime(s, f).date()
-            if 1990 <= d.year <= 2100:
-                return d
-        except ValueError:
-            pass
-    if re.fullmatch(r"\d{5}", s) and 30000 <= int(s) <= 60000:          # Excel: Tage seit 30.12.1899
-        return datetime.date(1899, 12, 30) + datetime.timedelta(days=int(s))
-    return None
+zahl = csv_import.zahl          # 1.234,56 / 1,234.56 / „3,45 €“ (gemeinsame Importbasis)
+datum = csv_import.datum        # TT.MM.JJJJ, ISO, Excel-Tageszahl
 
 
 def schluessel(artikelnr, bezeichnung):
@@ -181,39 +199,108 @@ def schluessel(artikelnr, bezeichnung):
     return a if a else "#" + " ".join(str(bezeichnung or "").split()).lower()
 
 
-def kaeufe(daten, zuordnung):
+# Mengeneinheiten (Spalte „Mengeneinheit“): Meter ist die Vorgabe
+_ME_METER = ("m", "lfm", "lfdm", "meter", "mtr", "lm", "lfdmeter")
+_ME_MM = ("mm", "millimeter")
+_ME_STANGE = ("st", "stk", "stck", "stück", "stueck", "stange", "stangen", "stg", "pcs", "pc", "ea")
+_ME_KG = ("kg", "kilogramm", "kilo")
+_ME_T = ("t", "to", "tonne", "tonnen")
+_EURO = ("", "eur", "euro", "€")
+
+
+def kaeufe(daten, zuordnung, k=None, fehlerliste=None):
     """Käufe aus lesen() mit der Spaltenzuordnung: (Liste dict(zeile, datum, menge, preis, artikelnr, bezeichnung,
-    schluessel), Meldungen). Zeilen mit Fehler (Datum, Menge, Preis nicht lesbar, Menge/Preis ≤ 0, z. B. Gutschrift)
-    werden übersprungen und gemeldet; leere Zeilen und Summenzeilen ohne Datum still."""
+    schluessel, liefertermin, lieferant, bestellnr, waehrung), Meldungen). Zeilen mit Fehler (Datum, Menge, Preis
+    nicht lesbar, Menge/Preis ≤ 0, z. B. Gutschrift, fremde Währung, Mengeneinheit nicht umrechenbar) werden
+    übersprungen und gemeldet; leere Zeilen und Summenzeilen ohne Datum still. fehlerliste (Liste) bekommt je
+    Fehlerzeile (Dateizeile, Grund, Zellen) für den Fehlerbericht.
+
+    Mengeneinheit: Meter (Vorgabe), mm, Stück/Stangen (× Stangenlänge, ohne Spalte 6.000 mm), kg und t (über kg/m
+    des erkannten Profils und Werkstoffs; dafür braucht es den Stammdaten-Kontext k). Der Preis gilt je
+    Mengeneinheit (bzw. je PE) und wird mit umgerechnet, gespeichert wird immer Meter und €/m. Weitere Spalten
+    (Abmessung, Werkstoff, Oberfläche) ergänzen die Bezeichnung für die Erkennung."""
     out, meldungen = [], []
+    dez = daten.get("dezimal")
+    fehlerliste = fehlerliste if fehlerliste is not None else []
     for n, z in enumerate(daten["zeilen"], daten.get("erste", 2)):
         def zelle(feld):
             i = zuordnung.get(feld)
             return z[i].strip() if i is not None and i < len(z) else ""
+
+        def fehler_(texte):
+            meldungen.append(f"Zeile {n}: " + ", ".join(texte) + " – übersprungen")
+            fehlerliste.append((n, ", ".join(texte), list(z)))
         bez, d_text = zelle("bezeichnung"), zelle("datum")
         if not bez and not d_text:
             continue
         if not d_text and re.match(r"(?i)\s*(summe|gesamt|total)", " ".join(z)):
             continue
-        d, m, p = datum(d_text), zahl(zelle("menge")), zahl(zelle("preis"))
+        d, m, p = datum(d_text), zahl(zelle("menge"), dez), zahl(zelle("preis"), dez)
         fehler = [f"{FELD_TITEL[f]} „{t}“ nicht lesbar" for f, w, t in
                   (("datum", d, d_text), ("menge", m, zelle("menge")), ("preis", p, zelle("preis"))) if w is None]
         if not bez:
             fehler.append("EK-Artikel leer")
         if not fehler and (m <= 0 or p <= 0):
             fehler.append("Menge oder Preis nicht größer 0 (Gutschrift/Storno?)")
+        whrg = zelle("waehrung")
+        if not fehler and whrg.lower().strip(". ") not in _EURO:
+            fehler.append(f"Währung {whrg}: nur Euro wird übernommen (Preis bitte im ERP in Euro exportieren)")
         if fehler:
-            meldungen.append(f"Zeile {n}: " + ", ".join(fehler) + " – übersprungen")
+            fehler_(fehler)
             continue
-        pe = zahl(zelle("pe")) if zelle("pe") else None
+        pe = zahl(zelle("pe"), dez) if zelle("pe") else None
         if pe and pe > 0 and pe != 1:
             p = p / pe          # Preis je PE (z. B. je 100 m)
         art = zelle("artikelnr")
         zus = _zusatz(zelle("zusatz"))
-        out.append(dict(zeile=n, datum=d, menge=m, preis=p, artikelnr=art, liefertermin=datum(zelle("liefertermin")),
-                        bezeichnung=" ".join(bez.split()) + (f" · {zus}" if zus else ""),
-                        schluessel=schluessel(art, bez)))
+        extra = [x for x in (zelle("abmessung"), zelle("werkstoff"), zelle("oberflaeche"))
+                 if x and x.lower() not in bez.lower()]
+        text = " ".join((bez + (" " + " ".join(extra) if extra else "")).split())
+        me = re.sub(r"[^a-zäöüß]", "", zelle("einheit").lower())
+        hinweis = ""
+        if me in _ME_MM:
+            m, p = m / 1000, p * 1000
+        elif me in _ME_STANGE:
+            lg = zahl(zelle("laenge"), dez)
+            lg = lg * 1000 if lg and lg <= 30 else lg
+            if not lg or not 500 <= lg <= 30000:
+                lg, hinweis = 6000.0, " (Stangenlänge 6 m angenommen)"
+            m, p = m * lg / 1000, p / (lg / 1000)
+        elif me in _ME_KG or me in _ME_T:
+            kgm = _kg_je_m_text(text + artikelnr_hinweis(art), k)
+            if not kgm:
+                fehler_([f"Menge in {zelle('einheit')}: Profil/Werkstoff nicht erkannt, nicht in Meter umrechenbar"])
+                continue
+            f = 1000.0 if me in _ME_T else 1.0
+            m, p = m * f / kgm, p / f * kgm
+        elif me and me not in _ME_METER:
+            fehler_([f"Mengeneinheit „{zelle('einheit')}“ unbekannt (m, mm, Stück/Stange, kg, t)"])
+            continue
+        out.append(dict(zeile=n, datum=d, menge=m if not me or me in _ME_METER else round(m, 6),
+                        preis=p if not me or me in _ME_METER else round(p, 6), artikelnr=art,
+                        liefertermin=datum(zelle("liefertermin")),
+                        bezeichnung=text + (f" · {zus}" if zus else ""), schluessel=schluessel(art, bez),
+                        lieferant=zelle("lieferant"), bestellnr=zelle("bestellnr"), hinweis=hinweis.strip(" ()"),
+                        roh=list(z)))
     return out, meldungen
+
+
+def _kg_je_m_text(text, k):
+    """kg/m für eine Bezeichnung (Profil und Werkstoff erkannt) oder None."""
+    if k is None:
+        return None
+    from .rechnen import kg_je_m
+    e = zerlegen(text, k)
+    if not e["werkstoff_id"]:
+        return None
+    if e["profil_id"]:
+        return kg_je_m(e["profil_id"], e["werkstoff_id"], k)
+    v = e.get("vorschlag")
+    if v:
+        from .stammdaten import flaeche_berechnet
+        fl = flaeche_berechnet(v)
+        return fl * float(k.werkstoffe[e["werkstoff_id"]].get("dichte") or 7.85) / 1000 if fl else None
+    return None
 
 
 def _zusatz(t):
@@ -286,16 +373,31 @@ def _f(x):
     return float(str(x).replace(",", "."))
 
 
+# „RR 50/50/3“, „QR 40/40/3“: Maße mit Schrägstrich, nur mit drei Zahlen (zwei Zahlen „S235/S275“, „1/2 Zoll“
+# sind keine Abmessung)
+_MASSE_SCHRAEG = re.compile(rf"(?<![\d.,/])({_Z})\s*/\s*({_Z})\s*/\s*({_Z})(?![\d/])")
+# Kürzel, die je nach ERP Rund- oder Rechteckrohr heißen („RR“): bei drei Maßen entscheidet die Zahl der Maße
+_FORM_KURZ = re.compile(r"\brr\b|\bro\b")
+
+
 def masse(text):
-    """Profilform und Maße aus der Bezeichnung: dict(form, a, b, wand) oder None."""
+    """Profilform und Maße aus der Bezeichnung: dict(form, a, b, wand) oder None. Schreibweisen wie „50 x 50 x 3“,
+    „50X50X3 mm“, „50×50×3“, „Ø 60 x 3“ und „50/50/3“ ergeben dieselben Maße (Schreibweise wie masstext)."""
     t = str(text or "")
+    for z_ in "∅⌀":
+        t = t.replace(z_, "Ø")
     # erste Abmessung ohne Längenangabe („16x 4500mm“ im Zusatztext ist Stückzahl × Länge, kein Profil)
     m = next((x for x in _MASSE.finditer(t) if all(_f(g) < 1000 for g in x.groups() if g)), None)
+    if not m:
+        m = next((x for x in _MASSE_SCHRAEG.finditer(t) if all(_f(g) < 1000 for g in x.groups())), None)
     if not m:
         return None
     z = [_f(x) for x in m.groups() if x]
     klein = t.lower()
     form = next((f for f, muster in _FORM if re.search(muster, klein)), None)
+    if form == "Rundrohr" and len(z) == 3 and not re.search(r"rund|ø|siederohr|präzision|praezision|gewinderohr",
+                                                            klein) and _FORM_KURZ.search(klein):
+        form = None             # „RR 50/50/3“: drei Maße, also kein Rundrohr
     if form is None:
         form = "Rundrohr" if len(z) == 2 else ("Quadratrohr" if z[0] == z[1] else "Rechteckrohr")
     if form in ("Rundrohr", "Flachstahl"):
@@ -496,8 +598,14 @@ TABELLEN_SQL = (
 def einrichten(con):
     for sql in TABELLEN_SQL:
         con.execute(sql)
-    if "liefertermin" not in set(db_verbindung.spalten(con, "erp_kaeufe")):
+    sp = set(db_verbindung.spalten(con, "erp_kaeufe"))
+    if "liefertermin" not in sp:
         con.execute("ALTER TABLE erp_kaeufe ADD COLUMN liefertermin TEXT")  # L-Termin des Kaufs (Lieferzeit)
+    # Master-Auftrag EK-Import 25.11.2026: Lieferant und Lieferantenartikelnummer je Kauf, Lauf (Rückgängig)
+    for name, art in (("lieferant", "TEXT"), ("bestellnr", "TEXT"), ("import_id", "INTEGER")):
+        if name not in sp:
+            con.execute(f"ALTER TABLE erp_kaeufe ADD COLUMN {name} {art}")
+    con.execute("CREATE INDEX IF NOT EXISTS erp_kaeufe_lauf ON erp_kaeufe (import_id)")
     if "erp_preise" not in set(db_verbindung.spalten(con, "angebote")):
         con.execute("ALTER TABLE angebote ADD COLUMN erp_preise TEXT")      # gewählte ERP-Preise je Angebot (JSON)
 
@@ -506,17 +614,18 @@ def _jetzt():
     return datetime.datetime.now().isoformat(timespec="seconds")
 
 
-def speichern(db, liste, datei=""):
-    """Käufe in erp_kaeufe; gleiche Käufe (Datum, Artikel, Menge, Preis) nur einmal. Ergebnis: Anzahl neu."""
+def speichern(db, liste, datei="", import_id=None):
+    """Käufe in erp_kaeufe in einer Transaktion (alles oder nichts); gleiche Käufe (Datum, Artikel, Menge, Preis) nur
+    einmal. import_id = Importlauf (csv_import.Lauf, Rückgängig). Ergebnis: Anzahl neu."""
     _KAEUFE_STAND[0] += 1
     zaehlen = "SELECT COUNT(*) FROM erp_kaeufe"
     vorher = db.con.execute(zaehlen).fetchone()[0]
     with db.con:
         db.con.executemany(
             "INSERT OR IGNORE INTO erp_kaeufe (datum, schluessel, artikelnr, bezeichnung, menge, preis, datei, "
-            "importiert) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "importiert, lieferant, bestellnr, import_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [(k["datum"].isoformat(), k["schluessel"], k["artikelnr"], k["bezeichnung"], k["menge"], k["preis"],
-              datei, _jetzt()) for k in liste])
+              datei, _jetzt(), k.get("lieferant") or None, k.get("bestellnr") or None, import_id) for k in liste])
         # schon gespeicherte Käufe bekommen den Liefertermin beim erneuten Einlesen nach (Menge/Preis wie gespeichert)
         db.con.executemany(
             "UPDATE erp_kaeufe SET liefertermin = ? WHERE datum = ? AND schluessel = ? AND menge = ? AND preis = ? "
@@ -632,7 +741,124 @@ def artikel(kauf_liste, gemerkt, k, nummern=None):
             a.update(profil_id=e["profil_id"], werkstoff_id=e["werkstoff_id"], oberflaeche=e["oberflaeche"],
                      ampel=e["ampel"], hinweis=e["hinweis"], gemerkt=False, ignorieren=False,
                      vorschlag=e["vorschlag"], kandidaten=e["kandidaten"])
+    _stufen(je.values(), gemerkt, k)
     return sorted(je.values(), key=lambda a: ({ROT: 0, GELB: 1, GRUEN: 2}[a["ampel"]], a["bezeichnung"].lower()))
+
+
+# ------------------------------------------------------------------ Zuordnungsstufen (Master-Auftrag 25.11.2026)
+EXAKT, WAHRSCHEINLICH, KEIN_TREFFER = "exakter Treffer", "wahrscheinlicher Treffer", "kein Treffer"
+STUFEN = (EXAKT, WAHRSCHEINLICH, KEIN_TREFFER)
+_GUETE_WORT = re.compile(r"(?i)(?<![\w.])(?:[SEP]\d{3}[A-Z0-9+]*|1\.4\d{3}|AW-?\d{4}[A-Z0-9-]*|EN\s?10\d{3}(?:-\d)?)"
+                         r"(?![\w])")
+
+
+def merkmal(text):
+    """Vergleichsform einer EK-Bezeichnung für das Wiedererkennen: Profilform und Maße (Schreibweise egal,
+    Rechteckrohr gedreht gleich), Güten/Normen (S355J2H, 1.4301, EN10219) und Oberfläche – „Rohr 40 x 40 x 3
+    S235JRH“ und „QR 40x40x3 S235JRH“ sind gleich, „… S355J2H“ oder „… S355MC“ nicht. None ohne Maße."""
+    t = str(text or "")
+    mas = masse(t)
+    if mas is None:
+        return None
+    a, b = mas["a"], mas["b"]
+    if mas["form"] == "Rechteckrohr" and b and b > a:
+        a, b = b, a
+    guete = sorted({re.sub(r"[\s-]", "", g).upper() for g in _GUETE_WORT.findall(t)})
+    o = _OBER_WORT.search(t)
+    return "|".join([mas["form"], f"{a:g}", f"{b:g}" if b else "", f"{mas['wand']:g}", ",".join(guete),
+                     o.group(1).lower() if o else ""])
+
+
+def _stufen(liste, gemerkt, k):
+    """Je ERP-Artikel die Zuordnungsstufe (stufe, stufe_grund) und, wo nötig, ein Vorschlag zum Bestätigen
+    (vorschlag_zuordnung = dict(profil_id, werkstoff_id, oberflaeche, quelle)):
+    1. exakter Treffer: gemerkt, über die Artikelnummer gefunden oder Abmessung, Werkstoff und Oberfläche eindeutig
+       erkannt – wird automatisch zugeordnet (wie bisher grün).
+    2. wahrscheinlicher Treffer: das Profil gibt es, der Werkstoff ist nicht eindeutig, aber es gibt genau einen
+       begründeten Vorschlag (gleiche Bezeichnung wie ein schon bestätigter Artikel; Hohlprofil ohne Normangabe ->
+       EN 10219; nur Norm genannt, z. B. EN 10255 -> der eine Werkstoff dieser Norm). Nie automatisch: der Anwender
+       bestätigt im Assistenten (Patrick: Werkstoff nie raten).
+    3. kein Treffer: Profil oder Werkstoff fehlt in den Stammdaten -> neues Material zur Anlage vorschlagen."""
+    sig = {}
+    for z in gemerkt.values():
+        if z.get("ignorieren") or z.get("profil_id") not in k.profile or z.get("werkstoff_id") not in k.werkstoffe:
+            continue
+        m = merkmal(z.get("bezeichnung"))
+        if m:
+            sig.setdefault(m, {})[(z["profil_id"], z["werkstoff_id"], z.get("oberflaeche") or "")] = z
+    for a in liste:
+        a["vorschlag_zuordnung"] = None
+        if a.get("ignorieren"):
+            a.update(stufe=EXAKT, stufe_grund="übersprungen (gemerkt)")
+            continue
+        if a["ampel"] == GRUEN:
+            a.update(stufe=EXAKT, stufe_grund=a.get("hinweis") or "Abmessung, Werkstoff und Oberfläche eindeutig")
+            continue
+        text = a["bezeichnung"] + artikelnr_hinweis(a["artikelnr"])
+        treffer = sig.get(merkmal(text)) or {}
+        if len(treffer) == 1:
+            (pid, wid, ober), z = next(iter(treffer.items()))
+            a["vorschlag_zuordnung"] = dict(profil_id=pid, werkstoff_id=wid, oberflaeche=ober,
+                                            quelle=f"gleiche Bezeichnung wie bestätigter Artikel "
+                                                   f"{z.get('artikelnr') or z.get('bezeichnung')}")
+        elif a.get("profil_id") and not a.get("werkstoff_id"):
+            wv, grund = _werkstoff_vorschlag(text, a, k)
+            if wv:
+                a["vorschlag_zuordnung"] = dict(profil_id=a["profil_id"], werkstoff_id=wv,
+                                                oberflaeche=a.get("oberflaeche") or "", quelle=grund)
+        v = a["vorschlag_zuordnung"]
+        if v and v["profil_id"] in k.profile and not (a.get("ober_unbekannt") and not v.get("oberflaeche")):
+            a.update(stufe=WAHRSCHEINLICH, stufe_grund=f"Vorschlag {v['profil_id']} · {v['werkstoff_id']}"
+                     + (f" · {v['oberflaeche']}" if v.get("oberflaeche") else "") + f" ({v['quelle']}) – bitte "
+                     "bestätigen")
+        else:
+            neu = []
+            if not a.get("profil_id"):
+                neu.append(f"Profil {a['vorschlag']['profil_id']}" if a.get("vorschlag") else "Abmessung unklar")
+            if not a.get("werkstoff_id"):
+                neu.append("Werkstoff " + (f"(einer von {', '.join(a['kandidaten'][:4])})" if a.get("kandidaten")
+                                           else "neu/unbekannt"))
+            a.update(stufe=KEIN_TREFFER, stufe_grund=("neu anlegen: " + ", ".join(neu)) if neu else
+                     (a.get("hinweis") or "bitte zuordnen"))
+
+
+def _werkstoff_vorschlag(text, a, k):
+    """(Werkstoff-ID, Begründung) oder (None, ''): ein begründeter Vorschlag für einen mehrdeutigen oder fehlenden
+    Werkstoff – nie eine Zuordnung ohne Bestätigung."""
+    from . import erp_anlegen
+    form = (k.profile.get(a.get("profil_id")) or {}).get("form")
+    kand = [w for w in (a.get("kandidaten") or []) if w in k.werkstoffe]
+    if form in erp_anlegen.HOHLPROFILE:
+        wid, _neu, _g = erp_anlegen.werkstoff_fuer(text, k)
+        if wid in k.werkstoffe:
+            return wid, "Güte und Norm-Familie aus der Bezeichnung"
+        kalt = [w for w in kand if "10219" in " ".join(str(k.werkstoffe[w].get(f) or "") for f in
+                                                          ("norm", "werkstoff_id")) + str(w)]
+        if len(kand) > 1 and len(kalt) == 1:
+            return kalt[0], "Hohlprofil ohne Normangabe: meist EN 10219 kaltgefertigt"
+    normen = set(re.findall(r"(?<!\d)(10\d{3})(?!\d)", text))
+    if not kand and len(normen) == 1:
+        n = normen.pop()
+        mit = [w for w, z in k.werkstoffe.items() if n in str(w) + " " + str(z.get("norm") or "")
+               and z.get("archiviert") != "ja"]
+        if len(mit) == 1:
+            return mit[0], f"einziger Werkstoff der Norm EN {n}"
+    return None, ""
+
+
+def bestaetigen(db, a, profil_id=None, werkstoff_id=None, oberflaeche=None, lauf=None):
+    """Zuordnung eines ERP-Artikels bestätigen und merken (Vorschlag oder eigene Wahl). Mit lauf wird der alte
+    Stand gemerkt (Rückgängig des Imports)."""
+    v = a.get("vorschlag_zuordnung") or {}
+    pid = profil_id or v.get("profil_id") or a.get("profil_id")
+    wid = werkstoff_id or v.get("werkstoff_id") or a.get("werkstoff_id")
+    ober = oberflaeche if oberflaeche is not None else (v.get("oberflaeche") if v else a.get("oberflaeche")) or ""
+    if lauf is not None:
+        alt = db.con.execute("SELECT * FROM erp_zuordnung WHERE schluessel=?", (a["schluessel"],)).fetchone()
+        lauf.merken("erp_zuordnung", None, "zuordnung", alt=dict(alt) if alt else None,
+                    neu=dict(schluessel=a["schluessel"]))
+    zuordnung_merken(db, a["schluessel"], a["artikelnr"], a["bezeichnung"], pid, wid, ober)
+    return pid, wid, ober
 
 
 # ------------------------------------------------------------------ 3. Preis ermitteln
@@ -939,3 +1165,198 @@ def angebot_speichern(db, angebot_id, daten):
     with db.con:
         db.con.execute("UPDATE angebote SET erp_preise=? WHERE id=?",
                        (json.dumps(daten, ensure_ascii=False) if daten else None, angebot_id))
+
+
+# ------------------------------------------------------------------ 5. Importassistent (Master-Auftrag 25.11.2026)
+NEU_KAUF, VORHANDEN, DOPPELT, FEHLERHAFT = "neu", "unverändert (schon eingelesen)", "doppelt in der Datei", "fehlerhaft"
+ERHOEHUNG, SENKUNG, GLEICH, ERSTER = "Erhöhung", "Senkung", "gleich", "erster Preis"
+
+
+def _kauf_schl(x):
+    d = x["datum"].isoformat() if hasattr(x["datum"], "isoformat") else str(x["datum"])
+    return (d, x["schluessel"], round(float(x["menge"]), 6), round(float(x["preis"]), 6))
+
+
+def _material_schluessel(a):
+    """(Profil, Werkstoff, Oberfläche) eines zugeordneten ERP-Artikels, sonst None."""
+    if not a or a.get("ignorieren"):
+        return None
+    if a.get("ampel") == GRUEN and a.get("profil_id") and a.get("werkstoff_id"):
+        return (a["profil_id"], a["werkstoff_id"], a.get("oberflaeche") or "")
+    v = a.get("vorschlag_zuordnung")
+    if v:
+        return (v["profil_id"], v["werkstoff_id"], v.get("oberflaeche") or "")
+    return None
+
+
+def preis_pruefung(neue, bisher, artikel_neu, artikel_bisher, grenze_pct=PREIS_MARKE_VORGABE):
+    """Preisprüfung (Schritt 4): je Material (Profil + Werkstoff + Oberfläche, sonst ERP-Artikel) und Lieferant der
+    neueste EK aus der Datei gegen den letzten bisher gespeicherten EK davor. Ein Preis eines anderen Lieferanten
+    gilt nur als Vergleich (Spalte alt_lieferant), er wird nie ersetzt: jeder Kauf bleibt mit seinem Lieferanten
+    gespeichert. Ergebnis [dict(material, artikel, lieferant, neu, neu_datum, alt, alt_datum, alt_lieferant, euro,
+    pct, richtung, markiert, zugeordnet)], größte Änderung zuerst."""
+    zu_neu = {a["schluessel"]: a for a in artikel_neu}
+    zu_alt = {a["schluessel"]: a for a in artikel_bisher}
+
+    def mat(kauf, zu):
+        a = zu.get(kauf["schluessel"])
+        m = _material_schluessel(a)
+        return (m, True) if m else (("#" + kauf["schluessel"], "", ""), False)
+    alt_je = {}
+    for x in bisher:
+        m, _ = mat(x, zu_alt)
+        alt_je.setdefault(m, []).append(x)
+    for v in alt_je.values():
+        v.sort(key=lambda x: (x["datum"], x.get("id") or 0))
+    gruppen = {}
+    for x in neue:
+        m, zug = mat(x, zu_neu)
+        lief = (x.get("lieferant") or "").strip()
+        g = gruppen.setdefault((m, lief.lower()), dict(material=m, zugeordnet=zug, kaeufe=[], lieferant=lief))
+        g["kaeufe"].append(x)
+    schon = {_kauf_schl(x) for x in bisher}
+    out = []
+    for (m, lief_n), g in gruppen.items():
+        neu_k = max(g["kaeufe"], key=lambda x: (x["datum"], x["zeile"]))
+        vorher = [x for x in alt_je.get(m, []) if x["datum"] <= neu_k["datum"] and _kauf_schl(x) not in
+                  {_kauf_schl(neu_k)}]
+        gleich_l = [x for x in vorher if (x.get("lieferant") or "").strip().lower() == lief_n]
+        alt_k = (gleich_l or vorher or [None])[-1]
+        z = dict(material=m, zugeordnet=g["zugeordnet"], artikel=neu_k.get("artikelnr") or "",
+                 bezeichnung=neu_k["bezeichnung"], lieferant=g["lieferant"], neu=neu_k["preis"],
+                 neu_datum=neu_k["datum"], alt=None, alt_datum=None, alt_lieferant="", euro=None, pct=None,
+                 richtung=ERSTER, markiert=False, schon_da=_kauf_schl(neu_k) in schon, anzahl=len(g["kaeufe"]))
+        if alt_k is not None:
+            z.update(alt=alt_k["preis"], alt_datum=alt_k["datum"], alt_lieferant=(alt_k.get("lieferant") or ""),
+                     euro=neu_k["preis"] - alt_k["preis"])
+            z["pct"] = (neu_k["preis"] / alt_k["preis"] - 1) * 100 if alt_k["preis"] else None
+            z["richtung"] = GLEICH if abs(z["euro"]) < 0.005 else (ERHOEHUNG if z["euro"] > 0 else SENKUNG)
+            z["markiert"] = z["pct"] is not None and abs(z["pct"]) >= float(grenze_pct or 0) and z["richtung"] != GLEICH
+            z["anderer_lieferant"] = bool(not gleich_l and z["alt_lieferant"].strip().lower() != lief_n)
+        out.append(z)
+    return sorted(out, key=lambda z: (-(abs(z["pct"]) if z["pct"] is not None else -1), str(z["material"])))
+
+
+def vorschau_import(db, daten, zuordnung, grenze_pct=None, fortschritt=None):
+    """Vorschau des EK-Imports ohne Datenbankänderung (Schritte 3 bis 5): Käufe, Gruppen (neu / unverändert /
+    doppelt / fehlerhaft), ERP-Artikel mit Zuordnungsstufe, Preisprüfung, neue Materialien (erp_anlegen.plan).
+    Ergebnis dict(kaeufe, gruppe {Dateizeile: Gruppe}, fehler [(Zeile, Grund, Zellen)], meldungen, artikel,
+    pruefung, plan, zaehler)."""
+    from . import erp_anlegen
+    k = db.kontext()
+    fehler = []
+    if fortschritt:
+        fortschritt(0, 4, "Zeilen prüfen")
+    liste, meldungen = kaeufe(daten, zuordnung, k, fehler)
+    bisher = gespeicherte(db)
+    schon = {_kauf_schl(x) for x in bisher}
+    gruppe, gesehen = {}, {}
+    for x in liste:
+        s_ = _kauf_schl(x)
+        if s_ in gesehen:
+            gruppe[x["zeile"]] = DOPPELT
+            x["doppelt_wie"] = gesehen[s_]
+        elif s_ in schon:
+            gruppe[x["zeile"]] = VORHANDEN
+        else:
+            gruppe[x["zeile"]] = NEU_KAUF
+        gesehen.setdefault(s_, x["zeile"])
+    for n, _g, _r in fehler:
+        gruppe[n] = FEHLERHAFT
+    if fortschritt:
+        fortschritt(1, 4, "Materialien erkennen")
+    gemerkt, nummern = zuordnungen(db), nummern_von(db)
+    art_neu = artikel(liste, gemerkt, k, nummern)
+    if fortschritt:
+        fortschritt(2, 4, "Preise prüfen")
+    art_alt = artikel(bisher, gemerkt, k, nummern) if bisher else []
+    if grenze_pct is None:
+        grenze_pct = db.einstellung(PREIS_MARKE)
+        grenze_pct = PREIS_MARKE_VORGABE if grenze_pct in (None, "") else float(grenze_pct)
+    pruef = preis_pruefung([x for x in liste if gruppe[x["zeile"]] == NEU_KAUF], bisher, art_neu, art_alt, grenze_pct)
+    if fortschritt:
+        fortschritt(3, 4, "Neue Materialien")
+    plan = erp_anlegen.plan(db, kaeufe=liste) if liste else dict(profile=[], werkstoffe=[], zuordnungen=[], offen=[])
+    z = {g: 0 for g in (NEU_KAUF, VORHANDEN, DOPPELT, FEHLERHAFT)}
+    for g in gruppe.values():
+        z[g] += 1
+    z.update({s_: sum(1 for a in art_neu if a.get("stufe") == s_) for s_ in STUFEN})
+    z["preise_geaendert"] = sum(1 for p in pruef if p["richtung"] in (ERHOEHUNG, SENKUNG))
+    z["preise_markiert"] = sum(1 for p in pruef if p["markiert"])
+    if fortschritt:
+        fortschritt(4, 4, "fertig")
+    return dict(kaeufe=liste, gruppe=gruppe, fehler=fehler, meldungen=meldungen, artikel=art_neu, pruefung=pruef,
+                plan=plan, zaehler=z, grenze_pct=grenze_pct)
+
+
+def uebernehmen(db, v, datei="", bestaetigt=(), anlegen=True, mit_werkstoffen=True, importprofil="", lieferant=""):
+    """Import abschließen (Schritt 6) als ein Importlauf (csv_import.Lauf, Art „EK-Einkäufe“): neue Käufe in einer
+    Transaktion speichern, bestätigte Zuordnungen (bestaetigt = [(ERP-Artikel, dict(profil_id, werkstoff_id,
+    oberflaeche) oder None = Vorschlag)]) merken, neue Profile/Werkstoffe anlegen (erp_anlegen, anlegen=True).
+    Bricht etwas ab, wird der ganze Lauf zurückgenommen (ErpFehler). Ergebnis dict(import_id, neu, zuordnungen,
+    profile, werkstoffe, stamm_neu)."""
+    from . import erp_anlegen
+    from . import ki_protokoll
+    z = v["zaehler"]
+    lauf = csv_import.lauf_beginnen(db, csv_import.ART_EK, datei, importprofil, len(v["kaeufe"]) + len(v["fehler"]),
+                                    lieferant, dict(unveraendert=z[VORHANDEN], doppelt=z[DOPPELT],
+                                                    fehler=z[FEHLERHAFT], offen=z[KEIN_TREFFER]))
+    erg = dict(import_id=lauf.id, neu=0, zuordnungen=0, profile=0, werkstoffe=0, stamm_neu=0)
+    try:
+        lauf.zeilen_mit_lauf("erp_kaeufe")
+        lauf.flush()
+        erg["neu"] = speichern(db, [x for x in v["kaeufe"] if v["gruppe"].get(x["zeile"]) == NEU_KAUF],
+                               str(datei).replace("\\", "/").rsplit("/", 1)[-1], lauf.id)
+        for a, wahl in bestaetigt:
+            bestaetigen(db, a, lauf=lauf, **(wahl or {}))
+            erg["zuordnungen"] += 1
+        if anlegen:
+            p = erp_anlegen.plan(db, kaeufe=v["kaeufe"])
+            e = erp_anlegen.ausfuehren(db, p, mit_werkstoffen=mit_werkstoffen, lauf=lauf)
+            erg.update(profile=e["profile"], werkstoffe=e["werkstoffe"], stamm_neu=e.get("stamm_neu") or 0)
+            erg["zuordnungen"] += e["zuordnungen"]
+    except Exception as ex:     # noqa: BLE001  (alles zurücknehmen, dann melden)
+        lauf.flush()
+        rueckgaengig(db, lauf.id, status="abgebrochen, zurückgenommen")
+        raise ErpFehler(f"Import abgebrochen und vollständig zurückgenommen: {ex}") from ex
+    csv_import.lauf_abschliessen(db, lauf, neu=erg["neu"], aktualisiert=erg["zuordnungen"],
+                                 preise=v["zaehler"].get("preise_geaendert", 0),
+                                 protokoll=dict(erg, preise_markiert=v["zaehler"].get("preise_markiert", 0),
+                                                fehler=[f"Zeile {n}: {g}" for n, g, _ in v["fehler"][:200]]))
+    _KAEUFE_STAND[0] += 1
+    ki_protokoll.schreiben(db, "Materialprüfung", "EK-Import (Assistent)",
+                           ergebnis=f"{erg['neu']} Käufe neu, {erg['zuordnungen']} Zuordnungen, {erg['profile']} "
+                                    f"Profile, {erg['werkstoffe']} Werkstoffe", quellen=[str(datei)])
+    return erg
+
+
+def rueckgaengig(db, import_id, status="rückgängig gemacht"):
+    """EK-Importlauf zurücknehmen: Käufe des Laufs löschen, gemerkte Zuordnungen auf den alten Stand, angelegte
+    Profile, Werkstoffe und Materialstamm-Zeilen löschen (csv_import.rueckgaengig). Ergebnis (Anzahl, Meldungen)."""
+    n = 0
+    for p in reversed(csv_import.posten_des_laufs(db, import_id)):
+        if p["tabelle"] != "erp_zuordnung" or p["aktion"] != "zuordnung":
+            continue
+        schl = (p["neu"] or {}).get("schluessel")
+        alt = p["alt"]
+        with db.con:
+            if alt:
+                db.con.execute("UPDATE erp_zuordnung SET artikelnr=?, bezeichnung=?, profil_id=?, werkstoff_id=?, "
+                               "oberflaeche=?, ignorieren=?, geaendert=? WHERE schluessel=?",
+                               (alt.get("artikelnr"), alt.get("bezeichnung"), alt.get("profil_id"),
+                                alt.get("werkstoff_id"), alt.get("oberflaeche"), alt.get("ignorieren"),
+                                alt.get("geaendert"), schl))
+            else:
+                db.con.execute("DELETE FROM erp_zuordnung WHERE schluessel=?", (schl,))
+        n += 1
+    m, meldungen = csv_import.rueckgaengig(db, import_id, status)
+    _KAEUFE_STAND[0] += 1
+    return n + m, meldungen
+
+
+def fehlerbericht(v, kopf=None):
+    """Fehlerhafte und doppelte Zeilen als CSV zum Nachbessern im ERP."""
+    zeilen = [(n, FEHLERHAFT, g, roh) for n, g, roh in v["fehler"]]
+    zeilen += [(x["zeile"], DOPPELT, f"gleicher Kauf wie Zeile {x.get('doppelt_wie')}", x.get("roh"))
+               for x in v["kaeufe"] if v["gruppe"].get(x["zeile"]) == DOPPELT]
+    return csv_import.fehlerbericht_csv(sorted(zeilen, key=lambda z: z[0]), kopf)
