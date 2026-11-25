@@ -17164,7 +17164,7 @@ def kapitel_einfacher_modus(i):
          "<i>Im Expertenmodus weiterbearbeiten</i> für alles Weitere."],
     ], [38, 226])
     i.abschnitt("Fracht und Marge im Einfachen Modus", marke="einfach_fracht_marge")
-    i.text("Seit 0.9.495 lassen sich Frachtkosten und Marge auch im Einfachen Modus einstellen. Beides schreibt "
+    i.text("Seit 0.9.499 lassen sich Frachtkosten und Marge auch im Einfachen Modus einstellen. Beides schreibt "
            "dieselben Angebotsfelder wie der Expertenmodus und rechnet mit derselben Kalkulation.", kurz=True)
     i.liste("<b>Frachtkosten</b> (Schritt 4): <i>Frachtart</i> (manuell, berechnet, keine Fracht, im Artikelpreis "
             "enthalten), <i>Betrag</i> für das ganze Angebot und <i>Verteilen</i> (je Stück oder nach Gewicht). "

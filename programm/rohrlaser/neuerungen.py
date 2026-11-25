@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.495", "<b>Einfacher Modus: Fracht und Marge</b> ([[einfach_fracht_marge]]): Im Schritt <i>Bearbeitung</i> "
+    ["0.9.499", "<b>Einfacher Modus: Fracht und Marge</b> ([[einfach_fracht_marge]]): Im Schritt <i>Bearbeitung</i> "
                 "gibt es die Karte <i>Frachtkosten</i> mit Frachtart, Betrag, Verteilung (je Stück oder nach "
                 "Gewicht), <i>Fracht berechnen …</i> (Paket oder Palette, Tarif, wie im Expertenmodus) und "
                 "<i>Fracht automatisch berechnen</i>. Im Schritt <i>Ergebnis</i> stellt <i>Marge einstellen</i> den "
