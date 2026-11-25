@@ -868,7 +868,7 @@ class HistorieSeite(QWidget):
 class EinstellungenSeite(QWidget):
     """Wichtige Einstellungen der Materialdatenbank mit Sprung in die Einstellungen."""
     NAMEN = ("erp_monate", "erp_ausreisser", "erp_direkt_tage", "erp_direkt_stangen", "erp_werkstoff_vorwahl",
-             "funktion_erp_preise", "step_werkstoff", "rest_min_laenge")
+             "ek_preis_markierung", "funktion_erp_preise", "step_werkstoff", "rest_min_laenge")
 
     def __init__(self, seite):
         super().__init__()
