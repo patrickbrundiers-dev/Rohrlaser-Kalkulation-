@@ -32,6 +32,7 @@ Rückgabewert 0 = geschrieben, 1 = Fehler.
 import json
 import math
 import sys
+import threading
 from pathlib import Path
 
 GROSS = 1.0e5           # halbe Kantenlänge der Ebene für den Halbraum [mm]
@@ -1122,20 +1123,27 @@ def _mit_vergleich(erg, bauplan, pruefen):
     return erg
 
 
+_SCHREIBEN = threading.RLock()
+
+
 def _step_schreiben(doc, ziel, produkt):
     from OCP.IFSelect import IFSelect_RetDone
     from OCP.Interface import Interface_Static
     from OCP.STEPCAFControl import STEPCAFControl_Writer
     from OCP.STEPControl import STEPControl_AsIs
-    Interface_Static.SetCVal_s("write.step.schema", "AP214IS")
-    Interface_Static.SetCVal_s("write.step.unit", "MM")
-    Interface_Static.SetCVal_s("write.step.product.name", str(produkt or "Teil"))
-    w = STEPCAFControl_Writer()
-    w.SetNameMode(True)
-    if not w.Transfer(doc, STEPControl_AsIs):
-        raise ValueError("Übertragung nach STEP fehlgeschlagen")
-    if w.Write(str(ziel)) != IFSelect_RetDone:
-        raise ValueError(f"STEP-Datei nicht geschrieben: {ziel}")
+    # Schema, Einheit und Produktname kennt OpenCascade 8.0.1 nur als globale Werte (Interface_Static; die eigenen
+    # Parameter je Schreiber, DESTEP_Parameters, sind in OCP 8.0.1 nicht übersetzt). Damit zwei Threads sich die Werte
+    # nicht gegenseitig umstellen, gilt Setzen, Übertragen und Schreiben als ein Schritt (CAD-Kern 3.0).
+    with _SCHREIBEN:
+        Interface_Static.SetCVal_s("write.step.schema", "AP214IS")
+        Interface_Static.SetCVal_s("write.step.unit", "MM")
+        Interface_Static.SetCVal_s("write.step.product.name", str(produkt or "Teil"))
+        w = STEPCAFControl_Writer()
+        w.SetNameMode(True)
+        if not w.Transfer(doc, STEPControl_AsIs):
+            raise ValueError("Übertragung nach STEP fehlgeschlagen")
+        if w.Write(str(ziel)) != IFSelect_RetDone:
+            raise ValueError(f"STEP-Datei nicht geschrieben: {ziel}")
 
 
 def form_schreiben(form, ziel, name):
