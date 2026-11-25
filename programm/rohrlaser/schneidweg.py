@@ -226,6 +226,14 @@ def schraeg(profil, th, tb):
     return gerade * math.sqrt(1 + th * th + tb * tb), True
 
 
+def _endkontur(e):
+    """Endkontur eines Endes (endkontur.lesen) oder None."""
+    if not isinstance(e, dict) or not e.get("kontur"):
+        return None
+    from . import endkontur
+    return endkontur.lesen(e["kontur"])
+
+
 def ende(profil, winkel=0.0, achse=ACHSEN[0], gegenrohr=None, kipp=None, gegen=None):
     """Schnittlänge eines Endes: (mm, schaetzung). profil = Stammdaten-Zeile (form, a, b, wand, Fläche);
     gegenrohr = Ø des Rundrohrs, auf das das Ende ausgeklinkt wird (nur Rundrohr, rechtwinklig); kipp = (Winkel über
@@ -826,8 +834,17 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                             f" Gehrung {zahl(w, 1)}°" + (f" {e.get('achse') or ACHSEN[0]}" if form != "Rundrohr"
                                                           else "") if w else " gerade")
         gerade = not w and not sat and not gg
+        kt = None if (w or sat or gg) else _endkontur(e)
+        if kt:                              # Endkontur (endkontur.py): V, U, S, Bogen, Stufen, Freiform …
+            from . import endkontur, skizze as sk_
+            qs_ = sk_.Querschnitt(profil)
+            lg, sch, gerade = endkontur.schnittlaenge(qs_, kt, lg), False, False
+            text = f"{titel} Endkontur {endkontur.text(kt)}"
+            for art_, txt_, _s0, _s1 in endkontur.pruefen(qs_, kt, _z((maschine or {}).get("schnittverlust")) or 0.2,
+                                                          laenge, profil.get("wand")):
+                (fehler if art_ == endkontur.FEHLER else hinweise_ende).append(f"{titel}: {txt_}")
         sat = sat or bool(gg)               # Gegenrohr wie Ausklinkung: keine Gehrungsrichtung, kein 3D-Kopf
-        if _z(e.get("gemessen")) > 0:       # aus der STEP-Messung: gemessene Länge und Form
+        if _z(e.get("gemessen")) > 0 and not kt:    # aus der STEP-Messung: gemessene Länge und Form
             neu = ende_neu(profil, e) if anderes_profil(e, profil) else None
             text = f"{titel} {e.get('form') or ''}".rstrip() + (f" {zahl(w, 1)}°" if w else "")
             if neu:             # anderes Profil als gemessen (oder RP): mit der gemessenen Form neu gerechnet

@@ -1403,10 +1403,16 @@ class NestingDialog(QDialog):
             teile.append(f"{z((bw['gekauft_mm'] - w['gekauft_mm']) / 1000)} m")
             teile.append(f"{bw['stangen'] - w['stangen']} Stangen")
             k["ersparnis"].setText(" · ".join(teile) + f"\nggü. {name}")
+        ke = nv.kontur_einsparung(v)
+        kt = ""
+        if ke is not None:
+            kt = (f"\nKonturverschachtelung: {ke['stellen']} Stellen, spart {ke['stangen']} Stangen / "
+                  f"{z(ke['mm'] / 1000)} m" + (f" / {z(ke['eur'])} €" if ke["eur"] is not None else "")
+                  + f" ({z(100 * ke['prozent'], 1)} %)")
         ug = v.get("untergrenze")
         k["status"].setText(("bewiesen optimal (bisheriger Plan)" if v.get("bewiesen") else
                              f"Schranke {v.get('schranke', 0)} Stangen") + f"\nUntergrenze {ug} auf "
-                            f"{rechnen.m_text(v['gruppe'].stange)} m")
+                            f"{rechnen.m_text(v['gruppe'].stange)} m" + kt)
         if stangen is not None:
             from . import nesting_machbarkeit as nm
             g = v["gruppe"]
@@ -1564,6 +1570,11 @@ class NestingDialog(QDialog):
         if s == nv.AKTUELL:
             self.hinweis.setText("Der gespeicherte Plan gilt schon; nichts zu übernehmen.")
             return s
+        if s == nv.OHNE_KONTUR:
+            self.hinweis.setText("„Ohne Konturverschachtelung“ ist nur die Vergleichszeile (ursprüngliche Belegung); "
+                                 "die Konturen bleiben ineinander verschachtelt. Abschalten: Einstellung "
+                                 "„Verschachtelung: beliebige Endkonturen ineinanderlegen“.")
+            return None
         z = next((x for x in v["zeilen"] if x["strategie"] == s), {})
         if not z.get("zulaessig", True):
             self.hinweis.setText(f"Strategie {s} ist technisch nicht zulässig: {z.get('machbar')}")

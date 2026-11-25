@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.488", "<b>Endkonturen universell + Konturverschachtelung</b> ([[schneidweg_rechner]], [[nesting]]): Rohrenden "
+                "lassen sich mit beliebigen Konturen schneiden, nicht nur gerade oder auf Gehrung: Schräg (auch "
+                "asymmetrisch), V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, S-Kurve, Bogen konvex/konkav, Stufen, Freiform "
+                "(Seitenansicht oder direkt auf der Abwicklung) und Kombinationen – an Rund-, Quadrat- und Rechteckrohr, "
+                "in allen Editoren (Knopf <i>Endkontur …</i>, Menüband unter <i>Gegenrohr</i>, Rechtsklick auf das Ende). Vorschau mit "
+                "Abwicklung, nicht schneidbare Stellen rot/gelb, exakte Schnittlänge auf dem Mantel. Die Optimierung "
+                "legt jetzt beliebige Endkonturen ineinander, nicht nur ebene Gehrungen: mit Mindestabstand im Raum "
+                "(2 × Schnittverlust + Abstand + Sicherheitsabstand), unabhängiger Kollisionsprüfung, gedreht nur wie "
+                "erlaubt. Neue Strategie <b>P Präzisionsoptimierung</b>; Vergleich <i>ohne Konturverschachtelung</i> "
+                "mit Einsparung in Stangen, m, € und %. Einstellungen <i>Verschachtelung: beliebige Endkonturen ineinanderlegen</i> und "
+                "<i>Verschachtelung Endkonturen: Sicherheitsabstand</i>. Angebote ohne Endkonturen rechnen genau wie bisher.",
+     "Endkonturen (V, U, S, Bogen, Stufen, Freiform) + Konturverschachtelung in der Optimierung, Strategie P"],
     ["0.9.487", "<b>PPEASE-Text bei mehreren Gewinden richtig</b> ([[csv_export]]): Stand in einer Position mehr als "
                 "ein Gewinde (<i>6xM5; 4xM10</i>), enthielt die CSV für PPEASE ein Semikolon im Text. PPEASE beachtet "
                 "die Anführungszeichen der CSV nicht, trennte dort eine neue Spalte ab, und alle folgenden Spalten "

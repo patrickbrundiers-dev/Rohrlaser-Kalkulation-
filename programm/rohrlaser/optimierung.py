@@ -67,6 +67,10 @@ class Teil:
     angenommen: bool = False  # Richtung einer Gehrung angenommen (im Schneidweg-Rechner nicht angegeben)
     ende_frei: bool = False   # darf als letztes Teil in den Greiferrest (Teil am Stangenende, Gruppe.ende_bonus)
     ganz: bool = False        # ganze Lieferstange ohne Trennschnitt (Plan ArTube-Unterlagen A3, eigene Gruppe)
+    # Universelle Endkonturen (endkontur.py, Patrick 25.11.2026): Schlüssel des sicheren Verlaufs d(s) je Ende im
+    # Register von endkontur (V, U, S, Bogen, Stufen, Freiform, STEP-Umriss, Gegenrohr …) oder None
+    a_kontur: str = None
+    b_kontur: str = None
 
 
 @dataclass
@@ -92,6 +96,10 @@ class Gruppe:
     ende_bonus: float = 0.0
     # Maschine der Gruppe, wenn ihre Positionen eine andere Maschine als der Angebotskopf haben (MACH-006); leer = Kopf
     maschine: str = ""
+    # Universelle Konturverschachtelung (endkontur.py): Schlüssel der Querschnitts-Geometrie, leer = aus; zugabe =
+    # Sicherheitsabstand (Material- und Fertigungstoleranz) zusätzlich zu 2 × Schnittverlust + Abstand
+    kontur_geo: str = ""
+    kontur_zugabe: float = 0.0
 
     @property
     def nutzbar_bis(self):
@@ -215,7 +223,26 @@ def ansicht(g, folge):
 
 def verschachtelbar(g, t):
     """Kann das Teil an einem Ende mit einem Nachbarn ineinandergelegt werden?"""
-    return bool(g.querschnitt) and (t.a_gehrung is not None or t.b_gehrung is not None)
+    return bool(g.querschnitt) and (t.a_gehrung is not None or t.b_gehrung is not None) or \
+        bool(g.kontur_geo) and (t.a_kontur is not None or t.b_kontur is not None)
+
+
+def _nestbar(g):
+    """Ist in der Gruppe Ineinanderlegen überhaupt möglich (Gehrungen mit Querschnitt bzw. Endkonturen)?"""
+    return bool(g.querschnitt or g.kontur_geo)
+
+
+def kontur_abstand(g):
+    """Geforderter Abstand der Schnittkanten im Raum beim Verschachteln von Endkonturen [mm]."""
+    return 2 * g.kerf + g.abstand + g.kontur_zugabe
+
+
+def kontur_trennung(g, t1, r1, t2, r2):
+    """Verbrauch zwischen zwei Enden über ihre Verläufe (endkontur.trennung) oder None (nicht möglich)."""
+    if not (g.kontur_geo and t1.b_kontur and t2.a_kontur):
+        return None
+    from . import endkontur
+    return endkontur.trennung(g.kontur_geo, kontur_abstand(g), t1.b_kontur, r1, t2.a_kontur, r2)
 
 
 # ------------------------------------------------------------------ Belegung einer Stange
@@ -228,8 +255,18 @@ def trennung_teile(g, t1, r1, t2, r2):
     """Materialverbrauch zwischen Teil t1 (Drehung r1) und dem folgenden t2 (Drehung r2): gemeinsamer Schnitt bei
     zwei geraden Enden, sonst 2 Schnitte oder – kürzer – Gehrungen ineinandergelegt."""
     normal = trennung(g.kerf, g.abstand, t1.b_gerade, t2.a_gerade)
-    if t1.b_gerade and t2.a_gerade or t1.b_gehrung is None or t2.a_gehrung is None or not g.querschnitt:
+    if t1.b_gerade and t2.a_gerade:
         return normal
+    if t1.b_gehrung is None or t2.a_gehrung is None or not g.querschnitt:
+        if not g.kontur_geo:
+            return normal
+        # beliebige Endkonturen (endkontur.py): Verlauf gegen Verlauf, nie kürzer als der Abstand im Raum erlaubt
+        schluessel = ("K", t1.b_kontur, t2.a_kontur, r1 % 360, r2 % 360)
+        speicher = _speicher(g)
+        if schluessel not in speicher:
+            x = kontur_trennung(g, t1, r1, t2, r2)
+            speicher[schluessel] = normal if x is None else min(normal, x)
+        return speicher[schluessel]
     # Kasten: gleich bei Drehung um den Rasterschritt (180° bzw. 90°), Rund: nur die Drehung zueinander zählt
     schluessel = (t1.b_gehrung, t2.a_gehrung, r1 % raster(g) if g.querschnitt[0] == "Kasten" else 0, (r2 - r1) % 360)
     speicher = _speicher(g)
@@ -243,7 +280,8 @@ _SPEICHER = {}
 
 def _speicher(g):
     """Zwischenspeicher der Gehrungs-Trennungen je Querschnitt, Schnittverlust und Abstand."""
-    return _SPEICHER.setdefault((g.querschnitt, g.kerf, g.abstand), {})
+    return _SPEICHER.setdefault((g.querschnitt, g.kerf, g.abstand) + ((g.kontur_geo, g.kontur_zugabe)
+                                                                     if g.kontur_geo else ()), {})
 
 
 def ineinander(g, t1, r1, t2, r2):
@@ -343,7 +381,7 @@ def anordnen(teile, g=None):
     _kette_gerade und _kette_gehrung, je mit den besten Drehungen, für jede mögliche Lage der Naht der Stange.
     Ergebnis: Liste (Teil, Drehung [°])."""
     gerade = _kette_gerade(list(teile))
-    if g is None or not g.querschnitt or sum(verschachtelbar(g, t) for t in teile) < 2 and not any(
+    if g is None or not _nestbar(g) or sum(verschachtelbar(g, t) for t in teile) < 2 and not any(
             t.drehung == FEST for t in teile):
         folge = [(t, 0) for t in gerade]
         return _ende_3d(g, folge) if g is not None and _ende_suchen(g, teile) else folge
@@ -351,7 +389,8 @@ def anordnen(teile, g=None):
     # von Länge oder Position: einmal gerechnet gilt es für alle gleichen Folgen (gleiches Ergebnis, viel schneller;
     # die Packverfahren prüfen dieselben Zusammenstellungen sehr oft)
     teile = list(teile)
-    schluessel = (g.querschnitt, g.kerf, g.abstand, g.greiferrest, g.ende_bonus, tuple(_enden(t) for t in teile))
+    schluessel = (g.querschnitt, g.kerf, g.abstand, g.greiferrest, g.ende_bonus, tuple(_enden(t) for t in teile)) + \
+        ((g.kontur_geo, g.kontur_zugabe) if g.kontur_geo else ()) + (("P",) if praezision_an() else ())
     speicher = _ANORDNUNG.get(schluessel)
     if speicher is None:
         if len(_ANORDNUNG) > ANORDNUNG_MAX:
@@ -374,6 +413,9 @@ ANORDNUNG_MAX = 200000      # Einträge im Zwischenspeicher von anordnen, danach
 
 
 def _enden(t):
+    if t.a_kontur or t.b_kontur:
+        return t.a_gerade, t.b_gerade, t.a_gehrung, t.b_gehrung, t.drehung, t.naht, t.rest, t.ende_frei, \
+            t.a_kontur, t.b_kontur
     return t.a_gerade, t.b_gerade, t.a_gehrung, t.b_gehrung, t.drehung, t.naht, t.rest, t.ende_frei
 
 
@@ -383,7 +425,12 @@ def _anordnen_gehrung(g, teile, gerade):
         for folge in (gerade, _kette_gehrung(g, list(teile), naht_stange)):
             summe, wahl = _drehungen_waehlen(g, folge, naht_stange)
             if beste is None or summe < beste[0] - EPS:
-                beste = (summe, list(zip(folge, wahl)))
+                beste = (summe, list(zip(folge, wahl)), naht_stange)
+    if praezision_an() and 2 < len(teile) <= PRAEZ_MAX_TEILE:
+        summe, folge = _lokal_suchen(g, [t for t, _ in beste[1]], beste[2])
+        if summe < beste[0] - EPS:
+            _, wahl = _drehungen_waehlen(g, folge, beste[2])
+            beste = (summe, list(zip(folge, wahl)), beste[2])
     return beste[1]
 
 
@@ -428,7 +475,7 @@ def _mit_3d(g, teile):
 
 def _drehen(g, teile):
     """Beste Drehungen für eine feste Reihenfolge (wie _anordnen_gehrung, ohne die Reihenfolge zu ändern)."""
-    if not g.querschnitt or sum(verschachtelbar(g, t) for t in teile) < 2 and not any(
+    if not _nestbar(g) or sum(verschachtelbar(g, t) for t in teile) < 2 and not any(
             t.drehung == FEST for t in teile):
         return [(t, 0) for t in teile]
     beste = None
@@ -473,13 +520,16 @@ def passt(g, teile):
     # (mindestbedarf): passt es selbst so nicht, muss nicht angeordnet werden
     ueber = sum(gehrung_tiefe(g, t.a_gehrung) + gehrung_tiefe(g, t.b_gehrung) for t in teile
                 if t.a_gehrung or t.b_gehrung) if g.querschnitt else 0.0
+    if g.kontur_geo:
+        ueber = sum(_tiefe(g, t, "a") + _tiefe(g, t, "b") for t in teile)
     if laenge + (len(teile) - 1) * g.kerf - ueber > g.luft + EPS:
         return False
     if not vertraeglich(g, teile):
         return False
-    if not g.querschnitt:
+    if not _nestbar(g):
         return belegt(g, anordnen(teile, g)) <= g.nutzbar_bis + EPS
-    schluessel = (g.querschnitt, g.kerf, g.abstand, g.greiferrest, g.ende_bonus, tuple(_enden(t) for t in teile))
+    schluessel = (g.querschnitt, g.kerf, g.abstand, g.greiferrest, g.ende_bonus, tuple(_enden(t) for t in teile)) + \
+        ((g.kontur_geo, g.kontur_zugabe) if g.kontur_geo else ()) + (("P",) if praezision_an() else ())
     summe = _TRENNSUMME.get(schluessel)
     if summe is None:
         if len(_TRENNSUMME) > ANORDNUNG_MAX:
@@ -495,7 +545,19 @@ _TRENNSUMME = {}
 def mindestbedarf(g, t):
     """Kleinstmöglicher Längenbedarf eines Teils auf der Stange (Länge + Schnittverlust − größtmögliche Überlappung
     beider Gehrungen); Grundlage der Untergrenzen."""
+    if g.kontur_geo:
+        return t.laenge + g.kerf - _tiefe(g, t, "a") - _tiefe(g, t, "b")
     return t.laenge + g.kerf - gehrung_tiefe(g, t.a_gehrung) - gehrung_tiefe(g, t.b_gehrung)
+
+
+def _tiefe(g, t, seite):
+    """Größtmögliche Überlappung eines Endes: Gehrung (eben) bzw. Verlauf der Endkontur, das größere (sicher)."""
+    geh = gehrung_tiefe(g, t.a_gehrung if seite == "a" else t.b_gehrung)
+    k = t.a_kontur if seite == "a" else t.b_kontur
+    if not k:
+        return geh
+    from . import endkontur
+    return max(geh, endkontur.profil_tiefe(k))
 
 
 # ------------------------------------------------------------------ Packverfahren
@@ -664,10 +726,22 @@ def gehrungen_ineinander(g, folge):
     return sum(1 for (t1, r1), (t2, r2) in zip(folge, folge[1:]) if ineinander(g, t1, r1, t2, r2))
 
 
+def kontur_paar(g, t1, t2):
+    """Liegen die Enden über ihre Verläufe (Endkonturen) statt über die ebene Gehrung aneinander?"""
+    return bool(g.kontur_geo) and not (t1.b_gerade and t2.a_gerade) and bool(t1.b_kontur and t2.a_kontur) and \
+        (t1.b_gehrung is None or t2.a_gehrung is None or not g.querschnitt)
+
+
+def konturen_ineinander(g, folge):
+    """Anzahl der Stellen, an denen beliebige Endkonturen (nicht nur ebene Gehrungen) ineinanderliegen."""
+    return sum(1 for (t1, r1), (t2, r2) in zip(folge, folge[1:])
+               if kontur_paar(g, t1, t2) and ineinander(g, t1, r1, t2, r2))
+
+
 def gleichartig(a, b):
     return a.laenge == b.laenge and a.a_gerade == b.a_gerade and a.b_gerade == b.b_gerade and \
-        (a.a_gehrung, a.b_gehrung, a.drehung, a.naht, a.rest, a.ende_frei) == (
-            b.a_gehrung, b.b_gehrung, b.drehung, b.naht, b.rest, b.ende_frei)
+        (a.a_gehrung, a.b_gehrung, a.drehung, a.naht, a.rest, a.ende_frei, a.a_kontur, a.b_kontur) == (
+            b.a_gehrung, b.b_gehrung, b.drehung, b.naht, b.rest, b.ende_frei, b.a_kontur, b.b_kontur)
 
 
 def exakt(g, ziel):
@@ -693,7 +767,7 @@ def exakt(g, ziel):
             zustand["beste_n"] = len(stangen)
             return
         zustand["knoten"] += 1
-        if zustand["knoten"] > EXAKT_MAX_KNOTEN:
+        if zustand["knoten"] > EXAKT_MAX_KNOTEN * (PRAEZ_EXAKT if praezision_an() else 1):
             zustand["abbruch"] = True
             return
         frei = 0.0
@@ -736,7 +810,70 @@ vorgerechnet = threading.local()
 
 def schluessel(g):
     """Eingaben einer Gruppe für optimiere als Text (bewiesen und schranke sind nur Ergebnis)."""
-    return repr(replace(g, bewiesen=False, schranke=0))
+    return repr(replace(g, bewiesen=False, schranke=0)) + ("|Präzision" if praezision_an() else "")
+
+
+# ------------------------------------------------------------------ Präzisionsoptimierung (Strategie P)
+# Master-Auftrag universelle Konturverschachtelung (Patrick 25.11.2026), Strategie C „Präzisionsoptimierung“: mehr
+# Kombinationen und Konturvarianten untersuchen. Im Präzisionsmodus prüft anordnen nach den Ketten zusätzlich eine
+# lokale Suche über die Reihenfolge (jedes Teil an jeden Platz, je zwei Teile tauschen; Drehungen jeweils optimal),
+# und die exakte Suche darf mehr Schritte gehen. Grenzen in Schritten, nie in Zeit: auf jedem Rechner gleich.
+PRAEZ_SCHRITTE = 600        # bewertete Reihenfolgen je Stange in der lokalen Suche
+PRAEZ_MAX_TEILE = 40        # lokale Suche nur für Stangen bis zu so vielen Teilen
+PRAEZ_EXAKT = 4             # Faktor für die Suchschritte der exakten Suche
+_modus = threading.local()
+
+
+class praezision:
+    """with optimierung.praezision(): … rechnet im Präzisionsmodus (je Thread)."""
+
+    def __enter__(self):
+        self._vorher = getattr(_modus, "an", False)
+        _modus.an = True
+        return self
+
+    def __exit__(self, *_):
+        _modus.an = self._vorher
+        return False
+
+
+def praezision_an():
+    return getattr(_modus, "an", False)
+
+
+def _lokal_suchen(g, folge, naht_stange):
+    """Lokale Suche über die Reihenfolge (Präzisionsmodus): verschieben und tauschen, solange der Verbrauch der
+    Trennungen sinkt; höchstens PRAEZ_SCHRITTE Bewertungen. Ergebnis (Summe, Reihenfolge)."""
+    beste, _ = _drehungen_waehlen(g, folge, naht_stange)
+    folge = list(folge)
+    n, schritte = len(folge), 0
+    besser = True
+    while besser and schritte < PRAEZ_SCHRITTE:
+        besser = False
+        for i in range(n):
+            for j in range(n):
+                if i == j or schritte >= PRAEZ_SCHRITTE:
+                    continue
+                for art in ("schieben", "tauschen"):
+                    if art == "tauschen" and j < i:
+                        continue
+                    neu = list(folge)
+                    if art == "schieben":
+                        neu.insert(j, neu.pop(i))
+                    else:
+                        neu[i], neu[j] = neu[j], neu[i]
+                    if gleichartig(neu[i], folge[i]) and gleichartig(neu[j], folge[j]):
+                        continue
+                    schritte += 1
+                    summe, _ = _drehungen_waehlen(g, neu, naht_stange)
+                    if summe < beste - EPS:
+                        beste, folge, besser = summe, neu, True
+                        break
+                if besser:
+                    break
+            if besser:
+                break
+    return beste, folge
 
 
 # Schon gerechnete Gruppen über einen Lauf hinaus (Performance-Update 10.11.2026, Tempo Teil 2): nach einer Änderung
@@ -906,8 +1043,9 @@ def bewertung(g, n_stangen):
 # ------------------------------------------------------------------ Schnittmuster (Spaltengenerierung)
 def typ(t):
     """Gleiche Teile (Länge, Enden, Schnittlängen, Gehrungen, Drehfreigabe) sind für die Schnittmuster ein Typ."""
-    return (t.laenge, t.a_gerade, t.b_gerade, t.a_schnitt, t.b_schnitt, t.a_gehrung or (), t.b_gehrung or (),
-            t.drehung, -1 if t.naht is None else t.naht, t.rest, t.ende_frei)
+    basis = (t.laenge, t.a_gerade, t.b_gerade, t.a_schnitt, t.b_schnitt, t.a_gehrung or (), t.b_gehrung or (),
+             t.drehung, -1 if t.naht is None else t.naht, t.rest, t.ende_frei)
+    return basis + (t.a_kontur or "", t.b_kontur or "") if (t.a_kontur or t.b_kontur) else basis
 
 
 # Anzahl je Endenart als eine Zahl (16 Bit je Art) statt als Liste: spart je Suchknoten zwei Listenkopien
@@ -927,7 +1065,8 @@ def bestes_muster(g, typen, bedarf, wert):
     # Länge der Teile + Zuschlag je Anzahl. Gehrungen zählen hier wie 2 Schnitte (sicher, nie zu kurz).
     arten = ((True, True), (False, True), (True, False), (False, False))
     art = [arten.index((t.a_gerade, t.b_gerade)) for t in typen]
-    vertreter = {a: replace(typen[art.index(a)], laenge=0.0, a_gehrung=None, b_gehrung=None, drehung=FREI, naht=None)
+    vertreter = {a: replace(typen[art.index(a)], laenge=0.0, a_gehrung=None, b_gehrung=None, drehung=FREI, naht=None,
+                            a_kontur=None, b_kontur=None)
                  for a in set(art)}
     zuschlag = {}
 
@@ -1784,3 +1923,11 @@ def pruefe_drehungen(g, folge):
                 not (t1.b_gerade and t2.a_gerade) and ineinander(g, t1, r1, t2, r2):
             if gehrung_trennung(g, t1.b_gehrung, r1, t2.a_gehrung, r2) < trennung_teile(g, t1, r1, t2, r2) - EPS:
                 raise AssertionError(f"{g.profil}: Gehrungen enger als der Abstand")
+        if kontur_paar(g, t1, t2) and ineinander(g, t1, r1, t2, r2):
+            # Kollisionsprüfung der Endkonturen (unabhängig von der Rechnung, über alle Zellpaare): eine rein optische
+            # Überlappung ist nie zulässig
+            from . import endkontur
+            d = endkontur.kleinster_abstand(g.kontur_geo, t1.b_kontur, r1, t2.a_kontur, r2,
+                                            trennung_teile(g, t1, r1, t2, r2))
+            if d < kontur_abstand(g) - 1e-6:
+                raise AssertionError(f"{g.profil}: Endkonturen enger als der Abstand ({d:.2f} mm)")

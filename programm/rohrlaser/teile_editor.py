@@ -591,13 +591,22 @@ class EditorRahmen(QObject):
             gm.addAction("An Ende A …", lambda: d.gegenrohr("a"))
             gm.addAction("An Ende B …", lambda: d.gegenrohr("b"))
             gm.addAction("Durchbruch (Rohr durch die Wand)", lambda: self.kontur_einfuegen(sw.DURCHBRUCH))
+            # Endkontur (V, U, S, Bogen, Stufen, Freiform …) im selben Menü: das Menüband bleibt so breit wie bisher
+            gm.addSeparator()
+            for s_, titel in (("a", "A"), ("b", "B")):
+                ka = gm.addAction(f"Endkontur an Ende {titel} …", lambda s_=s_: d.endkontur(s_))
+                ka.setToolTip("Freie Anfangs-/Endkontur: schräg, V, U, S, Bogen, Stufen, Freiform oder mehrere "
+                              "überlagert; die Stangenoptimierung legt passende Konturen ineinander")
+                ka.setEnabled(d.kontur_knopf["a"].isEnabled())
+            gm.addSeparator()
             wa = gm.addAction(werkzeug_koerper.TITEL + " …", lambda: werkzeug_koerper.aus_koerper(self))
             wa.setToolTip(werkzeug_koerper.TIPP)
             gm.setToolTipsVisible(True)
             self.werkzeug_aktion = wa
             k = g.knopf("Gegenrohr", "gegenrohr", lambda: d.gegenrohr(self._gewaehltes_ende() or "a"), menue=gm,
                         tipp="Ende auf ein Gegenrohr setzen (rund oder rechteckig, schräg, mit Versatz) oder einen "
-                             "Durchbruch einfügen; das Gegenrohr erscheint im 3D pink")
+                             "Durchbruch einfügen; das Gegenrohr erscheint im 3D pink. Im Menü auch die Endkontur "
+                             "(V, U, S, Bogen, Stufen, Freiform)")
             k.setEnabled(d.gegen_knopf["a"].isEnabled())
             g.knopf("Lochfeld", "lochfeld", lambda: self.kontur_einfuegen(sw.LOCHFELD),
                     tipp="Raster aus Bohrungen (oder Langlöchern) als eine Zeile: Löcher längs, Reihen quer, versetzt")
@@ -2238,7 +2247,10 @@ class EditorRahmen(QObject):
         art, _, nr = mid.partition(":")
         if self.art == "rohr":
             if art == "ende" and nr in d._ende_step:
-                w, achse, sattel, richtung, wb, gegen = d._ende_step[nr][0]
+                w, achse, sattel, richtung, wb, gegen = d._ende_step[nr][0][:6]
+                kontur = d._ende_step[nr][0][6] if len(d._ende_step[nr][0]) > 6 else "null"
+                d.kontur[nr] = json.loads(kontur)
+                d._kontur_text(nr)
                 d.gegen[nr] = json.loads(gegen)
                 d._gegen_text(nr)
                 d.achse[nr].setCurrentText(achse)

@@ -339,8 +339,10 @@ def schnitt_x(qs, e, u, v, aussen=False):
         except (ValueError, ZeroDivisionError):
             return 0.0
     w = abs(_z(e.get("winkel")))
-    if not w and e.get("umriss"):           # komplexes Ende aus dem STEP-Import: gemessener Verlauf
-        um = _ende_umriss_merken(qs, e["umriss"])
+    if not w and (e.get("umriss") or e.get("kontur")):
+        # komplexes Ende aus dem STEP-Import (gemessener Verlauf) bzw. Endkontur (endkontur.py, konstruiert)
+        liste = ende_umriss_von(qs, e)
+        um = _ende_umriss_merken(qs, liste) if liste else None
         return um(uv_zu_s(qs, u, v)) if um else 0.0
     if not w or w >= 80:
         return 0.0
@@ -471,7 +473,8 @@ def silhouette(qs, e_a, e_b, L, ansicht, n=80):
     lo, hi = min(p[idx] for p in poly), max(p[idx] for p in poly)
     ws = [lo + (hi - lo) * i / n for i in range(n + 1)]
     for e in (e_a, e_b):            # Knicke eines gemessenen Endes (Ausklinkung): Stufe genau, nicht schräg
-        um = _ende_umriss_merken(qs, e["umriss"]) if e and e.get("umriss") and not _z(e.get("winkel")) else None
+        liste = ende_umriss_von(qs, e) if e and not _z(e.get("winkel")) else None
+        um = _ende_umriss_merken(qs, liste) if liste else None
         for st in getattr(um, "stellen", ()) if um else ():
             w0 = qs.s_zu_uv(st % qs.umfang)[0][idx]
             ws += [w for w in (w0 - 1e-4, w0 + 1e-4) if lo < w < hi]
@@ -526,7 +529,7 @@ def ende_abwicklung(qs, e, n=120):
     """Schnittlinie eines Endes in der Abwicklung: [(s, Abstand von der Spitze)]. Mit umriss (komplexes Ende aus dem
     STEP-Import: [[s, Abstand vom Ende]]) der gemessene Verlauf. Nasen einer Steckverbindung (wie rohr3d.netz): der
     Schnitt liegt um ihre Länge weiter innen, die Nasen (Breite am Umfang) ragen bis zum Teilende."""
-    um = _ende_umriss(qs, (e or {}).get("umriss"))
+    um = _ende_umriss(qs, ende_umriss_von(qs, e))
 
     def basis(s):
         if um:
@@ -566,6 +569,21 @@ def _nasen_abwicklung(qs, e):
 
 
 _umriss_merker = {}
+
+
+def ende_umriss_von(qs, e):
+    """Verlauf eines Endes als Umriss [[s, Abstand vom Ende]]: gemessen (STEP-Import, 'umriss') oder aus der
+    Endkontur ('kontur', endkontur.umriss: V, U, S, Bogen, Stufen, Freiform …); sonst None. Eine Gehrung (winkel)
+    geht vor (wie bisher)."""
+    e = e or {}
+    if _z(e.get("winkel")):
+        return None
+    if e.get("kontur"):
+        from . import endkontur
+        um = endkontur.umriss(qs, e["kontur"])
+        if um:
+            return um
+    return e.get("umriss") or None
 
 
 def _ende_umriss_merken(qs, umriss):

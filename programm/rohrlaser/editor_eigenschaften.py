@@ -729,6 +729,12 @@ class Eigenschaften(QWidget):
             self.felder["Gegenrohr"] = b
             if d.gegen.get(s):
                 self._gegen_felder(s)
+        if getattr(d, "kontur_knopf", {}).get(s) is not None and d.kontur_knopf[s].isEnabled():
+            b = QPushButton(d.kontur_knopf[s].text())
+            b.setToolTip(d.kontur_knopf[s].toolTip())
+            b.clicked.connect(lambda: d.endkontur(s))
+            self._form.addRow("Endkontur", b)
+            self.felder["Endkontur"] = b
         if d.d3.isChecked():
             self._haken("Gehrung in 3D", d.ende_3d[s])
         return "Anfangsschnitt (Ende A)" if s == "a" else "Endschnitt (Ende B)"

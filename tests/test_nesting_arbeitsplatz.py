@@ -36,11 +36,11 @@ assert s.optimieren()
 vorher = [x["stange"] for x in s.ergebnis["stangen"]]
 assert set(vorher) == {6000} and not any(x.get("nesting") for x in s.ergebnis["stangen"])
 
-# Strategievergleich: bisher + A … E (ohne Lager kein C)
+# Strategievergleich: bisher + A … H + P (ohne Lager kein C)
 v = s.nesting_vergleich()
 assert len(v) == 1
 namen = [z["strategie"] for z in v[0]["zeilen"]]
-assert namen[0] == nv.BISHER and set(namen[1:]) - {nv.AKTUELL} == {ne.A, ne.B, ne.D, ne.E, ne.F, ne.G, ne.H}, namen
+assert namen[0] == nv.BISHER and set(namen[1:]) - {nv.AKTUELL} == {ne.A, ne.B, ne.D, ne.E, ne.F, ne.G, ne.H, ne.P}, namen
 a = next(z for z in v[0]["zeilen"] if z["strategie"] == ne.A)
 b = next(z for z in v[0]["zeilen"] if z["strategie"] == nv.BISHER)
 assert a["gekauft_m"] < b["gekauft_m"], (a, b)
