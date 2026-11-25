@@ -81,7 +81,7 @@ def _():
     assert [c["art"] for c in k["konturen"]] == ["Bohrung", "Bohrung", "Langloch", "Rechteckausschnitt",
                                                  "Sackbohrung"], k["konturen"]
     assert k["pruefstatus"] == "prüfen" and any("Sackbohrung" in x for x in k["warnungen"])   # Sackbohrung: prüfen
-    # schneidweg: Schneidweg-Bilanz (0.9.491) meldet "geprüft"
+    # schneidweg: Schneidweg-Bilanz (0.9.493) meldet "geprüft"
     assert all(v == ("geprüft" if n == "schneidweg" else "sicher") for n, v in k["erkennungssicherheit"].items()), \
         k["erkennungssicherheit"]
 
