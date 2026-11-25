@@ -125,6 +125,7 @@ TESTS = [
     ("test_ansicht_gl.py", {}),
     ("test_schnittkoerper.py", {}),
     ("test_optimierung.py", {}),
+    ("test_gesamtpruefung_2511.py", {}),
     ("test_stangenende.py", QT),
     ("test_fertigungslos.py", QT),
     ("test_pruefung_artube.py", {}),

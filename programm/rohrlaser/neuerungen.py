@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.509", "<b>Gesamtprüfung Rechenkerne</b>: Die Stangenoptimierung merkt sich beim Auflösen schwacher Stangen, "
+                "welche Teile auf welche Stange nicht passen, und prüft sie nicht erneut. Große Serien mit schrägen "
+                "Enden rechnen dadurch bis zu 30-mal schneller (10.000 Teile 158 s → 5 s, 4.000 Teile 28 s → 1,6 s), "
+                "der Schnittplan bleibt bitgleich ([[optimieren]]). Eine Konturzeile mit mehr als 100.000 Konturen "
+                "(z. B. Lochfeld mit falscher Reihenzahl) meldet jetzt einen Fehler, statt den Speicher zu füllen. "
+                "37 RP-Profile der Bibliothek zeigten keine Kontur (Rundung im Bibliotheksformat); jetzt haben alle "
+                "141 Profile ihren Querschnitt in Skizze, 3D und Zeichnung.",
+     "Gesamtprüfung: Stangenoptimierung bis 30× schneller, Kontur-Grenze, alle RP-Profile mit Kontur"],
     ["0.9.508", "<b>Echte Innenkante bei 3D-Schnitten an den Enden</b> ([[nesting]]): Beim Verschachteln beliebiger "
                 "Endkonturen nimmt ein ebener Schnitt (Gehrung oder schräg in zwei Richtungen) mit "
                 "3D-Schnittbearbeitung die Innenkante jetzt dort an, wo die Schnittebene die Innenwand trifft, wie in "

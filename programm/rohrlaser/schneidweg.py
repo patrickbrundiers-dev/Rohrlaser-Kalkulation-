@@ -663,14 +663,28 @@ def punkte(text):
     return out
 
 
+# Gesamtprüfung 25.11.2026 (Befund G-02): eine Konturzeile mit einer vertippten Anzahl (z. B. 10.000.000 statt 10)
+# bzw. Reihen eines Lochfelds legte je Kontur einen Listeneintrag an, bis der Arbeitsspeicher voll war (Programm
+# hängt bzw. stürzt ab). So viele Konturen hat kein Rohrteil: die Zeile meldet dann einen Fehler wie fehlende Maße.
+KONTUREN_MAX = 100000       # Konturen je Zeile der Konturtabelle (Anzahl × Reihen bzw. Löcher × Kopien am Umfang)
+
+
 def kontur(e):
     """Eine Zeile der Konturtabelle: (Schnittlänge je Stück, Hüllmaß oder None = groß, Anzahl). ValueError bei
     fehlenden oder unmöglichen Maßen."""
+    lg, hk, n = _kontur(e)
+    if n * (1 + len(e.get("kopien") or ())) > KONTUREN_MAX:
+        raise ValueError(f"{e.get('art')}: {n * (1 + len(e.get('kopien') or ())):,} Konturen in einer Zeile – "
+                         f"Anzahl bzw. Reihen prüfen (höchstens {KONTUREN_MAX:,}).".replace(",", "."))
+    return lg, hk, n
+
+
+def _kontur(e):
     art, n = e.get("art"), int(_z(e.get("anzahl")) or 0)
     if n < 1:
         raise ValueError(f"{art}: Anzahl fehlt.")
     if _z(e.get("gemessen")) > 0:       # aus der STEP-Messung, Maße unverändert: gemessene Länge
-        lg, hk, _ = kontur(dict(e, gemessen=None, laenge=e.get("laenge") or e["gemessen"]))
+        lg, hk, _ = _kontur(dict(e, gemessen=None, laenge=e.get("laenge") or e["gemessen"]))
         return _z(e["gemessen"]), (_z(e.get("huelle_gemessen")) or hk), n
     if art == BOHRUNG:
         d = _z(e.get("d"))
