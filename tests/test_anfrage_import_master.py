@@ -203,6 +203,7 @@ assert all(m["_stueck_formular"] is False and "bitte Revision prüfen" in m["_st
 st = formular.stueckzahlen("123456-01 10 Stk\n123456-02 20 Stk", ["123456_REV02.step"])
 assert st == {"123456_REV02.step": (20, True)}, st
 assert formular.stueckzahlen("123456-01 10 Stk\n123456-03 20 Stk", ["123456_REV02.step"]) == {}
+assert formular.stueckzahlen("123456-01 10 Stk", ["123456_REV02.step"]) == {}, "Menge einer anderen Revision"
 ok("M9 mehrere Versionen: mehrdeutig (neueste als Vorschlag), Menge nur unsicher mit „bitte Revision prüfen“; "
    "im Text passende Revision gewählt, sonst nichts geraten")
 

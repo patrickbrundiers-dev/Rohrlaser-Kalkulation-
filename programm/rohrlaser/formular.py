@@ -199,8 +199,9 @@ def _grund_suchen(zeilen, belegt, schluessel, out, menge_spalte, unsicher, info)
             w = _menge(z[:lage[0]] + " " + z[lage[1]:], menge_spalte, unsicher, _pos_vorn(z, g))
             if w:
                 treffer.append((i, w, lage[2]))
-        if len({(w, r) for _, w, r in treffer}) > 1 and t.rev:     # mehrere Revisionen im Text: die der Datei
-            treffer = [x for x in treffer if x[2].lstrip("0") == t.rev.lstrip("0")] or treffer
+        # Nennt der Text Revisionen, zählt nur die der Datei: nie die Menge einer anderen Revision vorschlagen
+        if t.rev and any(r for _, _, r in treffer):
+            treffer = [x for x in treffer if not x[2] or x[2].lstrip("0") == t.rev.lstrip("0")]
         if len({(w, r) for _, w, r in treffer}) != 1:
             continue                # keine oder mehrere verschiedene Zeilen: nichts raten
         i, w, rev = treffer[0]
