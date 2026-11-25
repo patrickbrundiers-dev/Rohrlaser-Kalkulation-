@@ -16275,6 +16275,12 @@ def kapitel_step_messung(i):
             "<i>Geometrie laut Prüfung ungültig</i> dabei.",
             "Meldungen beim Lesen der Datei erscheinen als Hinweis <i>STEP-Leser meldet: …</i>. Eine defekte oder "
             "leere Datei erscheint im Protokoll als FEHLER <i>STEP-Datei nicht lesbar</i>.",
+            "Ist in einer Baugruppe nur ein Teil beschädigt, werden die übrigen Körper normal gemessen. Der beschädigte "
+            "fehlt nicht mehr still: bei jedem Körper steht dann <i>STEP-Leser meldet: 1 von 48 Volumenkörpern der "
+            "Datei nicht lesbar (beschädigt?) – er fehlt in der Liste, Datei prüfen oder neu exportieren</i>. Stürzt "
+            "das Lesen einer stark beschädigten Datei ab, steht im Protokoll <i>Messung abgebrochen (Absturz beim "
+            "Lesen der Datei – Datei vermutlich beschädigt, bitte neu exportieren)</i>; das Programm selbst läuft "
+            "weiter (die Messung läuft in einem eigenen Prozess, solange das Zeitlimit je Körper nicht 0 ist).",
             "Zu jedem Körper stehen in den Messwerten zusätzlich Volumen, Oberfläche, Anzahl Flächen und Kanten und "
             "der Hüllquader in der Lage der Datei.")
     i.abschnitt("Geprüfte Fälle und bekannte Grenzen")
