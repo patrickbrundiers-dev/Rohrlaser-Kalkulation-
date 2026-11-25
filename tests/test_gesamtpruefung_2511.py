@@ -239,6 +239,13 @@ for art in (sw.BOHRUNG, sw.LANGLOCH, sw.RECHTECK):
             nan_arten += 1
             continue
         assert math.isfinite(lg), (art, wert, lg)
+for wert in (float("nan"), float("inf")):       # Senkung: Senk-Ø D prüft _kontur nicht selbst (Codex #676)
+    try:
+        sw.kontur(dict(art=sw.SENKUNG, anzahl=1, d=8.5, D=wert))
+        raise AssertionError(f"Senkung mit D={wert} angenommen")
+    except ValueError as f:
+        assert "keine gültige Zahl" in str(f), f
+        nan_arten += 1
 r = sw.rechnen(dict(a={}, b={}, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=float("nan"), x=100),
                                           dict(art=sw.BOHRUNG, anzahl=2, d=8.5, x=200)]), PROFIL, REGEL)
 assert any("keine gültige Zahl" in f for f in r["fehler"]), r["fehler"]
