@@ -168,13 +168,6 @@ def kw_wert(datum):
     return f"{kw}/{j}"
 
 
-def haltbar(t, zugesagt):
-    """True/False: hält die Lieferzeit des Angebots; None = nicht prüfbar."""
-    if t is None or zugesagt is None:
-        return None
-    return t.datum is not None and zugesagt >= t.datum
-
-
 def arbeitstage_zwischen(von, bis, land=None, ruhe=()):
     """Arbeitstage nach von bis einschließlich bis (0, wenn bis nicht nach von liegt), ohne Betriebsruhe."""
     n, d = 0, von

@@ -271,8 +271,3 @@ def _preis_hand(positionen, zeilen):
         out[i] = (ziel, preis, selbst)
     return out
 
-
-def untergrenze_text(summen):
-    from .stammdaten import zahl_als_text as zahl
-    return (f"Preisuntergrenze langfristig {zahl(summen.get('untergrenze_lang') or 0, 2)} € · kurzfristig "
-            f"{zahl(summen.get('untergrenze_kurz') or 0, 2)} € netto")

@@ -3,6 +3,8 @@
 Neue Oberflächen nehmen die Farben von hier statt eigener Farbwerte. Die Grundfarben kommen aus design.py, das auch
 die PDF-Ausgaben nutzen.
 """
+import re as _re
+
 # Grundfarben aus design.py (gemeinsam mit den PDF-Ausgaben, UI-Modernisierung U7): Dunkelblau AKZENT für aktiven
 # Reiter, Titel und Hauptknöpfe; ROT Fehler, GELB Warnung, ORANGE Abweichung, GRUEN in Ordnung
 from .design import (  # noqa: E402,F401
@@ -298,7 +300,28 @@ def umsetzen(text, name=None):
     if _HEX is None:
         import re
         _HEX = re.compile(r"#[0-9A-Fa-f]{6}\b")
-    return _HEX.sub(lambda m: tabelle.get(m.group(0).upper(), m.group(0)), text)
+    def hex_(t):
+        return _HEX.sub(lambda m: tabelle.get(m.group(0).upper(), m.group(0)), t)
+    if "white" in text:         # „color: white“ auf umgesetzter Fläche: Schrift passend zur neuen Fläche (Phase 4)
+        return _BLOCK.sub(lambda m: _weiss_anpassen(m.group(0), tabelle, hex_), text)
+    return hex_(text)
+
+
+_BLOCK = _re.compile(r"[^{}]+")
+_WEISS = _re.compile(r"(?<![-\w])color:\s*white\b", _re.I)
+_GRUND = _re.compile(r"background(?:-color)?:\s*(#[0-9A-Fa-f]{6})\b")
+
+
+def _weiss_anpassen(block, tabelle, hex_):
+    """Generalüberholung Phase 4 (Kontrastprüfung 24.11.2026): Knöpfe mit „color: white“ auf einer Akzentfläche
+    (z. B. „Weiter ▸“, Ansichts-Chips) bekamen im Dunkelmodus eine hellblaue Fläche, die weiße Schrift hatte nur
+    2,0 bis 2,6 : 1. Wird die Fläche umgesetzt, bekommt die Schrift die lesbare Farbe zur neuen Fläche (schrift_auf),
+    wie „#FFFFFF“ über die Tabelle. Flächen, die nicht umgesetzt werden, und Hell bleiben unverändert."""
+    g = _WEISS.search(block) and _GRUND.search(block)
+    neu = g and tabelle.get(g.group(1).upper())
+    if not neu:
+        return hex_(block)
+    return _WEISS.sub("color: " + schrift_auf(neu).name().upper(), hex_(block))
 
 
 def farbe(hell, alpha=None):

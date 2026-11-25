@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.485", "<b>Einfacher Modus</b> ([[einfacher_modus]]): eine zweite, aufgeräumte Oberfläche neben dem "
+    ["0.9.486", "<b>Einfacher Modus</b> ([[einfacher_modus]]): eine zweite, aufgeräumte Oberfläche neben dem "
                 "Experten-Pro-Modus. Sie führt in sechs Schritten durch die Kalkulation: Neue Kalkulation (STEP, "
                 "CAD, vorhandenes Bauteil, Angebot öffnen), Bauteile mit 3D-Vorschau, Material mit Preis und "
                 "Verfügbarkeit, Bearbeitung und Zusatzkosten, Ergebnis mit Marge und Ampel, Angebot mit Kunde, "
@@ -31,6 +31,12 @@ NEUERUNGEN = [
                 "umschalten jederzeit ohne Datenverlust per Knopf in der Statusleiste oder Strg+Alt+M. Beide Modi "
                 "nutzen denselben Rechenkern und dieselben Daten; der Expertenmodus bleibt unverändert.",
      "Einfacher Modus: geführte Kalkulation in 6 Schritten, je Benutzer wählbar, Expertenmodus unverändert"],
+    ["0.9.485", "<b>Generalüberholung, Paket 3: Dunkelmodus besser lesbar</b>: Alle 68 Ansichten (Hauptreiter, "
+                "Reiter des Angebots, alle Einstellungsseiten) wurden in Hell und Dunkel auf Lesbarkeit gemessen. Zwei "
+                "Stellen hatten im Dunkelmodus weiße Schrift auf Hellblau (2,0 bzw. 2,6 : 1): der Knopf <i>Weiter ▸</i> "
+                "im Arbeitsablauf des Angebots und die gewählte Spaltenansicht (<i>Alle</i>, <i>Erfassen</i> …). Sie "
+                "haben jetzt dunkle Schrift (6,9 bzw. 8,8 : 1). Hell und Hoher Kontrast sind unverändert ([[einstellungen]]).",
+     "Generalüberholung 3: Dunkelmodus besser lesbar"],
     ["0.9.484", "<b>CAD-Kern 3.0</b>: Große STEP-Dateien werden beim zweiten Mal viel schneller eingelesen. Das "
                 "Programm merkt sich die gelesenen und geheilten Körper (Einstellung <i>STEP-Zwischenspeicher</i>, "
                 "neue Vorgabe <i>ja, mit gelesenen Körpern</i>). Beispiel Baugruppe mit 870 Körpern: Einlesen 297 s "

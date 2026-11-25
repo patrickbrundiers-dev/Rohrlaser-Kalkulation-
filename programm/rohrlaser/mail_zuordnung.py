@@ -290,17 +290,6 @@ def zuordnen(m, kunden, eigene=(), firma="", regeln=(), jetzt=None, nachrichten_
                 referenzen=list(m.referenzen if m is not None else [])[-20:])
 
 
-def kurz_text(z):
-    """Eine Zeile für Liste und Kopf: „wahrscheinlich – bitte prüfen: 10023 Krüger (Domain @krueger.de beim Kunden)“."""
-    if not z:
-        return ""
-    t = STUFE_TEXT.get(z.get("stufe"), "")
-    v = (z.get("vorschlaege") or [None])[0]
-    if v and z.get("stufe") != UNBEKANNT:
-        t += f": {v['kundennr']} {v['name']}".rstrip() + (f" ({v['gruende'][0]})" if v.get("gruende") else "")
-    return t
-
-
 # ------------------------------------------------------------------ Dubletten
 def kunden_dubletten(kunden, daten):
     """Kunden im Stamm, die zu neuen Kundendaten (mail.kunde_daten) passen könnten: [(Kunde, Grund)] – vor „Neuen

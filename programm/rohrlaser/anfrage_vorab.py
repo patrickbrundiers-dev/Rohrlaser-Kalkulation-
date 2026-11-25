@@ -73,20 +73,6 @@ def ampel(eingang_, tage, jetzt=None, land=None):
     return GRUEN, faellig, f"bis {faellig:%d.%m.} ({rest} Arbeitstag{'e' if rest != 1 else ''})"
 
 
-def alter_text(eingang_, jetzt=None):
-    """'seit 3 h', 'seit 2 Tagen' …"""
-    if not eingang_:
-        return ""
-    jetzt = jetzt or datetime.datetime.now()
-    s = max(0, (jetzt - eingang_).total_seconds())
-    if s < 3600:
-        return f"seit {int(s // 60)} min"
-    if s < 86400:
-        return f"seit {int(s // 3600)} h"
-    t = int(s // 86400)
-    return f"seit {t} Tag{'en' if t != 1 else ''}"
-
-
 def sortieren(eintraege):
     """[(Anfrage, Stufe, fällig)] nach Dringlichkeit: rot, gelb, grün, ohne; dann früher fällig, dann älter."""
     return sorted(eintraege, key=lambda e: (RANG.get(e[1], 3), e[2] or datetime.date.max,
