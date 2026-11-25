@@ -804,6 +804,7 @@ def kurven_abstand(pa, pb, umfang, fenster=2.0, beide=False):
             if groesst >= fenster:
                 break
         return groesst
+    # Kein "a if beide else b" mit Tupel/Zahl: Cython (Windows-Build) lehnt gemischte Typen im Bedingungsausdruck ab.
     if not pa or not pb or not umfang:
         if beide:
             return (math.inf, math.inf)
