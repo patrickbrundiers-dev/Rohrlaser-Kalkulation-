@@ -62,11 +62,12 @@ def _ek_artikel(db, k):
     return out
 
 
-def ergaenzen(db, quelle="Bestand (Update)"):
+def ergaenzen(db, quelle="Bestand (Update)", lauf=None):
     """Materialstamm aus dem Bestand ergänzen (Patrick 23.11.2026: „Artikelnummer je Abmessung × Werkstoff aus dem
     Import übernehmen“): fehlende Kombinationen aus Preisen, Lieferlängen, Material-Lieferanten und EK-Import
     anlegen (aktiv, Herkunft quelle); bei vorhandenen Zeilen eine leere Materialnummer bzw. Bezeichnung aus dem
-    EK-Import nachtragen (die meistgekaufte Artikelnummer). Ausgefüllte Werte bleiben. Ergebnis: dict(neu, nummern)."""
+    EK-Import nachtragen (die meistgekaufte Artikelnummer). Ausgefüllte Werte bleiben. lauf (csv_import.Lauf): jede
+    Änderung wird für das Rückgängig des Imports gemerkt. Ergebnis: dict(neu, nummern)."""
     k = db.kontext()
     vorhanden = {schluessel(z): z for z in db.zeilen(STAMM)}
     ek = _ek_artikel(db, k)
@@ -83,25 +84,29 @@ def ergaenzen(db, quelle="Bestand (Update)"):
     heute = _heute()
     for s, e in neu.items():
         a = (ek.get(s) or [{}])[0]
-        db.neu(STAMM, {kk: v for kk, v in dict(profil_id=s[0], werkstoff_id=s[1], oberflaeche=s[2] or None,
-                                                 materialnr=a.get("artikelnr") or None,
-                                                 bezeichnung=a.get("bezeichnung") or None, aktiv="ja",
-                                                 angelegt=heute, geaendert=heute, quelle=quelle, **e).items()
-                       if v is not None})
+        werte = {kk: v for kk, v in dict(profil_id=s[0], werkstoff_id=s[1], oberflaeche=s[2] or None,
+                                          materialnr=a.get("artikelnr") or None,
+                                          bezeichnung=a.get("bezeichnung") or None, aktiv="ja",
+                                          angelegt=heute, geaendert=heute, quelle=quelle, **e).items()
+                 if v is not None}
+        lauf.neu(STAMM, werte) if lauf is not None else db.neu(STAMM, werte)
     nummern = 0
     for s, z in vorhanden.items():
         a = (ek.get(s) or [None])[0]
         if a is None:
             continue
-        geaendert = False
+        werte = {}
         if not z.get("materialnr"):
-            db.aendern(STAMM, z["id"], "materialnr", a["artikelnr"])
-            geaendert = True
+            werte["materialnr"] = a["artikelnr"]
         if not z.get("bezeichnung") and a.get("bezeichnung"):
-            db.aendern(STAMM, z["id"], "bezeichnung", a["bezeichnung"])
-            geaendert = True
-        if geaendert:
-            db.aendern(STAMM, z["id"], "geaendert", heute)
+            werte["bezeichnung"] = a["bezeichnung"]
+        if werte:
+            werte["geaendert"] = heute
+            if lauf is not None:
+                lauf.aendern(STAMM, z, werte)
+            else:
+                for f, v in werte.items():
+                    db.aendern(STAMM, z["id"], f, v)
             nummern += 1
     return dict(neu=len(neu), nummern=nummern)
 

@@ -1148,6 +1148,9 @@ class MaterialBereich(QWidget):
             return None
         if d is None:
             return None
+        if getattr(d, "aus_assistent", False):     # Assistent hat schon angelegt (Schritt 3) und Materialstamm ergänzt
+            self.neu_laden(erzwingen=True)
+            return d
         self.erp_anlegen(still_wenn_leer=True)     # Patrick 23.11.2026: Profile/Werkstoffe aus dem EK anlegen
         if self.darf("materialstamm"):      # Artikelnummer je Abmessung × Werkstoff in den Materialstamm
             from . import material_stamm

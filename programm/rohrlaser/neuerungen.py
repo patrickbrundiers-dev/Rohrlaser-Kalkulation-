@@ -21,6 +21,21 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.494", "<b>EK-CSV-Import und Kundenlisten-Import mit Assistent</b> ([[ek_import_assistent]], [[kunden_csv]]): "
+                "beide Importe laufen jetzt auf einer gemeinsamen Importbasis (Kodierung, Trennzeichen, Dezimalformat, "
+                "mit oder ohne Kopfzeile, Spaltennamen deutsch und englisch, Importprofile auch bei anderer "
+                "Spaltenreihenfolge, Vorschau ohne Datenbankänderung, Importlauf mit Rückgängig, Fehlerbericht). "
+                "<b>EK-Import in 6 Schritten</b>: Datei/Lieferant/Format, Spalten, Materialerkennung in drei Stufen "
+                "(exakt automatisch, wahrscheinlich zum Bestätigen, kein Treffer = neues Material), Preisprüfung je "
+                "Lieferant mit € und % (Markierung ab Einstellung, Vorgabe 10 %; ein anderer Lieferant wird nie "
+                "überschrieben), Vorschau, Abschluss. <i>RR 50/50/3</i> = 50x50x3, Mengeneinheiten mm/Stück/kg, "
+                "fremde Währung als Fehler, keine Profil-Dublette in anderer Schreibweise. <b>Kundenimport in 5 "
+                "Schritten</b>: Spalten (Firma, Customer, Mail, ZIP, City, VAT ID …; <i>Name</i> nur als Vorschlag), "
+                "Dublettenprüfung über Kundennummer, Name, E-Mail, Telefon, Anschrift und USt-ID mit den Optionen "
+                "aktualisieren / neu anlegen / überspringen / manuell zuordnen, nur leere Felder ergänzen oder "
+                "überschreiben, Ansprechpartner, Liefer-/Rechnungsadresse und Rabatt. Kundennummern werden nie "
+                "vergeben und nie geändert; Angebote und Aufträge bleiben verknüpft. Kalkulationen rechnen unverändert.",
+     "Importassistenten: EK-CSV (6 Schritte, Preisprüfung je Lieferant) und Kundenliste (5 Schritte, Dubletten)"],
     ["0.9.493", "<b>Rolle und Schneidbarkeit je Kontur</b> ([[importanalyse]]): Die Importanalyse zeigt zu jeder "
                 "Kontur, ob sie Anfangsschnitt, Endeschnitt, Anschlusskontur, Innenkontur, Durchbruch, Ausschnitt, "
                 "Freiformkontur oder nicht eindeutig ist, und wie sicher sie geschnitten wird (1 eindeutig, "

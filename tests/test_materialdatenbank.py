@@ -102,7 +102,9 @@ assert "materialnr" in M.fehler_csv(posten).lower() or "Zeile" in M.fehler_csv(p
 ok("Vorschau: doppelt, fehlerhaft (Preis abc), nicht zuordenbar (S355 ohne Norm), €/t → €/kg, €/Stange → €/m")
 
 vorher = {(p["profil_id"], p["werkstoff_id"]): dict(p) for p in db.zeilen("preise")}
-erg = M.ausfuehren(db, posten, datei="test.csv", importprofil="", sichern=False)
+# 25.11.2026: der aktive Preis gehört dem Beispiel-Lieferanten – ersetzt wird er nur, wenn es von Hand bestätigt ist
+assert g[2].get("lieferant_konflikt") and any("Beispiel-Lieferant" in h for h in g[2]["hinweis"]), g[2]["hinweis"]
+erg = M.ausfuehren(db, posten, datei="test.csv", importprofil="", sichern=False, aktiv_ersetzen={2})
 assert erg["import_id"] and erg["werkstoffe"] == 1
 st = S.zeilen_je(db)
 assert st[("RR 42,4x2,0", "S235-10219", "")]["materialnr"] == "100421"
