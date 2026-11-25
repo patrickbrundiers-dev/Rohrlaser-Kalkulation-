@@ -126,6 +126,15 @@ assert dlg.rechner.laden_knopf.isHidden() and dlg.rechner.vergleich_liste
 assert dlg.rechner.vergleich_liste[0]["std_id"] == v[0]["std_id"]
 dlg.reject()
 ok("Fracht berechnen im Angebot: derselbe günstigste Vorschlag mit Packliste")
+import json  # noqa: E402
+
+hand = {"artikel": {"1": {"allein": True}}}
+seite.kopf["fracht_sendung"] = json.dumps(dict(sendung={"plz": "20095"}, paletten={"palette_hand": hand}))
+dlg = FrachtDialog(seite)
+assert dlg.rechner.pack_hand == hand, dlg.rechner.pack_hand
+dlg.reject()
+seite.kopf["fracht_sendung"] = None
+ok("Fracht erneut öffnen: gespeicherte Änderungen von Hand (Packkern 3.0) sind wieder im Rechner")
 
 # Paketversand (Patrick 29.10.2026, 2a/3a): kleine Teile in Kartons, günstiger als jede Palette
 from rohrlaser import fracht_richtwerte  # noqa: E402

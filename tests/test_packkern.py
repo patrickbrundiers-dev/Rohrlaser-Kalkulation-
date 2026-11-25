@@ -76,9 +76,16 @@ for laenge in (2500, 6500):
     assert r["je_lht"] == {"EUR": 1} and not r["paletten"][0]["pruefung"], r["hinweise"]
     t = alle_teile(r)
     assert abs(min(x["x0"] for x in t) + (laenge - 1200) / 2) < 1e-6
+    assert r["paletten"][0]["aussen"][:2] == (laenge, 800), r["paletten"][0]["aussen"]
+    x = paletten.lht_liste(r)[0]
+    assert x["masse"][0] == laenge and abs(x["ldm"] - laenge * 800 / 1e6 / 2.4) < 1e-3, x
+    from rohrlaser import fracht
+    lw = fracht.lht_werte([dict(x, gewicht=100)], LHT)
+    assert abs(lw["lademeter"] - laenge * 800 / 1e6 / 2.4) < 1e-3 and lw["je"][0]["aussen"][0] == laenge, lw
 r = packen([pos(1, "Rechteckrohr", 60, 40, 3, 7000, 2, 30)])
 assert stueck(r) == 2 and any("Sonderladung" in h for h in r["hinweise"])
-ok("lange Teile bis 6.500 mm (max. Teillänge) mittig auf der Europalette, Überstand nur an der langen Seite; "
+ok("lange Teile bis 6.500 mm (max. Teillänge) mittig auf der Europalette, Überstand nur an der langen Seite, "
+   "Außenmaß und Lademeter der Fracht mit Überstand (2.500 mm = 0,83 ldm statt 0,4); "
    "7.000 mm: Hinweis Sonderladung, kein Teil verloren")
 
 # 2. kurze Seite nie überschritten, 3. Mindestabstand

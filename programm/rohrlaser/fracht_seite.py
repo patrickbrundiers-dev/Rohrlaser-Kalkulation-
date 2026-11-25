@@ -886,6 +886,9 @@ class FrachtDialog(QDialog):
         self.hinweis.setText(text)
         r = self.rechner
         alt = fracht_angebot.daten(seite.kopf)
+        hand = ((alt or {}).get("paletten") or {}).get("palette_hand")
+        if isinstance(hand, dict):                  # Packkern 3.0: Änderungen von Hand bleiben erhalten
+            r.pack_hand = dict(hand)
         if alt and alt.get("sendung"):
             r.setzen(alt["sendung"])
         else:

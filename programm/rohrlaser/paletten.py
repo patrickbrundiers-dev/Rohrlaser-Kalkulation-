@@ -571,6 +571,14 @@ def _fertig(liste, lht_id, z, stuecke, v):
                              hoehe_max=stapelhoehe(z, v) if z.get("art") == KARTON else gesamthoehe(z, v)))
         if pal.get("kern3"):
             paletten[-1].update(pal["kern3"])
+            if pal["kern3"].get("teile") and z.get("art") not in INNEN:     # Überstand: Außenmaß aus den Teilen
+                t = pal["kern3"]["teile"]
+                pl, pb = _n(z.get("laenge")), _n(z.get("breite"))
+                el = max(pl, max(x["x1"] for x in t)) - min(0.0, min(x["x0"] for x in t))
+                eb = max(pb, max(x["y1"] for x in t)) - min(0.0, min(x["y0"] for x in t))
+                a = paletten[-1]["aussen"]
+                el, eb = max(el, a[0]), max(eb, a[1])
+                paletten[-1]["aussen"] = (max(el, eb), min(el, eb), a[2])
     return paletten
 
 
@@ -603,6 +611,11 @@ def lht_liste(e):
         if pals and pals[0].get("art") == KARTON:
             x["brutto_je"] = [round(p["brutto"], 3) for p in pals]
             x["masse"] = list(pals[0].get("aussen") or ())
+        elif pals and any(p.get("kern") == 3 for p in pals):    # Packkern 3.0: Überstand zählt für Maß und ldm
+            a = [p.get("aussen") for p in pals]
+            if all(m and m[0] and m[1] for m in a):
+                x["masse"] = [max(m[i] for m in a) for i in range(3)]
+                x["ldm"] = round(sum(m[0] * m[1] for m in a) / 1e6 / 2.4, 4)
         if any(p.get("rahmen") for p in pals):
             x["rahmen"] = sum(p.get("rahmen") or 0 for p in pals)
         out.append(x)
