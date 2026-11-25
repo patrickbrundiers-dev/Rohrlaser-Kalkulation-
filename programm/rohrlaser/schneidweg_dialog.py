@@ -1260,7 +1260,10 @@ class SchneidwegDialog(QDialog):
         x = (getattr(self, "_ende_step", {}).get(s) or (None, {}))[1]
         er = x.get("kontur_erkannt") if isinstance(x, dict) else None
         k = endkontur.lesen(er.get("kontur")) if isinstance(er, dict) else None
-        return (endkontur.text(k), sw._z(er.get("abweichung")), k) if k and x.get("umriss") else None
+        if not (endkontur.erkannt_text(er) and x.get("umriss")):
+            return None
+        # mit Freimachung nicht vorbelegen: die Endkontur kennt keine Freimachung und ersetzte sonst den Umriss
+        return endkontur.erkannt_text(er), sw._z(er.get("abweichung")), (None if er.get("freimachung") else k)
 
     def _kontur_text(self, s):
         from . import endkontur
@@ -1269,8 +1272,9 @@ class SchneidwegDialog(QDialog):
         b.setText(f"{endkontur.text(k)} …" if k else "Endkontur …")
         er = None if k else self._erkannt(s)
         b.setToolTip("Endkontur ändern oder entfernen" if k else
-                     f"Aus der STEP erkannt: {er[0]} (± {rechnen.zahl(er[1], 2)} mm). Klick öffnet sie zum Bearbeiten; "
-                     "übernommen ersetzt sie den gemessenen Umriss" if er else
+                     f"Aus der STEP erkannt: {er[0]} (± {rechnen.zahl(er[1], 2)} mm). "
+                     + ("Klick öffnet sie zum Bearbeiten; übernommen ersetzt sie den gemessenen Umriss" if er[2] else
+                        "Der gemessene Umriss mit Freimachung bleibt maßgebend") if er else
                      "Freie Endkontur: schräg, V, U, S, Bogen, Stufen, Freiform oder mehrere überlagert")
 
     def endkontur(self, s, k=False):

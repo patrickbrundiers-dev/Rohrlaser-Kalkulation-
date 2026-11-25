@@ -21,13 +21,21 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.499", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
+    ["0.9.504", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
                 "Höhe und Winkel einer Fase am Rohrende und bei Sonderkonturen mit schräger Schnittfläche auch den Rand "
                 "auf der Innenwand. Ist die 3D-Schnittbearbeitung gewählt, zeigt der Editor beides wie in der STEP und "
                 "rechnet es als 3D-Schnitt (Fase durch die ganze Wand: Kopf um den Fasenwinkel; schräge Kontur: Zeile "
                 "Kontur 3D mit dem gemessenen Schwenk). Ohne 3D wird die Innenkante mit 90° durch die Wand projiziert: "
                 "Fasen nicht gelasert, Ende gerade; schräge Konturen mit Umriss und Schnittlänge der Innenkante.",
      "Fasen-Enden und schräge Konturen mit 3D wie in der STEP, ohne 3D Innenkante 90°"],
+    ["0.9.501", "<b>Freimachungen erkennen</b> ([[schneidweg_rechner]]): Rechteck-Ausschnitte mit runden "
+                "Freimachungen an den Ecken heißen jetzt z. B. <i>Rechteck 60 × 20, Freimachung 4 × Ø10 mittig</i> "
+                "(Kreis um die Ecke) oder <i>… versetzt</i> (Kreismitte um den Radius längs einer Seite neben der "
+                "Ecke). Eine Ausklinkung am Ende mit Freimachungen in den inneren Ecken heißt z. B. <i>Ausklinkung "
+                "20 × 30, Freimachung 2 × Ø10 mittig (erkannt, Umriss wie STEP)</i>. Erkannt wird nur, wenn Rechteck "
+                "und Kreise den gemessenen Umriss überall auf 0,1 mm treffen; geschnitten wird weiter der Umriss der "
+                "STEP.",
+     "Rechteck-Ausschnitte und Ausklinkungen mit Freimachung Ø d mittig/versetzt erkannt"],
     ["0.9.498", "<b>Nesting-Kern: neue Strategien und schnellerer Vergleich</b> ([[nesting]]): Neu sind "
                 "<i>N Gleiche Teile nacheinander</i> (volle Stangen je Artikel, Reste am Stangenende mit der besten "
                 "Füllung), <i>S Satzweise schneiden</i> (Satz aus den Mengen erkannt, Satz nur am Stangenende geteilt) "

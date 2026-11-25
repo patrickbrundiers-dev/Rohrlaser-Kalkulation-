@@ -9,7 +9,9 @@ ihn nur – für die Bemerkung im Schneidweg, die Liste und den Editor:
 2. Grundform aus der Folge der Stücke: Kreis, Langloch, Rechteck (mit Eckradius), Dreieck, regelmäßiges Vieleck
    (Sechseck mit Schlüsselweite …) – in beliebiger Lage (Winkel zur Rohrachse); erkannt gilt eine Grundform nur, wenn
    die ideale Form den Umriss überall auf ERKENNUNG_TOL trifft (Abstand der Kurven),
-3. sonst Freiform mit Anzahl Geraden/Bögen und den Radien.
+3. Rechteck mit Freimachungen (Patrick 25.11.: Kreis Ø d an den Ecken, mittig auf der Ecke oder um r längs einer
+   Seite versetzt) – auch für Ausklinkungen am Rohrende (endkontur, `band`),
+4. sonst Freiform mit Anzahl Geraden/Bögen und den Radien.
 
 Ohne Qt, ohne Datenbank.
 """
@@ -22,6 +24,8 @@ BOGEN_SCHRITT_MAX = 25.0    # Grad: größter Winkelschritt zwischen zwei Punkte
 ZERLEGEN_TOL = 0.03         # mm: Geraden/Bögen beim Zerlegen enger als die Erkennung (sonst frisst ein Bogen das
                             # Ende der Nachbargeraden); Zusammenlegen und Formvergleich mit ERKENNUNG_TOL
 BOGEN_SPANNE_MIN = 8.0      # Grad: ein Bogen über weniger (ab 4 Punkten) gilt als Gerade mit Messrauschen
+RECHTECK_FREI = "Rechteck mit Freimachung"   # Rechteck-Ausschnitt/Ausklinkung mit runden Freimachungen an den Ecken
+FREI_LAGE_TOL = 0.3         # mm: Lage des Freimachungs-Mittelpunkts zur Ecke (mittig) bzw. um r längs einer Seite
 VIELECK_NAMEN = {4: "Quadrat", 5: "Fünfeck", 6: "Sechseck", 8: "Achteck", 10: "Zehneck", 12: "Zwölfeck"}
 
 
@@ -519,6 +523,9 @@ def erkennen(umriss, tol=ERKENNUNG_TOL):
         if x <= tol:
             form["abweichung"] = round(x, 3)
             return form
+    frei = freimachung(pts, st, tol)
+    if frei:
+        return frei
     radien = sorted({round(b["r"], 1) for b in boegen})
     teile = []
     if geraden:
@@ -530,6 +537,132 @@ def erkennen(umriss, tol=ERKENNUNG_TOL):
     return dict(typ=FREIFORM, geraden=len(geraden), boegen=len(boegen), radien=radien,
                 text=f"Freiform: {', '.join(teile)}", abweichung=round(_stueck_abweichung(pts, st), 3))
 
+
+def _sdf_rechteck(a, b, r):
+    """Vorzeichenbehafteter Abstand (innen negativ) zum achsparallelen Rechteck r = (a1, a2, b1, b2)."""
+    dx = max(r[0] - a, a - r[1])
+    dy = max(r[2] - b, b - r[3])
+    return math.hypot(max(dx, 0.0), max(dy, 0.0)) + min(max(dx, dy), 0.0)
+
+
+def _frei_sdf(a, b, rect, kreise, band):
+    d = _sdf_rechteck(a, b, rect)
+    for ka, kb, kr in kreise:
+        dk = math.hypot(a - ka, b - kb) - kr
+        if band:                            # Ausklinkung: nur der Teil im Streifen der Ausklinkung (Rest = Hinterschnitt,
+            dk = max(dk, rect[0] - a, a - rect[1])  # kommt als eigene Sonderkontur)
+        d = min(d, dk)
+    return d
+
+
+def _frei_rand(rect, kreise, band, schritt=0.25):
+    """Punkte auf dem Rand der Vereinigung Rechteck + Kreise."""
+    roh = []
+    a1, a2, b1, b2 = rect
+    for (pa, pb), (qa, qb) in (((a1, b1), (a2, b1)), ((a2, b1), (a2, b2)), ((a2, b2), (a1, b2)), ((a1, b2), (a1, b1))):
+        n = max(int(math.hypot(qa - pa, qb - pb) / schritt), 1)
+        roh += [(pa + (qa - pa) * i / n, pb + (qb - pb) * i / n) for i in range(n)]
+    for ka, kb, kr in kreise:
+        n = max(int(2 * math.pi * kr / schritt), 24)
+        roh += [(ka + kr * math.cos(2 * math.pi * i / n), kb + kr * math.sin(2 * math.pi * i / n)) for i in range(n)]
+    return [p for p in roh if abs(_frei_sdf(p[0], p[1], rect, kreise, band)) < 1e-6]
+
+
+def freimachung(pts, st, tol=ERKENNUNG_TOL, band=False):
+    """Rechteck mit runden Freimachungen an den Ecken: dict(typ=RECHTECK_FREI, laenge, breite, winkel, mitte,
+    freimachung_d, freimachung_lage ('mittig' | 'versetzt' | 'gemischt'), freimachung_anzahl, ecken, text, abweichung)
+    oder None. Mittig: Kreis um die Ecke; versetzt: Kreismitte um r längs einer Seite neben der Ecke (Patrick:
+    „besser“). Erkannt nur, wenn die Vereinigung aus Rechteck und Kreisen den Umriss überall auf tol trifft (Rand →
+    Messung 3 · tol wie bei den Enden, die Messung verbindet ihre Punkte gerade).
+    band: Ausklinkung am Ende (Umriss = Tiefe je Umfangsstelle): Kreise nur im Streifen der Ausklinkung."""
+    geraden = [s for s in st if s["art"] == "Gerade"]
+    boegen = [s for s in st if s["art"] == "Bogen"]
+    if len(geraden) < 3 or not boegen or len(boegen) > 8:
+        return None
+    w_roh = max(geraden, key=lambda g: g["laenge"])["winkel"]
+    if not all(abs((g["winkel"] - w_roh + 45) % 90 - 45) < 1.5 for g in geraden):
+        return None
+    w_fit = _richtung_mod(geraden, 90)
+    ring = pts + [pts[0]]
+    for w0 in _winkel_varianten(w_fit) if not band else [0.0]:
+        c_, s_ = math.cos(math.radians(w0)), math.sin(math.radians(w0))
+
+        def lok(p):
+            return p[0] * c_ + p[1] * s_, -p[0] * s_ + p[1] * c_
+        av, bv = [], []                     # Lage der Seiten quer zu ihrer Richtung, nach Länge gewichtet
+        for g in geraden:
+            (pa, pb), (qa, qb) = lok(g["a"]), lok(g["b"])
+            if abs(pb - qb) < abs(pa - qa):
+                bv.append(((pb + qb) / 2, g["laenge"]))
+            else:
+                av.append(((pa + qa) / 2, g["laenge"]))
+        if not av or not bv:
+            continue
+        a1, a2 = min(x for x, _ in av), max(x for x, _ in av)
+        b1, b2 = min(x for x, _ in bv), max(x for x, _ in bv)
+        if a2 - a1 < 2 * tol or b2 - b1 < 2 * tol:
+            continue
+        ecken_l = [(a1, b1), (a2, b1), (a2, b2), (a1, b2)]
+        # Bögen je Ecke sammeln (ein Kreis kann in mehrere Bögen zerfallen) und je Ecke einen Kreis ausgleichen
+        je_ecke = {}
+        for b in boegen:
+            ma, mb = lok(b["m"])
+            k = min(range(4), key=lambda i: math.hypot(ma - ecken_l[i][0], mb - ecken_l[i][1]))
+            je_ecke.setdefault(k, []).extend(b.get("punkte") or [b["a"], b["b"]])
+        kreise_fit = {}
+        for k, pk in je_ecke.items():
+            kf = _kreis_fit(pk) if len(pk) >= 3 else None
+            if not kf:
+                break
+            kreise_fit[k] = (lok((kf[0], kf[1])), kf[2])
+        if len(kreise_fit) != len(je_ecke):
+            continue
+        r_m = sum(x[1] for x in kreise_fit.values()) / len(kreise_fit)
+        if any(abs(x[1] - r_m) > 2 * tol for x in kreise_fit.values()):
+            continue
+        lagen = []
+        for k, ((ma, mb), _) in kreise_fit.items():
+            oa, ob = ma - ecken_l[k][0], mb - ecken_l[k][1]
+            if math.hypot(oa, ob) <= FREI_LAGE_TOL:
+                lagen.append((k, 0.0, 0.0, "mittig"))
+            elif abs(math.hypot(oa, ob) - r_m) <= FREI_LAGE_TOL and min(abs(oa), abs(ob)) <= FREI_LAGE_TOL:
+                lagen.append((k, math.copysign(1, oa) if abs(oa) > abs(ob) else 0.0,
+                              0.0 if abs(oa) > abs(ob) else math.copysign(1, ob), "versetzt"))
+            else:
+                lagen = None
+                break
+        if not lagen or len({x[0] for x in lagen}) != len(lagen):
+            continue
+        pl = [lok(p) for p in pts]
+        for rr in sorted({round(r_m, 2), round(r_m * 2) / 2, round(r_m * 10) / 10},
+                         key=lambda x: abs(x - round(x * 2) / 2)):
+            rect = (round(a1, 2), round(a2, 2), round(b1, 2), round(b2, 2))
+            ek_ = [(rect[0], rect[2]), (rect[1], rect[2]), (rect[1], rect[3]), (rect[0], rect[3])]
+            kreise = [(ek_[k][0] + da * rr, ek_[k][1] + db * rr, rr) for k, da, db, _ in lagen]
+            x = max(abs(_frei_sdf(a, b, rect, kreise, band)) for a, b in pl)
+            if x > tol:
+                continue
+            rand = _frei_rand(rect, kreise, band)
+            ringl = [lok(p) for p in ring]
+            y = max((min(_abstand_strecke(q, u, v) for u, v in zip(ringl, ringl[1:])) for q in rand), default=0.0)
+            if y > 3 * tol:
+                continue
+            l1, l2, wl = rect[1] - rect[0], rect[3] - rect[2], w0
+            if l2 > l1 and not band:
+                l1, l2, wl = l2, l1, w0 + 90
+            art = {x[3] for x in lagen}
+            lage = art.pop() if len(art) == 1 else "gemischt"
+            n = len(lagen)
+            masse = f"{_zahl(l1)}" if abs(l1 - l2) <= tol else f"{_zahl(l1)} × {_zahl(l2)}"
+            name = "Quadrat" if abs(l1 - l2) <= tol else RECHTECK
+            ma_, mb_ = (rect[0] + rect[1]) / 2, (rect[2] + rect[3]) / 2
+            return dict(typ=RECHTECK_FREI, laenge=round(l1, 2), breite=round(l2, 2), winkel=round(wl % 180, 2),
+                        mitte=(round(ma_ * c_ - mb_ * s_, 3), round(ma_ * s_ + mb_ * c_, 3)),
+                        freimachung_d=round(2 * rr, 2), freimachung_lage=lage, freimachung_anzahl=n,
+                        ecken=[dict(ecke=k, lage=lg, versatz=(da * rr, db * rr)) for k, da, db, lg in lagen],
+                        text=f"{name} {masse}, Freimachung {n} × Ø{_zahl(2 * rr)} {lage}" + ("" if band else _lage(wl)),
+                        abweichung=round(x, 3))
+    return None
 
 def _stueck_abweichung(pts, st):
     """Größte Abweichung des Umrisses von seinen Stücken (Geraden als Strecke, Bögen als Kreis)."""

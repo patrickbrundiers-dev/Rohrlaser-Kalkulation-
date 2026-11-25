@@ -4315,7 +4315,7 @@ def kapitel_step(i):
             "im Bericht „3D prüfen“. Eine Fase am Ende zählt nur, wenn sie durch die ganze Wand geht (siehe unten). Über der Grenze der Maschine wird begrenzt "
             "(WARNUNG im Status). Ändern je Teil im Schneidweg-Rechner ([[schneidweg_rechner]]); bei Rundrohren ist "
             "die gemessene Querneigung auf etwa ±1,5° genau.",
-            "<b>Fasen an den Enden</b> (seit 0.8.27, erweitert 0.9.491, 0.9.499): Der Import erkennt eine Fase am Rohrende, "
+            "<b>Fasen an den Enden</b> (seit 0.8.27, erweitert 0.9.491, 0.9.504): Der Import erkennt eine Fase am Rohrende, "
             "schreibt den Hinweis „Ende B: Fase erkannt …“ in den Bericht und misst Tiefe (längs), Höhe (in die Wand) "
             "und Winkel der Fase. Gezeigt und gerechnet wird so: "
             "Geht die Fase <b>durch die ganze Wand</b> und ist die <i>3D-Schnittbearbeitung</i> am Teil aktiviert, "
@@ -4326,7 +4326,7 @@ def kapitel_step(i):
             "Länge = längste Länge des Teils, Endschnitt = gerader Schnitt an der Außenkontur, Text „Fase nicht "
             "gelasert“; eine Fase durch die ganze Wand ohne 3D bekommt dazu einen Hinweis. Das Teil bleibt "
             "<i>plausibel</i> und wird ohne Häkchen-Prüfung übernommen.",
-            "<b>Schräge Konturen</b> (seit 0.9.499): Steht die Schnittfläche einer Sonderkontur in der STEP schräg "
+            "<b>Schräge Konturen</b> (seit 0.9.504): Steht die Schnittfläche einer Sonderkontur in der STEP schräg "
             "zur Wand (gemessen ab 0,5°, z. B. ein Fenster mit Schlitz, dessen Flanken 33° geneigt sind), misst der "
             "Import auch ihren Rand auf der Innenwand. Mit <i>3D-Schnittbearbeitung</i> zeigt der Editor die Kontur "
             "wie in der STEP (außen und innen wie gemessen, schräge Flanken) und rechnet sie als Zeile „Kontur 3D“ "
@@ -6507,6 +6507,16 @@ def kapitel_optimieren(i):
             "und Bögen und deren Radien, z. B. <i>Freiform: 3 Geraden, 1 Bogen (R7)</i> für ein Schlüsselloch. "
             "Geschnitten wird immer der Umriss der STEP. Erkennungsquote prüfen: "
             "<i>werkzeuge/kontur_erkennung.py</i> (Prüfsatz mit 39 Teilen oder ein eigener Ordner mit STEPs).",
+            "<b>Freimachungen</b> (seit 0.9.501): Ein Rechteck-Ausschnitt mit runden Freimachungen an den Ecken "
+            "heißt <i>Rechteck 60 × 20, Freimachung 4 × Ø10 mittig</i> (Kreis um die Ecke) bzw. <i>… versetzt</i> "
+            "(Kreismitte um den Radius längs einer Seite neben der Ecke, die bessere Variante: weniger Einbrand an "
+            "der Ecke). Eine Ausklinkung am Ende mit Freimachungen in den inneren Ecken heißt z. B. <i>Ausklinkung "
+            "20 × 30, Freimachung 2 × Ø10 mittig (erkannt, Umriss wie STEP)</i>; geht sie durch zwei Wände, steht "
+            "die Konturart davor (<i>U-Kerbe t 30 b 20, Freimachung …</i>). Erkannt wird nur, wenn Rechteck und "
+            "Kreise den gemessenen Umriss überall auf 0,1 mm treffen. Teile einer Freimachung, die seitlich unter "
+            "der Wand liegen, kommen weiter als eigene Sonderkontur <i>Teil von Ende …</i>. Der Endkontur-Dialog "
+            "wird bei Freimachungen nicht vorbelegt, weil eine Endkontur keine Freimachung kennt und sonst den "
+            "Umriss der STEP ersetzen würde.",
             "<b>Enden mit Hinterschnitt</b> (seit 0.9.240): T-Schlitz, Schlüsselloch-Schlitz, Schwalbenschwanz, "
             "Haken oder eine Bohrung halb über das Ende laufen vom Ende ins Teil und wieder zurück. Der "
             "hinterschnittene Teil steht als <i>Sonderkontur „Teil von Ende …“</i> (zum Ende hin offen) im Editor, "
