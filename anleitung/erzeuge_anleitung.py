@@ -5585,7 +5585,7 @@ def kapitel_step(i):
             "unsicher, blau reparierbar, rot fehlerhaft, dunkelgrau ausgeschlossene Normteile); auffällige Körper "
             "stehen auch im Baum farbig, und beim Anklicken zeigt das Feld Erkennung Toleranz, Fehler, Reparatur-Probe "
             "und den Abgleich mit den Prüfwerten des CAD (siehe [[geometriepruefung]]).",
-            "<b>Farben nach Art, Rolle oder Schneidbarkeit</b> (ab 0.9.490, Auswahlfeld neben <i>Konturen nach "
+            "<b>Farben nach Art, Rolle oder Schneidbarkeit</b> (ab 0.9.491, Auswahlfeld neben <i>Konturen nach "
             "Art</i>, Vorgabe Rolle): <i>Rolle</i> färbt Anfangsschnitt (orange) und Endeschnitt (rot) verschieden, "
             "dazu Anschlusskontur, Innenkontur, Durchbruch, Ausschnitt, Freiformkontur und nicht eindeutige Konturen; "
             "<i>Schneidbarkeit</i> färbt 1 eindeutig grün, 2 wahrscheinlich blau, 3 problematisch orange, "
