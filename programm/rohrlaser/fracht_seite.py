@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
     QTextBrowser, QVBoxLayout, QWidget)
 
-from . import fracht, hilfe
+from . import fracht, hilfe, stil
 from .angebot import aktiv as position_aktiv
 from .angebot_oben import Aufklapper
 from .fenster import EinstellungenSeite, StammdatenSeite
