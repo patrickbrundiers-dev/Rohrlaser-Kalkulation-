@@ -47,6 +47,24 @@ assert sv.ohne_konturen(netz, set()) is netz
 assert sv.rolle_setzen(m, 1, kr.ENDE) and sv.konturen(m)[1]["rolle"] == kr.ENDE and sv.konturen(m)[1]["hand"]
 assert not sv.rolle_setzen(m, 1, "Quatsch") and not sv.rolle_setzen(m, 9, kr.ENDE)
 assert sv.rolle_setzen(m, 1, None) and sv.konturen(m)[1]["rolle"] == kr.ANSCHLUSS and not sv.rolle_setzen(m, 1, None)
+# Handkorrektur gemerkt und beim Import (neue Messung) wieder gesetzt
+class _Db:
+    def __init__(self):
+        self.e = {}
+
+    def einstellung(self, k):
+        return self.e.get(k)
+
+    def einstellung_setzen(self, k, v):
+        self.e[k] = v
+
+
+db = _Db()
+assert sv.rolle_setzen(m, 1, kr.ENDE) and sv.rollen_merken(db, m)
+neu = messwerte("R07_RR42-4x2_Sattel60-3")
+assert sv.rollen_gelernt_anwenden([neu], db.einstellung(sv.ROLLE_GELERNT)) == 1
+assert sv.konturen(neu)[1]["rolle"] == kr.ENDE and sv.konturen(neu)[1]["hand"]
+assert sv.rolle_setzen(m, 1, None) and sv.rollen_merken(db, m) and not db.einstellung(sv.ROLLE_GELERNT)
 info = dict(sv.kontur_info(zeilen[1], m))
 assert info["Rolle"] == kr.ANSCHLUSS and info["Schneidbarkeit"].startswith("2 wahrscheinlich"), info
 m6 = messwerte("R06_QR60x3_Durchbrueche")

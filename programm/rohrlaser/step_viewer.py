@@ -893,6 +893,42 @@ def korrekturen_merken(db, messwerte):
     return len(arten_neu) + len(zk_neu)
 
 
+ROLLE_GELERNT = "step_rolle_gelernt"   # Einstellung: {art_schluessel: {Konturnummer: Rolle}} (Handkorrektur Viewer)
+ROLLE_GELERNT_MAX = 2000
+
+
+def rollen_merken(db, m):
+    """Handkorrekturen der Rollen eines Teils (rolle_hand) für den Import merken: „Ins Angebot übernehmen“ misst die
+    Datei neu, dabei setzt rollen_gelernt_anwenden die Rollen wieder. Ohne Geometrie-Schlüssel nichts. Ergebnis:
+    True = gemerkt."""
+    from . import step
+    schl = step.art_schluessel(m)
+    if not schl or db is None:
+        return False
+    hand = {str(i): d["rolle_hand"] for i, d in enumerate(konturen_liste(m))
+            if isinstance(d, dict) and d.get("rolle_hand") in kr.ROLLEN}
+    alt = dict(db.einstellung(ROLLE_GELERNT) or {})
+    alt.pop(schl, None)
+    if hand:
+        alt[schl] = hand
+    db.einstellung_setzen(ROLLE_GELERNT, dict(list(alt.items())[-ROLLE_GELERNT_MAX:]))
+    return True
+
+
+def rollen_gelernt_anwenden(messwerte, gelernt):
+    """Gemerkte Rollen (ROLLE_GELERNT) auf frisch gemessene Teile setzen; Zahl der gesetzten Rollen."""
+    from . import step
+    n = 0
+    for m in messwerte or ():
+        hand = (gelernt or {}).get(step.art_schluessel(m)) if step.art_schluessel(m) else None
+        for nr, rolle in (hand or {}).items():
+            try:
+                n += bool(rolle_setzen(m, int(nr), rolle))
+            except (TypeError, ValueError):
+                continue
+    return n
+
+
 # ------------------------------------------------------------------ Leistung
 def leistung_zeilen(mes, anzeige=None):
     """Messwerte der Leistung als [(Titel, Wert)]: Messung (Einlesen, Analyse, Abschluss), Netz laden, Modell

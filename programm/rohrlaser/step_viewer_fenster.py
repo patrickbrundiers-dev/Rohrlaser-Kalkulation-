@@ -655,9 +655,14 @@ class StepViewer(QMainWindow):
 
     def rolle_aendern(self, nr, rolle):
         """Handkorrektur der Rolle (Rechtsklick in der Konturliste); None = wieder die gemessene. Die Korrektur steht
-        in den Messwerten und geht mit „Ins Angebot übernehmen“ in die Position."""
-        if self.gezeigt is None or not sv.rolle_setzen(self.mes.messwerte[self.gezeigt], nr, rolle):
+        in den Messwerten und wird je Geometrie gemerkt (sv.ROLLE_GELERNT); der Import setzt sie wieder, so geht sie
+        mit „Ins Angebot übernehmen“ in die Position."""
+        m = self.mes.messwerte[self.gezeigt] if self.gezeigt is not None else None
+        if m is None or not sv.rolle_setzen(m, nr, rolle):
             return False
+        # gemerkt wie die Art: „Ins Angebot übernehmen“ misst neu und setzt die Rolle beim Import wieder
+        if self.db is not None and not getattr(self.db, "nur_lesen", False):
+            sv.rollen_merken(self.db, m)
         self.zeigen(self.gezeigt)
         self.kontur_waehlen(nr)
         return True

@@ -5599,8 +5599,9 @@ def kapitel_step(i):
             "Abwicklung ein.",
             "<b>Rolle von Hand ändern:</b> Rechtsklick auf eine Kontur → <i>Rolle ändern</i>, z. B. wenn ein "
             "Sattel eigentlich ein Endeschnitt ist. Die Liste zeigt dann „(Hand)“, die Schneidbarkeit bleibt die "
-            "gemessene. <i>Gemessene Rolle wiederherstellen</i> nimmt die Änderung zurück. Mit <i>Ins Angebot "
-            "übernehmen</i> geht die Korrektur in die Position (Importanalyse). Schnittlänge und Preis ändern sich "
+            "gemessene. <i>Gemessene Rolle wiederherstellen</i> nimmt die Änderung zurück. Die Korrektur wird je "
+            "Geometrie gemerkt: <i>Ins Angebot übernehmen</i> und jeder spätere Import desselben Teils setzen sie "
+            "wieder (Importanalyse). Schnittlänge und Preis ändern sich "
             "nicht.",
             "<b>Gegenprobe:</b> Die Spalte <i>Linie 3D</i> ist die Länge der Konturlinien im 3D-Bild, unabhängig "
             "von der Messung zusammengezählt; ✓ heißt: sie passt zur Schnittlänge (2 %, mindestens 0,5 mm). Bei "
