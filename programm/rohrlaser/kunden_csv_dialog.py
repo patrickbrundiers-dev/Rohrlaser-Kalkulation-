@@ -94,9 +94,22 @@ def csv_importieren(seite, db, pfad=None, bestaetigt=None, nur_neue=False):
     """CSV lesen, Vorschau zeigen, nach Bestätigung übernehmen. bestaetigt/nur_neue ohne Dialog (Tests).
     Ergebnis: (Vorschau, (neu, geändert, Sicherung) oder None)."""
     if pfad is None:
-        pfad, _ = QFileDialog.getOpenFileName(seite, "Kunden importieren", str(_ordner(seite)), "CSV (*.csv *.txt)")
+        pfad, _ = QFileDialog.getOpenFileName(seite, "Kunden importieren", str(_ordner(seite)),
+                                              "Listen (*.csv *.txt *.xlsx)")
         if not pfad:
             return None, None
+    if bestaetigt is None:
+        # Importassistent in 5 Schritten (25.11.2026): Spalten, Dubletten, Vorschau, Import mit Rückgängig
+        from .kunden_import_assistent import assistent
+        try:
+            a = assistent(seite, db, pfad)
+        except OSError as e:
+            raise OSError(dateifehler(e, pfad)) from e
+        a.exec()
+        e = a.abschluss.ergebnis
+        if not e:
+            return a.posten, None
+        return a.posten, (e["neu"], e["geaendert"], e.get("sicherung") or f"Import Nr. {e['import_id']}")
     try:
         roh = Path(pfad).read_bytes()
     except OSError as e:
@@ -105,12 +118,7 @@ def csv_importieren(seite, db, pfad=None, bestaetigt=None, nur_neue=False):
 
     def rechnen(nur):
         return kunden_csv.vorschau(roh, vorhandene, kontext, nur_neue=nur)
-    if bestaetigt is None:
-        d = KundenImportDialog(seite, rechnen, pfad)
-        bestaetigt = d.exec() == QDialog.Accepted
-        ergebnis = d.ergebnis
-    else:
-        ergebnis = rechnen(nur_neue)
+    ergebnis = rechnen(nur_neue)
     if not bestaetigt:
         return ergebnis, None
     return ergebnis, db.kunden_importieren(ergebnis["zeilen"])
