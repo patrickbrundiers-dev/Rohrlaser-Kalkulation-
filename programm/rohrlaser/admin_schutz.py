@@ -128,7 +128,8 @@ def einstellungen_geschuetzt(db, seiten=None):
     auf zwei Seiten, reicht eine geschützte), dazu Passwort und Schutzliste. Nie die Werte nur dieses Arbeitsplatzes."""
     from .teilen import LOKAL
     schutz = geschuetzt_liste(db, seiten)
-    namen = {"passwort", ADMIN_SEITEN, ADMINS, "benutzer_rollen", "rollen_rechte", "anmeldung_pflicht"}   # rollen.py
+    namen = {"passwort", ADMIN_SEITEN, ADMINS, "benutzer_rollen", "rollen_rechte", "anmeldung_pflicht",
+             "austausch_rechte"}   # rollen.py, austausch_dateien.RECHTE
     for s in ordnung.SEITEN:
         if s.schluessel in schutz:
             for a in s.abschnitte:

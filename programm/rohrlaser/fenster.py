@@ -5664,6 +5664,30 @@ class Hauptfenster(QMainWindow):
         angebotsordner.umnummerieren_offen(self.db, ablage)
         return angebotsordner.ordner(ablage, kopf)
 
+    def austausch_zeigen(self, kundennr="", angebot="", auftrag="", titel=""):
+        """Knopf „Dateien im Austausch“ (Kunde, Angebot, Auftrag): Reiter Austausch mit den zugeordneten Dateien."""
+        seite = getattr(self, "austausch", None)
+        if seite is None:
+            return None
+        if self.db.einstellung("austausch_aktiv") == "nein":
+            self.meldung("Der Austauschordner ist ausgeschaltet (Einstellungen → Gemeinsamer Ordner).", fehler=True)
+            return None
+        self.reiter.setCurrentWidget(seite)
+        return seite.zeige_zuordnung(kundennr=kundennr, angebot=angebot, auftrag=auftrag, titel=titel)
+
+    def austausch_angebot(self, kopf=None):
+        """„Dateien im Austausch“ zum Angebot: Angebotsnummer, PPEASE-Nummer und Auftragsnummer des Kunden."""
+        if kopf is None:
+            w = self.reiter.currentWidget()
+            kopf = getattr(w, "kopf", None) if any(x is w for x in self.offen.values()) else None
+        if not kopf:
+            self.meldung("Bitte zuerst ein Angebot öffnen.")
+            return None
+        from . import ppease_ablage
+        nummern = [kopf.get("nummer"), ppease_ablage.gemerkt(self.db, kopf.get("id")).get("nummer")]
+        return self.austausch_zeigen(angebot=[str(n) for n in nummern if n], auftrag=kopf.get("auftragsnr") or "",
+                                     titel=f"Angebot {kopf.get('nummer') or ''}".strip())
+
     def angebot_ordner_oeffnen(self, kopf):
         """Knopf „Ordner öffnen“: Ordner des Angebots im Explorer (ohne Angebot: die ganze Ablage)."""
         if not kopf:
