@@ -41,6 +41,9 @@ def warten(ms):
 
 
 # ------------------------------------------------------------------ Blockade erkennen
+# Speicher-Zeilen (erster Stand ab 100 MB) hängen vom Rechner ab und sind nicht Gegenstand dieses Tests
+# (Gesamtprüfung 25.11.2026: im Testcontainer startete der Prozess schon mit 104 MB)
+tempo.SPEICHER_SCHRITT_MB = 10 ** 9
 w = tempo.Waechter(ordner, kontext=lambda: "Angebote › Test", grenze_s=0.3, takt_ms=50)
 assert w.starten()
 warten(200)

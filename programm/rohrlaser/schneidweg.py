@@ -672,10 +672,17 @@ KONTUREN_MAX = 100000       # Konturen je Zeile der Konturtabelle (Anzahl × Rei
 def kontur(e):
     """Eine Zeile der Konturtabelle: (Schnittlänge je Stück, Hüllmaß oder None = groß, Anzahl). ValueError bei
     fehlenden oder unmöglichen Maßen."""
+    for wert in e.values():         # G-06: auch Eingabemaße (z. B. Senk-Ø), die _kontur nicht selbst prüft
+        if isinstance(wert, float) and not math.isfinite(wert):
+            raise ValueError(f"{e.get('art')}: Maß ist keine gültige Zahl – Kontur prüfen.")
     lg, hk, n = _kontur(e)
     if n * (1 + len(e.get("kopien") or ())) > KONTUREN_MAX:
         raise ValueError(f"{e.get('art')}: {n * (1 + len(e.get('kopien') or ())):,} Konturen in einer Zeile – "
                          f"Anzahl bzw. Reihen prüfen (höchstens {KONTUREN_MAX:,}).".replace(",", "."))
+    # Gesamtprüfung G-06: ein ungültiger Zahlenwert (NaN/unendlich, z. B. aus einer kaputten Importdatei) ergab einen
+    # NaN-Schneidweg, der still in Zeit und Preis lief; jetzt eine Meldung je Zeile wie bei fehlenden Maßen
+    if not math.isfinite(lg) or (hk is not None and not math.isfinite(hk)):
+        raise ValueError(f"{e.get('art')}: Maß ist keine gültige Zahl – Kontur prüfen.")
     return lg, hk, n
 
 
