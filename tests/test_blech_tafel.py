@@ -91,7 +91,7 @@ assert eigene["tafel"]["rest"] == (4000, 100)
 ok("T3 Richtpreis: Material aus dem Tafelbedarf, pauschal wie bisher, zu große Teile mit Hinweis")
 
 d = BlechDialog(None, db, dict(e, stueck=100))
-assert "Tafel 3000 × 1500: 203 Stück je Tafel" in d.summe.text() and "für 100 Stück" in d.summe.text(), \
+assert "Tafel 3000x1500: 203 Stück je Tafel" in d.summe.text() and "für 100 Stück" in d.summe.text(), \
     d.summe.text()
 db.schliessen()
 ok("T3 Blech-Editor zeigt Format, Stück je Tafel, Tafelbedarf und Ausnutzung")

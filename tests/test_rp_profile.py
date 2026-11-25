@@ -125,7 +125,7 @@ zeile = next(i for i, z in enumerate(seite.modell.daten) if z["profil_id"] == "R
 seite.ansicht.setCurrentIndex(seite.filter.mapFromSource(seite.modell.index(zeile, 0)))
 d = seite.rp_querschnitt(stumm=True)
 from PySide6.QtWidgets import QLabel  # noqa: E402
-assert d is not None and any("50,0 × 34,0" in w.text() for w in d.findChildren(QLabel))
+assert d is not None and any("50,0x34,0" in w.text() for w in d.findChildren(QLabel))
 bild = d.grab()
 assert bild.width() > 0
 from rohrlaser.rp_dialog import kennwerte_text  # noqa: E402

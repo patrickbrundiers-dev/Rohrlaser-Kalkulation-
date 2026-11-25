@@ -198,7 +198,7 @@ assert gesehen["anhaenge"] == {"Materialliste als PDF": True, "T-100 Zeichnung.p
     gesehen["anhaenge"]
 assert gesehen["betreff"] == "Materialanfrage – AU-300 (MA A-2026-0300/1)", gesehen["betreff"]
 t = gesehen["text"]
-assert t.startswith("Sehr geehrter Herr Maier,") and "Quadratrohr 40 x 40 x 3" in t and "für Artikel T-100" in t, t
+assert t.startswith("Sehr geehrter Herr Maier,") and "Quadratrohr 40x40x3" in t and "für Artikel T-100" in t, t
 assert "- 10 Stück Lasche (Art.-Nr. L-17)" in t and "für Artikel BG-1" in t, t
 assert "Gewünschter Liefertermin: KW 49" in t and "Bitte Angebot gültig bis: 30.11.2026" in t and \
     "Bitte Zeugnis 3.1 beilegen." in t

@@ -681,6 +681,23 @@ def kapitel_ueberblick(i):
            "unter den Positionen</i> blendet ihn aus (seit 0.9.312). Nach dem Öffnen eines Angebots zeigt er die erste "
            "Position, ohne sie zu markieren; auf niedrigen Bildschirmen (Laptop) erst, wenn eine Zeile gewählt ist "
            "(seit 0.9.320).", kurz=True)
+    i.abschnitt("Schreibweise der Abmessungen", marke="massschreibweise")
+    i.text("Material- und Profilabmessungen stehen im ganzen Programm in einer einheitlichen, kompakten "
+           "Schreibweise ohne Leerzeichen: <b>50x50x3</b>, <b>100x50x4</b>, <b>Ø60x3</b>, <b>40x20x2,5</b>. Das "
+           "gilt für Anzeigen und Tabellen, Angebots- und Werkstatt-PDFs, Angebotsakte, E-Mails und "
+           "Materialanfragen, CSV- und Excel-Exporte (auch für PPEASE) und die Bezeichnungen neuer Zukauf-, Blech- "
+           "und Vollmaterialartikel (seit 0.9.490).", kurz=True)
+    i.tabelle(["Bisher", "Jetzt"], [["50 x 50 x 3", "50x50x3"], ["50X50X3", "50x50x3"], ["50 x50x 3", "50x50x3"],
+                                    ["Ø 60 x 3", "Ø60x3"], ["40 x 20 x 2,5", "40x20x2,5"],
+                                    ["Blech 500 × 300 × 5 mm", "Blech 500x300x5 mm"]], [80, 80], kurz=True)
+    i.liste("Gespeichert wird nichts um: Profile, Angebote und Artikel in der Datenbank behalten ihre Schreibweise, "
+            "das Programm formatiert erst bei der Ausgabe. Beim Bearbeiten einer Zelle steht der gespeicherte Wert.",
+            "Suche, Filter und Zuordnung finden beide Schreibweisen: <i>40 x 40 x 3</i> findet <i>QR 40x40x3</i> und "
+            "umgekehrt. Wer in der Profilspalte eine andere Schreibweise eines vorhandenen Profils tippt (<i>qr 40 x "
+            "40 x 3</i>), bekommt das vorhandene Profil statt eines neuen.",
+            "Werkstoffe bleiben unverändert (<i>1.4301 X5CrNi18-10</i>, <i>S235JRH</i>), ebenso Rechnungen und "
+            "Anzahlen mit × (<i>3 × 24 s</i>) und das Ø für Durchschnitt (<i>Ø 12,50 €/m</i>).",
+            "Rechenwerte, Preise und Materialzuordnung ändern sich dadurch nicht.", kurz=True)
 
 
 def kapitel_start(i):
@@ -694,7 +711,7 @@ def kapitel_start(i):
            "Prozessorkerne, Arbeitsspeicher, OpenGL der Grafik, freier Speicher am Datenort und Bildschirmgröße, je "
            "mit ✓ oder <i>unter Minimum</i>. Einmal nach der Installation und nach jedem Update prüft das Programm "
            "das beim Start selbst und zeigt das Fenster nur, wenn etwas unter dem Minimum liegt.",
-           "Gemessen mit einem Rundrohr 84 × 2 voller Bohrungen: 1.000 Bohrungen brauchen bei der STEP-Messung "
+           "Gemessen mit einem Rundrohr Ø84x2 voller Bohrungen: 1.000 Bohrungen brauchen bei der STEP-Messung "
            "etwa 1,2 GB Arbeitsspeicher und rund eine Minute, Rohr-Editor und STEP speichern je etwa 20 Sekunden. "
            "Ohne OpenGL (alte Grafik, Fernwartung) zeichnet die 3D-Ansicht in Software, große Baugruppen drehen "
            "sich dann zäh ([[step_3d_ansicht]]).")
@@ -2413,7 +2430,7 @@ def kapitel_angebot(i):
             "beigestellten Stangen, mit Zuschlag Fertigung und Gewinn (Kostenart <i>Handling Kundenmaterial</i>). "
             "Vorgabe 0 = keins; Einstellung in der Gruppe Kalkulation, je Angebot änderbar.",
             "Angebot: Die Position heißt „Material S235 EN10219 vom Kunden beigestellt“ statt „inkl. Material …“; "
-            "vor den Bedingungen steht „Material wird vom Kunden beigestellt: 2 Stangen Quadratrohr 40 x 40 x 3, "
+            "vor den Bedingungen steht „Material wird vom Kunden beigestellt: 2 Stangen Quadratrohr 40x40x3, "
             "S235 EN10219, à 6.000 mm.“ (abschaltbar mit der Einstellung <i>Angebots-PDF: Hinweis zum "
             "Kundenmaterial mit Stangenbedarf</i>). Werkstattpapier und Nachkalkulation führen das Kundenmaterial "
             "als eigene Zeile.",
@@ -3277,7 +3294,7 @@ def kapitel_angebot(i):
             "dem Sicherheitsabstand darunter durchdreht (Eckradius aus Abmessung und Außenradius − Abstand der "
             "Fläche + Sicherheit; Rechteckrohre liegen mit der Breitseite oben, die Fläche oben hat also die halbe kleinere "
             "Abmessung als Abstand), dann drehen und verfahren, dann senken. Rundrohr dreht ohne Hub. Beispiel "
-            "Quadratrohr 60 × 60, Radius 6 mm: Kopf 14,9 mm hoch. Die Schneidfolge der Konturen sucht das "
+            "Quadratrohr 60x60, Radius 6 mm: Kopf 14,9 mm hoch. Die Schneidfolge der Konturen sucht das "
             "Programm mit genau diesen Leerwegen (inklusive Heben über die Kante und Froschsprung), damit so "
             "wenige Kopfhübe wie möglich anfallen. Leer = Kopfhub je Einstich wie bisher. Die "
             "Rechnung steht in der Maschine unter <i>Dynamik und Kopfweg</i> mit Beispielzeiten.",
@@ -3299,7 +3316,7 @@ def kapitel_angebot(i):
             "<b>Restgewicht aus dem Schnittplan</b>: das bewegte Gewicht je Teil ist kg/m × Restlänge der Stange beim "
             "Schneiden des Teils (Mittel über alle Stück der Position) – das erste Teil einer Stange bewegt die ganze "
             "Stange, das letzte nur sich selbst. Die Drehträgheit rechnet mit dem Querschnitt: Gewicht × (A + B)² ÷ "
-            "12 bezogen auf ein Quadratrohr 60 × 60 (Rundrohr (Ø ÷ 2)²); ein breites Rohr dreht bei gleichem "
+            "12 bezogen auf ein Quadratrohr 60x60 (Rundrohr (Ø ÷ 2)²); ein breites Rohr dreht bei gleichem "
             "Gewicht langsamer als ein schmales.",
             "<b>Stangenwechsel</b> (<i>Stangenwechsel berechnen: Laden</i>, <i>Laden parallel zum letzten Teil</i>, "
             "<i>Spannen</i>, <i>Vermessen der Stange</i>, <i>Schweißnaht suchen je Stange</i>): Stangenwechsel = Laden "
@@ -3649,8 +3666,8 @@ def kapitel_angebot(i):
             "Teil zu mehreren (<i>S355</i> → S355-10219 und S355-10210), gilt der Werkstoff der letzten Position, "
             "die Vorgabe des STEP-Imports bzw. der zuletzt benutzte, sonst meldet die Vorschau <i>mehrdeutig</i>. "
             "Ohne Angabe gilt der Werkstoff der letzten Position bzw. die Vorgabe des STEP-Imports.",
-            "Profilmaße dürfen Leerzeichen haben (<i>RR 42,4 x 2</i>, <i>QR 40 x 40 x 3</i>), wenn sie am Anfang "
-            "oder direkt nach dem Kürzel stehen.",
+            "Profilmaße dürfen beim Tippen Leerzeichen haben (<i>RR 42,4 x 2</i>, <i>QR 40 x 40 x 3</i>), wenn sie "
+            "am Anfang oder direkt nach dem Kürzel stehen; angezeigt werden sie kompakt ([[massschreibweise]]).",
             "Die erste Zahl ist die Länge, die zweite die Stückzahl; eindeutig mit <i>L=1250</i>, <i>1250mm</i>, "
             "<i>20 Stk</i>, <i>x20</i> oder <i>1250 x 20</i> (Länge × Stück). Eine Artikelnummer steht mit <i>#</i> davor (<i>#4711-01</i>).",
             "Mehrere Zeilen, z. B. aus einer E-Mail oder aus Excel (Tabulator oder ; getrennt), mit Strg+V in die "
@@ -4259,7 +4276,7 @@ def kapitel_step(i):
             "im Bericht „3D prüfen“. Eine Fase am Ende zählt nur, wenn sie durch die ganze Wand geht (siehe unten). Über der Grenze der Maschine wird begrenzt "
             "(WARNUNG im Status). Ändern je Teil im Schneidweg-Rechner ([[schneidweg_rechner]]); bei Rundrohren ist "
             "die gemessene Querneigung auf etwa ±1,5° genau.",
-            "<b>Fasen an den Enden</b> (seit 0.8.27, erweitert 0.9.490): Der Import erkennt eine Fase am Rohrende, "
+            "<b>Fasen an den Enden</b> (seit 0.8.27, erweitert 0.9.491): Der Import erkennt eine Fase am Rohrende, "
             "schreibt den Hinweis „Ende B: Fase erkannt …“ in den Bericht und misst Tiefe (längs), Höhe (in die Wand) "
             "und Winkel der Fase. Im Rohr-Editor und in der 3D-Ansicht sieht das Ende aus wie in der STEP: der "
             "Außenring liegt um die Fasentiefe zurück, eine Teilfase knickt in der gemessenen Höhe. Gerechnet wird so: "

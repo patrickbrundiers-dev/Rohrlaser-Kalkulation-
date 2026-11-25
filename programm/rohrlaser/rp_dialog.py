@@ -15,7 +15,7 @@ def _z(x, stellen=1):
 def kennwerte_text(e):
     """Kennwerte eines RP-Profils als Text (mehrzeilig)."""
     kammern = e.get("kammern") or 0
-    zeilen = [f"Breite × Höhe: {_z(e['breite'])} × {_z(e['hoehe'])} mm, Blechdicke {_z(e['wand'], 2)} mm",
+    zeilen = [f"Breite × Höhe: {_z(e['breite'])}x{_z(e['hoehe'])} mm, Blechdicke {_z(e['wand'], 2)} mm",
               f"Fläche {_z(e['flaeche'])} mm² ({_z(e['flaeche'] * 7.85e-3, 2)} kg/m Stahl), "
               f"Außenumfang {_z(e['umfang'])} mm",
               f"Schnittlänge gerade {_z(e['schnitt'])} mm, davon durch die Doppellage {_z(e.get('schnitt_doppel', 0))} mm",

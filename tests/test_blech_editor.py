@@ -150,7 +150,7 @@ def ausfuellen(d):
 assert s.position_neu(BLECH, dialog=ausfuellen) == BLECH
 p = db.positionen(a)[-1]
 assert gesehen["art"] == blech.KANTTEIL and gesehen["ok"] and gesehen["kopf"].startswith("Länge")
-assert gesehen["vorschlag"].startswith("Kantteil 300 × 112 × 2 1.4301 2B (2 Kantungen)")
+assert gesehen["vorschlag"].startswith("Kantteil 300x112x2 1.4301 2B (2 Kantungen)")
 assert p["art"] == "Zukaufteil" and p["stueck"] == 20 and p["bezeichnung"] == gesehen["vorschlag"]
 eingabe = blech.lesen(p["technik"])
 assert eingabe["werkstoff"] == "1.4301 2B" and len(eingabe["schenkel"]) == 3 and eingabe["konturen"][0]["l"] == 20

@@ -313,7 +313,7 @@ def erkennung(m, k_json=None):
         out.append(("Profil-ID (Vorschlag)", m["profil_id_vorschlag"]))
     a, b, w = _f(m, "abm_a"), _f(m, "abm_b"), _f(m, "wandstaerke")
     if a:
-        out.append(("Abmessungen", f"{_dez(a, 2)} × {_dez(b, 2)} mm" if b and abs(b - a) > 1e-9 else f"{_dez(a, 2)} mm"))
+        out.append(("Abmessungen", f"{_dez(a, 2)}x{_dez(b, 2)} mm" if b and abs(b - a) > 1e-9 else f"{_dez(a, 2)} mm"))
     if w:
         out.append(("Wandstärke", f"{_dez(w, 2)} mm"))
     if _f(m, "laenge"):

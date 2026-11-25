@@ -202,7 +202,7 @@ def zukauf_bedarf(positionen, artikel=None):
             z = zeilen.get(schl)
             if z is None:
                 laenge, breite, dicke = (_zahl(a.get(n)) for n in ("laenge", "breite", "dicke"))
-                masse = " x ".join(f"{x:g}".replace(".", ",") for x in (laenge, breite, dicke) if x)
+                masse = "x".join(f"{x:g}".replace(".", ",") for x in (laenge, breite, dicke) if x)
                 z = zeilen[schl] = dict(
                     art="zukauf", profil=None, werkstoff=a.get("werkstoff") or "", oberflaeche="", laenge=laenge,
                     stangen=0, gewicht=0.0 if _zahl(a.get("gewicht")) else None, pos=[], artikel=[],
@@ -235,7 +235,9 @@ EINHEIT = {"Stück": "Stück", "kg": "kg", "m": "m"}
 
 
 def zukauf_text(z, menge=None):
-    """'12 Stück Blechteil Lasche (Art.-Nr. B-17, Zeichnung L-17), 200 x 100 x 3, S235JR (ca. 5 kg)'."""
+    """'12 Stück Blechteil Lasche (Art.-Nr. B-17, Zeichnung L-17), 200x100x3 mm, S235JR (ca. 5 kg)' (Abmessungen
+    kompakt, masstext, auch in alten Bezeichnungen)."""
+    from . import masstext
     from .rechnen import zahl
     n = z["stangen"] if menge is None else menge
     e = z.get("einheit") or "Stück"
@@ -244,7 +246,7 @@ def zukauf_text(z, menge=None):
                                     != z.get("artikelnr") else "") if t)
     g = z.get("gewicht")
     gew = f" (ca. {zahl(g * n / z['stangen'], 0)} kg)" if g and z.get("stangen") else ""
-    return (f"{zahl(n, 0) if float(n).is_integer() else zahl(n, 2)} {e} {z.get('bezeichnung') or 'Artikel'}"
+    return (f"{zahl(n, 0) if float(n).is_integer() else zahl(n, 2)} {e} {masstext.text(z.get('bezeichnung') or 'Artikel')}"
             + (f" ({angaben})" if angaben else "") + (f", {z['masse']} mm" if z.get("masse") else "")
             + (f", {z['werkstoff']}" if z.get("werkstoff") else "") + gew)
 

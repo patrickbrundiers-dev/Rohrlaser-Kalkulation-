@@ -305,7 +305,7 @@ def dxf_elemente(qs, eingaben, L, mit_mass=True, mantel=None):
                      f"Abwicklung Außenhaut: Länge {_zahl(L)} mm, Umfang {_zahl(b['umfang'])} mm"))
         for k in b["konturen"]:
             elem.append(("TEXT", dxf.TEXT, p(k["x"] + k["breite_x"] / 2 + 2, k["t"]), 2.5,
-                         f"{k['text']}  x {_zahl(k['x'])}  t {_zahl(k['t'])}"))
+                         f"{k['text']}  x {_zahl(k['x'])}  t {_zahl(k['t'])}"))     # masstext: Lage x/t
     return elem
 
 

@@ -33,7 +33,7 @@ def profil_text(m):
     a, b, s = _z(m, "abm_a"), _z(m, "abm_b"), _z(m, "wandstaerke")
     if not form or m.get("fehler"):
         return ""
-    masse = f"{a:g}" + (f" × {b:g}" if b > 0 else "") + (f" × {round(s, 2):g}" if s > 0 else "")
+    masse = f"{a:g}" + (f"x{b:g}" if b > 0 else "") + (f"x{round(s, 2):g}" if s > 0 else "")
     return f"{form} {masse}".replace(".", ",").strip()
 
 

@@ -668,7 +668,7 @@ def text(liste):
 def aus_text(z):
     """'4x Flowdrill M8 statt Gewinde', '2x Einnietmutter M8 Ø11 statt Gewinde'."""
     aus = ausfuehrung(z)
-    teile = [f"{z.get('anzahl')}x {KURZ[aus]}"]
+    teile = [f"{z.get('anzahl')}x {KURZ[aus]}"]     # masstext: Anzahl
     if aus in MIT_GROESSE and z.get("gewinde"):
         teile.append(z["gewinde"])
     d, _ = _ziel(dict(z, status=BESTAETIGT))

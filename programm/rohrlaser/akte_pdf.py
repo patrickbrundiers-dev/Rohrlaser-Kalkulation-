@@ -27,7 +27,7 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame,
                                 NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 
 from . import angebotsakte as akte_
-from . import leistung
+from . import leistung, masstext
 from .angebotsakte import FEHLER, HINWEIS, OK, WARNUNG
 
 # ------------------------------------------------------------------ Gestaltung (eigene Werte dieses Dokuments)
@@ -167,7 +167,7 @@ def _esc(t):
 
 
 def _p(text, stil):
-    return Paragraph(_esc(text).replace("\n", "<br/>"), stil)
+    return Paragraph(_esc(masstext.text(text) if isinstance(text, str) else text).replace("\n", "<br/>"), stil)
 
 
 # ------------------------------------------------------------------ Blatt: Kopf, Fuß, Randleiste

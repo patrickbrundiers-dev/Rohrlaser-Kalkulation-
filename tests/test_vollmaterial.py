@@ -47,8 +47,8 @@ G_RUND = math.pi / 4 * 20 * 20 * 150 * 7.85 / 1e6        # Rundstahl Ø20 × 150
 nah(vm.gewicht(vm.RUNDSTAHL, 20, 150, 7.85), G_RUND, "Gewicht Rundstahl", 1e-4)
 nah(vm.gewicht(vm.VIERKANTSTAHL, 20, 150, 7.85), 20 * 20 * 150 * 7.85 / 1e6, "Gewicht Vierkantstahl", 1e-4)
 assert vm.gewicht(vm.RUNDSTAHL, 20, 150, None) is None and vm.gewicht(vm.RUNDSTAHL, 0, 150, 7.85) is None
-assert vm.bezeichnung(vm.RUNDSTAHL, 20, 150, "S235") == "Rundstahl Ø20 × 150 mm S235"
-assert vm.bezeichnung(vm.VIERKANTSTAHL, 12.5, 80) == "Vierkantstahl 12,5 × 12,5 × 80 mm"
+assert vm.bezeichnung(vm.RUNDSTAHL, 20, 150, "S235") == "Rundstahl Ø20x150 mm S235"
+assert vm.bezeichnung(vm.VIERKANTSTAHL, 12.5, 80) == "Vierkantstahl 12,5x12,5x80 mm"
 nah(vm.ek(0.5, 1.2), 0.6, "EK = Gewicht × €/kg")
 assert vm.ek(None, 1.2) is None and vm.kg_preis(dict(tonnenpreis=1450)) == 1.45
 liste = [dict(id=1, artikeltyp="Rundstahl", abmessung=20, laenge=150.3, werkstoff="S235"),
@@ -59,7 +59,7 @@ gleich, aehnlich = vm.dubletten("Rundstahl", 20.02, 150, "S235", liste)
 assert [a["id"] for a in gleich] == [1] and [a["id"] for a in aehnlich] == [2], (gleich, aehnlich)
 w, b = vm.vorbereiten(dict(artikeltyp="Rundstahl", abmessung=20, laenge=150, werkstoff="S"), [],
                       {"S": dict(dichte=7.85, tonnenpreis=1000)})
-assert w["bezeichnung"] == "Rundstahl Ø20 × 150 mm S" and w["preis_kg"] == 1.0
+assert w["bezeichnung"] == "Rundstahl Ø20x150 mm S" and w["preis_kg"] == 1.0
 assert b and b[0]["preise"] == [dict(ab=1, preis=round(round(G_RUND, 4) * 1.0, 4))], b
 w, _ = vm.vorbereiten(dict(artikeltyp="Rundstahl", abmessung=20, laenge=150, werkstoff=None, gewicht=0.37,
                            preis_kg=1.0), [], {})
@@ -120,7 +120,7 @@ assert "neu" in p2["_zukauf"] and len(erg["zukauf_neu"]) == 1, erg["zukauf_neu"]
 assert "Bohrungen/Gewinde nicht ausgewertet" in erg["bericht"][0], erg["bericht"]
 w2 = erg["zukauf_neu"][p2["_zukauf"]["neu"]][0]
 assert w2["artikeltyp"] == "Vierkantstahl" and w2["abmessung"] == 12 and w2["bezeichnung"] == \
-    "Vierkantstahl 12 × 12 × 80 mm S235-10219", w2
+    "Vierkantstahl 12x12x80 mm S235-10219", w2
 # Satz: zwei gleiche Bolzen einer Baugruppe -> eine Position mit 2 Stück je Satz
 mw = [messung("B1", datei="gruppe.step"), messung("B2", datei="gruppe.step")]
 erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 3, saetze=["gruppe.step"],
@@ -195,7 +195,7 @@ assert p["art"] == ZUKAUFTEIL and p["werkstoff_id"] == "S235-10219" and p["laeng
 nah(p["gewicht_teil"], g30, "Gewicht Schnellanlage", 1e-4)
 assert json.loads(p["zusatz"])[0]["name"] == vm.ZUSATZ_SAEGEN
 a30 = db.zukauf_artikel(json.loads(p["zukauf"])[0]["artikel_id"])
-assert a30["bezeichnung"] == "Rundstahl Ø30 × 250 mm S235-10219" and a30["artikeltyp"] == vm.RUNDSTAHL, a30
+assert a30["bezeichnung"] == "Rundstahl Ø30x250 mm S235-10219" and a30["artikeltyp"] == vm.RUNDSTAHL, a30
 nah(zukauf.json_liste(a30["bezuege"][0]["preise"])[0]["preis"], round(g30, 4), "EK Schnellanlage", 1e-4)
 ok("V5a Schnellanlage im Angebot: Art Rundstahl, Kategorie, Werkstoff Pflicht, Position mit Gewicht und Sägen")
 
@@ -216,7 +216,7 @@ assert seite.zukauf_schnell(zeilen=[], dialog=ohne_stamm, blech=False) == 1
 p = db.positionen(an)[-1]
 e = json.loads(p["zukauf"])[0]
 assert e.get("frei") and "artikel_id" not in e and len(db.zukauf_artikel_liste()) == n_artikel, "kein Stammartikel"
-assert e["stand"]["bezeichnung"] == "Rundstahl Ø30 × 250 mm S235-10219" and p["stueck"] == 2
+assert e["stand"]["bezeichnung"] == "Rundstahl Ø30x250 mm S235-10219" and p["stueck"] == 2
 nah(zukauf.json_liste(e["stand"]["bezug"]["preise"])[0]["preis"], round(g30, 4), "EK ohne Stamm", 1e-4)
 ok("V5a' Schnellanlage Vollmaterial ohne Artikelstamm: Preisstand mit EK aus Gewicht × €/kg nur in der Position")
 
