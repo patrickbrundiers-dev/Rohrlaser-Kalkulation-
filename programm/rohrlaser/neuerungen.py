@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.506", "<b>Einfacher Modus: Fracht und Marge</b> ([[einfach_fracht_marge]]): Im Schritt <i>Bearbeitung</i> "
+                "gibt es die Karte <i>Frachtkosten</i> mit Frachtart, Betrag, Verteilung (je Stück oder nach "
+                "Gewicht), <i>Fracht berechnen …</i> (Paket oder Palette, Tarif, wie im Expertenmodus) und "
+                "<i>Fracht automatisch berechnen</i>. Im Schritt <i>Ergebnis</i> stellt <i>Marge einstellen</i> den "
+                "Gewinn so ein, dass die eingetragene Marge vom Warenwert genau erreicht wird (wie <i>Auf Zielmarge "
+                "setzen</i> in der Preisleiter), dazu Knöpfe für Ziel- und Mindestmarge. Beides nutzt dieselben "
+                "Angebotsfelder und dieselbe Rechnung wie der Expertenmodus.",
+     "Einfacher Modus: Frachtkosten hinzufügen und Marge einstellen"],
     ["0.9.505", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
                 "Höhe und Winkel einer Fase am Rohrende und bei Sonderkonturen mit schräger Schnittfläche auch den Rand "
                 "auf der Innenwand. Ist die 3D-Schnittbearbeitung gewählt, zeigt der Editor beides wie in der STEP und "

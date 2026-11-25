@@ -142,6 +142,49 @@ e.zu_schritt(bm.ANGEBOT)
 assert e.menge_felder[1].value() == 80 and e.menge_felder[0].value() == 48
 ok("dieselbe Kalkulation in beiden Modi: Änderung im einfachen Modus im Expertenmodus sichtbar und umgekehrt")
 
+# Fracht und Marge im einfachen Modus (Patrick 25.11.2026): dieselben Kopffelder und dieselbe Rechnung
+from rohrlaser import fracht_angebot as fa  # noqa: E402
+e.zu_schritt(bm.BEARBEITUNG)
+assert e.fr_modus.currentText() == fa.modus(s.kopf) and e.fr_betrag.isEnabled()
+_, vor_fracht = s._rechnung()
+assert e.fracht_setzen(150)
+assert (db.angebot(aid) or {}).get("fracht") == 150 and s.kopf.get("fracht") == 150
+_, mit_fracht = s._rechnung()
+assert abs(mit_fracht["fracht"] - 150) < 0.005, mit_fracht["fracht"]
+assert mit_fracht["verkauf"] > vor_fracht["verkauf"] + 140
+assert e.daten["summen"]["verkauf"] == mit_fracht["verkauf"] and "150,00" in e.fr_text.text(), e.fr_text.text()
+assert e.fracht_modus_setzen(fa.KEINE) and s._rechnung()[1]["fracht"] == 0 and not e.fr_betrag.isEnabled()
+assert e.fracht_setzen(80) and fa.modus(s.kopf) == fa.MANUELL and s.kopf.get("fracht") == 80, \
+    "Betrag bei „keine Fracht“: Frachtart wird manuell"
+andere = fa.JE_STUECK if fa.umlage(s.kopf) == fa.NACH_GEWICHT else fa.NACH_GEWICHT
+assert e.fracht_umlage_setzen(andere) and s.kopf.get("fracht_umlage") == andere and e.fr_umlage.currentText() == andere
+assert e.fracht_berechnen() is not None, "Dialog „Fracht berechnen“ des Expertenmodus"
+ok("Fracht im einfachen Modus: Betrag, Frachtart und Verteilung in denselben Angebotsfeldern, Verkaufspreis "
+   "steigt um die Fracht, Dialog „Fracht berechnen“ wie im Expertenmodus")
+
+e.zu_schritt(bm.ERGEBNIS)
+g = e.marge_setzen(20)
+assert g is not None and abs(s.kopf.get("gewinn") - round(100 * g, 2)) < 1e-9
+m = marge.werte(s._rechnung()[1])["marge"]
+assert 0.2 - 1e-6 <= m < 0.202, m
+assert abs(e.daten["ergebnis"]["marge"] - m) < 1e-9 and "Marge 20" in e.mg_text.text(), e.mg_text.text()
+assert s.auf_marge_setzen(0.2, rueckgaengig=False) == g, "gleiche Rechnung wie die Preisleiter"
+assert e.marge_setzen(0) is None
+_optimieren = s.optimieren
+s.optimieren = lambda **_k: False                   # Schnittplan veraltet und nicht neu rechenbar
+s.stand_optimierung, _stand = (lambda: "veraltet"), s.stand_optimierung
+gewinn_vorher = s.kopf.get("gewinn")
+assert e.marge_setzen(30) is None and s.kopf.get("gewinn") == gewinn_vorher, "nie auf veraltetem Schnittplan"
+s.optimieren, s.stand_optimierung = _optimieren, _stand
+db.einstellung_setzen("zielmarge", 0.25)
+s.neu_laden()
+e.aktualisieren()
+assert e.mg_ziel.isVisibleTo(e) and "25" in e.mg_ziel.text()
+assert e.marge_setzen(e._satz("zielmarge") * 100) is not None
+assert 0.25 - 1e-6 <= marge.werte(s._rechnung()[1])["marge"] < 0.252
+ok(f"Marge im einfachen Modus: 20 % ergibt Gewinnzuschlag {bm.zahl(100 * g, 2)} % (wie Preisleiter), Knopf "
+   "Zielmarge aus den Einstellungen")
+
 # Angebot erstellen (PDF) im einfachen und im Expertenmodus
 pfad = e.pdf_erstellen()
 assert pfad and Path(pfad).is_file(), pfad
