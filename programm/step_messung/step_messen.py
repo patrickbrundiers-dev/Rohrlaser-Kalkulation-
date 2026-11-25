@@ -20,6 +20,12 @@ Aufruf:
   "lk" = Kontur je Linienzug (Nummer in der Spalte konturen_liste, -1 = keine; STEP-Viewer).
   --netze-fein: Analysestufe Experte, feineres Netz (nur Anzeige, Messwerte gleich).
 
+--abwicklungskern aus|vergleich|an: Rohrmessung mit dem Abwicklungskern (step_abwicklungskern.py): Profil-Lage aus den
+  Flächen statt vieler Schnitte, Endlinien offener Rohre bereinigt; vergleich = beide rechnen, Ergebnis wie bisher,
+  Unterschiede in <ausgabe>.abwicklungskern.json; an = neu, wo sicher möglich, sonst automatisch die bisherige Rechnung.
+--abwicklungskern-stichprobe N: im Modus an jedes N-te Teil zusätzlich bisher rechnen (Dauer-Vergleich, Vorgabe 20,
+  0 = aus); bei Abweichung gilt die bisherige Rechnung, die Abweichung steht im Tempo-Protokoll.
+
 --flach-laenge F, --gekantet-anteil A: Grenzwerte der Erkennung aus den Einstellungen (step_geometrie.einstellen).
 
 --netze-linien: Schnellimport (24.11.2026): die Netze enthalten nur die Linienzüge der Schnittkonturen (für die
@@ -69,11 +75,13 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "pruefstatus", "netz", "bauteiltyp", "blech", "stegdicke", "flanschdicke", "normprofil",
            "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "senkungen", "fliessloecher", "anbauteile",
            "trennung", "gravur_anbau", "kammern", "kontur_umfang", "verbund", "bauteil", "pfad", "knoten", "ersatz",
-           "biegerohr", "knick_schenkel", "offene_seite", "drehfraes", "art_grund", "arten", "geschlossen", "alternative", "fehler"]
+           "biegerohr", "knick_schenkel", "offene_seite", "drehfraes", "art_grund", "arten", "geschlossen", "alternative", "pruefung", "pruefung_datei", "fehler"]
+# Spalten "pruefung" / "pruefung_datei" (STEP-Messung 1.31, step_qualitaet): Geometrieprüfung des Körpers bzw. Kennzahlen der
+# Datei als JSON wie "geometriepruefung" / "genauigkeit" im JSON-Ergebnis; leer = nicht geprüft
 # Spalte "alternative": Grenzfall Flachstahl/Blech bzw. Profil/Kantteil, das Teil in der anderen Art gemessen, bzw.
 # bei abgetrennten Anbauteilen die Messung ohne Trennung, als JSON {Spalte: Wert} mit den Messwerten (ohne Datei, Artikel, Körper, Netz); leer = keine Alternative
 OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "bauteil", "pfad", "knoten", "geschlossen", "alternative",
-                    "fehler", "arten")
+                    "fehler", "arten", "pruefung", "pruefung_datei")
 # Spalte "geschlossen": offen gezeichnetes Quadrat-/Rechteckrohr (step_offenes_rohr), das Teil als Rohr mit Stegen
 # gemessen, JSON {Spalte: Wert} wie "alternative"; leer = kein offenes Rohr
 # Spalte "offene_seite": offen gezeichnetes Rohr als Rohr gemessen (in "geschlossen" bzw. nach dem Umschalten), JSON
@@ -282,7 +290,9 @@ def _zeile(t, name, artikel, netz):
             _knick_schenkel(t),
             json.dumps(t.offene_seite, ensure_ascii=False, separators=(",", ":")) if t.offene_seite else "",
             json.dumps(t.drehfraes, ensure_ascii=False, separators=(",", ":")) if t.drehfraes else "",
-            _text(t.art_grund), "", "", "", ""])
+            _text(t.art_grund), "", "", "",
+            json.dumps(t.qualitaet, ensure_ascii=False, separators=(",", ":")) if t.qualitaet else "",
+            json.dumps(t.pruefung_datei, ensure_ascii=False, separators=(",", ":")) if t.pruefung_datei else "", ""])
 
 
 def _knick_schenkel(t):
@@ -829,6 +839,11 @@ def main(argv=None):
     ap.add_argument("--naht-spalt", type=float, help="Schweißstoß: Spalt bis [mm] noch Naht und Gravur (Vorgabe 3)")
     ap.add_argument("--normteile-voll", action="store_true",
                     help="Normteile laut Bauteilname (DIN 933 …) wie jedes Teil voll messen (sonst nur als Zukaufteil)")
+    ap.add_argument("--abwicklungskern", choices=("aus", "vergleich", "an"),
+                    help="Abwicklungskern (step_abwicklungskern): aus = bisher, vergleich = beide rechnen und "
+                         "protokollieren, an = neu mit automatischem Rückfall")
+    ap.add_argument("--abwicklungskern-stichprobe", type=int,
+                    help="Modus an: jedes N-te Teil zusätzlich bisher rechnen (Vorgabe 20, 0 = aus)")
     ap.add_argument("--netze-fein", action="store_true",
                     help="Analysestufe Experte: feineres Netz für die 3D-Ansicht (Messwerte gleich)")
     ap.add_argument("--netze-linien", action="store_true",
@@ -870,6 +885,8 @@ def main(argv=None):
                                ("stege", a.stege), ("virtuell", a.virtuell),
                                ("normteile_voll", a.normteile_voll or None),
                                ("netz_fein", a.netze_fein or None),
+                               ("abwicklungskern", a.abwicklungskern),
+                               ("abwicklungskern_stichprobe", a.abwicklungskern_stichprobe),
                                ("netz_linien", a.netze_linien or None)) if v is not None}
     ergebnis = [None] * len(dateien)
     with open(a.ausgabe, "w", encoding="utf-8", newline="\n") as f:      # Teilergebnis wächst je Datei

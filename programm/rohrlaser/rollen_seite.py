@@ -123,6 +123,25 @@ class RollenTeil(QWidget):
         z2.addWidget(self.vorgabe_knopf)
         z2.addStretch(1)
         lay.addLayout(z2)
+        # Austauschordner (Reiter Austausch): je Rolle die erlaubten Dateiaktionen
+        from . import austausch_dateien as ad
+        lay.addWidget(QLabel("<b>Austauschordner</b>: je Rolle, was sie mit Dateien im Reiter Austausch darf "
+                             "(Haken = erlaubt). Endgültig löschen darf nur der Administrator."))
+        self.austausch = QTableWidget(len(rollen.ROLLEN), len(ad.AKTIONEN))
+        self.austausch.setObjectName("austausch_rechte")
+        self.austausch.setHorizontalHeaderLabels([t for _, t in ad.AKTIONEN])
+        self.austausch.setVerticalHeaderLabels([t for _, t in rollen.ROLLEN])
+        self.austausch.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.austausch.setMinimumHeight(250)
+        self.austausch.itemChanged.connect(self._austausch_geaendert)
+        lay.addWidget(self.austausch)
+        z3 = QHBoxLayout()
+        self.austausch_vorgabe_knopf = QPushButton("Vorgabe Austausch")
+        self.austausch_vorgabe_knopf.setToolTip("Rechte im Austauschordner auf die Vorgabe des Programms zurücksetzen")
+        self.austausch_vorgabe_knopf.clicked.connect(self.austausch_vorgabe)
+        z3.addWidget(self.austausch_vorgabe_knopf)
+        z3.addStretch(1)
+        lay.addLayout(z3)
         self.stumm = False
         self.neu_laden()
 
@@ -153,7 +172,46 @@ class RollenTeil(QWidget):
                 box.currentIndexChanged.connect(lambda _i, b=box, ro=rolle, be=bereich: self.recht(ro, be,
                                                                                                     b.currentData()))
                 self.rechte.setCellWidget(r, c, box)
+        self._austausch_fuellen()
         self.schutz_setzen(self.gesperrt)
+
+    def _austausch_fuellen(self):
+        from . import austausch_dateien as ad
+        werte = ad.rechte(self.db)
+        self.austausch.blockSignals(True)
+        for r, (rolle, _) in enumerate(rollen.ROLLEN):
+            for c, (aktion, titel) in enumerate(ad.AKTIONEN):
+                it = QTableWidgetItem("")
+                it.setData(Qt.UserRole, (rolle, aktion))
+                it.setToolTip(f"{rollen.ROLLE_TITEL[rolle]}: {titel}")
+                flags = Qt.ItemIsUserCheckable | Qt.ItemIsSelectable
+                if not self.gesperrt and rolle != rollen.ADMIN:
+                    flags |= Qt.ItemIsEnabled
+                it.setFlags(flags)
+                it.setCheckState(Qt.Checked if aktion in werte.get(rolle, ()) else Qt.Unchecked)
+                self.austausch.setItem(r, c, it)
+        self.austausch.blockSignals(False)
+
+    def _austausch_geaendert(self, it):
+        d = it.data(Qt.UserRole)
+        if not d or self.gesperrt:
+            return False
+        return self.austausch_recht(d[0], d[1], it.checkState() == Qt.Checked)
+
+    def austausch_recht(self, rolle, aktion, an):
+        if self.gesperrt:
+            return False
+        from . import austausch_dateien as ad
+        return self._fertig(ad.recht_setzen(self.db, rolle, aktion, an),
+                            f"Austausch – {rollen.ROLLE_TITEL[rolle]}: {ad.AKTION_TEXT[aktion]} "
+                            f"{'erlaubt' if an else 'nicht erlaubt'}.")
+
+    def austausch_vorgabe(self):
+        if self.gesperrt:
+            return False
+        from . import austausch_dateien as ad
+        ad.rechte_vorgabe(self.db)
+        return self._fertig("", "Rechte im Austauschordner auf die Vorgabe zurückgesetzt.")
 
     def _fertig(self, fehler, text):
         if fehler:
@@ -255,12 +313,15 @@ class RollenTeil(QWidget):
         for b in self.knopf.values():
             b.setEnabled(not gesperrt)
         self.vorgabe_knopf.setEnabled(not gesperrt)
+        self.austausch_vorgabe_knopf.setEnabled(not gesperrt)
         self.pflicht.setEnabled(not gesperrt)
         for r in range(self.rechte.rowCount()):
             for c in range(self.rechte.columnCount()):
                 w = self.rechte.cellWidget(r, c)
                 if w is not None:
                     w.setEnabled(not gesperrt and rollen.ROLLEN[r][0] != rollen.ADMIN)
+        if hasattr(self, "austausch") and self.austausch.rowCount():
+            self._austausch_fuellen()
 
 
 class AnmeldenDialog(QDialog):

@@ -4454,7 +4454,7 @@ def kapitel_step(i):
             "Außen-Ø und Wand kommen aus den Radien.",
             "<b>Gestreckte Länge</b> = Summe der Geraden + Faktor × Summe der Bögen (Radius × Winkel). Der Faktor ist "
             "die Lage der neutralen Faser, Vorgabe 1,0 = Rohrmitte. Einstellung <i>Biegerohr: Faktor neutrale Faser "
-            "für die gestreckte Länge (1,0 = Rohrmitte)</i> auf der Seite STEP-Import ([[einstellungen]]); er gilt beim "
+            "für die gestreckte Länge (1,0 = Rohrmitte)</i> auf der Seite Knickrahmen und Steckverbindung → Biegerohr ([[einstellungen]]); er gilt beim "
             "Übernehmen.",
             "<b>Konturen</b>: Lage x ab Ende A am gestreckten Rohr, Winkel um die Rohrachse (0° = Innenseite der "
             "ersten Biegung). Liegt eine Kontur in einem Bogen, meldet die Fertigungsprüfung <i>Kontur in der "
@@ -5298,6 +5298,29 @@ def kapitel_step(i):
             "Position in der Spalte <b>Schneidtechnik</b> (leer = Standard der Maschine). Bei <b>XY</b> werden Löcher "
             "im Rundrohr zylindrisch geschnitten; ein Loch über Faktor × Rohr-Ø (Vorgabe 0,5) meldet der Import und "
             "der Angebots-Check. 2,5D hat diese Grenze nicht. Die Wahl ändert die Laserzeit nicht.")
+    i.abschnitt("Geometrieprüfung und Prüfwerte des CAD", marke="geometriepruefung")
+    i.text("Der STEP-Import prüft jeden Körper so, wie er aus der Datei gelesen wurde, und zeigt das Ergebnis in der "
+           "<b>Importanalyse</b> im Reiter <b>Geometrieprüfung</b>. Die Farbe sagt, wie verlässlich die Geometrie ist:",
+           kurz=True)
+    i.liste("<b>grün – korrekt erkannt</b>: gültiger, geschlossener Körper, Toleranzen fein oder normal (bis 0,01 mm).",
+            "<b>gelb – unsicher</b>: aus Flächen genäht, Toleranz gröber als 0,01 mm, die STEP-Datei selbst ist nur grob "
+            "genau, der Körper liegt deckungsgleich auf einem anderen (doppelt im CAD, Anzahl prüfen) oder die "
+            "Prüfwerte des CAD weichen leicht ab (0,1 bis 0,5 %).",
+            "<b>blau – reparierbar</b>: der Körper hat Fehler (z. B. falsch orientierte Flächen, Selbstüberschneidung), "
+            "eine Reparatur an einer Kopie war erfolgreich.",
+            "<b>rot – fehlerhaft</b>: offen, nicht reparierbar oder Volumen/Oberfläche weichen um mehr als 0,5 % von den "
+            "Prüfwerten des Original-CAD ab.",
+            "<b>grau – ausgeschlossen</b>: als Normteil/Zukaufteil erkannt, nicht als Fertigungsteil gemessen.")
+    i.text("Reparaturen laufen nur an einer Kopie und werden in drei Klassen eingeteilt: <b>Klasse 1</b> automatisch "
+           "und sicher (danach gültig, Hülle ändert sich höchstens um 0,001 mm), <b>Klasse 2</b> reparierbar mit "
+           "Abweichung (nur gemeldet), <b>Klasse 3</b> nicht zuverlässig reparierbar. Die Messung rechnet immer mit "
+           "dem Körper wie in der STEP-Datei. Nur wenn diese Messung scheitert und die Reparatur Klasse 1 ist, misst der "
+           "Import die reparierte Kopie und sagt es im Hinweis. Toleranzen werden nie erhöht, um Fehler zu verdecken.")
+    i.text("Viele CAD-Systeme schreiben <b>Prüfwerte</b> (Volumen, Oberfläche, Schwerpunkt je Bauteil) in die STEP-"
+           "Datei. Sind sie vorhanden, vergleicht der Import seine Messung damit: bis 0,1 % gilt sie als <b>bestätigt</b>. "
+           "Ein Klick auf eine Zeile zeigt das ganze Prüfprotokoll: Toleranzen, offene Kanten, Fehlerarten, Ergebnis "
+           "der Reparatur-Probe vorher/nachher und den Vergleich mit dem CAD. Oben je Datei: STEP-Schema (AP203/AP214/"
+           "AP242), CAD-System, Einheit und Genauigkeit der Datei.")
     i.abschnitt("Plausibilität der Messung", marke="plausibilitaet")
     i.text("Seit 0.9.443 prüft der STEP-Import die <b>Messwerte</b> jedes Profils auf Ungewöhnliches, bevor "
            "kalkuliert wird. Ein Befund macht das Teil im Prüfdialog <b>gelb</b> mit dem Grund „Plausibilität: …“ "
@@ -5432,6 +5455,51 @@ def kapitel_step(i):
             "--json ergebnis.json Ordner</i>.")
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "
            "Grenzen liegen, steht im Anhang ([[step_messung]]).")
+    i.abschnitt("Abwicklungskern (schnellere Rohrmessung)", marke="abwicklungskern")
+    i.text("Seit dieser Version misst die STEP-Messung Rohre und Profile schneller. Einstellung unter <i>Einstellungen "
+           "→ STEP-Import → Toleranzen (Experte) → Messung: Abwicklungskern</i>. Vorgabe ist <b>an</b>: "
+           "der neue Weg wird genutzt, wo er sicher geht, sonst rechnet das Programm automatisch wie bisher. "
+           "<b>aus</b> rechnet nur wie bisher. "
+           "<b>vergleich</b> rechnet beide Wege, übernimmt den bisherigen und schreibt die Zeiten und Unterschiede "
+           "ins Tempo-Protokoll (Support-Paket).", kurz=True)
+    i.genauer()
+    i.liste("<b>Lage aus den Flächen:</b> Die Rohrachse kommt direkt aus den Ebenen und Zylindern der STEP. Wo "
+            "Bohrungen, Ausschnitte und Enden liegen, zeigt eine Karte über die Länge. Der Querschnitt wird nur an "
+            "drei freien Stellen geschnitten, statt an bis zu 50 Stellen zu suchen. Die drei Schnitte müssen gleich "
+            "sein, und das Volumen darf nicht größer sein als Querschnitt × Länge, sonst gilt die bisherige Rechnung.",
+            "<b>Schneidweg wie bisher:</b> Konturen, Enden und Schnittlängen kommen weiter aus den Kanten der STEP. "
+            "Es wird nichts nachgebaut oder verschoben.",
+            "<b>Offen gezeichnete Rohre:</b> Bei der Variante „aus dem Rohr gelasert“ werden die Endlinien der Ringe "
+            "und Wände vorher in der Abwicklung bereinigt (Punkte auf einer Geraden fallen weg). Die Linie bleibt "
+            "gleich, der 3D-Körper hat aber viel weniger Flächen. U-Profile messen so 5- bis 13-mal schneller. "
+            "Auch die Erkennung der offenen Seite und der Schenkel nimmt die Lage aus dem Kern (nochmals etwa 12 % "
+            "schneller).",
+            "<b>Rundrohr-Bohrungen:</b> Mit dem Abwicklungskern ist die Wandrichtung am Rundrohr exakt. Eine radiale "
+            "Bohrung galt vorher je nach Lage als bis zu 0,7° schräg und wurde dann mit der 3D-Schnittlänge statt "
+            "der 2D-Rundrohr-Regel gerechnet.",
+            "<b>Flachstahl:</b> Hier sind zwei Richtungen fast gleich gut. Der Kern nimmt die Richtung, die "
+            "mindestens 1,5-mal länger ist als die andere. Platten mit Tasche oder Stufe rechnet er wie bisher.",
+            "<b>Freiform-Rohre:</b> Manche CAD-Systeme speichern Rohrwände als Freiformfläche (B-Spline). Passt "
+            "eine solche Fläche auf 0,0001 mm zu einer Ebene oder einem Zylinder, zählt sie als solche. Schnitte und "
+            "Kanten laufen weiter auf der Originalfläche. Sind die Querschnitte der Näherung ungleich, rechnet das "
+            "Programm wie bisher.",
+            "<b>Bisherige Rechnung bleibt</b> bei echten Freiformflächen, Platten ohne klar längste Seite, "
+            "Anbauteilen, langen Fenstern und Rohren ohne merkmalsfreie Stelle.",
+            "<b>Selbstprüfung:</b> Jede Messung über den Abwicklungskern wird gegengeprüft, unabhängig von den "
+            "Schnitten. Beim Rundrohr müssen Ø und Innen-Ø als Radien der Zylinderflächen in der STEP stehen. Beim "
+            "Rechteck- und Quadratrohr müssen Außen- und Innenmaße als Abstände der Wandflächen vorkommen. Dazu "
+            "kommen Querschnitt, Länge und gültige Werte. Fällt eine Probe durch, rechnet das Programm das Teil "
+            "automatisch wie bisher. Das Tempo-Protokoll nennt dann den Grund. Der Vertrauenswert ist 100 mit "
+            "Maß-Probe (Rohre) und 80 ohne (offene Profile, Sonderprofile).",
+            "<b>Dauer-Vergleich:</b> Jedes 20. Teil wird zusätzlich wie bisher gerechnet. Die Auswahl richtet sich "
+            "nur nach Dateiname und Körper, gleiche Teile werden also immer gleich behandelt. Weicht das Ergebnis "
+            "ab, gilt die bisherige Rechnung. Das Tempo-Protokoll (Support-Paket) zählt die Stichproben, "
+            "Abweichungen stehen dort einzeln.")
+    i.text("Prüfen: <i>python werkzeuge/abwicklungskern_vergleich.py tests --bericht bericht.md</i> misst jede Datei "
+           "mit beiden Wegen und vergleicht jedes Teil (Toleranz 0,01 mm). Mit <i>--soll "
+           "tests/daten/abwicklungskern_soll.json</i> misst es nur den Abwicklungskern und vergleicht mit der "
+           "Prüfbasis, also den abgenommenen Werten jedes Prüfteils. Der Bericht nennt Kernquote, Rückfall-Gründe "
+           "und Vertrauenswerte. Bericht: docs/system-audit/ABWICKLUNGSKERN_2411.md.")
     i.abschnitt("STEP-Viewer", marke="step_viewer")
     i.text("<i>Datei → STEP-Viewer (Datei ansehen und prüfen) …</i> (Strg+Umschalt+O, auch in <i>Meine "
            "Werkzeugleiste</i>) öffnet eine STEP-, IGES-, TUBX- oder BLM-Datei <b>ohne Angebot</b>. Im Angebot: "
@@ -5460,7 +5528,11 @@ def kapitel_step(i):
             "Enden, Gehrungen/Schrägschnitte, Gravuren und nicht gelaserte Konturen (Sackbohrung, Fließloch) mit "
             "Legende. <b>Nur Rohrlaser-Teile</b> blendet in der Gesamtansicht Normteile, Bleche und Dreh-/Frästeile "
             "aus, im Einzelteil Anbauteile und Innenwand. <b>Dunkel</b> schaltet einen dunklen CAD-Hintergrund ein "
-            "(nur solange der Viewer offen ist; im dunklen Programm-Design ist die Ansicht ohnehin dunkel).",
+            "(nur solange der Viewer offen ist; im dunklen Programm-Design ist die Ansicht ohnehin dunkel). "
+            "<b>Farben nach Prüfung</b> färbt die Gesamtansicht nach der Geometrieprüfung (grün korrekt, gelb "
+            "unsicher, blau reparierbar, rot fehlerhaft, dunkelgrau ausgeschlossene Normteile); auffällige Körper "
+            "stehen auch im Baum farbig, und beim Anklicken zeigt das Feld Erkennung Toleranz, Fehler, Reparatur-Probe "
+            "und den Abgleich mit den Prüfwerten des CAD (siehe [[geometriepruefung]]).",
             "<b>Gegenprobe:</b> Die Spalte <i>Linie 3D</i> ist die Länge der Konturlinien im 3D-Bild, unabhängig "
             "von der Messung zusammengezählt; ✓ heißt: sie passt zur Schnittlänge (2 %, mindestens 0,5 mm). Bei "
             "offenen Profilen zählt eine Seite der Wand, Bohrungen im Rundrohr zeigen <i>✓ 2D-Schnitt</i> (der "
@@ -12936,6 +13008,11 @@ def kapitel_einstellungen(i):
          "So viele Dateien misst <i>STEP-Import.exe</i> gleichzeitig (Vorgabe 0 = Prozessorkerne − 1); eine "
          "einzelne große Baugruppe wird auf so viele Prozesse verteilt (mit Zeitlimit). Weniger "
          "Prozesse entlasten einen langsamen Arbeitsplatz. Gilt nur für diesen Arbeitsplatz."],
+        ["STEP-Import", "Messung: Abwicklungskern (schnelle Rohrmessung; aus = bisher, vergleich = beide rechnen "
+                        "und protokollieren, an = neu mit automatischem Rückfall)",
+         "Vorgabe an: Rohre und Profile schneller messen, wo es sicher geht, sonst wie bisher. aus: nur bisherige "
+         "Rechnung; vergleich: "
+         "beide Wege rechnen, Zeiten und Unterschiede ins Tempo-Protokoll ([[abwicklungskern]])."],
         ["STEP-Import", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper vereinfacht gemessen)",
          "Braucht ein einzelner Körper länger (Vorgabe 600 s; wer noch die alte Vorgabe 120 s hatte, bekommt mit "
          "0.9.274 einmalig 600 s, eigene Werte bleiben), wird er vereinfacht gemessen: nur Hüllmaß und Volumen, als "
@@ -13229,13 +13306,40 @@ def kapitel_austausch(i):
             "Endgültig löschen und den Papierkorb leeren (älter als 30 Tage) darf nur der Administrator.",
             "<b>Archivieren</b> verschiebt nach <i>_Archiv</i> (Ansicht Archiv links); <i>Aus dem Archiv holen</i> "
             "bringt es zurück.")
+    i.abschnitt("STEP-Viewer, Maschinenprogramme, Kunde/Angebot/Auftrag und Outlook")
+    i.liste("<b>STEP-Viewer</b>: bei einer STEP-Datei Knopf <i>STEP-Viewer</i> im Infobereich oder Rechtsklick → "
+            "<i>Im STEP-Viewer öffnen</i>: die Datei öffnet im STEP-Viewer des Programms (Konturen, Maße, Rohr oder "
+            "Blech), ohne sie vorher zu kopieren.",
+            "<b>Maschinenprogramme</b>: liegen LST, BPF oder ArTube gleichen Namens im selben Ordner wie die STEP "
+            "(<i>Halter.step</i> mit <i>Halter.lst</i> oder <i>Halter_02.bpf</i>, nicht <i>Halterung.lst</i>), zeigt "
+            "der Infobereich sie unter <i>Zugehörige Programme</i>; beim Programm steht umgekehrt <i>Zugehörige "
+            "STEP</i>. Ein Klick wählt die Datei.",
+            "<b>Dateien im Austausch</b>: Knopf im Kundenprofil (Reiter Dokumente), im Reiter Aufträge und im Angebot "
+            "unter <i>Weitere</i> (auch in <i>Meine Werkzeugleiste</i>). Er öffnet den Reiter Austausch mit allen "
+            "Dateien, die dem Kunden, Angebot oder Auftrag zugeordnet sind; bei Angebot und Auftrag auch Dateien, in "
+            "deren Pfad die Angebots-, PPEASE- oder Auftragsnummer steht. Eine Suche oben verlässt diese Ansicht und "
+            "sucht wieder in allen Bereichen.",
+            "<b>Outlook</b>: eine aus Outlook gezogene Mail (MSG oder EML) lässt sich mit Rechtsklick → <i>Anhänge "
+            "auspacken</i> zerlegen: die Anhänge landen im selben Ordner, bekommen die Zuordnung der Mail (Kunde, "
+            "Anfrage …) und im Verlauf „Anhang aus …“. Ein schon ausgepackter gleicher Anhang wird übersprungen, ein "
+            "anderer mit gleichem Namen bekommt einen neuen Namen (nie überschreiben); Programme (.exe …) bleiben "
+            "draußen. <i>Als Kundenanfrage übernehmen</i> gibt die Mail an die Anfragenverwaltung.")
     i.abschnitt("Rechte und Schutz")
-    i.text("Wer hochladen, ändern, löschen oder verwalten darf, folgt den Rollen der Benutzerverwaltung (Hauptadmin). "
+    i.text("Wer hochladen, ändern, löschen oder verwalten darf, folgt den Rollen der Benutzerverwaltung (Hauptadmin): "
+           "Einstellungen → <i>Benutzer und Rollen</i>, Tabelle <b>Austauschordner</b> mit einem Haken je Rolle und "
+           "Aktion (Lesen, Hochladen, Bearbeiten, Verschieben, Löschen, Freigeben, Archivieren, Verwalten). Der "
+           "Administrator darf immer alles; ohne Lesen gibt es kein anderes Recht, wer hochlädt oder bearbeitet, darf "
+           "auch lesen. <i>Vorgabe Austausch</i> setzt die Tabelle zurück. Die Tabelle geht wie die Rollen mit den "
+           "Admin-Vorgaben an alle Plätze und lässt sich nur dort ändern, wo der Admin angemeldet ist. "
            "Der Bereich Anfragen ist nur zum Lesen; PPEASE-Angebotsordner legt das Programm nie an (das macht "
            "PPEASE). Weil es keinen Server gibt, prüft das Programm die Rechte; wer zusätzlich verhindern will, dass "
            "jemand im Explorer löscht, stellt die Windows-Freigabe des gemeinsamen Ordners entsprechend ein. Jede "
            "Aktion steht im Verlauf der Datei (wer, wann, was). Abschalten: Einstellungen → <i>Ablage und Teilen</i> → "
            "<i>Seite Austausch verwenden</i>.")
+    i.text("<b>Netzlaufwerk weg</b>: Ist der gemeinsame Ordner gerade nicht erreichbar, meldet <i>Hochladen</i> das "
+           "(„… ist gerade nicht erreichbar“) und legt nichts woanders an. Fällt das Netz mitten im Kopieren weg, "
+           "bleibt keine halbe Datei unter dem echten Namen liegen; ist der Ordner wieder da, einfach noch einmal "
+           "hochladen. Laden mehrere Kollegen gleichzeitig hoch, geht keine Datei verloren.")
     i.tabelle(["Taste", "Wirkung"], [["F5", "Ordner neu einlesen"], ["F2", "Umbenennen"],
                                     ["Entf", "In den Papierkorb"], ["Doppelklick", "Ordner öffnen bzw. Vorschau"]],
               [40 * mm, 120 * mm])

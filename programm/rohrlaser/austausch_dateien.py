@@ -433,6 +433,31 @@ def rechte(db):
                                                                           if r not in RECHTE_VORGABE}
 
 
+def recht_setzen(db, rolle, aktion, an):
+    """Ein Recht der Tabelle setzen (Einstellungen → Benutzer und Rollen). Der Administrator darf immer alles.
+    Ergebnis: Fehlertext oder ""."""
+    from . import rollen
+    if rolle not in rollen.ROLLE_TITEL or aktion not in AKTION_TEXT:
+        return "Unbekannte Rolle oder Aktion."
+    if rolle == rollen.ADMIN:
+        return "Der Administrator darf im Austauschordner immer alles."
+    jetzt_ = rechte(db)
+    neu = [a for a in jetzt_.get(rolle, ()) if a != aktion] + ([aktion] if an else [])
+    if an and aktion != LESEN and LESEN not in neu:
+        neu.append(LESEN)               # wer hochlädt oder bearbeitet, muss sehen
+    if not an and aktion == LESEN:
+        neu = []                        # ohne Lesen kein anderes Recht
+    gespeichert = dict(db.einstellung(RECHTE) or {})
+    gespeichert[rolle] = [a for a in _ALLE if a in neu]
+    db.einstellung_setzen(RECHTE, gespeichert)
+    return ""
+
+
+def rechte_vorgabe(db):
+    """Rechtetabelle des Austauschordners auf die Vorgabe zurücksetzen."""
+    db.einstellung_setzen(RECHTE, {})
+
+
 def darf(db, aktion):
     """Darf der angemeldete Benutzer diese Aktion im Austauschordner? Ohne Benutzerverwaltung alles außer
     endgültig löschen (nur Admin, siehe darf_endgueltig)."""
@@ -742,20 +767,46 @@ def korb(w, bereich, rel=""):
     return Path(w[bereich]) / PAPIERKORB
 
 
+_EIGENE_UPLOADS = set()             # Marker der Uploads, die in diesem Programm gerade laufen
+
+
+def erreichbar(w, bereich):
+    """AustauschFehler, wenn der Ordner des Bereichs gerade nicht erreichbar ist (Netzlaufwerk getrennt, Server aus);
+    nie stillschweigend woanders anlegen."""
+    o = w.get(bereich)
+    try:
+        da = o is not None and Path(o).is_dir()
+    except OSError:
+        da = False
+    if not da:
+        raise AustauschFehler(f"{BEREICH_TITEL.get(bereich, bereich)} ist gerade nicht erreichbar ({o or '–'}). "
+                              "Netzlaufwerk und Verbindung prüfen, dann „Aktualisieren“.")
+
+
 def _upload_marker(w, datei, k):
-    """Exklusiver Marker „Upload läuft“ in Austausch/_Plattform/laeuft (O_EXCL); None, wenn schon jemand lädt."""
+    """Exklusiver Marker „Upload läuft“ in Austausch/_Plattform/laeuft (O_EXCL); None, wenn schon jemand lädt.
+    Ein eigener Marker dieses Platzes ohne laufenden Upload (Netz war mitten im Kopieren weg) gilt als Rest."""
     o = system(w) / "laeuft"
     o.mkdir(parents=True, exist_ok=True)
     m = o / (hashlib.sha1(datei.encode()).hexdigest()[:20] + ".json")
-    if m.exists() and time.time() - m.stat().st_mtime > UPLOAD_ALT_S:
-        try:
-            m.unlink()                  # Rest eines abgebrochenen Uploads
-        except OSError:
-            pass
+    if m.exists():
+        rest = time.time() - m.stat().st_mtime > UPLOAD_ALT_S
+        if not rest and str(m) not in _EIGENE_UPLOADS:
+            try:
+                d = json.loads(m.read_text(encoding="utf-8"))
+                rest = d.get("wer") == k and d.get("platz") == socket.gethostname()
+            except (OSError, ValueError, AttributeError):
+                rest = False
+        if rest:
+            try:
+                m.unlink()              # Rest eines abgebrochenen Uploads
+            except OSError:
+                pass
     try:
         fd = os.open(m, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
         return None
+    _EIGENE_UPLOADS.add(str(m))
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(dict(datei=datei, wer=k, platz=socket.gethostname(), seit=jetzt()), f)
     return m
@@ -837,6 +888,7 @@ def hochladen(db, quellen, bereich, ordner_rel="", konflikt=None, fortschritt=No
     basis = Path(w[bereich]) / ordner_rel if ordner_rel else Path(w[bereich])
     if bereich == PPEASE and not ordner_rel:
         raise AustauschFehler("In der PPEASE-Ablage bitte zuerst einen Angebotsordner wählen.")
+    erreichbar(w, bereich)
     liste = _quellen(quellen)
     gesamt = sum(p.stat().st_size for p, _ in liste) or 1
     erledigt = 0
@@ -862,7 +914,11 @@ def hochladen(db, quellen, bereich, ordner_rel="", konflikt=None, fortschritt=No
                 continue
         except OSError:
             pass
-        ziel.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            ziel.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            b.fehler.append((q.name, f"Ordner nicht anlegbar: {e.strerror or e}"))
+            continue
         modus = None
         if ziel.exists():
             modus = konflikt(rel_name) if konflikt else BEIDE
@@ -924,6 +980,7 @@ def hochladen(db, quellen, bereich, ordner_rel="", konflikt=None, fortschritt=No
         except OSError as e:
             b.fehler.append((q.name, f"{e.strerror or e}"))
         finally:
+            _EIGENE_UPLOADS.discard(str(marker))
             try:
                 marker.unlink()
             except OSError:
@@ -1850,3 +1907,122 @@ def uebersicht(db, eintraege, metas=None, gesehen_=None, jetzt_=None, erststart=
     return dict(neu=neu, meine=meine, faellig=faellig, rueckfrage=rueck, bearbeitung=bearb, fertig=fertig,
                 vorschlag=vorschlag, zuletzt=zuletzt_, aktivitaet=verlauf(db, grenze=15),
                 wer=wer_arbeitet(db, metas=metas))
+
+
+# ------------------------------------------------------------------ Verknüpfungen (Abschnitt 4, 9, 14)
+PROGRAMM_ARTEN = {"laser"}          # Maschinenprogramme (LST, BPF, ArTube …) gehören zur STEP gleichen Namens
+_TRENNER = "_- .("
+
+
+def _stamm(name):
+    return suchtext(Path(name).stem)
+
+
+def _gleicher_stamm(a, b):
+    """'Halter.step' passt zu 'Halter.lst', 'Halter_01.lst', 'Halter-Programm.bpf' (nicht zu 'Halterung.lst')."""
+    a, b = _stamm(a), _stamm(b)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    kurz, lang = (a, b) if len(a) <= len(b) else (b, a)
+    return lang.startswith(kurz) and lang[len(kurz)] in _TRENNER and len(kurz) >= 3
+
+
+def zugehoerige(eintraege, e):
+    """Dateien, die zu e gehören: zur STEP die Maschinenprogramme (LST/BPF …) gleichen Namens im selben Ordner,
+    zum Programm die STEP. Ergebnis: [Eintrag], sortiert nach Name."""
+    if e is None or e.ordner:
+        return []
+    if e.art == "step":
+        arten = PROGRAMM_ARTEN
+    elif e.art in PROGRAMM_ARTEN:
+        arten = {"step"}
+    else:
+        return []
+    return sorted((x for x in eintraege if not x.ordner and x.datei != e.datei and x.art in arten
+                   and x.bereich == e.bereich and x.ordner_rel == e.ordner_rel and _gleicher_stamm(x.name, e.name)),
+                  key=lambda x: x.name.lower())
+
+
+def zugeordnet(eintraege, metas, kundennr="", angebot="", auftrag=""):
+    """Dateien zu Kunde, Angebot (Nummer oder Liste von Nummern) oder Auftrag (Knopf „Dateien im Austausch“): laut Zuordnung, bei Angebot und
+    Auftrag auch, wenn die Nummer im Pfad steht (z. B. PPEASE-Ordner 2026-44327). Ordner zählen nicht; das Archiv
+    zählt mit. Ergebnis: [Eintrag]."""
+    kundennr, auftrag = (str(x or "").strip() for x in (kundennr, auftrag))
+    angebote = [str(x).strip() for x in ([angebot] if isinstance(angebot, str) else angebot or ()) if str(x).strip()]
+    if not (kundennr or angebote or auftrag):
+        return []
+    out = []
+    for e in eintraege:
+        if e.ordner:
+            continue
+        m = metas.get(e.datei) or {}
+        treffer = False
+        if kundennr and (m.get("kundennr") or "") == kundennr:
+            treffer = True
+        for nr, feld in [(a, "angebot") for a in angebote] + [(auftrag, "auftrag")]:
+            if nr and ((m.get(feld) or "") == nr or (len(nr) >= 5 and nr.lower() in e.rel.lower())):
+                treffer = True
+        if treffer:
+            out.append(e)
+    return out
+
+
+def anhaenge_auspacken(db, datei, w=None):
+    """Anhänge einer MSG/EML aus dem Austauschordner daneben ablegen (Outlook, Abschnitt 9): sicher kopiert wie beim
+    Hochladen, ein schon vorhandener gleicher Anhang wird übersprungen, ein anderer gleichen Namens bekommt einen
+    neuen Namen (nie überschreiben). Die Zuordnung der Mail (Kunde, Anfrage, Angebot …) geht an leere Felder der
+    Anhänge. Ergebnis: Bericht."""
+    import tempfile
+
+    from . import mail as mail_
+    pruefen(db, HOCHLADEN)
+    w = w if w is not None else wurzeln(db, anlegen=True)
+    b_, rel = zerlegen(datei)
+    p = pfad(db, datei, w)
+    if p is None or not p.is_file():
+        raise AustauschFehler("Die Mail ist nicht (mehr) im Austauschordner.")
+    if art(p.name) != "mail":
+        raise AustauschFehler("Nur E-Mails (MSG, EML) haben Anhänge.")
+    try:
+        m = mail_.lesen(p)
+    except Exception as e:          # noqa: BLE001 – kaputte Mail: Meldung statt Absturz
+        raise AustauschFehler(f"Die Mail lässt sich nicht lesen: {e}") from e
+    anh = [(mail_.sauber(n) or "Anhang", d) for n, d in (m.anhaenge or []) if d]
+    if not anh:
+        return Bericht()
+    ordner_rel = rel.rpartition("/")[0]
+    with tempfile.TemporaryDirectory(prefix="rl_anhang_") as tmp:
+        quellen, namen = [], set()
+        for n, d in anh:
+            q = Path(tmp) / n
+            i = 1
+            while q.name.lower() in namen:
+                q = Path(tmp) / f"{Path(n).stem} ({i}){Path(n).suffix}"
+                i += 1
+            namen.add(q.name.lower())
+            q.write_bytes(d)
+            quellen.append(q)
+        basis = Path(w[b_]) / ordner_rel if ordner_rel else Path(w[b_])
+
+        def konflikt(rel_name):
+            try:
+                if pruefsumme(basis / rel_name) == pruefsumme(Path(tmp) / rel_name):
+                    return UEBERSPRINGEN        # derselbe Anhang liegt schon da
+            except OSError:
+                pass
+            return BEIDE
+        bericht = hochladen(db, quellen, b_, ordner_rel, konflikt=konflikt, w=w)
+    neue = bericht.neu + [d for _, d in bericht.umbenannt]
+    alt = meta(db, datei)
+    with db.con:
+        for d in neue:
+            mm = meta(db, d)
+            werte = {k: alt[k] for k, _ in ZUORDNUNG if alt.get(k) and not mm.get(k)}
+            if werte:
+                _meta_schreiben(db, d, werte)
+            ereignis(db, d, E_KOPIERT, f"Anhang aus {p.name}")
+        if neue:
+            ereignis(db, datei, E_KOPIERT, f"{len(neue)} Anhang/Anhänge ausgepackt")
+    return bericht

@@ -27,7 +27,8 @@ GEMERKT = "admin_vorgaben_signiert"     # lokal: {lizenz_id, seit} – ab hier n
 HAUPT, ADMIN = "hauptadmin", "admin"
 KDF = dict(n=2 ** 14, r=8, p=1)         # Admin-Schlüssel aus dem Passwort: etwa 0,05 s je Ableitung
 # Werte, die nur der Hauptadmin ändert (ein weiterer Admin nur sein eigenes Passwort in der Admin-Liste)
-RECHTE = ("passwort", "admin_seiten", "admin_liste", "benutzer_rollen", "rollen_rechte", "anmeldung_pflicht")
+RECHTE = ("passwort", "admin_seiten", "admin_liste", "benutzer_rollen", "rollen_rechte", "anmeldung_pflicht",
+          "austausch_rechte")
 EIGENE_FELDER = ("hash", "neu", "stand", "salz", "pub")
 
 

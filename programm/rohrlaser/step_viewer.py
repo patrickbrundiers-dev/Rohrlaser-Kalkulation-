@@ -360,7 +360,7 @@ def erkennung(m, k_json=None):
         out.append(("Hinweise", m["hinweise"]))
     if m.get("fehler"):
         out.append(("Fehler", m["fehler"]))
-    return out
+    return out + pruef_zeilen(m)
 
 
 def _zahl(x):
@@ -398,6 +398,7 @@ def uebersicht(mes):
             k = (normteil(m) or {}).get("kategorie") or "Zukaufteil"
             arten[k] = arten.get(k, 0) + 1
         out.append(("Normteile (nicht im Schneidweg)", ", ".join(f"{n}× {k}" for k, n in sorted(arten.items()))))
+    out += pruef_uebersicht(mes)
     out.append(("Analysestufe", mes.stufe))
     return out
 
@@ -592,20 +593,94 @@ def konturfarben(zeilen):
     return linien, [(t, f) for k, t, f in KONTURFARBEN if k in da]
 
 
-def gesamt_netz(mes, sichtbar, hervor=()):
+def gesamt_netz(mes, sichtbar, hervor=(), nach_pruefung=False):
     """Alle sichtbaren Körper in Einbaulage (ansicht3d.baugruppe), jedes Teil anklickbar (netz 'ti' = teil:<Nr>);
-    Normteile dunkelgrau. Ergebnis: (Netz oder None, Teile ohne Einbaulage)."""
+    Normteile dunkelgrau; nach_pruefung: Farbe nach der Geometrieprüfung (PRUEF_ART). Ergebnis: (Netz oder None,
+    Teile ohne Einbaulage)."""
     from .ansicht3d import baugruppe
     from .baugruppe_ansicht import teil_kennung
     teile = [i for i in sichtbar if mes.netz(i)]
     bereiche = []
     netz, ohne = baugruppe([mes.netz(i) for i in teile], {n for n, i in enumerate(teile) if i in set(hervor)},
                            list(range(len(teile))), bereiche=bereiche,
-                           normteile={n for n, i in enumerate(teile) if gruppe(mes.messwerte[i]) == NORMTEIL})
+                           normteile={n for n, i in enumerate(teile) if gruppe(mes.messwerte[i]) == NORMTEIL},
+                           pruefung={n: PRUEF_ART.get(pruef_status(mes.messwerte[i]), "QU") for n, i in enumerate(teile)}
+                           if nach_pruefung else None)
     if netz:
         teil_kennung(netz, bereiche, [f"{TEIL}{i}" for i in teile])
         netz["teile"] = True
     return netz, ohne
+
+
+# ------------------------------------------------------------------ Geometrieprüfung (step_qualitaet, 24.11.2026)
+PRUEF_ART = {"korrekt": "QK", "unsicher": "QU", "reparierbar": "QR", "fehlerhaft": "QF"}
+
+
+def pruefung(m):
+    """Geometrieprüfung des Körpers (Spalte 'pruefung' der Messung) als dict oder None (ältere Messung)."""
+    q = m.get("pruefung")
+    if isinstance(q, dict) or not q:
+        return q or None
+    try:
+        return json.loads(q)
+    except (TypeError, ValueError):
+        return None
+
+
+def pruef_status(m):
+    """korrekt / unsicher / reparierbar / fehlerhaft; '' ohne Prüfung."""
+    return (pruefung(m) or {}).get("status") or ""
+
+
+def pruef_zeilen(m):
+    """Zeilen für das Feld „Erkennung“: Status, Toleranz, Fehler, Reparatur, CAD-Prüfwerte, Doppelt."""
+    q = pruefung(m)
+    if not q:
+        return []
+    out = [("Geometrieprüfung", q.get("status") or "")]
+    tol = q.get("toleranz") or {}
+    if tol.get("max") is not None:
+        t = tol["max"]
+        out.append(("Toleranz nach dem Einlesen", ("< 0,0001" if t < 1e-4 else _dez(t, 4)) + f" mm ({tol.get('stufe')})"))
+    if q.get("fehler"):
+        from .importanalyse_dialog import FEHLER_TEXT
+        out.append(("Geometriefehler", ", ".join(f"{n}× {FEHLER_TEXT.get(c, c)}" for c, n in q["fehler"].items())))
+    r = q.get("reparatur")
+    if r:
+        out.append(("Reparatur-Probe", f"Klasse {r.get('klasse')}: {r.get('text')}"
+                    + (" – gemessen mit der reparierten Kopie" if q.get("gemessen_mit_reparatur") else "")))
+    c = q.get("cad_referenz")
+    if c:
+        out.append(("CAD-Prüfwerte", f"{c.get('status')} (Volumen {_dez((c.get('volumen_rel') or 0) * 100, 3)} %)"))
+    if q.get("doppelt_zu"):
+        out.append(("Doppelt", f"liegt deckungsgleich auf Körper {q['doppelt_zu']}"))
+    return out
+
+
+def pruef_uebersicht(mes):
+    """Zeilen der Gesamtübersicht: Körper je Prüfstatus und die Genauigkeit der Datei."""
+    st = {}
+    for m in mes.messwerte:
+        s_ = pruef_status(m)
+        if s_:
+            st[s_] = st.get(s_, 0) + 1
+    if not st:
+        return []
+    out = [("Geometrieprüfung", ", ".join(f"{st[k]} {k}" for k in PRUEF_ART if st.get(k)))]
+    d = next((x for x in (m.get("pruefung_datei") for m in mes.messwerte) if x), None)
+    try:
+        d = json.loads(d) if isinstance(d, str) else d
+    except (TypeError, ValueError):
+        d = None
+    if d:
+        if d.get("system"):
+            out.append(("CAD-System", d["system"]))
+        if d.get("unsicherheit_mm"):
+            u = d["unsicherheit_mm"]
+            out.append(("Genauigkeit der Datei", ("< 0,0001" if u < 1e-4 else _dez(u, 4)) + " mm"))
+        out.append(("CAD-Prüfwerte", ", ".join(f"{n} {k}" for k, n in (d.get("cad_abgleich") or {}).items())
+                    or ("in der Datei, keinem Körper zuzuordnen" if d.get("cad_pruefwerte") else "keine in der Datei")))
+    return out
 
 
 def teil_nr(kennung):

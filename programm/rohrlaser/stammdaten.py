@@ -1018,6 +1018,7 @@ SCHWEISS_REGELN = Tabelle(
 
 # STEP-Import je Kunde (importprofil.py): wie Artikelnummern entstehen, Normteile, Vorgaben des Prüfdialogs
 BENENNUNGEN = ("Bauteilname", "Dateiname", "Dateiname + Bauteilname")
+ABWICKLUNGSKERN = ("aus", "vergleich", "an")      # step_messung/step_abwicklungskern.MODI
 DARSTELLUNG_3D = ("Automatisch", "Software", "OpenGL")       # wie ansicht3d.RENDERER
 ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")            # wie blech.ABWICKLUNG_K
 MATERIAL_AUS = ("Tafelausnutzung", "pauschaler Verschnitt")    # wie blech.MATERIAL_AUS
@@ -1780,6 +1781,12 @@ EINSTELLUNGEN = (
     Einstellung("step_cache", "Messung: Zwischenspeicher (gleiche Datei nicht neu messen)", "STEP-Import", "auswahl",
                 "ja", auswahl="janein"),
     Einstellung("step_cache_mb", "Messung: Zwischenspeicher höchstens [MB]", "STEP-Import", "ganz", 500, 10, 100000),
+    # Abwicklungskern (Patrick 24.11.2026): Profil-Lage aus den Flächen statt vieler Schnitte, Endlinien offener Rohre
+    # in der Abwicklung bereinigt; aus = bisherige Rechnung, vergleich = beide rechnen (Protokoll), an = neu mit Rückfall.
+    # Vorgabe an: Patrick-Entscheidung 24.11.2026 21:47 UTC
+    Einstellung("step_abwicklungskern", "Messung: Abwicklungskern (schnelle Rohrmessung; aus = bisher, vergleich = "
+                "beide rechnen und protokollieren, an = neu mit automatischem Rückfall)", "STEP-Import", "auswahl",
+                ABWICKLUNGSKERN[2], auswahl="abwicklungskern"),  # Vorgabe an (Patrick 24.11.2026)
     # Toleranzen der Erkennung (Vorgaben = bisher feste Werte)
     Einstellung("step_tol_profil", "Toleranz Profil aus den Stammdaten ± [mm]", "STEP-Import", "zahl", 0.15, 0, 5),
     Einstellung("step_tol_gleich", "Toleranz gleiche Teile einer Baugruppe ± [mm]", "STEP-Import", "zahl", 0.2, 0, 5),
@@ -2487,7 +2494,7 @@ class Kontext:
                          "etikettformat": ["A4, 3 × 8 Etiketten (70 × 37 mm)", "A4, 2 × 7 Etiketten (105 × 42,3 mm)",
                                            "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "drehart": ["frei (alle Achsen)", "Drehteller (Hochachse bleibt)"], "drehzentrum": ["Punkt unter der Maus", "Modellmitte", "Gewähltes (Auswahl)"], **visualisierung.AUSWAHL, "mausbelegung": list(navigation3d.MAUSBELEGUNGEN), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schwenkueber": ["begrenzen (WARNUNG)", "FEHLER"], "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "zusatzdarstellung": ["zusammengefasst", "detailliert", "nur Gesamtpreis"], "abrufmaterial": list(ABRUF_MATERIAL),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "abwicklungskern": list(ABWICKLUNGSKERN), "renderer": list(DARSTELLUNG_3D), "drehart": ["frei (alle Achsen)", "Drehteller (Hochachse bleibt)"], "drehzentrum": ["Punkt unter der Maus", "Modellmitte", "Gewähltes (Auswahl)"], **visualisierung.AUSWAHL, "mausbelegung": list(navigation3d.MAUSBELEGUNGEN), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schwenkueber": ["begrenzen (WARNUNG)", "FEHLER"], "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "zusatzdarstellung": ["zusammengefasst", "detailliert", "nur Gesamtpreis"], "abrufmaterial": list(ABRUF_MATERIAL),
                          "nahtquelle": list(naht.QUELLEN), "geometrie": list(_geometrie.WERTE), "schneidtechnik": ["2,5D", "XY"], "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),

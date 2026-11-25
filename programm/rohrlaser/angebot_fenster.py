@@ -419,6 +419,13 @@ def step_messung_protokollieren(dauer, anzahl, stand, befehl, abgebrochen=False)
                              f"nähen {summe('naehen_s'):.1f} s, Struktur {summe('struktur_s'):.1f} s, "
                              f"Kopien suchen {summe('kopien_s'):.1f} s; Kopien: {summe('verschoben')} verschoben, "
                              f"{summe('gedreht')} gedreht")
+                ak = [x["abwicklungskern"] for x in sch if x.get("abwicklungskern")]
+                if ak:          # Abwicklungskern (24.11.2026): Methode je Profilmessung (step_abwicklungskern)
+                    teile.append(f"Abwicklungskern ({ak[0].get('modus', '')}): "
+                                 f"{sum(x.get('neu', 0) for x in ak)} neu, "
+                                 f"{sum(x.get('rueckfall', 0) for x in ak)} bisherige Rechnung, "
+                                 f"{sum(x.get('ungleich', 0) for x in ak)} ungleich, "
+                                 f"{sum(x.get('stichproben', 0) for x in ak)} Stichproben (Dauer-Vergleich)")
                 if any("messen_s" in x for x in sch):     # ganz in einem Prozess gemessene Dateien
                     teile.append(f"Körper messen {summe('messen_s'):.1f} s ({summe('gemessen')} Körper), "
                                  f"Baugruppe auswerten {summe('abschluss_s'):.1f} s")
@@ -2628,7 +2635,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         menue.addSeparator()
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
-                           ("Ordner öffnen", lambda: self.f.angebot_ordner_oeffnen(self.kopf))):
+                           ("Ordner öffnen", lambda: self.f.angebot_ordner_oeffnen(self.kopf)),
+                           ("Dateien im Austausch", lambda: self.f.austausch_angebot(self.kopf))):
             a = menue.addAction(text, lambda ziel=ziel: ziel())
             if text == "Schweißnaht …":
                 fa.append((a, "funktion_schweissen"))
