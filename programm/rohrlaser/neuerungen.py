@@ -26,7 +26,8 @@ NEUERUNGEN = [
                 "3D-Schnittbearbeitung die Innenkante jetzt dort an, wo die Schnittebene die Innenwand trifft, wie in "
                 "der STEP. Bisher lag sie pauschal Wand × tan(Winkel) vor der Außenkante. Bei 45° an 3 mm Wand rücken "
                 "die Teile dadurch im Mittel gut 2 mm näher zusammen, nie näher als sicher. Ohne 3D bleibt alles wie "
-                "bisher (Innenkante 90°). Geprüft gegen die STEP-Testteile R02 und R03."],
+                "bisher (Innenkante 90°). Geprüft gegen die STEP-Testteile R02 und R03.",
+     "Verschachteln: echte Innenkante bei 3D-Gehrungen statt Wand × tan"],
     ["0.9.505", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
                 "Höhe und Winkel einer Fase am Rohrende und bei Sonderkonturen mit schräger Schnittfläche auch den Rand "
                 "auf der Innenwand. Ist die 3D-Schnittbearbeitung gewählt, zeigt der Editor beides wie in der STEP und "
