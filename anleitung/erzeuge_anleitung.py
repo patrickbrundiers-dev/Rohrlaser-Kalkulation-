@@ -8782,6 +8782,13 @@ def kapitel_fracht(i):
             "Hinweis „Gewicht fehlt bei Pos. …“ in der Karte. Eine <b>Schweißbaugruppe</b> reist als ein Stück: sie "
             "trägt die Fracht ihrer Einzelteile (Gewicht von Hand oder Summe der Einzelteile), die Einzelteile zählen "
             "nicht noch einmal.",
+            "<b>nach Volumen</b>: Anteil des Packmaßes (Länge × Breite × Höhe je Teil) am Gesamtvolumen; fehlt ein "
+            "Packmaß, je Stück mit Hinweis. <b>eigene Position</b>: Fracht und Verpackung stehen als eigene Zeile "
+            "„Fracht und Verpackung frei Haus nach …“ im Angebot, die Stückpreise und die Staffelpreise enthalten "
+            "keine Fracht; Marge und Warenwert rechnen gleich (Fracht ohne Gewinn), <i>frachtfrei ab Warenwert</i> "
+            "gilt auch hier. Beide Umlagen gibt es auch im Fenster <i>Fracht berechnen …</i> unten "
+            "(<i>Fracht im Angebot</i>), dort auch der Haken <b>Verpackung aus der Packliste</b> "
+            "([[fracht_packmittel]]).",
             "<b>Fracht berechnen …</b> öffnet den Frachtrechner ([[fracht_rechner]]), vorbelegt mit dem Nettogewicht und dem "
             "längsten Teil aus den Positionen, dem Kunden (PLZ, Land, Lieferbedingung aus dem Kundenstamm), dem "
             "Angebotsdatum und einem Packvorschlag. Eine schon gespeicherte Berechnung wird mit ihren Eingaben "
@@ -15891,7 +15898,7 @@ def kapitel_frachtkosten(i):
            "Dienstleister und Historie stehen unter <i>Einstellungen → Fracht</i>; <b>Frachtdaten pflegen …</b> "
            "springt dorthin. Sie ändert nur der Admin ([[passwort]]).", kurz=True)
     i.text("Unter <i>Einstellungen → Fracht</i> stehen sechs Seiten: <i>Frachtzonen und Postleitzahlen</i>, "
-           "<i>Tarifverwaltung</i>, <i>Paletten und Ladehilfsmittel</i>, <i>Zuschläge</i>, <i>Dienstleister und "
+           "<i>Tarifverwaltung</i>, <i>Packmittel und Ladungsträger</i>, <i>Zuschläge</i>, <i>Dienstleister und "
            "Kundentarife</i> sowie <i>Historie und Einstellungen</i>. Die Suche der Einstellungen findet sie mit. "
            "Solange die Frachtkosten Admin-Schutz haben (Häkchen auf der Seite Admin-Schutz), sind die Werte für "
            "Nicht-Admins grau; <b>Als Admin freischalten …</b> in der Leiste oben gibt sie frei. Bis 0.9.207 standen "
@@ -15964,7 +15971,9 @@ def kapitel_frachtkosten(i):
         (1, "<b>Neue Version …</b> kopiert den markierten Tarif mit allen Preisen und neuem „Gültig ab“; der alte "
             "Tarif gilt bis zum Vortag. So bleiben Tarifwechsel lückenlos und nachvollziehbar."),
         (2, "Unten stehen nur die Preisstaffeln des markierten Tarifs; neue Zeilen bekommen ihn automatisch."),
-        (3, "<b>Preise aller Tarife zeigen</b> hebt den Filter auf.")])
+        (3, "<b>Preise aller Tarife zeigen</b> hebt den Filter auf."),
+        (4, "<b>Tarifvorlagen laden</b>, <b>Preise als CSV …</b> und <b>Angebot/Preise aus CSV …</b> "
+            "([[fracht_vergleich]]); links daneben Tarifbasis, Preisstand und Quelle des markierten Tarifs.")])
     i.text("Oben die Tarife, unten die Preise des markierten Tarifs je Zone und Gewicht.", kurz=True)
     i.genauer()
     i.tabelle(["Tarife", "Bedeutung"], [
@@ -15985,12 +15994,22 @@ def kapitel_frachtkosten(i):
         ["Priorität (1 = zuerst), Version, Aktiv, Bemerkung", "Vorrang bei gleicher Tarifart, Versionsangabe, "
                                                              "aktiv/inaktiv, freier Text"],
         ["Laufzeit [Arbeitstage]", "Frachtlaufzeit von ab Werk bis frei Haus beim Kunden; leer = Vorgabe Inland/"
-                                   "Ausland der Einstellungen ([[lieferdatum_frei_haus]])"]], [75, 190])
+                                   "Ausland der Einstellungen ([[lieferdatum_frei_haus]])"],
+        ["Tarifbasis, Quelle, Preisstand", "woher die Preise stammen: Geschäftskundenangebot, Kundentarif, "
+                                           "Listenpreis, Schnittstelle, Richtwert, Schätzwert oder <b>Tariflücke</b> "
+                                           "(noch kein Preis: wird nie automatisch gewählt); Quelle (Angebot, Liste, "
+                                           "Adresse) und Datum des Preisstands"],
+        ["Paket max. Länge/Breite/Höhe/Gurtmaß/Gewicht, Sperrgut max. Länge/Gurtmaß, Sperrgutzuschlag",
+         "Paketregeln je Paket (Maße längste Seite zuerst, Gurtmaß = Länge + 2 × Breite + 2 × Höhe): darüber ist das "
+         "Paket Sperrgut (Zuschlag je Paket) bis zu den Sperrgut-Grenzen, darüber nicht als Paket versendbar; leer = "
+         "keine Grenze"]], [75, 190])
     i.tabelle(["Preisstaffeln", "Bedeutung"], [
         ["<b>Tarif</b>, Zone", "zu welchem Tarif die Zeile gehört; Zone leer = alle Zonen (eine Zeile für die Zone "
                                "geht vor)"],
-        ["<b>Bezugseinheit</b>", "Sendung, kg, 100 kg, Ladungsträger, Stellplatz, km oder Lademeter: worauf sich der "
-                                 "Preis bezieht"],
+        ["<b>Bezugseinheit</b>", "Sendung, kg, 100 kg, Ladungsträger, Stellplatz, km, Lademeter, <b>Packstück</b> "
+                                 "(Pakettarif: Preis je Paket nach seinem Gewicht bzw. Volumengewicht) oder "
+                                 "<b>Paketgröße</b> (Preis je Paket nach längster + kürzester Seite in mm, wie GLS und "
+                                 "Hermes): worauf sich der Preis bezieht"],
         ["Ladehilfsmittel", "Art, für die die Zeile gilt (z. B. Gitterbox mit eigenem Preis), oder ein einzelnes "
                             "Ladehilfsmittel (z. B. Karton K-M), das dann vor seiner Art gilt; leer = alle übrigen"],
         ["bis Menge", "Obergrenze der Stufe in der Bezugseinheit (bei kg und 100 kg immer in kg, beide bilden eine "
@@ -16005,10 +16024,10 @@ def kapitel_frachtkosten(i):
            "ohne Preis („mehr als 6 Paletten individuell“). In einer gemischten Sendung braucht jede Art von "
            "Ladungsträger eine passende Zeile, sonst meldet das Programm <i>Tarif ohne Preis für …</i> statt mit 0 € "
            "zu rechnen.")
-    i.abschnitt("Paletten und Ladehilfsmittel")
-    i.bild("fracht_lht", "Paletten und Ladehilfsmittel (Beispielwerte)", hoehe=90 * mm)
-    i.text("Paletten mit Eigengewicht, Nutzlast, Stellplätzen und größter Teillänge (für den Packvorschlag).",
-           kurz=True)
+    i.abschnitt("Packmittel und Ladungsträger", marke="fracht_packmittel")
+    i.bild("fracht_lht", "Packmittel und Ladungsträger (Beispielwerte)", hoehe=90 * mm)
+    i.text("Kartons, Paletten, Palette mit Aufsetzrahmen, Gitterbox, Langgut und Sonderbehälter mit Maßen, "
+           "Gewichten, Preis und Packzeit (für Packvorschlag, Paketregeln und Packmittelkosten).", kurz=True)
     i.genauer()
     i.tabelle(["Ladehilfsmittel", "Bedeutung"], [
         ["<b>Ladehilfsmittel</b>, Bezeichnung", "Kurzname und Klartext"],
@@ -16021,7 +16040,25 @@ def kapitel_frachtkosten(i):
                                 "erlaubt, nur längs (Europalette 3.000 mm)"],
         ["Stapelbar, Stapelfaktor", "wie viele übereinander einen Stellplatz teilen"],
         ["Stellplätze je Stück", "z. B. 1 für eine Europalette, 3 für Langgut (leer = 1)"],
-        ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
+        ["Aktiv, Bemerkung", "leer = aktiv; freier Text"],
+        ["Außenlänge, -breite, -höhe [mm]", "Außenmaß des Packstücks für Paketregeln und Gurtmaß (leer = Maße)"],
+        ["Max. Packhöhe [mm]", "Höhe mit Ware für dieses Packmittel (leer = Einstellung Palettenhöhe)"],
+        ["Preis je Stück, Abrechnung, Pfand", "Kauf oder Miete = Preis je Stück; Tausch (Europool) = 0 € mit "
+                                              "Pfand-Hinweis"],
+        ["Sicherungsmaterial [€], Packzeit [min]", "je Packstück; Packzeit × Stundensatz Verpackung"],
+        ["Rahmenhöhe, Rahmengewicht, Rahmenpreis, höchstens Rahmen", "nur Palette mit Aufsetzrahmen: das Programm "
+                                                                    "rechnet die Rahmen aus der Ladehöhe (z. B. 350 "
+                                                                    "mm Ware = 2 Rahmen à 200 mm, höchstens 5)"]],
+              [75, 190])
+    i.text("<b>Standard-Packmittel laden</b> legt Europalette mit Aufsetzrahmen, Gitterbox EPAL (außen 1.240 × 835 × "
+           "970 mm, innen 1.200 × 800 × 800 mm, 85 kg), Rohrkartons 1,2 m und 2 m sowie einen Sonderbehälter mit "
+           "Normmaßen an, ohne Preise: Preise tragen Sie selbst ein. Vorhandene bleiben.")
+    i.text("<b>Packmittelkosten</b>: Preis (Kauf/Miete) + Sicherungsmaterial + Packzeit × Stundensatz Verpackung + "
+           "Aufsetzrahmen × Rahmenpreis, ohne Gewinn. Der Frachtrechner zeigt sie im Reiter <i>Packliste und "
+           "Packmittelkosten</i>. Ins Angebot kommen sie mit dem Haken <b>Verpackung aus der Packliste</b> im Fenster "
+           "<i>Fracht berechnen …</i> (bzw. Einstellung <i>Verpackungskosten aus den Packmitteln der Packliste "
+           "rechnen</i> für die automatische Fracht) statt der Tabelle Verpackung; ältere Angebote rechnen wie "
+           "bisher.")
     i.abschnitt("Zuschläge")
     i.bild("fracht_zuschlaege", "Zuschläge, darunter Dieselpreise, Dieselstaffel und Währungen", hoehe=105 * mm,
            legende=[(1, "Unterreiter <i>Dieselpreise</i>"), (2, "Unterreiter <i>Dieselstaffel</i>"),
@@ -16137,6 +16174,50 @@ def kapitel_frachtkosten(i):
             "Preise gibt es nicht. Liegt ein Angebot vor, die Preise als eigenen Tarif für SLH eintragen; er gilt "
             "dann vor dem Richtwert, wenn er eine kleinere Priorität hat (Richtwert: 50).")
     i.text("Fracht im Angebot und je Staffelmenge: [[fracht_angebot]] und [[staffeln]].")
+    i.abschnitt("Tarifvorlagen, Tariflücken und Anbietervergleich", marke="fracht_vergleich")
+    i.text("Das Programm erfindet keine Preise: öffentliche Listenpreise kommen mit Quelle und Stand, Anbieter ohne "
+           "öffentliche Preise als <b>Tariflücke</b>. Der Preisvergleich rechnet die Sendung mit jedem passenden "
+           "Tarif und empfiehlt einen.", kurz=True)
+    i.genauer()
+    i.text("<b>Tarifvorlagen laden</b> (Tarifverwaltung) legt an (Recherche 25.11.2026, Prioritäten 71–89, also hinter "
+           "den Richtwerten, damit bestehende Fracht gleich bleibt):")
+    i.tabelle(["Vorlage", "Preise"], [
+        ["DHL Paket national 2026", "Listenpreis online: bis 2 / 5 / 10 / 20 / 31,5 kg 6,19 / 7,69 / 10,49 / 18,99 / "
+                                    "23,99 €, Sperrgut +28,99 €, 120 × 60 × 60 cm, Gurtmaß 360 cm, Sperrgut bis 200 cm"],
+        ["DHL Paket national ab 01.01.2027", "10 kg 11,49 €, 20 kg 19,99 €, 31,5 kg 24,99 € (2 und 5 kg gleich)"],
+        ["DHL Paket EU 2026", "5 / 10 / 20 / 30 kg 20,49 / 25,49 / 31,49 / 48,49 €, Sperrgut +29,75 €"],
+        ["GLS national / EU 2026", "Größe = längste + kürzeste Seite: XS 4,59 €, S 5,49 €, M 6,89 €, L 10,99 €, XL "
+                                   "22,00 €; EU XS/S/M 9,70/13,00/16,00 €; bis 40 kg, 200 cm, Gurtmaß 300 cm"],
+        ["Hermes national 2026", "S 5,79 €, M 6,99 €, L 10,99 €, XL 28,99 €, XXL 33,99 € (bis 25 kg)"],
+        ["Tariflücken (ohne Preise)", "MBE Paket, Sperrgut, Palette, international (Preise je Center), UPS Standard und "
+                                      "Express, FedEx, DPD Classic Geschäftskunden, Cargoboard Palette/Stückgut und "
+                                      "Teilladung, Dachser, DB Schenker, Raben, Teilladung, Komplettladung, Express"]],
+              [70, 195])
+    i.liste("Listenpreise sind Privat- bzw. Onlinepreise. Geschäftskundenpreise als eigenen Tarif eintragen; er gilt "
+            "dann mit kleinerer Priorität vor der Vorlage.",
+            "<b>Tariflücke</b>: der Tarif steht im Vergleich mit „Tarif fehlt – Angebot einholen“ und wird nie "
+            "automatisch gewählt. Liegt ein Angebot vor (z. B. vom MBE-Center), <b>Preise als CSV …</b> liefert eine "
+            "Vorlage, <b>Angebot/Preise aus CSV …</b> liest sie ein: die Preise des Tarifs werden ersetzt (vorher "
+            "Datensicherung), aus der Tariflücke wird ein <i>Geschäftskundenangebot</i> mit Preisstand heute. "
+            "Unbekannte Tarife oder Zonen in der CSV meldet das Programm mit Zeilennummer.",
+            "Neue Preisstände: <b>Neue Version …</b> (alter Tarif gilt bis zum Vortag); die Leiste zeigt alle Stände "
+            "und das Alter des Preisstands.")
+    i.text("<b>Preisvergleich</b> (Reiter rechts im Frachtrechner): jede Zeile zeigt Anbieter, Tarif, Versandart, "
+           "Preis, Zuschläge, Laufzeit, Preisgrundlage mit Stand und Status. Richtwerte heißen „Richtwert – kein "
+           "Anbieterpreis“. Paket und Palette werden beide verglichen, wenn der Packvorschlag beide kennt. "
+           "Empfehlung: günstigster, schnellster (kleinste Laufzeit), Preis-Leistung (günstigster, der höchstens 1 "
+           "Arbeitstag langsamer ist als der schnellste), Palette und Langgut; Richtwerte nur, wenn kein "
+           "Anbieterpreis da ist. <b>Anbieter übernehmen</b> (oder Doppelklick) wählt den Tarif fest.")
+    i.text("<b>Versandarten</b>: Paket (auch Mehrpaket und Sperrgut), Palettenversand (Europalette, Palette mit "
+           "Aufsetzrahmen, Gitterbox, Langgut), Stückgut, Teilladung, Komplettladung, Express und Eigene "
+           "Anlieferung. Beim Paket rechnet das Programm jedes Paket einzeln: Gewicht bzw. Volumengewicht "
+           "(Frachtpfl. Gewicht je m³, z. B. 200 kg = Divisor 5.000), Größenklasse, Gurtmaß und Grenzen.")
+    i.text("<b>Schnittstellen</b> (Einstellung <i>Live-Frachtpreise über Schnittstellen abfragen</i>, Vorgabe nein): "
+           "UPS, FedEx, DHL Express und Cargoboard liefern mit eigenem Geschäftskundenzugang Live-Preise, nur auf "
+           "Knopfdruck <b>Live-Preise abfragen</b>. Der Zugang liegt in der Windows-Anmeldeinformationsverwaltung "
+           "(Ziel „Rohrlaser Onlinepreise: Fracht UPS“ usw., Benutzer „Kontonummer|Client-ID“), nie in der "
+           "Datenbank. Es gehen nur PLZ, Land, Gewicht und Maße hinaus. Fällt die Abfrage aus, gilt der gespeicherte "
+           "Tarif. DHL Paket Deutschland hat keine Preisschnittstelle.")
     i.abschnitt("Entfernung nach PLZ", marke="fracht_entfernung")
     i.text("Das Programm rechnet die Entfernung zwischen Versandort und Ziel aus der vollen deutschen PLZ, ohne "
            "Internet. Sie bestimmt die Richtwert-Zone und die Preise je km (eigene Anlieferung).", kurz=True)

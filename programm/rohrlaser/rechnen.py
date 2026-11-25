@@ -5115,6 +5115,7 @@ def _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellung
         zeilen, summen = _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen)
         preisschicht.anwenden(kopf, positionen, zeilen, summen, k, tabellen, einstellungen)
         zusatz_global.anwenden(kopf, summen, einstellungen)    # allgemeine Zusatzarbeiten (23.11.2026), ohne Einträge bitgleich
+        fracht_angebot.eigene_position(kopf, summen, einstellungen)   # Fracht 2.0: nur bei Umlage „eigene Position“
         return zeilen, summen
     # Basis ohne eigenen Gewinn auf Material (sonst stünde Material × Gewinn Material in der Basis)
     _, s1 = _kalkulation(kopf, positionen, ergebnis, k, tabellen, dict(einstellungen, gewinn=1.0, gewinn_material=None))
@@ -5124,6 +5125,7 @@ def _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellung
     summen.update(gewinn_satz=satz, gewinn_gestaffelt=True, gewinn_stufen_basis=basis)
     preisschicht.anwenden(kopf, positionen, zeilen, summen, k, tabellen, dict(einstellungen, gewinn=satz))
     zusatz_global.anwenden(kopf, summen, einstellungen)
+    fracht_angebot.eigene_position(kopf, summen, einstellungen)
     return zeilen, summen
 
 
@@ -5295,6 +5297,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     fracht = fracht or 0
     fracht_je, fracht_hinweis, fracht_umlage = fracht_angebot.anteile(positionen, werte, fracht,
                                                                       fracht_angebot.umlage(kopf))
+    fracht_eigen = (fracht_angebot.anteile(positionen, werte, fracht, fracht_angebot.NACH_GEWICHT)[0]
+                    if fracht_umlage == fracht_angebot.EIGENE and fracht else None)   # Fracht 2.0: eigene Zeile
     weitere = weitere_schritte(zb, f8, n_lad, teile_abm,
                                sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0))
     blech_ids = set(tabellen.get("blech_artikel") or ())     # Aufschlag Bleche bzw. Zukaufteile des Angebots
@@ -5548,6 +5552,10 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  nicht_eingeplant=nicht)
         z.update(zeitbild.felder(z, maschine(kopf, k), einstellungen))
         zeilen[i] = z
+    if fracht_eigen:                 # Anteil der eigenen Frachtzeile je Teil (nur Anzeige, nicht im Stückpreis)
+        for i, z in enumerate(zeilen):
+            if z:
+                z["fracht_eigen_teil"] = fracht_eigen[i] or 0.0
     n_abm = len(teile_abm)
     # Musterteile (Patrick 28.10.2026): Preis 0, Kosten mit Gewinn auf die Serie bzw. als Musterkosten einmalig
     mu = _muster_umlegen(zeilen, positionen, kopf, skonto, ab)

@@ -27,7 +27,9 @@ PALETTEN_EINST = ("palette_hoehe_gesamt", "palette_max_brutto", "palette_mischen
 MANUELL, BERECHNET, KEINE, ENTHALTEN = "manuell", "berechnet", "keine Fracht", "im Artikelpreis enthalten"
 MODI = (MANUELL, BERECHNET, KEINE, ENTHALTEN)
 JE_STUECK, NACH_GEWICHT = "je Stück", "nach Gewicht"
-UMLAGEN = (JE_STUECK, NACH_GEWICHT)
+# Fracht 2.0 (Patrick 25.11.2026): nach Packvolumen (paletten.packmass) bzw. als eigene Zeile im Angebot
+NACH_VOLUMEN, EIGENE = "nach Volumen", "eigene Position"
+UMLAGEN = (JE_STUECK, NACH_GEWICHT, NACH_VOLUMEN, EIGENE)
 UMLAGE_NEU = NACH_GEWICHT          # Vorgabe für neue Angebote (Entscheidung 3B); ältere Angebote: leer = je Stück
 
 
@@ -101,6 +103,8 @@ def auto_rechnen(fdaten, kopf, positionen, werte, kunde, einst):
     entfernung.ergaenzen(s)
     d = dict(sendung=s, snapshot=None, gesamt=None, text="", lht_standard=einst.get("fracht_lht_standard"),
              lht_langgut=einst.get("fracht_lht_langgut"))
+    if (einst or {}).get("fracht_packmittel_kosten") == "ja":     # Fracht 2.0: Packmittelkosten aus der Packliste
+        d["packmittel_aktiv"] = True
     if not s["plz"]:
         d["fehler"] = "Ziel-PLZ fehlt"
         return d
@@ -225,6 +229,27 @@ def anteile(positionen, werte, betrag, art):
             out[i] = betrag / teile if teile else 0.0
         return out, hinweis, JE_STUECK
     teile = sum(positionen[i].get("stueck") or 0 for i in aktiv)
+    if art == EIGENE:               # Fracht als eigene Zeile im Angebot: nicht in den Stückpreisen (eigene_position)
+        for i in aktiv:
+            out[i] = 0.0
+        return out, hinweis, EIGENE
+    if art == NACH_VOLUMEN:         # Anteil des Packvolumens (Packmaß L × B × H) am Gesamtvolumen
+        vol = {}
+        for i in aktiv:
+            m = paletten.packmass(positionen[i], werte[i])
+            vol[i] = (m[0] * m[1] * m[2]) if m and all(m) else None
+        fehlt = [str(positionen[i].get("pos") or "?") for i in aktiv
+                 if (positionen[i].get("stueck") or 0) > 0 and not vol[i]]
+        if not fehlt:
+            gesamt = sum(vol[i] * (positionen[i].get("stueck") or 0) for i in aktiv)
+            for i in aktiv:
+                out[i] = betrag * vol[i] / gesamt if gesamt else 0.0
+            return out, hinweis, NACH_VOLUMEN
+        hinweis = (f"Packmaß fehlt bei Pos. {', '.join(fehlt)}: Fracht in diesem Angebot je Stück verteilt"
+                   if betrag else "")
+        for i in aktiv:
+            out[i] = betrag / teile if teile else 0.0
+        return out, hinweis, JE_STUECK
     if art == NACH_GEWICHT:
         fehlt = [str(positionen[i].get("pos") or "?") for i in aktiv
                  if (positionen[i].get("stueck") or 0) > 0 and not werte[i].get("gewicht")]
@@ -373,6 +398,52 @@ def stufe(kopf, positionen, werte):
     return x["betrag"], x["text"], x["fehler"]
 
 
+def eigene_position(kopf, summen, einst=None):
+    """Umlage „eigene Position“: Fracht (und Packmittel aus der Packliste) als eigene Zeile, Verkaufspreis um den
+    Betrag erhöht (ohne Gewinn, wie umgelegte Fracht). Frachtfrei ab Warenwert gilt auch hier. Ohne diese Umlage
+    unverändert. Setzt summen fracht_position."""
+    if umlage(kopf) != EIGENE or kopf.get("fracht_position_aus") == "ja":    # Staffelstufen: Preise ohne Fracht
+        return summen
+    betrag = float(summen.get("fracht") or 0)
+    if betrag <= 0:
+        return summen
+    frei_ab = float((einst or {}).get("frachtfrei_ab") or 0)
+    if frei_ab > 0 and float(summen.get("verkauf") or 0) >= frei_ab:
+        summen.update(fracht_position=0.0, fracht_position_text=f"frachtfrei ab {frei_ab:g} € Warenwert")
+        return summen
+    summen.update(fracht_position=betrag, verkauf=float(summen.get("verkauf") or 0) + betrag)
+    return summen
+
+
+def position_text(kopf):
+    """Text der eigenen Frachtzeile im Angebot."""
+    s = (daten(kopf) or {}).get("sendung") or {}
+    ziel = " ".join(x for x in ((s.get("land") or "DE"), s.get("plz") or "") if x)
+    return "Fracht und Verpackung" + (f" frei Haus nach {ziel}" if s.get("plz") else "")
+
+
+def packmittel_aktiv(kopf):
+    """Packmittelkosten aus der Packliste der gespeicherten Frachtberechnung (Fracht 2.0)? Nur wenn die Berechnung
+    es festgehalten hat (Einstellung fracht_packmittel_kosten beim Rechnen) – ältere Angebote rechnen wie bisher."""
+    d = daten(kopf)
+    return bool(d and d.get("packmittel_aktiv") and modus(kopf) == BERECHNET)
+
+
+def packmittel(kopf, positionen, werte, satz_verpackung=0.0):
+    """Packmittelkosten (paletten.packmittel_kosten) der Sendung mit den Packmitteln der Tarifkopie; automatisch
+    berechnete Fracht packt mit den aktuellen Mengen neu (wie jede Staffelstufe). None, wenn nicht aktiv."""
+    if not packmittel_aktiv(kopf):
+        return None
+    d = daten(kopf)
+    lht = ((d.get("snapshot") or {}).get("lht")) or []
+    s = d.get("sendung") or {}
+    eintraege = s.get("lht") or []
+    if auto(kopf) and positionen is not None and werte is not None:
+        eintraege, _ = paletten.ladung(positionen, werte, lht, d.get("lht_standard"), d.get("lht_langgut"),
+                                       d.get("paletten"))
+    return paletten.packmittel_kosten(eintraege, lht, satz_verpackung)
+
+
 def angebotstext(kopf):
     """Hinweis zur Fracht im Angebots-PDF (leer im Modus manuell: wie bisher)."""
     m = modus(kopf)
@@ -380,6 +451,8 @@ def angebotstext(kopf):
         return "Lieferung ab Werk; Frachtkosten sind nicht enthalten."
     if m == ENTHALTEN:
         return "Die Frachtkosten sind in den Preisen enthalten."
+    if umlage(kopf) == EIGENE and m in (MANUELL, BERECHNET) and wirksam(kopf):
+        return "Fracht und Verpackung stehen als eigene Position im Angebot."
     if m == BERECHNET and wirksam(kopf):
         s = (daten(kopf) or {}).get("sendung") or {}
         ziel = " ".join(x for x in ((s.get("land") or "DE"), s.get("plz") or "") if x)

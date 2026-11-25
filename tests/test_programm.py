@@ -200,7 +200,7 @@ assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())
                                                                  "Arbeitsgang-Regeln", "Verpackung", "Angebotsregeln", "Qualitätsstufen", "Stundensätze und Zeitvorgaben",
                                                                  "Admin-Schutz", "Arbeitsplätze und Rechte", "E-Mail-Vorlagen",
                                                                  "Frachtzonen und Postleitzahlen",
-                                                                 "Tarifverwaltung", "Paletten und Ladehilfsmittel",
+                                                                 "Tarifverwaltung", "Packmittel und Ladungsträger",
                                                                  "Zuschläge", "Dienstleister und Kundentarife",
                                                                  "Historie und Einstellungen"]
 # Admin-Schutz (0.9.211): Einstellungen offen, geschützte Seiten erst nach dem Admin-Passwort
