@@ -1,7 +1,7 @@
 # Erkennung Endkonturen und Sonderkonturen (25.11.2026)
 
 Auftrag Patrick 25.11.2026: „Erkennung weiter verbessern und optimieren“, dazu „Okay sonderkonturen müssen auch erkannt
-werden“. Version 0.9.489 (vorläufig), kein Schema-Sprung. Baut auf #658 (Endkonturen universell, 0.9.488) auf.
+werden“. Version 0.9.490 (vorläufig), kein Schema-Sprung. Baut auf #658 (Endkonturen universell, 0.9.488) auf.
 
 ## 1. Bestandsaufnahme
 

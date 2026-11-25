@@ -36,6 +36,7 @@ EBEN_TOL = 0.01         # Ende gilt als gerade bis zu dieser Abweichung [mm]
 KREIS_TOL = 0.005       # Schneidweg bzw. Netzpunkte gelten als Kreis bis zu dieser Abweichung [mm]
 KREIS_MIN_PUNKTE = 8
 UNSCHAERFE = 1e-4       # Boolesche Operationen [mm]
+GROSS_AB = 1024         # Behälter ab dieser Größe können in einem eigenen zlib-Block liegen [Byte]
 
 
 def ist_blm(pfad):
@@ -97,9 +98,13 @@ def _dokument(bl):
     struktur = None
     if bi < len(bl) and len(bl[bi]) == kopf[7] and bl[bi][:4] != KENNUNG:
         struktur, bi = bl[bi], bi + 1
+    # Große Behälter stehen in eigenen Blöcken, in der Reihenfolge der Behälter. Ab welcher Größe, legt ArTube nicht
+    # fest: bisher ab 2048 Byte, im Supportpaket 25.11.2026 (XW1006934.bpf) auch ein Behälter mit 2034 Byte in eigenem
+    # Block, Behälter mit 1033 Byte dagegen im Kopf. Daher: ein Behälter ab 1024 Byte liegt in einem eigenen Block, wenn
+    # der nächste freie Block genau seine Größe hat.
     beh = [None] * len(groessen)
     for k, s in enumerate(groessen):
-        if bi < len(bl) and s >= 2048 and len(bl[bi]) == s and bl[bi][:4] != KENNUNG:
+        if bi < len(bl) and s >= GROSS_AB and len(bl[bi]) == s and bl[bi][:4] != KENNUNG:
             beh[k], bi = bl[bi], bi + 1
     im_kopf = sum(s for k, s in enumerate(groessen) if beh[k] is None)
     ende_sonder = len(h) - im_kopf
@@ -471,10 +476,15 @@ def werkzeug_dreiecke(pk, rk, tiefe):
     """Dreiecke eines Werkzeugs entlang eines geschlossenen Schneidwegs: außen UEBER über der Oberfläche, innen
     tiefe + UEBER in Brennerrichtung. Deckel über die Abwicklung (x, Winkel) trianguliert."""
     n = len(pk)
-    oben = [_add(p, _norm(v), UEBER) for p, v in zip(pk, rk)]
-    unten = [_add(p, _norm(v), -(tiefe + UEBER)) for p, v in zip(pk, rk)]
     w = _winkel_lauf(pk)
     rm = sum(math.hypot(p[1], p[2]) for p in pk) / n or 1.0
+    # Der obere Deckel besteht aus ebenen Dreiecken quer über die Kontur; über ein breites Fenster am Rundrohr hängt er
+    # um die Bogenhöhe durch und blieb in der Wand stecken: in der Mitte des Fensters blieb eine Insel stehen
+    # (Supportpaket 25.11.2026, Fenster 60° an Rohr Ø60). Daher um die Bogenhöhe weiter außen.
+    spanne = min(max(w) - min(w), math.pi)
+    oben_ = UEBER + rm * (1 - math.cos(spanne / 2))
+    oben = [_add(p, _norm(v), oben_) for p, v in zip(pk, rk)]
+    unten = [_add(p, _norm(v), -(tiefe + UEBER)) for p, v in zip(pk, rk)]
     flach = _ohrschnitt([(p[0], wi * rm) for p, wi in zip(pk, w)])
     tri = []
     for i in range(n):
@@ -490,9 +500,11 @@ def ende_dreiecke(pk, rk, tiefe, nach_minus):
     n = len(pk)
     if math.dist(pk[0], pk[-1]) < 1e-3:
         pk, rk, n = pk[:-1], rk[:-1], n - 1
-    x_fern = (min(p[0] for p in pk) - FERN) if nach_minus else (max(p[0] for p in pk) + FERN)
     o = [_add(p, _norm(v), UEBER) for p, v in zip(pk, rk)]
     u = [_add(p, _norm(v), -(tiefe + UEBER)) for p, v in zip(pk, rk)]
+    # mit geneigtem Brenner (Fase) liegen die Werkzeugpunkte weiter außen als der Schneidweg: Abschluss jenseits aller
+    xs = [p[0] for p in pk + o + u]
+    x_fern = (min(xs) - FERN) if nach_minus else (max(xs) + FERN)
     of = [(x_fern, p[1], p[2]) for p in o]
     uf = [(x_fern, p[1], p[2]) for p in u]
     tri = []
@@ -567,7 +579,12 @@ def _vereinheitlicht(form):
     from OCP.TopoDS import TopoDS
     u = ShapeUpgrade_UnifySameDomain(form, True, True, False)
     u.Build()
-    form = u.Shape()
+    vorher, form = form, u.Shape()
+    v0 = volumen(vorher)
+    if abs(volumen(form) - v0) > 1e-4 * max(abs(v0), 1.0):
+        # Zusammenfassen hat den Körper verändert (Rundrohr mit Fenster und einmündendem Schlitz: 372 mm³ zu wenig
+        # Material, Supportpaket 25.11.2026): dann ohne Zusammenfassen
+        form = vorher
     if form.ShapeType() != TopAbs_SOLID:
         ex = TopExp_Explorer(form, TopAbs_SOLID)
         best, vol = None, -1.0
@@ -669,6 +686,96 @@ def _bogen_ende(t, p, rueck=False):
     return _add(_add(c, v, math.cos(w)), k, math.sin(w))
 
 
+def _schneiden(rohr, werkzeuge):
+    """Alle Werkzeuge [(Form, ist_Ende)] vom Rohr abziehen, in Runden: In eine Runde kommen nur Werkzeuge, die sich nicht berühren
+    (Hüllquader mit Abstand), die übrigen in die nächste Runde. Supportpaket 25.11.2026 (XW1006934.bpf): Schlitze,
+    die in ein großes Fenster münden, zusammen mit dem Fenster in einem Schritt -> 93 s und vom Rohr blieben nur
+    25.521 statt rund 309.000 mm³; einzeln nacheinander richtig, aber 61 s; in zwei Runden richtig und schnell."""
+    if not werkzeuge:
+        return rohr
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRepBndLib import BRepBndLib
+    from OCP.BRepGProp import BRepGProp
+    from OCP.GProp import GProp_GProps
+
+    def kasten(w):
+        bb = Bnd_Box()
+        BRepBndLib.Add_s(w, bb)
+        bb.Enlarge(0.5)
+        return bb
+
+    def volumen_(w):
+        g = GProp_GProps()
+        BRepGProp.VolumeProperties_s(w, g)
+        return abs(g.Mass())
+    # große Ausschnitte vor den Schlitzen, die in sie münden (umgekehrt schlägt der Schnitt fehl); Enden zuletzt
+    reihe = sorted(((w, kasten(w)) for w, ende in werkzeuge if not ende), key=lambda x: -volumen_(x[0])) + \
+        [(w, kasten(w)) for w, ende in werkzeuge if ende]
+    runden = []         # je Runde [(Werkzeug, Kasten)]; nur in die letzte Runde, damit die Reihenfolge bleibt
+    for w, bb in reihe:
+        if runden and all(bb.IsOut(b) for _w, b in runden[-1]):
+            runden[-1].append((w, bb))
+        else:
+            runden.append([(w, bb)])
+    form = rohr
+    for r in runden:
+        form = _bool("cut", form, [w for w, _b in r])
+    return _vereinheitlicht(form)
+
+
+def _fase_kegel(pk, rk, tiefe, nach_minus):
+    """Werkzeug für ein gerades Ende mit Fase am Rundrohr (Ring bei festem x, Radius und Brennerneigung überall gleich)
+    exakt als Drehkörper (Kegelstumpf bis jenseits des Endes) statt aus Dreiecken: Supportpaket 25.11.2026, das
+    genähte Werkzeug machte die übrigen Schnitte langsam. None, wenn der Schneidweg dafür nicht passt."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakePolygon
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeRevol
+    from OCP.gp import gp_Ax1, gp_Dir, gp_Pnt
+    if len(pk) < KREIS_MIN_PUNKTE:
+        return None
+    xs = [p[0] for p in pk]
+    rs = [math.hypot(p[1], p[2]) for p in pk]
+    vx = [_norm(v)[0] for v in rk]
+    radial = [(_norm(v)[1] * p[1] + _norm(v)[2] * p[2]) / max(r, 1e-9) for p, v, r in zip(pk, rk, rs)]
+    if max(xs) - min(xs) > EBEN_TOL or max(rs) - min(rs) > KREIS_TOL * 10 or max(vx) - min(vx) > 1e-3 or \
+            min(radial) < 0.1 or max(radial) - min(radial) > 1e-3:
+        return None
+    x, r, ax_, ar = sum(xs) / len(xs), sum(rs) / len(rs), sum(vx) / len(vx), sum(radial) / len(radial)
+
+    def punkt(t):
+        return x + ax_ * t, max(r + ar * t, 0.1)
+    (xa, ra), (xb, rb) = punkt(UEBER), punkt(-(tiefe + UEBER))
+    x_fern = (min(xa, xb) - FERN) if nach_minus else (max(xa, xb) + FERN)
+    poly = BRepBuilderAPI_MakePolygon()
+    for px, pr in ((xa, ra), (xb, rb), (x_fern, rb), (x_fern, ra)):
+        poly.Add(gp_Pnt(px, 0.0, pr))
+    poly.Close()
+    flaeche = BRepBuilderAPI_MakeFace(poly.Wire(), True).Face()
+    return BRepPrimAPI_MakeRevol(flaeche, gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0))).Shape()
+
+
+def _ende_ring(k, wand):
+    """Schneidweg eines Endes ohne Anfahrt: Supportpaket 25.11.2026 (XW1006934.bpf, LT7 mit 3D-Kopf): Das Ende wird
+    mit 30° geneigtem Brenner als Fase geschnitten; der Weg beginnt mit einer Anfahrt längs der Achse (gleiche Stelle
+    am Umfang, der Brenner kippt). Diese Punkte gehören nicht zum Ring, das Werkzeug daraus faltete sich und das Nähen
+    hing minutenlang. Ergebnis: Kontur mit Ring, fase (Brenner geneigt) und x_innen (wo der Schnitt die Innenwand
+    trifft)."""
+    pk, rk = list(k["punkte"]), list(k["richtung"])
+
+    def quer(a, b):
+        return math.hypot(a[1] - b[1], a[2] - b[2])
+    while len(pk) > 3 and quer(pk[0], pk[1]) < 1e-3:
+        pk, rk = pk[1:], rk[1:]
+    while len(pk) > 3 and quer(pk[-1], pk[-2]) < 1e-3:
+        pk, rk = pk[:-1], rk[:-1]
+    fase = any(abs(_norm(v)[0]) > 1e-3 for v in rk)
+    x_innen = []
+    for p, v in zip(pk, rk):
+        n = _norm(v)
+        radial = math.hypot(n[1], n[2])
+        x_innen.append(p[0] - n[0] * (wand / max(radial, 0.1)))
+    return dict(k, punkte=pk, richtung=rk, fase=fase, x_innen=x_innen)
+
+
 def bpf_koerper(teil):
     """Volumenkörper aus dem BPF-Teil. Ergebnis (Shape, Meldungen)."""
     from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_Transform
@@ -682,13 +789,13 @@ def bpf_koerper(teil):
     innen = _querschnitt_draht(qs["innen"])
     wand = qs.get("wand") or 0.0
     aufb = [kontur_aufbereiten(k) for k in teil["konturen"]]
-    enden = [k for k in aufb if k["art"] == "ende"]
+    enden = [_ende_ring(k, wand) for k in aufb if k["art"] == "ende"]
     x0, x1 = 0.0, L
     schraeg = []
     for e in enden:
         xs = [p[0] for p in e["punkte"]]
         mitte = (max(xs) + min(xs)) / 2
-        if max(xs) - min(xs) <= EBEN_TOL:       # gerades Ende: Rohr beginnt bzw. endet dort
+        if max(xs) - min(xs) <= EBEN_TOL and not e["fase"]:     # gerades Ende: Rohr beginnt bzw. endet dort
             if mitte < L / 2:
                 x0 = mitte
             else:
@@ -696,9 +803,9 @@ def bpf_koerper(teil):
         else:
             schraeg.append((e, mitte < L / 2))
             if mitte < L / 2:
-                x0 = min(xs)
+                x0 = min(xs + e["x_innen"])
             else:
-                x1 = max(xs)
+                x1 = max(xs + e["x_innen"])
     rohr = BRepPrimAPI_MakePrism(BRepBuilderAPI_MakeFace(aussen, True).Face(), gp_Vec(x1 - x0, 0, 0)).Shape()
     if innen is not None:       # offene Profile haben keinen Innenumriss
         loch = BRepPrimAPI_MakePrism(BRepBuilderAPI_MakeFace(innen, True).Face(), gp_Vec(x1 - x0, 0, 0)).Shape()
@@ -709,24 +816,26 @@ def bpf_koerper(teil):
         rohr = BRepBuilderAPI_Transform(rohr, tr, True).Shape()
     werkzeuge = []
     for e, minus in schraeg:
-        s = _occ_dreiecke_koerper(ende_dreiecke(e["punkte"], e["richtung"], max(wand, 1.0) * 3, minus))
+        s = _fase_kegel(e["punkte"], e["richtung"], max(wand, 1.0) * 3, minus)
+        if s is None:
+            s = _occ_dreiecke_koerper(ende_dreiecke(e["punkte"], e["richtung"], max(wand, 1.0) * 3, minus))
         if s is not None:
-            werkzeuge.append(s)
+            werkzeuge.append((s, True))
     nb = 0
     for k in aufb:
         if k["art"] == "bohrung":
             ax = _norm(k["achse"])
             p0 = _add(k["mitte"], ax, UEBER)
-            werkzeuge.append(BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(*p0), gp_Dir(*(-c for c in ax))), k["r"],
-                                                      wand * 3 + 2 * UEBER).Shape())
+            werkzeuge.append((BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(*p0), gp_Dir(*(-c for c in ax))), k["r"],
+                                                       wand * 3 + 2 * UEBER).Shape(), False))
             nb += 1
         elif k["art"] == "kontur":
             s = _occ_dreiecke_koerper(werkzeug_dreiecke(k["punkte"], k["richtung"], max(wand, 1.0) * 1.5))
             if s is None:
                 meld.append("eine Kontur des BPF ließ sich nicht als Werkzeug bauen (übersprungen)")
             else:
-                werkzeuge.append(s)
-    form = _vereinheitlicht(_bool("cut", rohr, werkzeuge)) if werkzeuge else rohr
+                werkzeuge.append((s, False))
+    form = _schneiden(rohr, werkzeuge)
     if nb:
         meld.append(f"{nb} Bohrung(en) aus dem Schneidweg exakt")
     return form, meld
