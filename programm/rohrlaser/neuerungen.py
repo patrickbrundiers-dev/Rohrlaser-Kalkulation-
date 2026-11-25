@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.513", "<b>Gesamtprüfung Rechenkerne</b>: Die Stangenoptimierung merkt sich beim Auflösen schwacher Stangen, "
+                "welche Teile auf welche Stange nicht passen, und prüft sie nicht erneut. Große Serien mit schrägen "
+                "Enden rechnen dadurch bis zu 30-mal schneller (10.000 Teile 158 s → 5 s, 4.000 Teile 28 s → 1,6 s), "
+                "der Schnittplan bleibt bitgleich ([[optimieren]]). Eine Konturzeile mit mehr als 100.000 Konturen "
+                "(z. B. Lochfeld mit falscher Reihenzahl) meldet jetzt einen Fehler, statt den Speicher zu füllen. "
+                "37 RP-Profile der Bibliothek zeigten keine Kontur (Rundung im Bibliotheksformat); jetzt haben alle "
+                "141 Profile ihren Querschnitt in Skizze, 3D und Zeichnung.",
+     "Gesamtprüfung: Stangenoptimierung bis 30× schneller, Kontur-Grenze, alle RP-Profile mit Kontur"],
     ["0.9.512", "<b>Packkern 3.0: Ladung berechnen und in 2D/3D ansehen</b> ([[packkern]]): Neue Frachtberechnungen "
                 "packen Lage für Lage mit Reihen längs und quer, Überstand nur an der langen Seite (Vorgabe 50 mm je "
                 "Stirnseite, lange Teile bis zur max. Teillänge 6.500 mm mittig), die kurze Seite nie, mit "

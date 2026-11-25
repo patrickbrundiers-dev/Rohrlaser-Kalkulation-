@@ -539,6 +539,16 @@ def ausduennen(pts, tol=0.005):
 _UMRISS = {}
 
 
+def _z(v):
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
+
+
+def _verschoben(elemente, d):
+    """Linien und Bögen um (d, d) verschoben (Bögen: nur der Mittelpunkt)."""
+    return [[e[0], e[1] + d, e[2] + d, e[3] + d, e[4] + d] if e[0] == LINIE else [e[0], e[1] + d, e[2] + d, *e[3:]]
+            for e in elemente]
+
+
 def umriss(e, tol=0.1):
     """Kontur eines Eintrags für Zeichnungen: [Außenkontur, Kammer …] als Polygone um die Mitte des Hüllrechtecks
     (vereinfacht mit tol), oder [] ohne Elemente."""
@@ -546,7 +556,20 @@ def umriss(e, tol=0.1):
         return []
     schluessel = (e["profil_id"], e["flaeche"], tol)
     if schluessel not in _UMRISS:
-        q = querschnitt(e["elemente"], mit_konturen=True)
+        try:
+            q = querschnitt(e["elemente"], mit_konturen=True)
+            if abs(q["flaeche"] - _z(e.get("flaeche"))) > 0.01 * _z(e.get("flaeche")):
+                raise ValueError("Fläche passt nicht zur Bibliothek")      # RP 1253-60: Außenkontur = Kammer
+        except ValueError:
+            # Gesamtprüfung 25.11.2026 (Befund G-03): die Bibliothek speichert die Elemente um die Ecke unten links
+            # verschoben und auf 4 Stellen gerundet; viele Punkte liegen dadurch genau auf der Grenze des Fangrasters
+            # (… ,0005 bei FANG = 0,001). Ein Teilungspunkt und der Endpunkt, den er trifft, fallen dann in
+            # verschiedene Rasterzellen, die Kammer schließt sich nicht – 37 der 141 RP-Profile hatten keinen
+            # Umriss (Skizze, Durchbruch, 3D, Zeichnung: „Keine Blechfläche erkannt“). Gelingt es so nicht, alle
+            # Elemente um eine Viertel-Rasterzelle verschieben (Form unverändert; der Umriss wird ohnehin um die
+            # Mitte des Hüllrechtecks gelegt). Ebenso, wenn die Fläche nicht zur Bibliothek passt (RP 1253-60: die
+            # Außenkontur war zugleich die Kammer, Wand 0). Profile, die bisher stimmten, rechnen genau wie bisher.
+            q = querschnitt(_verschoben(e["elemente"], FANG / 4), mit_konturen=True)
         mx, my = q["x0"] + q["breite"] / 2, q["y0"] + q["hoehe"] / 2
         _UMRISS[schluessel] = [[(round(x - mx, 4), round(y - my, 4)) for x, y in ausduennen(z, tol)]
                                for z in q["konturen"]["aussen"][:1] + q["konturen"]["kammern"]]

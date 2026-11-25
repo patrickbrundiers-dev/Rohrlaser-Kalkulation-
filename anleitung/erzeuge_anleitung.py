@@ -3466,7 +3466,8 @@ def kapitel_angebot(i):
     i.text("<b>Material …</b> (rechts neben den Ausgaben oder Rechtsklick auf eine Position): alles zum Material je "
            "Abmessung in einem Fenster; <b>Übernehmen</b> gilt für alle Positionen der Abmessung.", kurz=True)
     i.bild("material_fenster", "Material je Abmessung", hoehe=85 * mm, legende=[
-        (1, "<b>Querschnitt</b> des Profils (RP-Profile mit ihrer Kontur aus dem MegaCAD-Makro); der Mauszeiger auf "
+        (1, "<b>Querschnitt</b> des Profils (RP-Profile mit ihrer Kontur aus dem MegaCAD-Makro, seit 0.9.513 alle "
+            "141 Profile der Bibliothek); der Mauszeiger auf "
             "der Abmessung zeigt Teilelänge gesamt und Ausnutzung."),
         (2, "<b>Werkstoff</b>, <b>Oberfläche</b>, <b>Lieferlänge [mm]</b> (Auswahl aus den Stammdaten <i>Lieferlängen</i> oder eintippen) "
             "und <b>Material</b> (Eigenmaterial / Kunde beigestellt). Danach neu optimieren."),
@@ -5798,7 +5799,9 @@ def kapitel_optimieren(i):
             "Stückzahlen schnell (20.000 gleiche Teile unter einer Sekunde, 6.000 gemischte Teile mit Gehrungen "
             "wenige Sekunden). Seit 0.9.280 merkt sich das Programm schon gerechnete Profilgruppen: optimieren Sie "
             "nach einer Änderung erneut (auch über das Angebots-PDF), rechnet es nur die Gruppen neu, deren Teile, "
-            "Stangen oder Einstellungen sich geändert haben – mit genau demselben Schnittplan wie eine volle Rechnung.",
+            "Stangen oder Einstellungen sich geändert haben – mit genau demselben Schnittplan wie eine volle Rechnung. Seit 0.9.513 "
+            "sind große Serien mit schrägen Enden deutlich schneller (10.000 Teile mit Schrägschnitt 158 s → 5 s), "
+            "der Schnittplan bleibt genau gleich.",
             "<b>Schneller bei großen Aufträgen (Rechenkerne-Update 21.11.2026):</b> Die Schnittmuster-Optimierung löst "
             "je neuem Muster dasselbe Rechenmodell mit einer Zeile mehr. Sie setzt jetzt die Rechenschritte der "
             "vorigen Runde fort, solange diese für die neue Zeile genau gleich bleiben, und sucht die Muster ohne "
@@ -6626,7 +6629,8 @@ def kapitel_optimieren(i):
             "und Zeichnung über die Kanten läuft) und <i>Gravur</i> (Gravurlänge an dieser Stelle, grün gezeichnet, "
             "nie im Schneidweg, zählt zur Gravur), dazu der <i>V-Ausschnitt</i> für einen Knickrahmen (Knickwinkel, "
             "Freistich-Ø; Seite = Stegwand, [[knickrahmen]]). Seit 0.9.91: <i>Lochfeld</i> (Ø, Reihen quer, "
-            "Teilung quer; Anzahl = Löcher je Reihe, Abstand = Teilung längs; in den Eigenschaften <i>jede 2. Reihe "
+            "Teilung quer; Anzahl = Löcher je Reihe, Abstand = Teilung längs; seit 0.9.513 meldet eine Zeile mit mehr "
+            "als 100.000 Konturen <i>Anzahl bzw. Reihen prüfen</i> statt das Programm zu blockieren; in den Eigenschaften <i>jede 2. Reihe "
             "versetzt</i> und <i>Langloch-Länge</i>) zählt jedes Loch als Einstich, ohne Lage liegt das Feld mittig; "
             "seit 0.9.307 hat es in den Eigenschaften ein <b>Muster</b>: <i>Raster</i>, <i>Lochkreis</i> "
             "(<i>Teilkreis-Ø</i>, <i>Löcher im Kreis</i>, <i>Startwinkel</i> 0° = längs; Lage = Mitte des Kreises) "

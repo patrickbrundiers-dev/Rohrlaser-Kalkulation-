@@ -661,6 +661,9 @@ def best_fit(g, teile):
     return stangen
 
 
+AUFLOESEN_MERKEN = True    # Ablehnungen/Belegungen in aufloesen merken (False nur für den Vergleich im Test)
+
+
 def aufloesen(g, stangen):
     """Schwach belegte Stangen auflösen, wenn alle ihre Teile in andere Stangen passen."""
     stangen = [list(s) for s in stangen]
@@ -691,16 +694,35 @@ def aufloesen(g, stangen):
                 continue
             andere = [list(x) for x in stangen if x is not s]
             g_andere = {id(neu): grund[id(x)] for neu, x in zip(andere, (x for x in stangen if x is not s))}
+            # Gesamtprüfung 25.11.2026 (10.000 gleiche Teile mit schrägem Ende: 119 s): passt hängt nur von der
+            # Stange und den Enden + der Länge des neuen Teils ab. Hat eine unveränderte Stange ein Teil dieser Art
+            # schon abgelehnt, lehnt sie jedes weitere gleiche ab – nicht noch einmal prüfen. Ebenso die Belegung
+            # einer unveränderten Stange für die Sortierung nur einmal rechnen. Die Stangen in andere wachsen nur
+            # durch append und leben bis zum Ende dieses Durchgangs: (id, Länge) kennzeichnet ihren Inhalt eindeutig.
+            # Gleiches Ergebnis, nur ohne die vergeblichen Prüfungen.
+            abgelehnt, vb_stand = set(), {}
+
+            def vb_jetzt(x):
+                if not AUFLOESEN_MERKEN:
+                    return vb(x)
+                st = vb_stand.get(id(x))
+                if st is None or st[0] != len(x):
+                    st = vb_stand[id(x)] = (len(x), vb(x))
+                return st[1]
             ok = True
             for t in sortiert(s):
                 ziel = None
                 # Stangen, deren Untergrenze das Teil nicht mehr zulässt, scheitern ohnehin an passt
                 bedarf = mb(t)
-                moeglich = [x for x in andere if g_andere[id(x)] + bedarf <= grenze]
-                for x in sorted(moeglich, key=lambda x: -vb(x)):
+                art = (_enden(t), t.laenge)
+                moeglich = [x for x in andere if g_andere[id(x)] + bedarf <= grenze
+                            and (id(x), len(x), art) not in abgelehnt]
+                for x in sorted(moeglich, key=lambda x: -vb_jetzt(x)):
                     if passt(g, x + [t]):
                         ziel = x
                         break
+                    if AUFLOESEN_MERKEN:
+                        abgelehnt.add((id(x), len(x), art))
                 if ziel is None:
                     ok = False
                     break
