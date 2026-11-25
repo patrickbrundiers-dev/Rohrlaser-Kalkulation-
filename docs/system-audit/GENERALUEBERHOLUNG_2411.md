@@ -215,7 +215,7 @@ Inter des Containers). Rechenergebnisse: Fingerabdruck aller Positionen, Kalkula
 
 ## 10. Abschluss
 
-| Bereich | vorher (0.9.466) | nachher (0.9.487) |
+| Bereich | vorher (0.9.466) | nachher (0.9.486) |
 |---|---|---|
 | Hauptfenster mit Startseite aufbauen (Systemcheck) | 3,01 s | 1,23 s |
 | Angebot öffnen (kalt) | 0,56 s | 0,37 s |
@@ -227,7 +227,7 @@ Inter des Containers). Rechenergebnisse: Fingerabdruck aller Positionen, Kalkula
 | Lesbarkeit: Stellen unter 3 : 1 (Hell / Dunkel) | 0 / 10 | 0 / 0 |
 | Ergebnisse (Fingerabdruck) | – | gleich |
 
-Änderungsprotokoll im Programm: Neuerungen 0.9.472 (Paket 1), 0.9.479 (Paket 2), 0.9.487 (Paket 3 + Phase 5).
+Änderungsprotokoll im Programm: Neuerungen 0.9.472 (Paket 1), 0.9.479 (Paket 2), 0.9.486 (Paket 3 + Phase 5).
 Datenbank: kein Schema-Sprung, keine Umstellung; PostgreSQL je PC mit Abgleich über den gemeinsamen Ordner bleibt
 (Abschnitt 5).
 
