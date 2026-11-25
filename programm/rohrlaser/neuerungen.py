@@ -21,6 +21,21 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.491", "<b>EK-CSV-Import und Kundenlisten-Import mit Assistent</b> ([[ek_import_assistent]], [[kunden_csv]]): "
+                "beide Importe laufen jetzt auf einer gemeinsamen Importbasis (Kodierung, Trennzeichen, Dezimalformat, "
+                "mit oder ohne Kopfzeile, Spaltennamen deutsch und englisch, Importprofile auch bei anderer "
+                "Spaltenreihenfolge, Vorschau ohne Datenbankänderung, Importlauf mit Rückgängig, Fehlerbericht). "
+                "<b>EK-Import in 6 Schritten</b>: Datei/Lieferant/Format, Spalten, Materialerkennung in drei Stufen "
+                "(exakt automatisch, wahrscheinlich zum Bestätigen, kein Treffer = neues Material), Preisprüfung je "
+                "Lieferant mit € und % (Markierung ab Einstellung, Vorgabe 10 %; ein anderer Lieferant wird nie "
+                "überschrieben), Vorschau, Abschluss. <i>RR 50/50/3</i> = 50x50x3, Mengeneinheiten mm/Stück/kg, "
+                "fremde Währung als Fehler, keine Profil-Dublette in anderer Schreibweise. <b>Kundenimport in 5 "
+                "Schritten</b>: Spalten (Firma, Customer, Mail, ZIP, City, VAT ID …; <i>Name</i> nur als Vorschlag), "
+                "Dublettenprüfung über Kundennummer, Name, E-Mail, Telefon, Anschrift und USt-ID mit den Optionen "
+                "aktualisieren / neu anlegen / überspringen / manuell zuordnen, nur leere Felder ergänzen oder "
+                "überschreiben, Ansprechpartner, Liefer-/Rechnungsadresse und Rabatt. Kundennummern werden nie "
+                "vergeben und nie geändert; Angebote und Aufträge bleiben verknüpft. Kalkulationen rechnen unverändert.",
+     "Importassistenten: EK-CSV (6 Schritte, Preisprüfung je Lieferant) und Kundenliste (5 Schritte, Dubletten)"],
     ["0.9.490", "<b>Einheitliche Maßschreibweise</b> ([[massschreibweise]]): Material- und Profilabmessungen stehen "
                 "überall kompakt ohne Leerzeichen, z. B. <i>50x50x3</i>, <i>Ø60x3</i>, <i>40x20x2,5</i> statt "
                 "„50 x 50 x 3“ – in Anzeigen, Angebots- und Werkstatt-PDFs, Angebotsakte, E-Mails, Materialanfragen und "
