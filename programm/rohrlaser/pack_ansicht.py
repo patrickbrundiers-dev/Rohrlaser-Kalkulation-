@@ -37,7 +37,7 @@ def farbe_artikel(k):
 
 
 # ------------------------------------------------------------------ Geometrie für 3D
-def querschnitt(profil, b, h, stapel=None):
+def querschnitt(profil, b, h, stapel=None, verzahnt=False):
     """Querschnitt eines Teils als Polygon(e) in (s, t) mit Ursprung unten links, Breite b, Höhe h (Liegemaß):
     [[(s, t), …], …]. Rundrohr als 16-Eck; U und Winkel mit Wandstärke; sonst Rechteck."""
     if not profil:
@@ -48,6 +48,22 @@ def querschnitt(profil, b, h, stapel=None):
         r = min(b, h) / 2
         return [[(b / 2 + r * math.cos(2 * math.pi * i / 16), h / 2 + r * math.sin(2 * math.pi * i / 16))
                  for i in range(16)]]
+    if form == "U-Profil" and verzahnt and stapel and stapel > 1:
+        # gleich große U abwechselnd offen und umgedreht: Breite ub, Höhe uh je U, Teilung (b − ub) / (m − 1)
+        m = int(stapel)
+        ub, uh = float(a), float(bb or a)
+        t = (b - ub) / (m - 1)
+        out = []
+        for i in range(m):
+            x0 = i * t
+            if i % 2 == 0:
+                out.append([(x0, 0), (x0 + ub, 0), (x0 + ub, uh), (x0 + ub - w, uh), (x0 + ub - w, w), (x0 + w, w),
+                            (x0 + w, uh), (x0, uh)])
+            else:
+                z1 = h
+                out.append([(x0, z1), (x0 + ub, z1), (x0 + ub, z1 - uh), (x0 + ub - w, z1 - uh),
+                            (x0 + ub - w, z1 - w), (x0 + w, z1 - w), (x0 + w, z1 - uh), (x0, z1 - uh)])
+        return out
     if form == "U-Profil":
         if b >= h:          # Öffnung nach oben
             return [[(0, 0), (b, 0), (b, h), (b - w, h), (b - w, w), (w, w), (w, h), (0, h)]]
@@ -285,7 +301,7 @@ class Leinwand(QWidget):
                 b, h = t["x1"] - t["x0"], z1 - z0
             else:
                 b, h = t["y1"] - t["y0"], z1 - z0
-            for poly in querschnitt(prof, b, h, t.get("stapel")):
+            for poly in querschnitt(prof, b, h, t.get("stapel"), t.get("verzahnt")):
                 if t["quer"]:
                     vorne = [(t["x0"] + q, t["y0"], z0 + r) for q, r in poly]
                     hinten = [(t["x0"] + q, t["y1"], z0 + r) for q, r in poly]
@@ -484,7 +500,7 @@ class PackAnsicht(QWidget):
             o = self.packliste["stuecke"][pal["teile"][t["innen_von"]]["k"]]
             txt += f"; verschachtelt in Pos. {o['pos'] or '?'}"
         if t.get("stapel"):
-            txt += f"; {t['stapel']} Winkel ineinander"
+            txt += f"; {t['stapel']} {'U verzahnt' if t.get('verzahnt') else 'Winkel ineinander'}"
         auf = sum(n for k, n in pal["inhalt"] if k == t["k"])
         txt += f". Auf diesem Packstück {auf} Stück."
         self.info.setText(txt)

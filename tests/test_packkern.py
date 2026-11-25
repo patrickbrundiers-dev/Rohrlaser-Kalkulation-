@@ -97,9 +97,9 @@ teile = [pos(1, "Quadratrohr", 40, 40, 2, 1150, 30, 2.6), pos(2, "Quadratrohr", 
          pos(3, "Rundrohr", 33.7, 0, 2, 1150, 30, 1.8)]
 r = packen(teile, {"palette_sortenrein": "stark"})
 a = next(v for v in r["varianten"] if v["code"] == "A")
-assert all(len(lg["stueck"]) == 1 for p in a["paletten"] for lg in p["lagen"])
+assert sum(len(lg["stueck"]) > 1 for p in a["paletten"] for lg in p["lagen"]) <= 2
 assert r["anzahl"] == 1, r["anzahl"]
-ok("Variante A: jede Lage sortenrein; alles auf einer Palette statt drei (Reste zusammen)")
+ok("Variante A: volle Lagen sortenrein, nur angefangene Lagen mit anderen Profilen aufgefüllt; eine Palette statt drei")
 r = packen([pos(i, "Quadratrohr", 40, 40, 2, 1150, 7, 2.6) for i in range(1, 6)])
 assert r["anzahl"] == 1 and len(r["paletten"][0]["inhalt"]) == 5
 ok("kleine Mengen verschiedener Artikel gemischt auf ein Packstück")
@@ -108,21 +108,32 @@ r = packen([pos(1, "Quadratrohr", 40, 40, 2, 1150, 200, 2.6), pos(2, "Quadratroh
 assert all(len(p["inhalt"]) == 1 for p in r["paletten"])
 ok("max. Artikel je Packstück = 1: kein Packstück mit zwei Artikeln")
 
+# Grundwerkstoff (Patrick 25.11.2026): Stahl zu Stahl, Edelstahl zu Edelstahl
+teile = [pos(1, "Quadratrohr", 40, 40, 2, 1150, 5, 2.6), pos(2, "Quadratrohr", 40, 40, 2, 1150, 5, 2.6),
+         pos(3, "Quadratrohr", 40, 40, 2, 1150, 5, 2.6)]
+for t, wst in zip(teile, ("Stahl", "Edelstahl", "Stahl")):
+    t[1]["grundwerkstoff"] = wst
+r = packen(teile)
+assert r["anzahl"] == 2 and sorted(len(p["inhalt"]) for p in r["paletten"]) == [1, 2], [p["inhalt"] for p in r["paletten"]]
+ok("je Packstück nur ein Grundwerkstoff: Stahl und Edelstahl auf getrennten Paletten, Stahl-Artikel zusammen")
+
 # 6. Verschachtelung
 r = packen([pos(1, "Rundrohr", 88.9, 0, 3.2, 1200, 20, 8), pos(2, "Rundrohr", 60.3, 0, 2.9, 1000, 20, 4),
             pos(3, "Quadratrohr", 80, 80, 4, 1200, 20, 11), pos(4, "Quadratrohr", 40, 40, 2, 1000, 20, 2.5)])
 assert not any(t["innen_von"] is not None for t in alle_teile(r))
 ok("nie Rohr in Rohr (rund und eckig)")
 r = packen([pos(1, "U-Profil", 120, 55, 7, 1200, 30, 15), pos(2, "U-Profil", 80, 40, 6, 1100, 30, 9)])
-innen = [t for t in alle_teile(r) if t["innen_von"] is not None]
-assert len(innen) == 30 and all(t["k"] == 1 for t in innen) and not r["paletten"][0]["pruefung"]
-r2 = packen([pos(1, "U-Profil", 120, 55, 7, 1200, 30, 15), pos(2, "U-Profil", 80, 40, 6, 1100, 30, 9)],
-            {"palette_verschachteln": "nein"})
-assert not any(t["innen_von"] is not None for t in alle_teile(r2))
-assert r["paletten"][0]["hoehe"] < r2["paletten"][0]["hoehe"], (r["paletten"][0]["hoehe"], r2["paletten"][0]["hoehe"])
-r3 = packen([pos(1, "U-Profil", 100, 50, 6, 1000, 5, 15), pos(2, "U-Profil", 80, 45, 6, 1100, 5, 12)])
-assert not any(t["innen_von"] is not None for t in alle_teile(r3))
-ok("U 80 in U 120 (alle 30 im Inneren, niedriger als ohne Verschachteln); längeres Teil nie im kürzeren")
+assert not any(t["innen_von"] is not None for t in alle_teile(r))
+ok("U-Profile verschiedener Größe nie ineinander (Patrick 25.11.2026)")
+r = packen([pos(1, "U-Profil", 40, 20, 5, 1000, 100, 3.5)])
+t = alle_teile(r)
+assert any(x.get("verzahnt") for x in t) and sum(x.get("stapel") or 1 for x in t) == 100, t[:2]
+assert all(not v["fehler"] for v in r["varianten"])
+r2 = packen([pos(1, "U-Profil", 40, 20, 5, 1000, 100, 3.5)], {"palette_verschachteln": "nein"})
+assert not any(x.get("verzahnt") for x in alle_teile(r2))
+assert "U verzahnt" in r["stuecke"][0]["plan_text"]
+ok(f"gleich große U 40 × 20 × 5 abwechselnd offen und umgedreht verzahnt (Ladung {r['paletten'][0]['hoehe']:.0f} mm, "
+   f"lose {r2['paletten'][0]['hoehe']:.0f} mm)")
 r = packen([pos(1, "L-Profil", 60, 60, 6, 1000, 100, 5.4)])
 assert sum(t.get("stapel") or 1 for t in alle_teile(r)) == 100 and any((t.get("stapel") or 1) > 1 for t in alle_teile(r))
 ok("gleiche Winkel ineinander gestapelt (alle 100 Stück in Stapeln)")
@@ -154,6 +165,8 @@ for lauf in range(25):
                          zufall.randint(1, 120), round(zufall.uniform(0.2, 20), 2)))
     if not teile:
         continue
+    for t in teile:
+        t[1]["grundwerkstoff"] = zufall.choice(("Stahl", "Stahl", "Edelstahl", "Aluminium"))
     einst = {"palette_abstand": zufall.choice((0, 0, 3)), "palette_rand": zufall.choice((0, 0, 10)),
              "palette_zwischenlage": zufall.choice((0, 0, 20))}
     lht = zufall.choice(("EUR", "EUR", "GB"))
@@ -166,9 +179,12 @@ for lauf in range(25):
             last = (1000 if p["lht_id"] == "EUR" else 1500)
             einzel = max((t[1]["gewicht"] for t in teile), default=0)
             assert p["netto"] <= last + 1e-6 or einzel > last, (lauf, p["netto"])
+            assert all(lg["voll"] for lg in (p.get("lagen") or [])[:-1]), (lauf, v["code"], p.get("lagen"))
+            assert len({teile[k][1]["grundwerkstoff"] for k, _ in p["inhalt"]}) == 1, (lauf, p["inhalt"])
     assert packen(teile, einst, lht)["paletten"] == r["paletten"]
-ok("25 Zufallsmischungen (Europalette/Gitterbox, Abstände, Zwischenlage): jede Variante ohne Prüffehler, alle Teile "
-   "gepackt, Nutzlast eingehalten, zweimal gerechnet gleich")
+ok("25 Zufallsmischungen (Europalette/Gitterbox, Abstände, Zwischenlage, Stahl/Edelstahl/Alu): jede Variante ohne "
+   "Prüffehler, alle Teile gepackt, Nutzlast eingehalten, je Packstück ein Grundwerkstoff, neue Lagen nur auf "
+   "volle Lagen, zweimal gerechnet gleich")
 
 # Prüfung erkennt Fehler
 t = [dict(e=0, k=0, x0=0, x1=100, y0=0, y1=50, z0=0, z1=50, rund=None, lage=1, innen_von=None, quer=False),

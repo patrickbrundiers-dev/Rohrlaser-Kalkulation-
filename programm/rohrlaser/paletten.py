@@ -239,7 +239,8 @@ def packstuecke(positionen, werte):
             g = summe if not fehlt else None
         out.append(dict(i=i, pos=p.get("pos"), artikel=p.get("artikel") or "", bezeichnung=p.get("bezeichnung") or "",
                         stueck=int(n), gewicht=g if _zahl(g) and g > 0 else None, masse=packmass(p, w),
-                        id=p.get("id"), rund=_rund(p, w), profil=_profil(p, w), gerade=_gerade(p, w)))
+                        id=p.get("id"), rund=_rund(p, w), profil=_profil(p, w), gerade=_gerade(p, w),
+                        werkstoff=w.get("grundwerkstoff")))
     return out
 
 

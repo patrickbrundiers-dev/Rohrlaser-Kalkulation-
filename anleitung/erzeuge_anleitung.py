@@ -16122,8 +16122,13 @@ def kapitel_frachtkosten(i):
         ["Breite", "nie über die Palettenbreite, abzüglich Sicherheitsabstand am Rand"],
         ["Mindestabstand", "zwischen den Teilen einer Lage; Lagen liegen aufeinander (oder auf der Zwischenlage)"],
         ["Rundrohre", "versetzt in den Mulden der Lage darunter, wenn das mehr Teile ergibt"],
-        ["Verschachteln", "kleineres U-Profil in der Öffnung eines größeren (mit Spiel, nie länger als das äußere), "
-                          "gleiche Winkel ineinander gestapelt. <b>Nie Rohr in Rohr.</b>"],
+        ["Verschachteln", "gleich große U-Profile abwechselnd offen und umgedreht verzahnt (eine Reihe über die "
+                          "Breite), gleiche Winkel ineinander gestapelt. Nie verschieden große U ineinander, "
+                          "<b>nie Rohr in Rohr.</b>"],
+        ["Volle Lagen", "eine neue Lage kommt nur auf eine komplett volle Lage; eine angefangene Lage wird mit "
+                        "anderen Profilen aufgefüllt, sonst bleibt sie oben"],
+        ["Grundwerkstoff", "je Packstück nur ein Grundwerkstoff: Stahl zu Stahl, Edelstahl zu Edelstahl, Aluminium "
+                           "zu Aluminium"],
         ["Gewicht und Höhe", "Nutzlast bzw. max. Brutto und max. Gesamthöhe je Packstück; eine schwere Lage wird geteilt"],
         ["Prüfung", "jede Packung wird geometrisch geprüft: keine Überschneidung, Breite, Überstand, Höhe, Abstand"]],
               [40, 225])
@@ -16140,7 +16145,8 @@ def kapitel_frachtkosten(i):
         ["Packkern: Mindestabstand zwischen den Teilen [mm]", "Vorgabe 0 mm"],
         ["Packkern: Sortenreinheit (stark = möglichst je Artikel, aus = nur Platz)", "Vorgabe normal"],
         ["Packkern: max. Artikel je Packstück (0 = ohne Grenze)", "Vorgabe 0"],
-        ["Packkern: Rohre und Profile ineinander verschachteln", "U in U, Winkel ineinander (nie Rohr in Rohr)"],
+        ["Packkern: Rohre und Profile ineinander verschachteln", "gleich große U verzahnt, Winkel ineinander (nie "
+                                                                 "Rohr in Rohr)"],
         ["Packkern: Teile hochkant drehen erlaubt", "Vorgabe ja"],
         ["Packkern: Variante", "automatisch (beste Variante) oder A–D fest"]], [100, 165])
     i.text("<b>Reiter Ladung 2D/3D</b> (Frachtrechner, rechts): oben <i>Variante</i>, <i>Packstück</i>, <i>Lage</i> "

@@ -79,10 +79,7 @@ def _innen(profil):
     a, b, w = _n(a), _n(b) or _n(a), _n(w)
     if w <= 0 or a <= 0:
         return None
-    if form in GESCHLOSSEN:      # Patrick 25.11.2026: nie ein Rohr in ein anderes Rohr legen
-        return None
-    if form == "U-Profil":
-        return ("rechteck", a - 2 * w, b - w) if a - 2 * w > 0 and b - w > 0 else None
+    # Patrick 25.11.2026: nie Rohr in Rohr, U-Profile nur gleich große verzahnt (einheiten), nicht klein in groß
     return None
 
 
@@ -144,6 +141,16 @@ def verschachteln(arten, spiel=SPIEL):
     return {s: n for s, n in sorten.items() if n > 0}
 
 
+def u_verzahnt(b, w, breite, n):
+    """Gleich große U-Profile abwechselnd offen und umgedreht ineinander (Patrick 25.11.2026, Bild U-Stahl
+    40 × 20 × 5): je weiteres U + (b − 2w + Spiel) Breite, Höhe h + w. Anzahl je Reihe über die nutzbare Breite;
+    1 = geht nicht (Öffnung zu schmal für zwei Schenkel)."""
+    if w <= 0 or b - 2 * w < 2 * w + 2 * SPIEL or b > breite + EPS:
+        return 1
+    teilung = b - 2 * w + SPIEL
+    return max(1, min(n, int((breite - b + EPS) // teilung) + 1))
+
+
 def winkel_stapel(a, b, w, hoehe_max):
     """Gleiche Winkel ineinander gestapelt: (Anzahl je Stapel, Querschnitt (b, h)). Jeder weitere Winkel liegt um die
     Wandstärke versetzt; gewählt wird die Anzahl mit der größten Dichte bis zur Höhe hoehe_max."""
@@ -182,6 +189,20 @@ def einheiten(stuecke, auswahl, p, stapel_max):
         if aussen.get("rund") and len(sorte) >= 1 and m:
             e["rund"] = m[1]
         prof = aussen.get("profil")
+        if (len(sorte) == 1 and p["verschachteln"] and prof and prof[0] == "U-Profil" and aussen.get("gerade")
+                and m and n > 1):
+            ub, uh, uw = _n(prof[1]), _n(prof[2]) or _n(prof[1]), _n(prof[3])
+            je = u_verzahnt(ub, uw, p["pb"] - 2 * p["rand"], n)
+            if je > 1:
+                voll, rest = divmod(n, je)
+                for anz, m_ in ((voll, je), (1 if rest > 1 else 0, rest)):
+                    if anz:
+                        out.append(dict(e, sorte=sorte + ("U", m_), artikel={sorte[0]: m_}, n=anz,
+                                        quer=(ub + (m_ - 1) * (ub - 2 * uw + SPIEL), uh + uw), g=g * m_, stapel=m_,
+                                        wand=uw, verzahnt=True, fest=True))
+                if rest == 1:
+                    out.append(dict(e, n=1))
+                continue
         if (len(sorte) == 1 and p["verschachteln"] and prof and prof[0] == "L-Profil" and aussen.get("gerade")
                 and m and n > 1):
             a_, b_, w_ = _n(prof[1]), _n(prof[2]) or _n(prof[1]), _n(prof[3])
@@ -234,6 +255,8 @@ class Lage:
 def _orient(e, drehen):
     """Querschnitte (b quer zur Reihe, h hoch) einer Einheit: flach liegend zuerst, mit Drehen auch hochkant."""
     c1, c2 = e["quer"]
+    if e.get("fest"):                  # verzahnte U: nur so, wie sie liegen
+        return [(c1, c2)]
     o = [(max(c1, c2), min(c1, c2))]
     if drehen and abs(c1 - c2) > EPS:
         o.append((min(c1, c2), max(c1, c2)))
@@ -251,7 +274,8 @@ class Packer:
         # Patrick 25.11.2026: lange Teile bis zur max. Teillänge der Maschine (6.500 mm) stehen an der langen Seite über
         self.lmax = max(self.L, _n(z.get("max_laenge")), p["max_teil"]) if p["offen"] else self.L
         self.hinweise = []
-        self.uebrig = {}                # Einheit -> Stück, die in keine Lage passen (zu lang, zu hoch)
+        self.uebrig = {}
+        self.versetzen = True                # Einheit -> Stück, die in keine Lage passen (zu lang, zu hoch)
         # von Hand je Position (Packliste im Frachtrechner): allein = eigenes Packstück, achse = längs/quer fest
         hand = (p["hand"].get("artikel") or {}) if isinstance(p["hand"], dict) else {}
 
@@ -315,11 +339,11 @@ class Packer:
         lg.h = h
         # versetzt: gleiche Rundrohre wie die Lage darunter, ohne Zwischenlage
         d = e.get("rund")
-        if (d and vorher is not None and not self.p["zl"] and achse == "l" and abs(b - h) < EPS and
+        if (d and self.versetzen and vorher is not None and not self.p["zl"] and achse == "l" and abs(b - h) < EPS and
                 vorher.achse == "l" and not vorher.versetzt and len(vorher.reihen) == r and
                 all(len(rr.teile) == 1 and rr.teile[0][0] == primaer and rr.teile[0][1] == n for rr in vorher.reihen)):
             r2 = int((self.W - d / 2 + self.a + EPS) // (d + self.a))
-            if r2 > 0 and r2 / (d * WURZEL3_2) > r / d + EPS:     # dichter als eine gerade Lage
+            if r2 > 0 and r2 / (d * WURZEL3_2) > r / d + EPS and rest[primaer] >= n * r2:   # dichter, ganze Lage
                 lg.versetzt, lg.dz, r = True, d * WURZEL3_2, r2
         platz = self.reihen_platz(achse)
         gewicht = 0.0
@@ -341,6 +365,8 @@ class Packer:
             rest[primaer] -= 1
             lg.reihen.append(rh)
             return lg
+        if not mischen and not self.voll(lg):     # angefangene Lage mit anderen Profilen auffüllen
+            mischen = "alle"
         if mischen and not lg.versetzt and primaer not in self.allein:
             gewicht = self._auffuellen(lg, primaer, rest, mischen, nur_rest, gewicht)
             self._breite_fuellen(lg, primaer, rest, mischen, nur_rest, platz, gewicht)
@@ -399,13 +425,16 @@ class Packer:
                 if e["x"] > laenge + EPS or not self._artikel_ok(lg, i):
                     continue
                 for b, h in _orient(e, self.p["drehen"]):
-                    if b <= frei + EPS and h <= lg.h + EPS:
+                    # höhere Teile dürfen die Lage füllen (sie wird so hoch wie das höchste), lieber gleich hohe
+                    if b <= frei + EPS and h <= self.frei + EPS:
                         n = self.je_reihe(e, lg.achse, b)
-                        if n > 0 and (best is None or (b, -i) > (best[1], -best[0])):
-                            best = (i, b, h, n)
+                        schl = (-max(0.0, round(h - lg.h, 3)), b, -i)
+                        if n > 0 and (best is None or schl > best[-1]):
+                            best = (i, b, h, n, schl)
             if best is None:
                 return
-            i, b, h, n = best
+            i, b, h, n, _ = best
+            lg.h = max(lg.h, h)
             e = self.E[i]
             k = min(n, rest[i], nur_rest.get(i, rest[i]) if (mischen == "rest" and nur_rest) else rest[i])
             if self.last is not None and e["g"] > EPS:
@@ -419,6 +448,21 @@ class Packer:
             if mischen == "rest" and nur_rest:
                 nur_rest[i] -= k
             gewicht += k * e["g"]
+
+    def voll(self, lg):
+        """Komplett volle Lage (Patrick 25.11.2026: nur darauf darf die nächste Lage): keine Reihe passt mehr
+        daneben und keine Reihe hat Platz für ein weiteres ihrer Teile."""
+        if not lg.reihen:
+            return False
+        platz = self.reihen_platz(lg.achse) - (lg.reihen[0].b / 2 if lg.versetzt else 0.0)
+        if platz - lg.breite(self.a) >= min(r.b for r in lg.reihen) + self.a - EPS:
+            return False
+        laenge = self.L if lg.achse == "l" else self.W
+        for rh in lg.reihen:
+            kuerzest = min(t[2] for t in rh.teile)
+            if max(t[2] for t in rh.teile) <= laenge + EPS and laenge - rh.laenge(self.a) >= kuerzest + self.a - EPS:
+                return False
+        return True
 
     # -------- Gewicht und Höhe
     def gewicht(self, lg):
@@ -510,6 +554,8 @@ def _passt(pk, pal, st):
         return False
     if pk.last is not None and pal.g + g > pk.last + 1e-6:
         return False
+    if pal.lagen and not pk.voll(pal.lagen[-1]):           # nur auf eine komplett volle Lage
+        return False
     alle = pal.arts | arts
     if pal.lagen and len(alle) > 1 and alle & pk.allein_k:      # von Hand: eigenes Packstück
         return False
@@ -543,16 +589,48 @@ def _in_paletten(pk, bloecke, art):
     nach), 'ffd' (First Fit Decreasing nach Länge und Höhe), 'paar' (wie ffd, gleiche Artikel bevorzugt).
     Ergebnis: [[Lage, …] je Ladungsträger]."""
     stapel = []                       # Blöcke in Stapel, die je auf einen Ladungsträger passen
+    n_e = len(pk.E)
+
+    def zurueck(lg, reste):
+        for rh in lg.reihen:
+            for e_i, n, _, _ in rh.teile:
+                reste[e_i] += n
+
     for block in bloecke:
-        akt = _Stapel(pk)
-        for lg in block:
+        akt, schlange, reste = _Stapel(pk), list(block), [0] * n_e
+        while True:
+            if not schlange:          # nach Gewicht geteilte Reste zu ganzen Lagen zusammenpacken (oben im Block)
+                if not any(reste):
+                    break
+                for i in sorted(range(n_e), key=lambda i: (-pk.E[i]["x"], i)):
+                    while reste[i] > 0:
+                        vor = reste[i]
+                        lg = pk.lage(i, reste, "alle")
+                        if lg is None or reste[i] == vor and not lg.reihen:
+                            pk.uebrig[i] = pk.uebrig.get(i, 0) + reste[i]
+                            reste[i] = 0
+                            break
+                        schlange.append(lg)
+                reste = [0] * n_e
+                if not schlange:
+                    break
+            lg = schlange.pop(0)
+            if not schlange and any(reste) and not pk.voll(lg):   # angefangene Lage mit den Resten zusammen
+                zurueck(lg, reste)
+                continue
             if akt.lagen and not _passt(pk, akt, lg):
                 if pk.last is not None and pk.gewicht(lg) > pk.last - akt.g + 1e-6:   # Gewicht: Lage teilen
                     if lg.versetzt:
                         lg.versetzt, lg.dz = False, None
-                    teil, lg = _teilen(pk, lg, pk.last - akt.g)
+                    teil, rest_lg = _teilen(pk, lg, pk.last - akt.g)
                     if teil is not None and _passt(pk, akt, teil):
                         akt.dazu(pk, teil)
+                    elif teil is not None:
+                        zurueck(teil, reste)
+                    zurueck(rest_lg, reste)
+                    stapel.append(akt)
+                    akt = _Stapel(pk)
+                    continue
                 stapel.append(akt)
                 akt = _Stapel(pk)
                 if lg.versetzt:
@@ -606,9 +684,12 @@ def _in_paletten(pk, bloecke, art):
     return [p.lagen for p in pals]
 
 
-def variante(z, p, frei, last, ein, stuecke, code):
-    """Eine Variante packen: (Packer, [[Lage]] je Ladungsträger)."""
+def variante(z, p, frei, last, ein, stuecke, code, versetzen=True):
+    """Eine Variante packen: (Packer, [[Lage]] je Ladungsträger). Neue Lagen nur auf komplett volle Lagen: liegt
+    nach dem Verteilen eine angefangene Lage unter einer anderen (z. B. versetzte Rundrohre ohne ihre Vorlage), wird
+    ohne Versatz neu gepackt; bleibt es, kommt alles darüber auf einen neuen Ladungsträger."""
     pk = Packer(z, p, frei, last, ein, stuecke)
+    pk.versetzen = versetzen
     rest = [e["n"] for e in ein]
     reihenfolge = sorted(range(len(ein)), key=lambda i: (-ein[i]["x"], -(ein[i]["quer"] or (0, 0))[0], i))
     mischen = {"A": None, "B": "alle", "C": "alle", "D": "rest"}[code]
@@ -618,9 +699,24 @@ def variante(z, p, frei, last, ein, stuecke, code):
     art = {"A": "sorte", "B": "folge", "C": "ffd", "D": "paar"}[code]
     pals = _in_paletten(pk, bloecke, art)
     # unten das Lange und Schwere
-    for pal in pals:
-        pal.sort(key=lambda lg: (-max(pk.E[t[0]]["x"] for r in lg.reihen for t in r.teile), -pk.gewicht(lg)))
+    for pal in pals:                            # unten das Lange und Schwere, die angefangene Lage oben
+        pal.sort(key=lambda lg: (not pk.voll(lg), -max(pk.E[t[0]]["x"] for r in lg.reihen for t in r.teile),
+                                 -pk.gewicht(lg)))
         _versetzt_pruefen(pal)                  # Reihenfolge geändert: versetzt nur direkt über der Vorlage
+    if any(not pk.voll(lg) for pal in pals for lg in pal[:-1]):
+        if versetzen:
+            return variante(z, p, frei, last, ein, stuecke, code, versetzen=False)
+        neu = []
+        for pal in pals:
+            akt = []
+            for lg in pal:
+                akt.append(lg)
+                if not pk.voll(lg):
+                    neu.append(akt)
+                    akt = []
+            if akt:
+                neu.append(akt)
+        pals = neu
     return pk, pals
 
 
@@ -662,7 +758,7 @@ def _teil(pk, out, e_i, x0, x1, y0, y1, z0, z1, lage, quer=False):
     e = pk.E[e_i]
     rund = e.get("rund") if not e.get("stapel") else None
     out.append(dict(e=e_i, k=e["sorte"][0], x0=x0, x1=x1, y0=y0, y1=y1, z0=z0, z1=z1, rund=rund, lage=lage,
-                    innen_von=None, quer=quer, stapel=e.get("stapel")))
+                    innen_von=None, quer=quer, stapel=e.get("stapel"), verzahnt=bool(e.get("verzahnt"))))
     # verschachtelt (U in U): jedes innere Teil liegt in der Öffnung des vorigen, auf dessen Steg, quer mittig
     for k, form in e.get("innen") or ():
         o = out[-1]
@@ -797,6 +893,7 @@ def _als_liste(pk, pal, cache):
     t, fehler = cache[sig]
     reihenfolge = sorted(inhalt, key=lambda k: (min(lagen_je[k]), k))
     lagen = [dict(nr=j + 1, achse="längs" if lg.achse == "l" else "quer", versetzt=lg.versetzt, hoehe=lg.h,
+                  voll=pk.voll(lg),
                   stueck={k: sum(n * pk.E[e]["artikel"].get(k, 0) for r in lg.reihen for e, n, _, _ in r.teile)
                           for k in reihenfolge if j in lagen_je[k]}) for j, lg in enumerate(pal)]
     return dict(inhalt=[[k, inhalt[k]] for k in reihenfolge], aufbau=[(k, inhalt[k], len(lagen_je[k]))
@@ -831,7 +928,9 @@ def _lagen_text(pk, e):
     t = f"{n} × {r} Stück ({'längs' if achse == 'l' else 'quer'})" if n > 1 else f"{r} Stück nebeneinander"
     if e.get("innen"):
         t += ", darin " + ", ".join(f"Pos. {pk.S[k]['pos'] or '?'}" for k, _ in e["innen"])
-    if e.get("stapel"):
+    if e.get("verzahnt"):
+        t += f", je {e['stapel']} U verzahnt"
+    elif e.get("stapel"):
         t += f", je {e['stapel']} Winkel ineinander"
     return t
 
@@ -864,7 +963,8 @@ def verschieben(pk, pals, ops, off=0):
         sicher = [(x, x.versetzt, x.dz) for x in rest + ziel]
         _versetzt_pruefen(rest)
         _versetzt_pruefen(ziel)
-        ok = _hoehe(ziel, pk.p["zl"]) <= pk.frei + EPS and (
+        ok = all(pk.voll(x) for x in ziel[:-1]) and all(pk.voll(x) for x in rest[:-1]) and \
+            _hoehe(ziel, pk.p["zl"]) <= pk.frei + EPS and (
             pk.last is None or sum(pk.gewicht(x) for x in ziel) <= pk.last + 1e-6)
         if ok and pk.p["max_artikel"]:
             ok = len({k for x in ziel for r in x.reihen for t in r.teile for k in pk.E[t[0]]["artikel"]}) <= \
@@ -873,8 +973,8 @@ def verschieben(pk, pals, ops, off=0):
             for x, vs, dz in sicher:
                 x.versetzt, x.dz = vs, dz
             hinweise.append(f"Lage {lage} von Packstück {von} passt nicht auf "
-                            f"{'Packstück ' + str(nach) if nach else 'ein neues Packstück'} (Höhe, Gewicht oder "
-                            "Artikel): nicht verschoben")
+                            f"{'Packstück ' + str(nach) if nach else 'ein neues Packstück'} (Höhe, Gewicht, Artikel "
+                            "oder Lage darunter nicht voll): nicht verschoben")
             continue
         pals[i] = rest
         if nach:
@@ -897,32 +997,37 @@ def packen(leer, stuecke, gruppen, std, v, hinweise, fertig, max_je=None):
         mit = [it for it in items if not (it["plan"] is not None and it["plan"].hand) and stuecke[it["k"]]["masse"]
                and p["pl"] and p["pb"] and frei > 0]
         ohne = [it for it in items if not any(it is m for m in mit)]
-        ein = einheiten(stuecke, [it["k"] for it in mit], p, frei)
+        # Patrick 25.11.2026: je Packstück nur ein Grundwerkstoff (Stahl zu Stahl, Edelstahl zu Edelstahl …)
+        sorten = {}
+        for it in mit:
+            sorten.setdefault(stuecke[it["k"]].get("werkstoff") or "", []).append(it["k"])
+        teile_ein = [einheiten(stuecke, ks, p, frei) for _, ks in sorted(sorten.items())]
         for c in VARIANTEN:
-            pk, pals = variante(z, p, frei, last, ein, stuecke, c)
-            if c == hand_var and hand.get("verschieben"):
-                hinweise += verschieben(pk, pals, hand["verschieben"], len(erg[c]["paletten"]))
-            cache = {}
-            extra = []
-            for e_i, n in sorted(pk.uebrig.items()):
-                for k, je in pk.E[e_i]["artikel"].items():
-                    extra.append(dict(k=k, n=n * je, g=stuecke[k]["gewicht"] or 0.0, plan=None))
-                    if c == "A":
-                        hinweise.append(f"Pos. {stuecke[k]['pos'] or '?'}: passt mit {_mm(pk.E[e_i]['x'])} mm nicht "
-                                        f"auf {z.get('bezeichnung') or lht_id} (max. {_mm(pk.lmax)} mm bzw. Höhe): "
-                                        "nur nach Gewicht, Sonderladung prüfen")
-            liste = [_als_liste(pk, pal, cache) for pal in pals] + _ohne(ohne + extra, last)
+            liste, extra, cache = [], [], {}
+            for ein in teile_ein:
+                pk, pals = variante(z, p, frei, last, ein, stuecke, c)
+                if c == hand_var and hand.get("verschieben"):
+                    hinweise += verschieben(pk, pals, hand["verschieben"], len(erg[c]["paletten"]) + len(liste))
+                for e_i, n in sorted(pk.uebrig.items()):
+                    for k, je in pk.E[e_i]["artikel"].items():
+                        extra.append(dict(k=k, n=n * je, g=stuecke[k]["gewicht"] or 0.0, plan=None))
+                        if c == "A":
+                            hinweise.append(f"Pos. {stuecke[k]['pos'] or '?'}: passt mit {_mm(pk.E[e_i]['x'])} mm "
+                                            f"nicht auf {z.get('bezeichnung') or lht_id} (max. {_mm(pk.lmax)} mm bzw. "
+                                            "Höhe): nur nach Gewicht, Sonderladung prüfen")
+                liste += [_als_liste(pk, pal, cache) for pal in pals]
+                if pals:
+                    erg[c]["kz"].append(kennzahlen(pk, pals, stuecke))
+                if c == "A":
+                    for e in ein:
+                        t = _lagen_text(pk, e)
+                        if t:
+                            stuecke[e["sorte"][0]]["plan_text"] = t
+                        for k, _ in e.get("innen") or ():
+                            stuecke[k]["plan_text"] = f"verschachtelt in Pos. {stuecke[e['sorte'][0]]['pos'] or '?'}"
+            liste += _ohne(ohne + extra, last)
             erg[c]["paletten"] += fertig(liste, lht_id, z, stuecke, v)
             erg[c]["je_lht"][lht_id] = len(liste)
-            if pals:
-                erg[c]["kz"].append(kennzahlen(pk, pals, stuecke))
-            if c == "A":
-                for e in ein:
-                    t = _lagen_text(pk, e)
-                    if t:
-                        stuecke[e["sorte"][0]]["plan_text"] = t
-                    for k, _ in e.get("innen") or ():
-                        stuecke[k]["plan_text"] = f"verschachtelt in Pos. {stuecke[e['sorte'][0]]['pos'] or '?'}"
     varianten = []
     for c, name in VARIANTEN.items():
         kz = erg[c]["kz"]
