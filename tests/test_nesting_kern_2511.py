@@ -51,7 +51,7 @@ for laengen in (L6, L612):
     t = time.perf_counter()
     p = ne.planen(g, ne.P, laengen)
     dauer = time.perf_counter() - t
-    # Gegenprobe: P wie vor 0.9.493 (Präzisionsrechnung immer) muss denselben Plan liefern
+    # Gegenprobe: P wie vor 0.9.498 (Präzisionsrechnung immer) muss denselben Plan liefern
     with opt.praezision():
         e2, m2 = ne._grundplaene(g, ne._laengen_fuer(g, laengen))
         st = ne._kosten_suche(g, ne._laengen_fuer(g, laengen), "mm", e2, m2)

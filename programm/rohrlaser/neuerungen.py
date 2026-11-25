@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.493", "<b>Nesting-Kern: neue Strategien und schnellerer Vergleich</b> ([[nesting]]): Neu sind "
+    ["0.9.498", "<b>Nesting-Kern: neue Strategien und schnellerer Vergleich</b> ([[nesting]]): Neu sind "
                 "<i>N Gleiche Teile nacheinander</i> (volle Stangen je Artikel, Reste am Stangenende mit der besten "
                 "Füllung), <i>S Satzweise schneiden</i> (Satz aus den Mengen erkannt, Satz nur am Stangenende geteilt) "
                 "und <i>X Automatisch</i>. X bewertet alle Pläne nach Material, Beladungen, Artikelwechseln, "
