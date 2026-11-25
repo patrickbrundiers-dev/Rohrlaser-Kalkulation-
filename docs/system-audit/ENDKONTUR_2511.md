@@ -2,7 +2,7 @@
 
 Master-Auftrag Patrick 25.11.2026: „Nicht mehr die Frage, ob zwei Gehrungen ineinanderpassen, soll entscheidend
 sein, sondern ob zwei beliebige geometrische Schnittkonturen technisch zulässig ineinander verschachtelt werden
-können.“ Version 0.9.487 (vorläufig), kein Schema-Sprung.
+können.“ Version 0.9.488 (vorläufig), kein Schema-Sprung.
 
 ## 1. Recherche: Verfahren für Rohr-Nesting mit Endkonturen
 

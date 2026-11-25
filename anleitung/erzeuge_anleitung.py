@@ -3855,11 +3855,11 @@ def abschnitte_profirst_angebot(i):
             "<b>H Schnellrechnung</b>: nur First-Fit auf der Stangenlänge des Angebots, für sehr große Baugruppen "
             "zum schnellen Überblick; die Tabelle zeigt daneben die Untergrenze (so viele Stangen braucht es "
             "mindestens).",
-            "<b>P Präzisionsoptimierung</b> (seit 0.9.487): rechnet wie A, sucht aber zusätzlich die Reihenfolge "
+            "<b>P Präzisionsoptimierung</b> (seit 0.9.488): rechnet wie A, sucht aber zusätzlich die Reihenfolge "
             "und Drehung der Teile mit Endkonturen bzw. Gehrungen lokal nach (Teile verschieben und tauschen, solange "
             "der Verbrauch sinkt) und gibt der exakten Suche viermal so viele Schritte. Nie schlechter als A; "
             "sinnvoll bei vielen Teilen mit Endkonturen.")
-    i.text("<b>Konturverschachtelung</b> (seit 0.9.487): Nicht nur ebene Gehrungen, sondern beliebige Endkonturen "
+    i.text("<b>Konturverschachtelung</b> (seit 0.9.488): Nicht nur ebene Gehrungen, sondern beliebige Endkonturen "
            "(V, U, S, Bogen, Stufen, Freiform, Gegenrohr, gemessene Enden aus der STEP) legt die Optimierung "
            "ineinander, wenn es technisch zulässig ist. Zwei Nachbarteile rücken nur so weit zusammen, dass die "
            "Schnittkanten an der engsten Stelle im Raum mindestens 2 × Schnittverlust + Abstand (Maschinen) + "
@@ -6424,7 +6424,7 @@ def kapitel_optimieren(i):
             "Gegenrohr fällt weg; <i>Kein Gegenrohr</i> im Dialog entfernt es). Zu kleine Gegenrohre (Rohr ragt seitlich heraus) meldet der Dialog rot. Die alte "
             "Ausklinkung auf Rundrohr Ø rechnet genauso und ist seit 0.9.93 richtig herum gezeichnet (oben und unten "
             "am längsten).",
-            "<b>Endkontur</b> (seit 0.9.487, Rund-, Quadrat- und Rechteckrohr; offene Profile nicht): Knopf "
+            "<b>Endkontur</b> (seit 0.9.488, Rund-, Quadrat- und Rechteckrohr; offene Profile nicht): Knopf "
             "<i>Endkontur …</i> neben dem Ende, im Menüband <i>Endkontur</i> (An Ende A/B), in den Eigenschaften des "
             "3D-Editors oder Rechtsklick auf das Ende – in allen Editoren gleich (Rohr, Baugruppe, Satz in 3D). Arten: "
             "<i>Schräg</i> (frei, auch asymmetrisch mit Versatz), <i>V-Spitze</i>, <i>V-Kerbe</i>, <i>U-Kerbe</i> "
