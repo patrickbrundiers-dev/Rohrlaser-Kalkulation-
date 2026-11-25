@@ -170,6 +170,12 @@ assert 0.2 - 1e-6 <= m < 0.202, m
 assert abs(e.daten["ergebnis"]["marge"] - m) < 1e-9 and "Marge 20" in e.mg_text.text(), e.mg_text.text()
 assert s.auf_marge_setzen(0.2, rueckgaengig=False) == g, "gleiche Rechnung wie die Preisleiter"
 assert e.marge_setzen(0) is None
+_optimieren = s.optimieren
+s.optimieren = lambda **_k: False                   # Schnittplan veraltet und nicht neu rechenbar
+s.stand_optimierung, _stand = (lambda: "veraltet"), s.stand_optimierung
+gewinn_vorher = s.kopf.get("gewinn")
+assert e.marge_setzen(30) is None and s.kopf.get("gewinn") == gewinn_vorher, "nie auf veraltetem Schnittplan"
+s.optimieren, s.stand_optimierung = _optimieren, _stand
 db.einstellung_setzen("zielmarge", 0.25)
 s.neu_laden()
 e.aktualisieren()

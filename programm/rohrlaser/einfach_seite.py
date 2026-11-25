@@ -1322,6 +1322,10 @@ class EinfachBereich(QWidget):
             return None
         if s.stand_optimierung() != "aktuell":
             self.automatisch_rechnen()
+            if s.stand_optimierung() != "aktuell":       # nie auf einem veralteten Schnittplan einstellen
+                self.f.meldung("Marge nicht eingestellt: der Schnittplan ist nicht aktuell. Bitte zuerst „Neu "
+                               "berechnen“ (Schritt 4) und die Hinweise prüfen.", fehler=True)
+                return None
         g = s.auf_marge_setzen(float(prozent) / 100)
         self.aktualisieren()
         return g
