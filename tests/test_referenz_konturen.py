@@ -7,6 +7,7 @@ STEP-Messung und vergleicht jede Kontur mit dem Sollwert aus tests/daten/referen
 - je Sollkontur genau eine gemessene mit gleicher Rolle (konturrolle.py) und Schnittlänge in der Toleranz
 - Schneidbarkeit: Stufe wie im Soll (Standard 1 eindeutig)
 - Baugruppe R10: jedes Rohr wie einzeln, die Platte ist ein Blech
+- Schneidweg-Bilanz (P3): jede Kante zwischen Außenmantel und Schnittfläche gehört zu genau einer Kontur
 Dazu Einzelprüfungen von konturrolle.rolle für Fälle, die kein Referenzteil hat (Fase, fehlende Werte, Gravur).
 
 Aufruf: python tests/test_referenz_konturen.py
@@ -152,6 +153,34 @@ def _():
     liste = [x for x in ba.merkmale(m) if x.get("rolle")]
     assert [x["rolle"] for x in liste].count(kr.DURCHBRUCH) == 2, [x["rolle"] for x in liste]
     assert all(x["schneidbar"] == 1 and x["rolle_grund"] for x in liste), liste
+
+
+@fall("Schneidweg-Bilanz: jede Schnittkante genau einer Kontur, in allen Referenzteilen")
+def _():
+    for name, ts in teile.items():
+        for t in ts:
+            if t.profilform == "Blech":
+                continue
+            b = t.bilanz
+            assert b.get("ok") and b["kanten"] > 0 and b["fehlt"] == b["doppelt"] == b["fremd"] == 0, (name, b)
+            assert abs(b["laenge_kanten"] - b["laenge_konturen"]) <= 0.01, (name, b)
+            assert t.sicherheit.get("schneidweg") == "geprüft", (name, t.sicherheit)
+
+
+@fall("Schneidweg-Bilanz: Befund wird gemeldet, nie still übergangen")
+def _():
+    import step_geometrie as sg
+    t = sg.Teil(datei="x", koerper=1)
+    t.bilanz = dict(ok=False, kanten=10, fehlt=2, doppelt=1, fremd=0, laenge_fehlt=31.4, laenge_kanten=200.0,
+                    laenge_konturen=170.0)
+    sg._bilanz_melden(t)
+    assert t.sicherheit["schneidweg"] == "wahrscheinlich", t.sicherheit
+    assert any("2 Schnittkante(n) ohne Kontur (31.4 mm)" in h and "1 Kante(n) in mehreren" in h for h in t.hinweise), \
+        t.hinweise
+    t2 = sg.Teil(datei="x", koerper=1)
+    t2.bilanz = dict(ok=None, fehler="RuntimeError: x")
+    sg._bilanz_melden(t2)
+    assert t2.sicherheit["schneidweg"] == "wahrscheinlich" and "nicht gerechnet" in t2.hinweise[0]
 
 
 print(f"\n{'Alle Prüfungen bestanden' if not fehler else f'{fehler} Fehler'}")

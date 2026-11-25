@@ -5304,6 +5304,11 @@ def kapitel_step(i):
            "<b>Nächstes zu prüfen ▸</b>. Rolle und Stufe sind nur Anzeige: Schnittlänge, Laserzeit und Preis "
            "ändern sich dadurch nicht. Positionen, die vor dieser Version übernommen wurden, zeigen die Spalten "
            "leer, bis sie neu eingelesen werden.")
+    i.text("<b>Schneidweg-Bilanz</b> (ab 0.9.490): Beim Messen prüft das Programm, dass jede Kante, die der Laser "
+           "schneidet (Kante zwischen Außenmantel und Schnittfläche), zu genau einer Kontur gehört: keine fehlt, "
+           "keine ist doppelt gezählt. Stimmt alles, steht unter Erkennung „schneidweg geprüft“. Sonst erscheint ein "
+           "Hinweis, z. B. „Schneidweg-Bilanz: 2 Schnittkante(n) ohne Kontur (31,4 mm) – Schneidweg bitte prüfen“, und "
+           "das Teil hat etwas weniger Konfidenz. Die Bilanz ändert keinen Messwert und keinen Preis.")
     i.liste("<b>Gewinde, Senkungen, Fließlöcher mit Zeichnung</b>: liegt zum Teil eine Zeichnung oder ein Formular "
             "vor, gleicht die Analyse den Gewinde-Vorschlag aus dem Kernloch damit ab. Stimmt Größe und Anzahl, gilt er "
             "als sicher („bestätigt durch Zeichnung“); weicht die Anzahl ab, bleibt er zu prüfen mit beiden Werten; "

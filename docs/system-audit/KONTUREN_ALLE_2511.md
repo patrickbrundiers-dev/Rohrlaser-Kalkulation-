@@ -14,7 +14,7 @@ Schnittlängen und Preise bleiben gleich, solange kein Test einen Fehler nachwei
 | --- | --- | --- |
 | P1 | Testsammlung: 10 Referenzteile mit Sollmaßen aus der Konstruktion | PR A |
 | P2 | Rolle (8) und Schneidbarkeit (1–4) je Kontur, Importanalyse | PR A |
-| P3 | Schneidweg-Bilanz: jede Schnittkante genau einer Kontur | nach #660 |
+| P3 | Schneidweg-Bilanz: jede Schnittkante genau einer Kontur | PR A |
 | P4 | echte Innenkante bei 3D-Schnitten statt Wand × tan | nach dem Endkonturen-PR |
 | P5 | Viewer 3D/2D: Farben je Rolle, Schalter, Auswahl, Handkorrektur | nach P2 |
 
@@ -60,6 +60,19 @@ findet auch Stufe 3 und 4. Es wird nichts neu gemessen.
 Verteilung über die Prüfbasis (124 Dateien, 445 geschnittene Konturen): 439 Stufe 1, 6 Stufe 3, keine Stufe 4.
 Stufe 3: 5 Enden ohne Grundform (Spitze, Ausklinkung, Gewinde-Gravur-Teil; erkennt der Endkonturen-Thread künftig
 als Konturart, dann Stufe 2) und eine Bohrung Ø 1,5 in 3 mm Wand (Fertigbarkeits-Prüfteil, gewollt).
+
+## P3 Schneidweg-Bilanz
+
+`step_geometrie._schneidweg_bilanz` nimmt jede Kante zwischen Außenmantel und Schnittfläche (das ist eine Kante, die
+der Laser schneidet) und zählt, wie vielen Konturen sie zugeordnet ist: Innenkonturen und Gravuren über die
+Kantenliste der Konturliste (`_KonturListe.kanten`), Enden über die Kanten von Ende A/B. Befunde: Kante ohne Kontur
+(fehlt), Kante in mehreren Konturen (doppelt), Konturkante, die auf keiner Schnittfläche liegt (fremd), und die
+Längensumme (Toleranz 0,01 mm). Ergebnis in `Teil.bilanz`; in der Spalte sicherheit steht `schneidweg=geprüft` bzw.
+`schneidweg=wahrscheinlich` mit einem Hinweis, der den Befund nennt (Konfidenz −8, Ampel unverändert). Kein
+Schema-Sprung, kein neuer Messwert. Offene Profile haben eine eigene Konturerkennung und noch keine Bilanz.
+
+Ergebnis: 149 Rohrteile aus der Prüfbasis und der Testsammlung, **0 fehlende, 0 doppelte Kanten**. Zeit für die
+Bilanz: 0,02 s bei 54 s Messung (0,03 %).
 
 ## Abgrenzung
 

@@ -359,7 +359,7 @@ def kennzahlen(m, liste=None):
 # ---------------------------------------------------------------------------------------------------- Konfidenz
 _ABZUG = {"wahrscheinlich": 8, "unsicher": 25}
 _SICHERHEIT_NAME = {"achse": "Rohrachse", "laenge": "Länge", "profil": "Profil", "wandstaerke": "Wandstärke",
-                    "konturen": "Konturen"}
+                    "konturen": "Konturen", "schneidweg": "Schneidweg-Bilanz"}
 
 
 def konfidenz(m, liste=None, farbe=None, gruende=None):
