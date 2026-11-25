@@ -2380,12 +2380,77 @@ def _rp_erkennen(t, bx, by):
     return treffer[0]
 
 
+def _abwicklungskern_an():
+    """Abwicklungskern eingeschaltet (Modus an oder vergleich, step_abwicklungskern.MODUS)."""
+    import step_abwicklungskern as ak
+    return ak.neu_aktiv()
+
+
 def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
     """Messung als gerades Profil (Rohr, offenes Profil, Flachstahl) mit konstantem Querschnitt. quer: Körper, aus dem
     Lage und Querschnitt kommen (gleiche Lage wie solid, z. B. das geschlossene Rohr zu einem Rohr mit großem
-    Fenster, step_offenes_rohr); Konturen und Enden immer aus solid."""
+    Fenster, step_offenes_rohr); Konturen und Enden immer aus solid.
+    Lage und Querschnitt: bisher über viele ebene Schnitte (_lage, suche) oder mit dem Abwicklungskern aus der
+    Flächenparametrisierung und der Merkmalskarte (step_abwicklungskern, Modus aus/vergleich/an, Rückfall
+    automatisch)."""
+    import step_abwicklungskern as ak
+    if ak.MODUS == "aus":
+        return _profil_messen_kern(solid, datei, koerper, netz, quer)
+    uhr = time.perf_counter()
+    vorgabe, grund = ak.profil_vorgabe(quer if quer is not None else solid)
+    eintrag = dict(datei=datei, koerper=koerper, quer=quer is not None, lage_s=round(time.perf_counter() - uhr, 4))
+    if ak.MODUS == "an" or vorgabe is None:
+        t = _profil_messen_kern(solid, datei, koerper, netz, quer, vorgabe) if vorgabe else None
+        if t is not None and t.profilform:
+            # Selbstprüfung (Plan 2.0, N1): Gegenproben aus den Flächen, sonst Rückfall
+            vertrauen, befunde = ak.gegenproben(t, vorgabe[1], vorgabe[0], quer is not None)
+            eintrag["vertrauen"] = vertrauen
+            if not vertrauen:
+                grund = "Gegenprobe: " + ", ".join(n for n, ok, _ in befunde if not ok)
+                eintrag["befunde"] = [x for n, ok, x in befunde if not ok]
+                t = None
+        if t is not None and t.profilform:
+            eintrag.update(methode="abwicklung", gesamt_s=round(time.perf_counter() - uhr, 4))
+            if ak.stichprobe(datei, koerper):
+                # Dauer-Vergleich (N1): zusätzlich bisher rechnen; bei Abweichung gilt die bisherige Rechnung
+                uhr = time.perf_counter()
+                t_alt = _profil_messen_kern(solid, datei, koerper, netz, quer)
+                eintrag["bisher_s"] = round(time.perf_counter() - uhr, 4)
+                u = ak.vergleichen(t_alt, t)
+                eintrag.update(stichprobe=True, gleich=not u,
+                               unterschiede=[[n, repr(x)[:120], repr(y)[:120]] for n, x, y in u])
+                if u:
+                    t = t_alt
+        else:
+            eintrag.update(methode="bisher", grund=grund or "Abwicklung ohne Profil",
+                           neu_s=round(time.perf_counter() - uhr, 4))
+            uhr = time.perf_counter()
+            t = _profil_messen_kern(solid, datei, koerper, netz, quer)
+            eintrag["bisher_s"] = round(time.perf_counter() - uhr, 4)
+        ak.PROTOKOLL.append(eintrag)
+        return t
+    # Vergleich: beide rechnen, das bisherige Ergebnis gilt
+    t_neu = ak.neu_rechnen(_profil_messen_kern, solid, datei, koerper, netz, quer, vorgabe)
+    eintrag["neu_s"] = round(time.perf_counter() - uhr, 4)
+    if t_neu is not None and t_neu.profilform:
+        eintrag["vertrauen"] = ak.gegenproben(t_neu, vorgabe[1], vorgabe[0], quer is not None)[0]
+    uhr = time.perf_counter()
+    t = _profil_messen_kern(solid, datei, koerper, netz, quer)
+    eintrag["bisher_s"] = round(time.perf_counter() - uhr, 4)
+    u = ak.vergleichen(t, t_neu)
+    eintrag.update(methode="vergleich", gleich=not u, unterschiede=[[n, repr(x)[:120], repr(y)[:120]] for n, x, y in u])
+    ak.PROTOKOLL.append(eintrag)
+    return t
+
+
+def _profil_messen_kern(solid, datei="", koerper=1, netz=False, quer=None, vorgabe=None):
+    """_profil_messen; vorgabe = (ax3, info) aus step_abwicklungskern.profil_vorgabe: Lage und Querschnittslagen
+    stehen fest, statt sie über viele Schnitte zu suchen."""
     t = Teil(datei=datei, koerper=koerper)
-    ax3, regel = _lage(quer if quer is not None else solid)
+    if vorgabe is None:
+        ax3, regel = _lage(quer if quer is not None else solid)
+    else:
+        ax3, regel = vorgabe[0], vorgabe[1]["zs"]
     lok = _transformiere(solid, ax3)
     lok_q = _transformiere(quer, ax3) if quer is not None else lok
 
@@ -2442,16 +2507,38 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
         passend.sort(key=lambda p: p[0] != best[1])        # die Lage von best zuerst
         return best, passend
 
+    def vorgegeben():
+        """Querschnitte an den Lagen der Merkmalskarte (Abwicklungskern): alle frei von Merkmalen und gleich."""
+        lagen = []
+        for z in vorgabe[1]["zs"]:
+            ws = _schnitt(lok_q, z)
+            if not ws or len(ws) > 6:
+                return None, [], False
+            lagen.append((ws[0][0] - sum(w[0] for w in ws[1:]), z, ws))
+        best = max(lagen, key=lambda lg: lg[0])
+        n = len(best[2])
+        if any(len(lg[2]) != n for lg in lagen) or \
+                n >= 2 and not all(_innen_liegend(w[1], lg[2][0][1]) for lg in lagen for w in lg[2][1:]):
+            return None, [], False
+        passend = [(z, ws) for n_, z, ws in lagen if n_ >= best[0] * (1 - QUER_GLEICH)]
+        passend.sort(key=lambda p: p[0] != best[1])
+        return best, passend, n >= 2
+
     t.sicherheit["achse"] = t.sicherheit["laenge"] = \
         "sicher" if len(regel) >= 3 else "wahrscheinlich" if len(regel) == 2 else "unsicher"
-    best, passend = suche(2)
-    for n in range(3, 7):           # Mehrkammerprofil: mehrere Innenkonturen in der Außenkontur
-        if best is not None:
-            break
-        best, passend = suche(n)
-    hohl = best is not None
-    if not hohl:
-        best, passend = suche(1)
+    if vorgabe is not None:
+        best, passend, hohl = vorgegeben()
+        if best is None:
+            return t            # Rückfall in _profil_messen (kein Profil)
+    else:
+        best, passend = suche(2)
+        for n in range(3, 7):           # Mehrkammerprofil: mehrere Innenkonturen in der Außenkontur
+            if best is not None:
+                break
+            best, passend = suche(n)
+        hohl = best is not None
+        if not hohl:
+            best, passend = suche(1)
     if best is None:
         t.hinweise.append("Kein Profilquerschnitt gefunden (Querschnitt nicht über die Länge gleich?)")
         t.sicherheit.update(achse="unsicher", laenge="unsicher", profil="unsicher")
@@ -2652,6 +2739,13 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
         nx, ny = ty, -tx
         if nx * (px - abw.cx) + ny * (py - abw.cy) < 0:     # Normale nach außen
             nx, ny = -nx, -ny
+        rr = math.hypot(px - abw.cx, py - abw.cy)
+        if t.profilform == "Rundrohr" and rr > 0 and _abwicklungskern_an():
+            # Rundrohr exakt: Normale = Richtung von der Mitte (die Sehne des Umrisses über ±0,5 mm kippt je nach Lage
+            # der Stützpunkte bis zu einer halben Teilung, bei Ø40 0,72° – eine radiale Bohrung galt dann als schräg)
+            ex, ey = (px - abw.cx) / rr, (py - abw.cy) / rr
+            qx, qy = (-ey, ex) if -ey * tx + ex * ty >= 0 else (ey, -ex)
+            nx, ny, tx, ty = ex, ey, qx, qy
         normale = (nx, ny, tx, ty)
         u = uc % abw.umfang
         d = dict(z=round(vc, 2), winkel=round(winkel % 360, 1) % 360,
@@ -5714,6 +5808,10 @@ def einstellen(werte):
     NUR_LINIEN = bool((werte or {}).get("netz_linien"))
     NORMTEILE_VOLL = bool((werte or {}).get("normteile_voll"))
     VIRTUELL = (werte or {}).get("virtuell") or None
+    import step_abwicklungskern
+    step_abwicklungskern.modus_setzen((werte or {}).get("abwicklungskern") or step_abwicklungskern.MODUS_START)
+    sp = (werte or {}).get("abwicklungskern_stichprobe")
+    step_abwicklungskern.stichprobe_setzen(step_abwicklungskern.STICHPROBE_START if sp is None else sp)
     vorgabe = {"flach_laenge": 3.0, "gekantet_anteil": 0.85, "naht_spalt": 3.0}
     for name, glob in EINSTELLBAR.items():
         v = (werte or {}).get(name)
@@ -6332,6 +6430,8 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None,
         melden(0, n)
     teile = {}
     uhr = time.monotonic()
+    import step_abwicklungskern as ak
+    n_prot = len(ak.PROTOKOLL)
     for i in range(1, n + 1):
         if i in gel.gleich and i not in auslassen:
             continue
@@ -6342,6 +6442,9 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None,
         teile[i] = koerper_messen(gel, i, netz, flach_bis, auslassen)
     ph = gel.info.setdefault("phasen", {})      # Dauer je Schritt (Benchmark, Master-Auftrag 21.11.2026)
     ph.update(messen_s=time.monotonic() - uhr, gemessen=len(teile))
+    if ak.MODUS != "aus":           # Abwicklungskern: Methode je Profilmessung (Tempo-Protokoll, Support-Paket)
+        ph["abwicklungskern"] = ak.zusammenfassen(ak.PROTOKOLL[n_prot:])
+        del ak.PROTOKOLL[:-ak.PROTOKOLL_MAX]        # langer Lauf: nur die letzten Einträge behalten
     uhr = time.monotonic()
     out = datei_abschliessen(gel, teile, netz, flach_bis, auslassen, melden)
     ph["abschluss_s"] = time.monotonic() - uhr  # Kopien, Anbauteile, Verbund, Nähte

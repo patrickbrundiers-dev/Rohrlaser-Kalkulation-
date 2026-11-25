@@ -150,7 +150,8 @@ def mit_stegen(solid, t, ziel, datei="", koerper=1, netz=False):
     d = t.wandstaerke or ziel["wand"]
     if abs(d - ziel["wand"]) > 0.15:
         return None
-    ax3, _ = g._lage(solid)
+    import step_abwicklungskern as ak
+    ax3 = ak.achssystem(solid)      # mit Abwicklungskern aus den Flächen (gleiches System), sonst _lage
     lok = g._transformiere(solid, ax3)
     zmin, zmax = g._z_bereich(lok)
     qs = _querschnitt(lok, zmin, zmax)
