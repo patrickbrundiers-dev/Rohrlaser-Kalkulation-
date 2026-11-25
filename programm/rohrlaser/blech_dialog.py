@@ -1232,12 +1232,12 @@ class BlechDialog(QDialog):
         zs, k = erg["zuschnitt"], erg["kosten"]
         kanten = f", {erg['kantungen']} Kantung{'en' if erg['kantungen'] != 1 else ''}" if erg["kantungen"] else ""
         t = erg.get("tafel")
-        tafel = (f"<br>Tafel {t['format'][0]:g} × {t['format'][1]:g}: "
+        tafel = (f"<br>Tafel {t['format'][0]:g}x{t['format'][1]:g}: "
                  f"{t['je_tafel']} Stück je Tafel, Bedarf {zahl_als_text(t['tafeln'], 2)} Tafeln für "
                  f"{self.stueck.value()} Stück, Ausnutzung {zahl_als_text(t['ausnutzung'] * 100, 0)} %") if t else ""
         self.summe.setText(
             f"<b>Richtpreis {_euro(erg['richtpreis'])} je Stück</b> (EK-Vorschlag) · Zuschnitt "
-            f"{zahl_als_text(zs['laenge'], 1)} × {zahl_als_text(zs['breite'], 1)} mm{kanten}, "
+            f"{zahl_als_text(zs['laenge'], 1)}x{zahl_als_text(zs['breite'], 1)} mm{kanten}, "
             f"{zahl_als_text(erg['gewicht'], 2)} kg je Teil, Material mit Verschnitt "
             f"{zahl_als_text(erg['gewicht_tafel'], 2)} kg je Teil{tafel}<br>Schneidweg {zahl_als_text(erg['schneidweg'], 0)} mm, "
             f"{erg['einstiche']} Einstiche, Laserzeit {zahl_als_text(erg['zeit'], 1)} s ({erg['gas']})"
@@ -1259,7 +1259,7 @@ class BlechDialog(QDialog):
             t = blech.tafel_belegung(zs["laenge"], zs["breite"], self.stueck.value(),
                                      blech.tafelformate(w.get("blech_tafeln")), sw._z(w.get("blech_tafel_rand")),
                                      sw._z(w.get("blech_tafel_steg")))
-        text = (f"Tafelbelegung {t['format'][0]:g} × {t['format'][1]:g} mm: {t['je_tafel']} je Tafel, Bedarf "
+        text = (f"Tafelbelegung {t['format'][0]:g}x{t['format'][1]:g} mm: {t['je_tafel']} je Tafel, Bedarf "
                 f"{zahl_als_text(t['tafeln'], 2)} Tafeln für {self.stueck.value()} Stück, Ausnutzung "
                 f"{zahl_als_text(t['ausnutzung'] * 100, 0)} %") if t else "Tafelbelegung"
         self.tafel_bild.setzen(t, blech.form_bild(self.eingaben(), zs) if zs else None, text)

@@ -432,8 +432,8 @@ def _frage(plan, frage, optionen, vorschlag=None):
 def _profil_satz(p):
     z = lambda v: f"{v:g}".replace(".", ",")      # noqa: E731
     if p["form"] == "Rundrohr":
-        return f"Ø {z(p['a'])} x {z(p['wand'])}"
-    return f"{z(p['a'])} x {z(p['b'])} x {z(p['wand'])}"
+        return f"Ø {z(p['a'])} x {z(p['wand'])}"      # masstext: Eingabe (Satz für aendern())
+    return f"{z(p['a'])} x {z(p['b'])} x {z(p['wand'])}"      # masstext: Eingabe
 
 
 def naechste_profile(p, profile, n=3):
@@ -823,12 +823,12 @@ def bauen(werte, profile=None, stange=6000.0):
         if not pl.get("laenge"):
             seite = max(100.0, math.ceil((max(d, tief) + 60) / 10) * 10)
             pl.update(laenge=seite, breite=seite)
-            plan["annahmen"].append(f"Plattengröße {seite:g} × {seite:g} mm (nicht genannt)")
+            plan["annahmen"].append(f"Plattengröße {seite:g}x{seite:g} mm (nicht genannt)")
             dk = pl.get("dicke") or 8
             _frage(plan, "Wie groß sollen die Befestigungsplatten sein?",
-                   [(f"{a:g} × {a:g} × {s_:g}", f"Platten {a:g} x {a:g} x {s_:g}".replace(".", ","))
+                   [(f"{a:g}x{a:g}x{s_:g}".replace(".", ","), f"Platten {a:g} x {a:g} x {s_:g}".replace(".", ","))  # masstext: Eingabe
                     for a, s_ in ((seite, dk), (seite + 20, max(dk, 10)), (seite + 50, max(dk, 12)))],
-                   f"{seite:g} × {seite:g} × {dk:g}")
+                   f"{seite:g}x{seite:g}x{dk:g}".replace(".", ","))
         if not pl.get("dicke"):
             pl["dicke"] = 8.0
             plan["annahmen"].append("Plattendicke 8 mm (nicht genannt)")

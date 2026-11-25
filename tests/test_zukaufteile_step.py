@@ -89,7 +89,7 @@ for n, kat in soll.items():
     e = zk.einordnen(MW[n])
     assert (e or {}).get("kategorie") == kat, (n, e, MW[n].get("profilform"))
     assert e is None or (e["vertrauen"] == zk.VORSCHLAG and e["norm"] == "" and e["groesse_quelle"] == "gemessen"), e
-assert "Blindniet" in zk.einordnen(MW["T7"])["grund"] and zk.einordnen(MW["T1"])["groesse"].startswith("Ø24 × 2,5")
+assert "Blindniet" in zk.einordnen(MW["T7"])["grund"] and zk.einordnen(MW["T1"])["groesse"].startswith("Ø24x2,5")
 ok("Z2 Form: Scheibe, Stift, Hülse, Niet und Blindniet sind Vorschläge ohne Norm, Größe gemessen; großer Ring, "
    "langer Rundstahl und Rohr nicht")
 
@@ -148,7 +148,7 @@ assert zd.zeilen[r_stift]["status"] == "ins Angebot"
 r_scheibe = next(r for r, z in enumerate(zd.zeilen) if z["kategorie"] == zk.SCHEIBE)
 zd.setzen(r_scheibe, True)                                         # Vorschlag annehmen
 z = next(z for z in zd.zeilen if z["kategorie"] == zk.SCHEIBE)
-assert z["status"] == "ins Angebot" and z["anzahl"] == 2 and z["bezeichnung"].startswith("Scheibe Ø24 × 2,5"), z
+assert z["status"] == "ins Angebot" and z["anzahl"] == 2 and z["bezeichnung"].startswith("Scheibe Ø24x2,5"), z
 r_huelse = next(r for r, z in enumerate(zd.zeilen) if z["kategorie"] == zk.HUELSE)
 zd.setzen(r_huelse, True)
 zd.ablehnen(next(r for r, z in enumerate(zd.zeilen) if z["kategorie"] == zk.HUELSE))     # doch Fertigungsteil
@@ -177,8 +177,8 @@ erg = step.uebernehmen(werte, [], k, db.zeilen("gewinde"), None, "S235-10219", 3
                        zukauf_liste=db.zukauf_artikel_liste())
 zkp = {p["bezeichnung"]: p for p in erg["positionen"] if p.get("art") == ZUKAUFTEIL and "_zukauf" in p
        and (erg["zukauf_neu"].get(p["_zukauf"].get("neu")) or ({},))[0].get("artikeltyp") == step.NORMTEIL_TYP}
-assert set(zkp) == {"ISO 8734 8x40", "Scheibe Ø24 × 2,5, Bohrung Ø13"}, (set(zkp), erg["bericht"])
-assert zkp["Scheibe Ø24 × 2,5, Bohrung Ø13"]["stueck"] == 6 and zkp["ISO 8734 8x40"]["stueck"] == 3, zkp
+assert set(zkp) == {"ISO 8734 8x40", "Scheibe Ø24x2,5, Bohrung Ø13"}, (set(zkp), erg["bericht"])
+assert zkp["Scheibe Ø24x2,5, Bohrung Ø13"]["stueck"] == 6 and zkp["ISO 8734 8x40"]["stueck"] == 3, zkp
 assert not any("Rivet" in (p.get("bezeichnung") or "") for p in erg["positionen"]), "nicht angehakt bleibt draußen"
 ok("Z4 Angebot: angehakte Zukaufteile kommen als Zukaufteil-Positionen (Scheibe 2 × 3 Stück, Stift 3 Stück), "
    "der nicht angehakte Niet bleibt draußen")

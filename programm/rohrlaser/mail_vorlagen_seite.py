@@ -14,8 +14,8 @@ from . import materialanfragen as mv
 PLATZHALTER = ("{anrede} {ansprechpartner} {lieferant} {projekt} {angebot} {kunde} {kennung} {materialdaten} "
                "{liefertermin} {gueltigkeit} {info} {datum} {gruss} {absender}")
 BEISPIEL = dict(angebot="A-2026-0100", kunde="Muster GmbH", projekt="P-4711", kennung="MA A-2026-0100/1",
-                positionen="- 4 Stangen Quadratrohr 40 x 40 x 3, S235JRH, à 6.000 mm (ca. 85 kg)\n"
-                           "- 20 Stück Lasche (Art.-Nr. L-17), 120 x 60 x 5 mm, S235JR",
+                positionen="- 4 Stangen Quadratrohr 40x40x3, S235JRH, à 6.000 mm (ca. 85 kg)\n"
+                           "- 20 Stück Lasche (Art.-Nr. L-17), 120x60x5 mm, S235JR",
                 liefertermin="KW 49", gueltigkeit="31.12.2026", info="", datum="13.11.2026", absender="")
 
 

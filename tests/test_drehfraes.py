@@ -122,7 +122,7 @@ def _():
     assert drehfraes.daten(JE["D04_Buchse_40_25"])["nur_abmessung"] and JE["D04_Buchse_40_25"]["pruefstatus"] == \
         "prüfen"
     assert JE["D01_Stufenwelle"]["pruefstatus"] == "plausibel" and JE["D06_Platte_Tasche"]["pruefstatus"] == "plausibel"
-    assert drehfraes.text(JE["D03_Bundbuchse"]).startswith("Drehteil Ø50/Ø25 × 50 mm"), drehfraes.text(JE["D03_Bundbuchse"])
+    assert drehfraes.text(JE["D03_Bundbuchse"]).startswith("Drehteil Ø50/Ø25x50 mm"), drehfraes.text(JE["D03_Bundbuchse"])
     f = drehfraes.daten(JE["D06_Platte_Tasche"])
     assert (f["laenge"], f["breite"], f["hoehe"]) == (100, 60, 20) and "Absatz/Tasche" in f["merkmale"], f
     assert all(not m.get("drehfraes") for n, m in JE.items() if n.startswith("N")), "Laserteile ohne Block"
@@ -144,7 +144,7 @@ def _():
         p = {x["artikel"]: x for x in erg["positionen"]}
         assert p["D01_Stufenwelle"]["art"] == ZUKAUFTEIL and p["D06_Platte_Tasche"]["art"] == ZUKAUFTEIL, p
         assert p["N02_RR42_Bohrungen"].get("art") != ZUKAUFTEIL and p["N02_RR42_Bohrungen"]["profil_id"]
-        assert p["D01_Stufenwelle"]["bezeichnung"] == "Drehteil Ø30 × 120 mm S235-10219", p["D01_Stufenwelle"]
+        assert p["D01_Stufenwelle"]["bezeichnung"] == "Drehteil Ø30x120 mm S235-10219", p["D01_Stufenwelle"]
         assert p["D01_Stufenwelle"]["stueck"] == 4 and p["D01_Stufenwelle"]["gewicht_teil"] > 0
         werte, bezuege = erg["zukauf_neu"][p["D01_Stufenwelle"]["_zukauf"]["neu"]]
         assert werte["artikeltyp"] == "Drehteil" and werte["kategorie"] == "Drehteile" and bezuege[0]["preise"] == []
@@ -174,7 +174,7 @@ def _():
         assert not erg["positionen"] and "ungeprüft" in erg["bericht"][0], erg["bericht"]
         erg = step.uebernehmen([dict(JE["D04_Buchse_40_25"], _uebernehmen=True)], [], k, db.zeilen("gewinde"),
                                None, "S235-10219", 1, zukauf_liste=[])
-        assert erg["positionen"][0]["bezeichnung"].startswith("Drehteil Ø40/Ø25 × 50 mm"), erg["positionen"]
+        assert erg["positionen"][0]["bezeichnung"].startswith("Drehteil Ø40/Ø25x50 mm"), erg["positionen"]
         m = dict(JE["D04_Buchse_40_25"])
         assert step.drehfraes_vorbelegen([m], {}) == 0 and m["profilform"] == "Drehteil"
         m = dict(JE["D04_Buchse_40_25"])
@@ -197,7 +197,7 @@ def _():
         z = next(z for z in d.zeilen if z.liste == [0])
         assert z.blech and z.it.parent().data(0, 0x0100) == d.DREHGRUPPE, z.it.parent().data(0, 0x0100)
         assert z.pr.itemText(0) == d.AUTOMATISCH and z.ws.currentText() == "S235-10219"
-        assert "Drehteil Ø30 × 120 mm" in z.it.text(d.SP_HINWEIS) and z.it.checkState(0).name == "Unchecked"  # Zukauf: von Hand
+        assert "Drehteil Ø30x120 mm" in z.it.text(d.SP_HINWEIS) and z.it.checkState(0).name == "Unchecked"  # Zukauf: von Hand
         d.datei_waehlen(1)
         zb = next(z for z in d.zeilen if z.liste == [1])
         assert zb.it.checkState(0).name == "Unchecked" and "PRÜFEN" in zb.it.text(d.SP_HINWEIS)

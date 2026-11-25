@@ -267,7 +267,7 @@ def _():
     quer = next(p for p in s4["positionen"] if p["anzahl"] == 5)
     assert quer["knoten"] == {"Gestell › Seitenrahmen": 4, "Gestell": 1}, quer["knoten"]
     assert len(s4["varianten"]) == 2 and all("Länge" in v["text"] for v in s4["varianten"]), s4["varianten"]
-    assert abs(s4["materialbedarf_mm"]["Quadratrohr 40 × 3"] - 8420) < 1, s4["materialbedarf_mm"]
+    assert abs(s4["materialbedarf_mm"]["Quadratrohr 40x3"] - 8420) < 1, s4["materialbedarf_mm"]
     s1 = dd["S01"]
     assert any(p["kategorie"] == ba.SONSTIGE and p["anzahl"] == 4 for p in s1["positionen"])    # Schrauben
     i5 = dd["I05"]

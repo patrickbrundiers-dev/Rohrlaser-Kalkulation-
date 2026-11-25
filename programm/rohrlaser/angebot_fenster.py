@@ -29,7 +29,7 @@ from .familie_mixin import FamilieMixin
 from .anfrage_ohne_step_dialog import OhneStepMixin
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
-from . import plausibel, satz_flaeche, satz_menge, zusatz_dialog, zusatz_erkennung
+from . import masstext, plausibel, satz_flaeche, satz_menge, zusatz_dialog, zusatz_erkennung
 from .zusatz_dialog import ZusatzDialog
 from .schneidweg_dialog import SchneidwegDialog, gewinde_liste
 from .naht_dialog import NahtDialog
@@ -1445,11 +1445,23 @@ class PositionenModell(QAbstractTableModel):
         if not index.isValid():
             return None
         if self._merk is None:
-            return self._data(index, rolle)
+            return self._anzeige(index, rolle, self._data(index, rolle))
         schl = (index.row(), index.column(), int(rolle))
         if schl not in self._merk:
-            self._merk[schl] = self._data(index, rolle)
+            self._merk[schl] = self._anzeige(index, rolle, self._data(index, rolle))
         return self._merk[schl]
+
+    # Spalten mit Material-/Profilabmessungen: Anzeige in der einheitlichen kompakten Schreibweise ('QR 40x40x3',
+    # masstext, Patrick 25.11.2026); gespeichert bleibt der Wert, wie er ist (Bearbeiten zeigt ihn unverändert)
+    MASS_SPALTEN = frozenset(("profil_id", "bezeichnung", "material"))
+
+    def _anzeige(self, index, rolle, w):
+        if rolle not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole) or not isinstance(w, str) or not w:
+            return w
+        art, x = self.spalten[index.column()]
+        if art == "feld" and getattr(x, "name", None) in self.MASS_SPALTEN:
+            return masstext.text(w)
+        return w
 
     def _data(self, index, rolle):
         s = self.satz.get(index.row())
@@ -1725,6 +1737,8 @@ class PositionenModell(QAbstractTableModel):
         except ValueError as e:
             self.s.f.meldung(str(e), fehler=True)
             return False
+        if f.name == "profil_id" and wert and wert not in self.k.profile:   # andere Schreibweise ('qr 40 x 40 x 3')
+            wert = masstext.finde(wert, self.k.profile) or wert             # = vorhandenes Profil, nicht neu anlegen
         if wert == p.get(f.name):
             return False
         if f.name == "zeit_manuell" and p.get(f.name) is None and wert is not None \

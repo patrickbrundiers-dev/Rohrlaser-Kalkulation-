@@ -19,7 +19,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from . import fracht_angebot, rechnen
+from . import fracht_angebot, masstext, rechnen
 from .angebot import ARBEITSTAGE, KALENDERWOCHE, LIEFERDATUM, WOCHEN, ist_zukaufteil
 from .ausgabe import angebot as angebot_inhalt, angebotstext, aufrunden, haupt_zuerst, kaufm_runden, profiltext
 from .optimierung import umfang
@@ -171,7 +171,7 @@ def _arbeitsgaenge(p, z, k):
     if ist_zukaufteil(p):
         out = [f"Zukaufteil [{_einzeilig(p.get('bezeichnung') or p.get('artikel'))}]"]
     else:
-        out = [f"Profile [{profiltext(p.get('profil_id'), k).replace(' x ', 'x')}]"]
+        out = [f"Profile [{profiltext(p.get('profil_id'), k)}]"]
         ob = rechnen.oberflaeche_von(p)
         if ob:
             out.append(f"Oberfläche [{ob}]")
@@ -531,7 +531,7 @@ def csv_bytes(spalten, zeilen):
     for z in zeilen:
         if len(z) != len(spalten):
             raise ValueError(f"Zeile mit {len(z)} statt {len(spalten)} Spalten")
-        w.writerow(z)
+        w.writerow([masstext.text(x) if isinstance(x, str) else x for x in z])   # Abmessungen kompakt
     return puffer.getvalue().encode("utf-8-sig")
 
 
