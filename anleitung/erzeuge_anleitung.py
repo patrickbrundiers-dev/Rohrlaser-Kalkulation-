@@ -6428,7 +6428,7 @@ def kapitel_optimieren(i):
             "und Bögen und deren Radien, z. B. <i>Freiform: 3 Geraden, 1 Bogen (R7)</i> für ein Schlüsselloch. "
             "Geschnitten wird immer der Umriss der STEP. Erkennungsquote prüfen: "
             "<i>werkzeuge/kontur_erkennung.py</i> (Prüfsatz mit 39 Teilen oder ein eigener Ordner mit STEPs).",
-            "<b>Freimachungen</b> (seit 0.9.493): Ein Rechteck-Ausschnitt mit runden Freimachungen an den Ecken "
+            "<b>Freimachungen</b> (seit 0.9.497): Ein Rechteck-Ausschnitt mit runden Freimachungen an den Ecken "
             "heißt <i>Rechteck 60 × 20, Freimachung 4 × Ø10 mittig</i> (Kreis um die Ecke) bzw. <i>… versetzt</i> "
             "(Kreismitte um den Radius längs einer Seite neben der Ecke, die bessere Variante: weniger Einbrand an "
             "der Ecke). Eine Ausklinkung am Ende mit Freimachungen in den inneren Ecken heißt z. B. <i>Ausklinkung "

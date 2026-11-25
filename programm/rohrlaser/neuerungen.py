@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.493", "<b>Freimachungen erkennen</b> ([[schneidweg_rechner]]): Rechteck-Ausschnitte mit runden "
+    ["0.9.497", "<b>Freimachungen erkennen</b> ([[schneidweg_rechner]]): Rechteck-Ausschnitte mit runden "
                 "Freimachungen an den Ecken heißen jetzt z. B. <i>Rechteck 60 × 20, Freimachung 4 × Ø10 mittig</i> "
                 "(Kreis um die Ecke) oder <i>… versetzt</i> (Kreismitte um den Radius längs einer Seite neben der "
                 "Ecke). Eine Ausklinkung am Ende mit Freimachungen in den inneren Ecken heißt z. B. <i>Ausklinkung "
