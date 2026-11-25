@@ -5292,7 +5292,7 @@ def kapitel_step(i):
            "Teils: ein Klick auf ein Merkmal (auch auf einen Fertigbarkeits-Befund) färbt seinen Bereich im 3D. "
            "<b>Nächstes zu prüfen ▸</b> springt über alle Teile zum nächsten Merkmal, das nicht sicher erkannt ist, "
            "als problematisch oder nicht sicher schneidbar gilt oder eine Regel verletzt.", kurz=True)
-    i.text("<b>Rolle und Schneidbarkeit je Kontur</b> (ab 0.9.489): Die Merkmale zeigen zu jeder Kontur die Spalten "
+    i.text("<b>Rolle und Schneidbarkeit je Kontur</b> (ab 0.9.490): Die Merkmale zeigen zu jeder Kontur die Spalten "
            "<b>Rolle</b> und <b>Schneidbarkeit</b>. Die Rolle sagt, wo die Kontur liegt und was sie ist: "
            "<i>Anfangsschnitt</i> (Ende A), <i>Endeschnitt</i> (Ende B), <i>Anschlusskontur</i> (Sattel gegen ein "
            "Gegenrohr), <i>Innenkontur</i> (Bohrung, Langloch, Senkung), <i>Durchbruch</i> (Durchgang durch beide "
@@ -5487,7 +5487,7 @@ def kapitel_step(i):
            "Grenzen liegen, steht im Anhang ([[step_messung]]).")
     i.abschnitt("Abwicklungskern (schnellere Rohrmessung)", marke="abwicklungskern")
     i.text("Seit dieser Version misst die STEP-Messung Rohre und Profile schneller. Einstellung unter <i>Einstellungen "
-           "→ STEP-Import → Toleranzen (Experte) → Messung: Abwicklungskern</i>. Vorgabe ist <b>an</b>: "
+           "→ STEP-Import: Messung und Toleranzen → Toleranzen (Experte) → Messung: Abwicklungskern</i>. Vorgabe ist <b>an</b>: "
            "der neue Weg wird genutzt, wo er sicher geht, sonst rechnet das Programm automatisch wie bisher. "
            "<b>aus</b> rechnet nur wie bisher. "
            "<b>vergleich</b> rechnet beide Wege, übernimmt den bisherigen und schreibt die Zeiten und Unterschiede "
@@ -9227,7 +9227,10 @@ def kapitel_zukauf_angebot(i):
          "Querschnitt, jede Kontur entlang des Schneidwegs durch die ganze Wand ausgeschnitten, Kreise als exakte "
          "Bohrungen. Anfahrwege zählen nicht zur Kontur; teilt das CAM eine Kontur in Stücke mit kleinem Spalt "
          "(kleiner als die Schnittfuge), wird der Spalt geschlossen wie beim Schneiden. Bögen außer Kreisen bleiben "
-         "Vielecke in der CAM-Toleranz (wenige Hundertstel)."],
+         "Vielecke in der CAM-Toleranz (wenige Hundertstel). Fasen-Enden für den 3D-Kopf (z. B. LT7, Brenner "
+         "30° geneigt, mit Anfahrt) entstehen als exakter Kegelschnitt; Fenster und Schlitze, die ineinander "
+         "münden, werden in sicherer Reihenfolge ausgeschnitten (seit 0.9.489: vorher „BPF-Datei beschädigt“ "
+         "bzw. sehr langsam)."],
         ["<b>ARTUBE</b>", "Liegt das BPF des Teils daneben (gleicher Name im selben Ordner), gilt das BPF. Sonst "
          "wird das 3D-Netz der ARTUBE zum Körper (wie bei TUBX), Bohrungen werden aus den Netzpunkten exakt "
          "nachgebohrt; Eckenradien bleiben Vielecke. Den echten ArTube-Körper (Parasolid) kann nur ArTube selbst "
@@ -9713,6 +9716,21 @@ def kapitel_baugruppen(i):
            "Der Rechenweg steht im Hinweis der Zeile. Der Vorschlag ist gelb markiert und der Status "
            "zeigt den HINWEIS <i>a-Maß nach Regel, bitte bestätigen</i>, bis du das a-Maß prüfst und <b>a-Maß und "
            "Spalt bestätigen</b> drückst oder einen anderen Wert einträgst.")
+    i.abschnitt("Schnitt auf 0 (Aufmaß an der Innenwand)", marke="null_schnitt")
+    i.text("Manche Zeichnungen schneiden genau „auf 0“: Eine Ausklinkung endet exakt in der Ebene der Innenwand, "
+           "der Schnitt liefe an der Innenseite der Gegenwand entlang (z. B. Transportschiene QR 100×5: Seitenwand "
+           "bis 45 mm ausgeklinkt, die Innenseite von Ober- und Unterwand liegt bei 45 mm). Seit 0.9.489 erkennt der "
+           "STEP-Import solche Schnitte und misst sie mit <b>0,1 mm Aufmaß</b>, genau so, als hätte man die Fläche "
+           "im CAD auf 44,9 mm gesetzt. Das ist eine bewusste Ausnahme von „Konturen 100 % wie STEP“ und steht "
+           "deshalb immer am Teil: <i>Schnitt auf 0: … mit 0,1 mm Aufmaß gemessen (bewusst abweichend von der "
+           "STEP …)</i>.", kurz=True)
+    i.text("Einstellung <i>STEP-Import: Schnitt auf 0: Aufmaß [mm]</i> auf der "
+           "Seite <i>STEP-Import: Messung und Toleranzen</i> (Vorgabe 0,1 mm). Mit 0 wird genau wie die STEP "
+           "gemessen, der Hinweis schlägt dann das Aufmaß nur vor. Erkannt werden ebene Schnittflächen, die in "
+           "der Ebene einer geraden Innenwand des Hohlprofils liegen und vor denen im vollen Profil Wandmaterial "
+           "weggeschnitten ist; ein Schnitt mit Abstand zur Innenwand, RP-Profile am Anschlag und offene Profile "
+           "aus einem Rohr bleiben unverändert. Ein Fenster genau so breit wie die Innenweite ist ebenso ein "
+           "Schnitt auf 0.")
     i.abschnitt("Spalt zwischen zwei Teilen", marke="naht_spalt")
     i.text("Liegt zwischen zwei Teilen ein kleiner Spalt (z. B. Blech 1,5 mm neben dem Rohr), erkennt der STEP-Import "
            "dort trotzdem eine Naht und graviert den Umriss bzw. die Positionsmarke genau unter das Blech auf die "
@@ -12778,8 +12796,8 @@ def kapitel_einstellungen(i):
         ["Blech", "Blech-Richtpreis", "Kosten, Tafel, Kanten, Kantbarkeit (Experte), DXF-Ausgabe"],
         ["Schweißen und Konstruktion", "Schweißbaugruppen, Knickrahmen und Steckverbindung",
          "Vorkalkulation, a-Maß, Gravur; Vorgaben für Knickrahmen und Steckverbindungen"],
-        ["Import", "STEP-Import, DXF-Import", "Erkennung, Bohrungen, Dateien, Testfunktion, Toleranzen (Experte); "
-                                              "Layer und Splitter"],
+        ["Import", "STEP-Import, STEP-Import: Messung und Toleranzen, DXF-Import",
+         "Erkennung, Bohrungen, Dateien, Testfunktion; Schnitt auf 0, Toleranzen (Experte); Layer und Splitter"],
         ["Fertigung und Versand", "Lager, Fertigung, Auslastung, Versand und Paletten",
          "Reststücke, Fertigungsstatus, Etiketten, Reklamationen, Schichten, Paletten, Palettenschein"],
     ], [32 * mm, 50 * mm, BREITE - 82 * mm])
@@ -13093,6 +13111,11 @@ def kapitel_einstellungen(i):
          "<b>ja</b> (so rechnete das Programm bis dahin) können einzelne Werte in der letzten Stelle abweichen (Prüfsammlung: 3 von 126 Dateien, "
          "Stützstellen der Wandstärke, ein Konturumriss der Auswahl „geschlossen“ bis 0,23 mm). "
          "Gilt nur für diesen Arbeitsplatz."],
+        ["STEP-Import", "STEP-Import: Schnitt auf 0: Aufmaß [mm] (Schnitt genau in der Ebene der Innenwand; 0 = wie "
+                        "STEP, nur Hinweis)",
+         "Seite <i>STEP-Import: Messung und Toleranzen</i> (seit 0.9.489). Endet ein Schnitt genau in der Ebene "
+         "einer Innenwand, misst der Import ihn so weit vor der Wand (Vorgabe 0,1 mm, Patrick 25.11.2026), mit "
+         "Hinweis am Teil ([[null_schnitt]]). 0 misst genau wie die STEP und zeigt nur den Hinweis mit Vorschlag."],
         ["STEP-Import", "Toleranz Profil aus den Stammdaten ± [mm], Toleranz gleiche Teile einer Baugruppe ± [mm], "
                         "Toleranz Kernloch für Gewinde-Vorschlag ± [mm]",
          "Wie genau die Messung zu einem Profil der Stammdaten passen muss (Vorgabe 0,15 mm), ab wann Körper einer "

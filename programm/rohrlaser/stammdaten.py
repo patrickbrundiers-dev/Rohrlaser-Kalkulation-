@@ -1701,6 +1701,10 @@ EINSTELLUNGEN = (
     # schweiss_spalt_max eine Warnung „Konstruktion prüfen“
     Einstellung("step_naht_spalt", "STEP-Import: Spalt zwischen zwei Teilen bis [mm] gilt noch als Schweißstoß (Naht "
                 "und Gravur)", "STEP-Import", "zahl", 3.0, 0, 10),
+    # Schnitt „auf 0“ (Patrick 25.11.2026, Transportschiene): endet ein Schnitt genau in der Ebene einer Innenwand,
+    # wird er so weit vor der Wand gemessen; bewusste Ausnahme von „Konturen 100 % wie STEP“, am Teil als Hinweis
+    Einstellung("step_null_aufmass", "STEP-Import: Schnitt auf 0: Aufmaß [mm] (Schnitt genau in der Ebene der "
+                "Innenwand; 0 = wie STEP, nur Hinweis)", "STEP-Import", "zahl", 0.1, 0, 2),
     Einstellung("schweiss_spalt_max", "Schweißbaugruppen: Warnung, wenn der Spalt einer Naht größer ist als [mm]",
                 "Schweißbaugruppen", "zahl", 2.0, 0, 10),
     # Vorkalkulation (vorkalk.py): Stundensätze der vorgeschlagenen Arbeitsgänge

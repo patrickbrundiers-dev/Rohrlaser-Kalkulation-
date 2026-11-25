@@ -1762,6 +1762,160 @@ LESER_HINWEIS = "STEP-Leser meldet"
 FASE_TIEFE = 25.0   # mm: so weit darf die Außenkante einer Fase höchstens vom Ende entfernt liegen
 
 
+
+def _z_von_bis(formen):
+    bb = Bnd_Box()
+    for x in formen:
+        BRepBndLib.AddOptimal_s(x, bb, False, False)
+    return bb.CornerMin().Z(), bb.CornerMax().Z()
+
+
+def _merkmale_je_ende_trennen(merkmale, konturzuege, faces, zmin, zmax, tol):
+    """Ein Merkmal, dessen Schnittkanten an beiden Enden liegen, in je ein Merkmal je Ende (und Rest) teilen.
+    Supportpaket 25.11.2026 (Transportschiene aus SolidWorks): Die Aussparungen an beiden Enden sind genau so breit wie
+    das Rohr innen, ihre Seitenwände liegen in der Ebene der inneren Seitenwände. Eine durchgehende Fläche verband so
+    beide Enden zu einem Merkmal, alles zählte als Ende A (1273 mm) und Ende B blieb leer (0 mm). Konturzüge werden je
+    Ende zugeordnet, Flächen nach ihrer Lage (über beide Enden reichende Flächen zu beiden)."""
+    for schl, m in list(merkmale.items()):
+        if not m.get("durch") or not m["kanten"]:
+            continue
+        z0, z1 = _z_von_bis(m["kanten"])
+        if not (z0 - zmin < tol and zmax - z1 < tol and zmax - zmin > 2 * tol):
+            continue
+        gruppen = {"A": [], "B": [], "K": []}
+        for zug in konturzuege(m["kanten"]):
+            g0, g1 = _z_von_bis(zug)
+            a, b = g0 - zmin < tol, zmax - g1 < tol
+            if a and b:
+                gruppen = None      # ein Zug über die ganze Länge: nicht teilbar, wie bisher
+                break
+            gruppen["A" if a else "B" if b else "K"].append(zug)
+        if not gruppen or not gruppen["A"] or not gruppen["B"]:
+            continue
+        bereiche = {g: _z_von_bis([e for zug in zuege for e in zug]) for g, zuege in gruppen.items() if zuege}
+        del merkmale[schl]
+        flaechen = {g: [] for g in bereiche}
+        for f in m["faces"]:
+            f0, f1 = _z_von_bis([faces.FindKey(f)])
+            treffer = [g for g, (g0, g1) in bereiche.items() if f1 >= g0 - tol and f0 <= g1 + tol]
+            for g in treffer or [next(iter(bereiche))]:
+                flaechen[g].append(f)
+        for g, zuege in gruppen.items():
+            if zuege:
+                merkmale[(schl, g)] = dict(m, faces=flaechen[g], kanten=[e for zug in zuege for e in zug])
+
+NULL_AUFMASS = 0.1      # mm: Schnitt genau in der Ebene einer Innenwand („auf 0“) so weit vor der Wand messen (0 = aus,
+#                         nur Hinweis); Einstellung step_null_aufmass (Patrick 25.11.2026, Transportschiene)
+NULL_HINWEIS = "Schnitt auf 0"
+NULL_RAND = 5.0         # mm: so weit um die Stelle herum wird die Schicht angesetzt (Radien an den Ecken der Ausklinkung)
+
+
+def _null_schnitte(lok, ws, zmin, zmax, aufmass):
+    """Schnitte, die genau in der Ebene einer ebenen Innenwand des Hohlprofils enden („auf 0“ geschnitten, z. B. eine
+    Ausklinkung bis auf die Innenseite der Gegenwand; Kunde zeichnet so, Patrick gibt 0,1 mm Aufmaß). Erkennung: eine
+    ebene Fläche des Teils liegt in der Ebene einer geraden Innenkontur des Querschnitts, und direkt vor ihr (entlang
+    ihrer Normalen) stünde im vollen Profil Wandmaterial. Rückgabe (lok, Anzahl): mit aufmass > 0 ist dort eine
+    Schicht von aufmass Dicke Profilmaterial wieder angesetzt (der Schnitt liegt um aufmass vor der Wand), sonst lok
+    unverändert. Scheitert OpenCascade, bleibt lok, wie es ist."""
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakePrism
+    from OCP.TopAbs import TopAbs_REVERSED
+    ebenen = []
+    for w in ws[1:]:
+        for e in _liste(w[1], TopAbs_EDGE):
+            c = BRepAdaptor_Curve(TopoDS.Edge(e))
+            if c.GetType() != GeomAbs_Line:
+                continue
+            a, b = c.Value(c.FirstParameter()), c.Value(c.LastParameter())
+            lg = math.hypot(b.X() - a.X(), b.Y() - a.Y())
+            if lg < 1.0:
+                continue
+            nx, ny = -(b.Y() - a.Y()) / lg, (b.X() - a.X()) / lg
+            ebenen.append((nx, ny, nx * a.X() + ny * a.Y()))
+    if not ebenen:
+        return lok, 0
+    kandidaten = []
+    for f in _liste(lok, TopAbs_FACE):
+        pl = _ebene(f)
+        if pl is None:
+            continue
+        d, o = pl.Axis().Direction(), pl.Location()
+        if abs(d.Z()) > TOL_PARALLEL:
+            continue
+        for nx, ny, k in ebenen:
+            if abs(abs(d.X() * nx + d.Y() * ny) - 1) < TOL_PARALLEL and abs(nx * o.X() + ny * o.Y() - k) < 1e-3:
+                v = (d.X(), d.Y(), d.Z()) if f.Orientation() != TopAbs_REVERSED else (-d.X(), -d.Y(), -d.Z())
+                kandidaten.append((TopoDS.Face(f), v))
+                break
+    if not kandidaten:
+        return lok, 0
+    # volles Profil über die Länge (Querschnitt der Messlage, aus z0 nach zmin geschoben)
+    tr = gp_Trsf()
+    z0 = BRep_Tool.Pnt_s(TopoDS.Vertex(_liste(ws[0][1], TopAbs_VERTEX)[0])).Z()
+    tr.SetTranslation(gp_Vec(0, 0, zmin - z0))
+
+    def huelle(draht):
+        mf = BRepBuilderAPI_MakeFace(TopoDS.Wire(BRepBuilderAPI_Transform(draht, tr, True).Shape()), True)
+        return BRepPrimAPI_MakePrism(mf.Face(), gp_Vec(0, 0, zmax - zmin)).Shape() if mf.IsDone() else None
+
+    profil = huelle(ws[0][1])
+    for w in ws[1:]:
+        h = huelle(w[1])
+        if profil is None or h is None:
+            return lok, 0
+        profil = _boolesch("cut", profil, h)
+    if profil is None:
+        return lok, 0
+    schichten = []
+    probe = max(aufmass, 0.05)
+    # vor der Fläche muss weggeschnittenes Profil liegen (nicht Material des Teils selbst: RP-Profile liegen am
+    # Anschlag doppelt, ein Profil mit Längsschlitz hat Flächen in der Ebene der Innenwand)
+    weg = _boolesch("cut", profil, lok)
+    if weg is None or _volumen(weg) < 1e-6:
+        return lok, 0
+    from OCP.ElSLib import ElSLib
+    treffer = []
+    for f, v in kandidaten:
+        prisma = BRepPrimAPI_MakePrism(f, gp_Vec(*(x * probe for x in v))).Shape()
+        st = _boolesch("common", prisma, weg)
+        if st is not None and _volumen(st) > max(1e-6, 1e-4 * _flaeche(f) * probe):
+            treffer.append((f, v, st))
+    if not treffer or aufmass <= 0:
+        return lok, len(treffer)
+    # Schicht: die ganze Ebene um die Stelle herum (auch der Radius, mit dem der Schnitt tangential aus der Ebene
+    # läuft, wie Patrick die Fläche im CAD um 0,1 mm verschiebt), Dicke aufmass, nur wo das volle Profil Material hat
+    schichten = []
+    for f, v, st in treffer:
+        pl = _ebene(f)
+        bb = Bnd_Box()
+        BRepBndLib.Add_s(st, bb)
+        mn, mx = bb.CornerMin(), bb.CornerMax()
+        uv = [ElSLib.Parameters_s(pl, gp_Pnt(x, y, z)) for x in (mn.X(), mx.X()) for y in (mn.Y(), mx.Y())
+              for z in (mn.Z(), mx.Z())]
+        rand = NULL_RAND
+        mf = BRepBuilderAPI_MakeFace(pl, min(p[0] for p in uv) - rand, max(p[0] for p in uv) + rand,
+                                     min(p[1] for p in uv) - rand, max(p[1] for p in uv) + rand)
+        if not mf.IsDone():
+            return lok, 0
+        sch = _boolesch("common", BRepPrimAPI_MakePrism(mf.Face(), gp_Vec(*(x * aufmass for x in v))).Shape(), profil)
+        if sch is None:
+            return lok, 0
+        schichten.append(sch)
+    from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
+    neu = lok
+    for st in schichten:
+        op = boolesch("plus", neu, st)
+        if not op.IsDone():
+            return lok, 0
+        neu = op.Shape()
+    u = ShapeUpgrade_UnifySameDomain(neu, True, True, False)
+    u.Build()
+    neu = u.Shape()
+    v0 = _volumen(lok)
+    if len(_liste(neu, TopAbs_SOLID)) != 1 or not v0 < _volumen(neu) <= v0 + sum(_volumen(st) for st in schichten) + 1e-6:
+        return lok, 0
+    return TopoDS.Solid(_liste(neu, TopAbs_SOLID)[0]), len(treffer)
+
+
 def _fase_ende(flaechen, zmin, zmax, gz0, gz1, tol=0.01):
     """'A' bzw. 'B', wenn ein Merkmal eine Fase am Ende ist: seine Flächen reichen bis an das Ende (z min bzw. max),
     die Außenkanten (gz0..gz1) liegen aber davor, höchstens FASE_TIEFE entfernt (Schlitze und Ausklinkungen
@@ -2554,6 +2708,16 @@ def _profil_messen_kern(solid, datei="", koerper=1, netz=False, quer=None, vorga
     if not hohl:
         return _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz)
 
+    # nur am gezeichneten Hohlprofil; ein offenes Profil, das aus einem Rohr gemessen wird (quer), liegt immer in der
+    # Ebene der Innenwand seines Rohrs (K07)
+    lok, n_null = _null_schnitte(lok, ws, zmin, zmax, NULL_AUFMASS) if quer is None else (lok, 0)
+    if n_null and NULL_AUFMASS > 0:
+        mm = f"{NULL_AUFMASS:g}".replace(".", ",")
+        t.hinweise.append(f"{NULL_HINWEIS}: {n_null} Schnittfläche(n) genau in der Ebene der Innenwand, mit {mm} mm "
+                          "Aufmaß gemessen (bewusst abweichend von der STEP, Einstellung „Schnitt auf 0: Aufmaß“)")
+    elif n_null:
+        t.hinweise.append(f"{NULL_HINWEIS}: {n_null} Schnittfläche(n) genau in der Ebene der Innenwand (Kante läuft "
+                          "an der Innenseite entlang). Vorschlag: 0,1 mm Aufmaß (Einstellung „Schnitt auf 0: Aufmaß“)")
     innen = ws[1][1]
     s_aussen, s_innen = _strecken(aussen), [s for w in ws[1:] for s in _strecken(w[1])]
     t.wandstaerke = min(_wandstaerke(aussen, w[1], s_aussen, _strecken(w[1]), z0) for w in ws[1:])
@@ -2860,6 +3024,7 @@ def _profil_messen_kern(solid, datei="", koerper=1, netz=False, quer=None, vorga
                      hinweis="Fließlochbohrung (Flowdrill): nicht im Schneidweg")
         liste.append(d)
 
+    _merkmale_je_ende_trennen(merkmale, konturzuege, faces, zmin, zmax, TOL_Z)
     for m in merkmale.values():
         kanten = m["kanten"]
         liste.aktuell = kanten
@@ -5810,7 +5975,8 @@ def _verbund_pruefen(teile, koerper):
 
 
 # Einstellungen des Programms für die Messung (STEP-Import.exe --flach-laenge/--gekantet-anteil), Vorgaben wie oben
-EINSTELLBAR = {"flach_laenge": "FLACHSTAHL_LAENGE", "gekantet_anteil": "GEKANTET_ANTEIL", "naht_spalt": "NAHT_SPALT"}
+EINSTELLBAR = {"flach_laenge": "FLACHSTAHL_LAENGE", "gekantet_anteil": "GEKANTET_ANTEIL", "naht_spalt": "NAHT_SPALT",
+               "null_aufmass": "NULL_AUFMASS"}
 
 
 NORMTEILE_VOLL = False      # True: auch Normteile laut Name voll messen (--normteile-voll: eingebaute Erkennung aus)
@@ -5836,7 +6002,7 @@ def einstellen(werte):
     step_abwicklungskern.modus_setzen((werte or {}).get("abwicklungskern") or step_abwicklungskern.MODUS_START)
     sp = (werte or {}).get("abwicklungskern_stichprobe")
     step_abwicklungskern.stichprobe_setzen(step_abwicklungskern.STICHPROBE_START if sp is None else sp)
-    vorgabe = {"flach_laenge": 3.0, "gekantet_anteil": 0.85, "naht_spalt": 3.0}
+    vorgabe = {"flach_laenge": 3.0, "gekantet_anteil": 0.85, "naht_spalt": 3.0, "null_aufmass": 0.1}
     for name, glob in EINSTELLBAR.items():
         v = (werte or {}).get(name)
         globals()[glob] = float(v) if v is not None else vorgabe[name]
