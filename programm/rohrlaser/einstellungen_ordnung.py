@@ -134,10 +134,15 @@ SEITEN = (
           (_a("Lieferlängen vergleichen", "laenge_vergleich laenge_automatisch laenge_mindest_eur laenge_mindest_anteil "
                                           "laenge_handling_eur laenge_handling_ab laenge_auto_huellkreis laenge_auto"),
            _a("Schnittplan vereinfachen", "muster_mehrverschnitt stangenplan_stabil"),
-           _a("Verschachtelung (Nesting-Arbeitsplatz)", "nesting_strategie nesting_eur_belegung kontur_verschachtelung kontur_sicherheit"),
            _a("Zuschnitt beim Lieferanten", "zuschnitt_verlust zuschnitt_puffer zuschnitt_kosten"),
            _a("Mehrlänge des Händlers", "haendler_mehr_kurz haendler_mehr_lang haendler_mehr_grenze"),
            _a("Mindestabnahme des Lieferanten", "mindestabnahme_kosten"))),
+    # Nesting-Kern (Patrick 25.11.2026): eigene Seite, die Lieferlängen-Regeln wären sonst über 25 Einstellungen
+    Seite("e_verschachtelung", "Verschachtelung", ALLE_PLAETZE,
+          (_a("Verschachtelung (Nesting-Arbeitsplatz)", "nesting_strategie nesting_eur_belegung kontur_verschachtelung "
+                                                        "kontur_sicherheit"),
+           _a("Automatisch, gleiche Teile und Sätze", "nesting_eur_artikelwechsel nesting_eur_zwischenlager "
+                                                      "nesting_zeit_bewerten nesting_saetze nesting_varianten_max"))),
     Seite("e_erp_preise", "ERP-Preisimport",
           "Einkäufe aus der ERP-CSV (Stammdaten → Preise → „Preise aus ERP-CSV …“): das Angebot nimmt nach dem "
           "Optimieren je Abmessung den passenden Kauf der letzten Monate, die Übersicht zeigt den Durchschnitt ohne "
