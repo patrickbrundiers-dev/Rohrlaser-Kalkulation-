@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.492", "<b>Outlook-Import: Kundenbindung, Stückzahlen und STEP-Zuordnung</b> ([[anfrage_import]]): Der "
+    ["0.9.496", "<b>Outlook-Import: Kundenbindung, Stückzahlen und STEP-Zuordnung</b> ([[anfrage_import]]): Der "
                 "Kunde einer Anfrage (automatisch eindeutig erkannt oder von Hand) gilt bis zum Auftrag; Abweichungen "
                 "aus Mail/Formular sind nur ein Hinweis. Kundenwechsel: offene Angebote der Anfrage wechseln nach "
                 "Rückfrage mit, beauftragte nie automatisch; ein Wechsel im Angebot schreibt die Anfrage nach. "

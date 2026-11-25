@@ -1619,7 +1619,7 @@ def kapitel_angebote(i):
             "nimmt der Prüfdialog keinen anderen aus der Mail oder dem Formular. Er zeigt nur den Hinweis, dass die "
             "Mail auf einen anderen Kunden deutet. Ein im Prüfdialog gewählter Kunde wird in die Anfrage "
             "übernommen.",
-            "<b>Kunde ändern</b>: Hat die Anfrage schon Angebote mit dem bisherigen Kunden, fragt ein Fenster, ob die "
+            "<b>Kunde ändern</b>: Hat die Anfrage schon Angebote mit dem bisherigen Kunden, fragt das Fenster <i>Kunde der Anfrage geändert</i>, ob die "
             "<i>offenen Angebote</i> mitwechseln (vorgehakt). <i>Beauftragte Angebote</i> (Auftrag) wechseln nur, "
             "wenn du sie ausdrücklich anhakst. Änderst du den Kunden im Angebot, folgt die Anfrage (Verlauf: <i>im "
             "Angebot gewählt</i>). Bei einem beauftragten Angebot fragt das Programm vorher nach.",
