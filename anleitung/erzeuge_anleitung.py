@@ -15999,7 +15999,8 @@ def kapitel_frachtkosten(i):
                                            "Listenpreis, Schnittstelle, Richtwert, Schätzwert oder <b>Tariflücke</b> "
                                            "(noch kein Preis: wird nie automatisch gewählt); Quelle (Angebot, Liste, "
                                            "Adresse) und Datum des Preisstands"],
-        ["Paket max. Länge/Breite/Höhe/Gurtmaß/Gewicht, Sperrgut max. Länge/Gurtmaß, Sperrgutzuschlag",
+        ["Paket max. Länge [mm], Paket max. Breite [mm], Paket max. Höhe [mm], Paket max. Gurtmaß [mm], Paket max. "
+         "Gewicht [kg], Sperrgut max. Länge [mm], Sperrgut max. Gurtmaß [mm], Sperrgutzuschlag je Paket [€]",
          "Paketregeln je Paket (Maße längste Seite zuerst, Gurtmaß = Länge + 2 × Breite + 2 × Höhe): darüber ist das "
          "Paket Sperrgut (Zuschlag je Paket) bis zu den Sperrgut-Grenzen, darüber nicht als Paket versendbar; leer = "
          "keine Grenze"]], [75, 190])
@@ -16041,12 +16042,15 @@ def kapitel_frachtkosten(i):
         ["Stapelbar, Stapelfaktor", "wie viele übereinander einen Stellplatz teilen"],
         ["Stellplätze je Stück", "z. B. 1 für eine Europalette, 3 für Langgut (leer = 1)"],
         ["Aktiv, Bemerkung", "leer = aktiv; freier Text"],
-        ["Außenlänge, -breite, -höhe [mm]", "Außenmaß des Packstücks für Paketregeln und Gurtmaß (leer = Maße)"],
-        ["Max. Packhöhe [mm]", "Höhe mit Ware für dieses Packmittel (leer = Einstellung Palettenhöhe)"],
-        ["Preis je Stück, Abrechnung, Pfand", "Kauf oder Miete = Preis je Stück; Tausch (Europool) = 0 € mit "
-                                              "Pfand-Hinweis"],
-        ["Sicherungsmaterial [€], Packzeit [min]", "je Packstück; Packzeit × Stundensatz Verpackung"],
-        ["Rahmenhöhe, Rahmengewicht, Rahmenpreis, höchstens Rahmen", "nur Palette mit Aufsetzrahmen: das Programm "
+        ["Außen Länge [mm], Außen Breite [mm], Außen Höhe [mm]", "Außenmaß des Packstücks für Paketregeln und "
+                                                                 "Gurtmaß (leer = Maße)"],
+        ["Max. Gesamthöhe [mm]", "Höhe mit Ware für dieses Packmittel (leer = Einstellung Palettenhöhe)"],
+        ["Preis je Stück [€], Kauf/Miete/Tausch, Pfand/Tauschwert [€]", "Kauf oder Miete = Preis je Stück; Tausch "
+                                                                        "(Europool) = 0 € mit Pfand-Hinweis"],
+        ["Sicherungsmaterial je Stück [€], Packzeit je Stück [min]", "je Packstück; Packzeit × Stundensatz "
+                                                                    "Verpackung"],
+        ["Aufsetzrahmen Höhe [mm], Aufsetzrahmen Gewicht [kg], Aufsetzrahmen Preis [€], Aufsetzrahmen max. Anzahl",
+         "nur Palette mit Aufsetzrahmen: das Programm "
                                                                     "rechnet die Rahmen aus der Ladehöhe (z. B. 350 "
                                                                     "mm Ware = 2 Rahmen à 200 mm, höchstens 5)"]],
               [75, 190])
