@@ -15,7 +15,7 @@ Schnittlängen und Preise bleiben gleich, solange kein Test einen Fehler nachwei
 | P1 | Testsammlung: 10 Referenzteile mit Sollmaßen aus der Konstruktion | PR A |
 | P2 | Rolle (8) und Schneidbarkeit (1–4) je Kontur, Importanalyse | PR A |
 | P3 | Schneidweg-Bilanz: jede Schnittkante genau einer Kontur | PR A |
-| P4 | echte Innenkante bei 3D-Schnitten statt Wand × tan | PR B (0.9.506) |
+| P4 | echte Innenkante bei 3D-Schnitten statt Wand × tan | PR #671 (0.9.508) |
 | P5 | Viewer 3D/2D: Farben je Rolle, Schalter, Auswahl, Handkorrektur | PR A |
 
 ## P1 Testsammlung

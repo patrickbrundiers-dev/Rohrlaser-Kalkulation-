@@ -3928,7 +3928,7 @@ def abschnitte_profirst_angebot(i):
            "Stangenabwicklung und im 3D ist jede Verschachtelung prüfbar. Seit 0.9.492 rechnet ein gemessenes Ende "
            "eines Teils ohne 3D-Schnittbearbeitung ohne Zuschlag für den Schwenk (2D: der Strahl steht senkrecht "
            "zur Oberfläche, die Innenkante liegt unter der Außenkante); vorher lag z. B. eine V-Spitze 20 mm am "
-           "Rechteckrohr 80 × 40 für das Verschachteln 3 mm zu weit vorn. Ab 0.9.506 nimmt ein ebener Schnitt "
+           "Rechteckrohr 80 × 40 für das Verschachteln 3 mm zu weit vorn. Ab 0.9.508 nimmt ein ebener Schnitt "
            "(Gehrung oder schräg in zwei Richtungen) mit 3D-Schnittbearbeitung die Innenkante dort an, wo die "
            "Schnittebene die Innenwand trifft, wie in der STEP, statt pauschal Wand × tan(Winkel) vor der "
            "Außenkante: z. B. 45° an Wand 3 im Mittel gut 2 mm enger, nie enger als sicher. Ohne 3D bleibt es bei "

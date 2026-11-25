@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.506", "<b>Echte Innenkante bei 3D-Schnitten an den Enden</b> ([[nesting]]): Beim Verschachteln beliebiger "
+    ["0.9.508", "<b>Echte Innenkante bei 3D-Schnitten an den Enden</b> ([[nesting]]): Beim Verschachteln beliebiger "
                 "Endkonturen nimmt ein ebener Schnitt (Gehrung oder schräg in zwei Richtungen) mit "
                 "3D-Schnittbearbeitung die Innenkante jetzt dort an, wo die Schnittebene die Innenwand trifft, wie in "
                 "der STEP. Bisher lag sie pauschal Wand × tan(Winkel) vor der Außenkante. Bei 45° an 3 mm Wand rücken "
