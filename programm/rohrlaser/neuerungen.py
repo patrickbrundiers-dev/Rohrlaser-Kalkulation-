@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.492", "<b>EK-CSV-Import und Kundenlisten-Import mit Assistent</b> ([[ek_import_assistent]], [[kunden_csv]]): "
+    ["0.9.494", "<b>EK-CSV-Import und Kundenlisten-Import mit Assistent</b> ([[ek_import_assistent]], [[kunden_csv]]): "
                 "beide Importe laufen jetzt auf einer gemeinsamen Importbasis (Kodierung, Trennzeichen, Dezimalformat, "
                 "mit oder ohne Kopfzeile, Spaltennamen deutsch und englisch, Importprofile auch bei anderer "
                 "Spaltenreihenfolge, Vorschau ohne Datenbankänderung, Importlauf mit Rückgängig, Fehlerbericht). "
