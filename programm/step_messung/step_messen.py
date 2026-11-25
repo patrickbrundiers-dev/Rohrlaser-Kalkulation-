@@ -805,6 +805,8 @@ def main(argv=None):
     ap.add_argument("--flach-laenge", type=float, help="Flachstahl: Länge mindestens × Breite (Vorgabe 3)")
     ap.add_argument("--gekantet-anteil", type=float, help="Kantteil-Grenze Volumenanteil (Vorgabe 0,85)")
     ap.add_argument("--naht-spalt", type=float, help="Schweißstoß: Spalt bis [mm] noch Naht und Gravur (Vorgabe 3)")
+    ap.add_argument("--null-aufmass", type=float, help="Schnitt genau in der Ebene einer Innenwand (auf 0): so viel "
+                    "Aufmaß [mm] messen, 0 = nur Hinweis (Vorgabe 0,1)")
     ap.add_argument("--normteile-voll", action="store_true",
                     help="Normteile laut Bauteilname (DIN 933 …) wie jedes Teil voll messen (sonst nur als Zukaufteil)")
     ap.add_argument("--abwicklungskern", choices=("aus", "vergleich", "an"),
@@ -851,7 +853,7 @@ def main(argv=None):
     if a.netze:
         Path(a.netze).mkdir(parents=True, exist_ok=True)
     einst = {k: v for k, v in (("flach_laenge", a.flach_laenge), ("gekantet_anteil", a.gekantet_anteil),
-                               ("naht_spalt", a.naht_spalt),
+                               ("naht_spalt", a.naht_spalt), ("null_aufmass", a.null_aufmass),
                                ("stege", a.stege), ("virtuell", a.virtuell),
                                ("normteile_voll", a.normteile_voll or None),
                                ("netz_fein", a.netze_fein or None),

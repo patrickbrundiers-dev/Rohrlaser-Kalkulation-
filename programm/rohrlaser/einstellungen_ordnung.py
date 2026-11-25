@@ -179,7 +179,10 @@ SEITEN = (
           (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_zukauf_begriffe step_benennung step_werkstoff werkstoff_gleichnamen"),
            _a("Bohrungen", "bohren_laser fliessloch_laser bohr_gewinde_gaenge bohr_flowdrill_min bohr_flowdrill_faktor"),
            _a("Dateien", "step_kopieren step_vorschau"),
-           _a("TRUMPF-Programme (LST/TUBX)", "trumpf_zeit programmzeit_einstiche lst_ordner"),
+           _a("TRUMPF-Programme (LST/TUBX)", "trumpf_zeit programmzeit_einstiche lst_ordner"))),
+    # Messung und Toleranzen (25.11.2026, Schnitt auf 0): eigene Seite, „STEP-Import“ hatte die Höchstzahl erreicht
+    Seite("e_step_messung", "STEP-Import: Messung und Toleranzen", ALLE_PLAETZE,
+          (_a("Schnitt auf 0", "step_null_aufmass"),
            _a("Toleranzen", "step_tol_profil step_tol_gleich step_tol_kernloch step_flach_laenge "
                             "step_gekantet_anteil step_zeitlimit step_abwicklungskern", True))),
     # Schnellimport (24.11.2026): eigene Seite („STEP-Import“ hat schon 25 Einträge), nur mit Funktion Schnellimport
