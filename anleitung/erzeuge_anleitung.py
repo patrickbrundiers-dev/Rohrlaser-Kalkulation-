@@ -4315,7 +4315,7 @@ def kapitel_step(i):
             "im Bericht „3D prüfen“. Eine Fase am Ende zählt nur, wenn sie durch die ganze Wand geht (siehe unten). Über der Grenze der Maschine wird begrenzt "
             "(WARNUNG im Status). Ändern je Teil im Schneidweg-Rechner ([[schneidweg_rechner]]); bei Rundrohren ist "
             "die gemessene Querneigung auf etwa ±1,5° genau.",
-            "<b>Fasen an den Enden</b> (seit 0.8.27, erweitert 0.9.491, 0.9.504): Der Import erkennt eine Fase am Rohrende, "
+            "<b>Fasen an den Enden</b> (seit 0.8.27, erweitert 0.9.491, 0.9.505): Der Import erkennt eine Fase am Rohrende, "
             "schreibt den Hinweis „Ende B: Fase erkannt …“ in den Bericht und misst Tiefe (längs), Höhe (in die Wand) "
             "und Winkel der Fase. Gezeigt und gerechnet wird so: "
             "Geht die Fase <b>durch die ganze Wand</b> und ist die <i>3D-Schnittbearbeitung</i> am Teil aktiviert, "
@@ -4326,7 +4326,7 @@ def kapitel_step(i):
             "Länge = längste Länge des Teils, Endschnitt = gerader Schnitt an der Außenkontur, Text „Fase nicht "
             "gelasert“; eine Fase durch die ganze Wand ohne 3D bekommt dazu einen Hinweis. Das Teil bleibt "
             "<i>plausibel</i> und wird ohne Häkchen-Prüfung übernommen.",
-            "<b>Schräge Konturen</b> (seit 0.9.504): Steht die Schnittfläche einer Sonderkontur in der STEP schräg "
+            "<b>Schräge Konturen</b> (seit 0.9.505): Steht die Schnittfläche einer Sonderkontur in der STEP schräg "
             "zur Wand (gemessen ab 0,5°, z. B. ein Fenster mit Schlitz, dessen Flanken 33° geneigt sind), misst der "
             "Import auch ihren Rand auf der Innenwand. Mit <i>3D-Schnittbearbeitung</i> zeigt der Editor die Kontur "
             "wie in der STEP (außen und innen wie gemessen, schräge Flanken) und rechnet sie als Zeile „Kontur 3D“ "
@@ -7823,7 +7823,12 @@ def kapitel_optimieren(i):
             "<i>wie Inventor</i>: Umschalt+Mitte drehen, Mitte verschieben.",
             "<i>wie SolidWorks</i>: Mitte drehen, Strg+Mitte verschieben.",
             "<i>wie Creo</i>: Mitte drehen, Umschalt+Mitte verschieben.",
-            "Bei allen Belegungen bleiben Klick, Auswahl und Messen auf der linken Maustaste.",
+            "Bei allen Belegungen bleiben Klick, Auswahl und Messen auf der linken Maustaste. Seit 0.9.503 dreht "
+            "<b>links ziehen</b> und verschiebt <b>rechts ziehen</b> in jeder Belegung (Rechtsklick ohne Ziehen öffnet "
+            "weiter das Menü), das <b>Mausrad</b> zoomt immer. Die Belegung legt nur die mittlere Taste fest.",
+            "Die Zeile unten in jeder 3D-Ansicht nennt die Tasten der eingestellten Belegung, z. B. bei "
+            "<i>wie Inventor</i>: „Drehen: links oder Umschalt+Rad gedrückt ziehen · Verschieben: rechts oder Rad "
+            "gedrückt ziehen · Mausrad zoomen“.",
             "<i>Zoomrichtung des Mausrads umkehren</i> und <i>Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang) "
             "unter Zoomen bzw. Drehen.")
     i.abschnitt("Schnittansicht und Explosionsansicht", marke="schnitt_explosion_3d")

@@ -319,7 +319,8 @@ class Werkzeug:
                     "Doppelklick aufs Maß ändert es · Rechtsklick Menü")
         if self.ende() is not None:
             return "Griff an der Schnittebene stellt die Gehrung · Pfeiltaste hoch/runter ±1° · Rechtsklick Menü"
-        return "Linke Maustaste dreht um den Punkt unter der Maus · rechte verschieben · Mausrad zoomen · Rechtsklick Menü"
+        from . import ansicht3d, navigation3d        # Hinweis nach der Mausbelegung (Patrick 25.11.2026)
+        return navigation3d.hinweis(navigation3d.werte_lesen(ansicht3d._speicher)) + " · Rechtsklick Menü"
 
     def zeichnen(self, p, bild):
         self._griffe, self._mass_felder = [], []
