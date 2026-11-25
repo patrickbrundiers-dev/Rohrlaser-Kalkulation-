@@ -6499,6 +6499,16 @@ def kapitel_optimieren(i):
             "und Bögen und deren Radien, z. B. <i>Freiform: 3 Geraden, 1 Bogen (R7)</i> für ein Schlüsselloch. "
             "Geschnitten wird immer der Umriss der STEP. Erkennungsquote prüfen: "
             "<i>werkzeuge/kontur_erkennung.py</i> (Prüfsatz mit 39 Teilen oder ein eigener Ordner mit STEPs).",
+            "<b>Freimachungen</b> (seit 0.9.501): Ein Rechteck-Ausschnitt mit runden Freimachungen an den Ecken "
+            "heißt <i>Rechteck 60 × 20, Freimachung 4 × Ø10 mittig</i> (Kreis um die Ecke) bzw. <i>… versetzt</i> "
+            "(Kreismitte um den Radius längs einer Seite neben der Ecke, die bessere Variante: weniger Einbrand an "
+            "der Ecke). Eine Ausklinkung am Ende mit Freimachungen in den inneren Ecken heißt z. B. <i>Ausklinkung "
+            "20 × 30, Freimachung 2 × Ø10 mittig (erkannt, Umriss wie STEP)</i>; geht sie durch zwei Wände, steht "
+            "die Konturart davor (<i>U-Kerbe t 30 b 20, Freimachung …</i>). Erkannt wird nur, wenn Rechteck und "
+            "Kreise den gemessenen Umriss überall auf 0,1 mm treffen. Teile einer Freimachung, die seitlich unter "
+            "der Wand liegen, kommen weiter als eigene Sonderkontur <i>Teil von Ende …</i>. Der Endkontur-Dialog "
+            "wird bei Freimachungen nicht vorbelegt, weil eine Endkontur keine Freimachung kennt und sonst den "
+            "Umriss der STEP ersetzen würde.",
             "<b>Enden mit Hinterschnitt</b> (seit 0.9.240): T-Schlitz, Schlüsselloch-Schlitz, Schwalbenschwanz, "
             "Haken oder eine Bohrung halb über das Ende laufen vom Ende ins Teil und wieder zurück. Der "
             "hinterschnittene Teil steht als <i>Sonderkontur „Teil von Ende …“</i> (zum Ende hin offen) im Editor, "

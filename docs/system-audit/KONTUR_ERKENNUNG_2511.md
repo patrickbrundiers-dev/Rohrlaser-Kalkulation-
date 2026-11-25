@@ -93,3 +93,21 @@ Gehrungen in 3D (`e.d3` + Winkel) unverändert. `test_regression_ergebnisse` gr�
   - Ellipse ist kein Kreis.
   - Zuschlag 2D/3D.
   - Prüfsatz über den echten Import mit Anzeige und Verschachtelungstiefe.
+
+## 6. Freimachungen (Nachtrag 25.11.2026)
+
+Patrick fragte mit Skizze: Ø10 an der Ecke „ungünstig“ (mittig) und „besser“ (versetzt).
+
+- `form_erkennung.freimachung(pts, stuecke, tol, band=False)`: Rechteck aus den Geraden, Bögen je Ecke gesammelt und neu
+  ausgeglichen (ein Kreis zerfällt in der Messung oft in zwei Bögen), Lage des Mittelpunkts zur Ecke: mittig (≤ 0,3 mm)
+  oder um r längs einer Seite versetzt. Geprüft wird die Vereinigung Rechteck + Kreise gegen den Umriss (Messpunkt →
+  Form 0,1 mm, Form → Messung 0,3 mm).
+- Ergebnis `form_erkannt`: `typ` „Rechteck mit Freimachung“, `laenge`, `breite`, `winkel`, `mitte`,
+  `freimachung_d`, `freimachung_lage` („mittig“, „versetzt“, „gemischt“), `freimachung_anzahl`, `ecken`, `text`.
+- Ende: `endkontur.erkennen` versucht nach den Grundarten jede vertiefte Stelle des Endes als geschlossenen Umriss
+  (Tiefe je Umfangsstelle, mit `band`: Kreise nur im Streifen der Ausklinkung). Ergebnis `kontur_erkannt` mit
+  `freimachung` (`d`, `lage`, `anzahl`, `text`) und entweder `kontur` (Grundart ohne Freimachung, z. B. U-Kerbe durch
+  zwei Wände) oder `kontur` None mit `ausklinkung` (`breite`, `tiefe`, `mitte_s`) und `text` „Ausklinkung b × t“.
+  `endkontur.erkannt_text` setzt die Anzeige zusammen. Mit Hinterschnitt (`ausflug`) wird nur so erkannt.
+- Prüfteile: `SK_RE80x40_FreiMittig`, `SK_RE80x40_FreiVersetzt`, `EK_RE80x40_AusklinkungFrei` und Patricks Teile
+  A/B/C (`/mnt/project-files/testteile/freimachung/`): alle erkannt.

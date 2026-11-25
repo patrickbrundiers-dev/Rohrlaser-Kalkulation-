@@ -970,7 +970,99 @@ def _runden(k, stellen):
     return out
 
 
-def erkennen(qs, umriss_gemessen, tol=ERKENNUNG_TOL):
+def erkennen(qs, umriss_gemessen, tol=ERKENNUNG_TOL, nur_freimachung=False):
+    """Konturart eines gemessenen Endes: dict(kontur, abweichung[, freimachung]) oder None. Zuerst die Grundarten
+    (_erkennen_grund), sonst Ausklinkung mit runden Freimachungen an den inneren Ecken (Patrick 25.11.2026):
+    freimachung = dict(d, lage, anzahl, text), kontur = die Ausklinkung ohne Freimachung (U-Kerbe …).
+    nur_freimachung: Ende mit Hinterschnitt (Teile der Freimachung als eigene Sonderkontur): nur so erkennen."""
+    er = None if nur_freimachung else _erkennen_grund(qs, umriss_gemessen, tol)
+    if er is None:
+        try:
+            er = _erkennen_freimachung(qs, umriss_gemessen, tol)
+        except (ValueError, ZeroDivisionError, TypeError):
+            er = None
+    return er
+
+
+def erkannt_text(er):
+    """Anzeige einer erkannten Konturart (dict aus erkennen): 'U-Kerbe t 30 b 20, Freimachung 2 × Ø10 mittig' bzw.
+    'Ausklinkung 20 × 30, Freimachung 2 × Ø10 mittig'."""
+    if not isinstance(er, dict):
+        return ""
+    k = lesen(er.get("kontur"))
+    grund = text(k) if k else str(er.get("text") or "")
+    f = er.get("freimachung")
+    return grund + (f", {f['text']}" if grund and isinstance(f, dict) and f.get("text") else "")
+
+
+def _erkennen_freimachung(qs, umriss_gemessen, tol):
+    """Ausklinkung mit Freimachungen an den inneren Ecken: jede vertiefte Stelle als geschlossenen Umriss (Abstand je
+    Umfangsstelle, am Ende mit d = 0 geschlossen) an form_erkennung.freimachung geben. Ergibt die Ausklinkung ohne
+    Freimachung eine Grundart (z. B. U-Kerbe durch zwei Wände), ist das die Kontur; sonst (eine Wand) heißt sie
+    „Ausklinkung b × t“ (kontur None, text)."""
+    from . import form_erkennung as fe
+    U = qs.umfang
+    pts = sorted(((float(s) % U, max(float(d), 0.0)) for s, d in umriss_gemessen), key=lambda p: p[0])
+    if len(pts) < 4:
+        return None
+    flach = [i for i, p in enumerate(pts) if p[1] <= tol]
+    if not flach:
+        return None
+    i0 = flach[0]                           # bei einer flachen Stelle beginnen, über den Umfang abwickeln
+    ring = [(p[0] + (U if i < i0 else 0.0), p[1]) for i, p in enumerate(pts)]
+    ring = ring[i0:] + ring[:i0] + [(ring[i0][0] + U, ring[i0][1])]
+    tief = [p[1] > tol for p in ring]
+    stellen = []
+    i = 1
+    while i < len(ring):
+        if tief[i] and not tief[i - 1]:
+            b = next((j for j in range(i, len(ring)) if not tief[j]), None)
+            if b is None:
+                return None
+            stellen.append((i - 1, b))
+            i = b
+        i += 1
+    if not stellen or len(stellen) > 4:
+        return None
+    formen = []
+    for a, b in stellen:
+        poly = ring[a:b + 1]
+        poly_p = fe._punkte(poly)
+        st = fe.zerlegen(poly, min(tol, fe.ZERLEGEN_TOL), tol)
+        f = fe.freimachung(poly_p, st, tol, band=True) if poly_p and st else None
+        if not f or abs(f["winkel"]) > 1e-6:
+            return None
+        s1, s2 = f["mitte"][0] - f["laenge"] / 2, f["mitte"][0] + f["laenge"] / 2
+        t1, t2 = f["mitte"][1] - f["breite"] / 2, f["mitte"][1] + f["breite"] / 2
+        if abs(t1) > tol or any(e["ecke"] in (0, 1) for e in f["ecken"]):
+            return None                     # am Ende beginnend, Freimachung nur am Grund der Ausklinkung
+        formen.append((a, b, s1, s2, t2, f))
+    d_ = {f["freimachung_d"] for *_, f in formen}
+    if len(d_) != 1:
+        return None
+    grund, vorher = [], 0
+    for a, b, s1, s2, t2, f in formen:      # Ausklinkung ohne Freimachung (Wände wie gemessen fast senkrecht)
+        grund += ring[vorher:a + 1] + [(s1 - 1e-3, 0.0), (s1 + 1e-3, t2), (s2 - 1e-3, t2), (s2 + 1e-3, 0.0)]
+        vorher = b
+    grund += ring[vorher:-1]
+    er = _erkennen_grund(qs, [[p[0] % U, p[1]] for p in grund], tol)
+    lagen = {f["freimachung_lage"] for *_, f in formen}
+    n = sum(f["freimachung_anzahl"] for *_, f in formen)
+    lage = lagen.pop() if len(lagen) == 1 else "gemischt"
+    frei = dict(d=d_.pop(), lage=lage, anzahl=n)
+    frei["text"] = f"Freimachung {n} × Ø{fe._zahl(frei['d'])} {lage}"
+    abw = max(f["abweichung"] for *_, f in formen)
+    if er:
+        return dict(kontur=er["kontur"], abweichung=abw, freimachung=frei)
+    if len(formen) != 1:
+        return None
+    _, _, s1, s2, t2, f = formen[0]
+    return dict(kontur=None, abweichung=abw, freimachung=frei,
+                ausklinkung=dict(breite=round(s2 - s1, 2), tiefe=round(t2, 2), mitte_s=round(((s1 + s2) / 2) % U, 2)),
+                text=f"Ausklinkung {fe._zahl(s2 - s1)} × {fe._zahl(t2)}")
+
+
+def _erkennen_grund(qs, umriss_gemessen, tol=ERKENNUNG_TOL):
     """Konturart eines gemessenen Endes (Umriss [[s, Abstand]] aus dem STEP-Import) erkennen: dict(kontur=…,
     abweichung=mm) oder None. Erkannt gilt nur eine Kontur, deren Verlauf den gemessenen Umriss überall auf tol trifft
     (kurven_abstand, Grundregel 100 % wie die STEP). Der gemessene Umriss bleibt trotzdem maßgebend; die Kontur

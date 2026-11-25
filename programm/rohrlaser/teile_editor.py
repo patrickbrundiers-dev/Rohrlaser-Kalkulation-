@@ -109,9 +109,9 @@ def ende_text(x):
     if kontur and not w:                    # Endkontur (V/U/Bogen/Stufen …) aus dem Endkontur-Dialog
         return f"Endkontur {endkontur.text(kontur)}"
     erkannt = x.get("kontur_erkannt") if isinstance(x.get("kontur_erkannt"), dict) else None
-    if not w and erkannt and endkontur.lesen(erkannt.get("kontur")) and x.get("umriss"):
+    if not w and erkannt and endkontur.erkannt_text(erkannt) and x.get("umriss"):
         # komplexes Ende, als Konturart erkannt (Umriss bleibt maßgebend, Patrick 25.11.2026)
-        return f"{endkontur.text(erkannt['kontur'])} (erkannt, Umriss wie STEP)"
+        return f"{endkontur.erkannt_text(erkannt)} (erkannt, Umriss wie STEP)"
     if not w:      # komplexes Ende aus der STEP (z. B. Ausschnitt bis ans Ende, Ecke schräg): nicht „gerade“ nennen
         return "gerade" if x.get("form") in (None, "", "gerade") else f"{x['form']} (Umriss wie STEP)"
     return f"Gehrung {_z(w)}°" + (f" {x['achse']}" if x.get("achse") else "") + (" 3D" if x.get("d3") else "")

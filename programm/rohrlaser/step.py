@@ -1180,13 +1180,15 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     e.pop("schwenk", None)
                 elif um and not gg:
                     e["umriss"] = um
-                    if not ausflug:         # Konturart erkennen (V/U/Bogen/Stufen …), der Umriss bleibt maßgebend
-                        try:
-                            er = endkontur.erkennen(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), um)
-                        except (ValueError, TypeError, ZeroDivisionError):
-                            er = None
-                        if er:
-                            e["kontur_erkannt"] = er
+                    # Konturart erkennen (V/U/Bogen/Stufen …), der Umriss bleibt maßgebend; mit Schnitt ins Teil und
+                    # zurück (Hinterschnitt) nur als Ausklinkung mit Freimachung
+                    try:
+                        er = endkontur.erkennen(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), um,
+                                                nur_freimachung=bool(ausflug))
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        er = None
+                    if er:
+                        e["kontur_erkannt"] = er
                     for zug in ausflug:     # Schnitt vom Ende ins Teil und zurück: Sonderkontur am Ende
                         k = _ende_ausflug(zug, art[-1], m, mform, s_von, s_umfang, mbreit, mschmal, bool(r_mess))
                         if k:
