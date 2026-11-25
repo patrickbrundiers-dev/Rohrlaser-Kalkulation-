@@ -1591,7 +1591,36 @@ def nesting_daten(g, info, kopf, positionen, k, tabellen, einst, m):
                 min_rest=einstellung_wert(einst, "rest_min_laenge"),
                 min_nutz=einstellung_wert(einst, "rest_min_nutz"),
                 mehrverschnitt=einstellung_wert(einst, "muster_mehrverschnitt") or 0.02,
-                gewichte=dict(belegung=einstellung_wert(einst, "nesting_eur_belegung"), rest_mm=0.0))
+                gewichte=dict(belegung=einstellung_wert(einst, "nesting_eur_belegung"), rest_mm=0.0,
+                              **nesting_gewichte_x(g, kopf, positionen, k, tabellen, einst, m)))
+
+
+def nesting_gewichte_x(g, kopf, positionen, k, tabellen, einst, m):
+    """Gewichte der Mehrzielbewertung (Strategie X, Patrick 25.11.2026): € je Artikelwechsel, € je Teil im
+    Zwischenlager, € je Minute Schneidzeit (Stundensatz der Maschine / 60, wenn eingeschaltet), Satzzahl (0 =
+    automatisch) und die Zeitwerte der Maschinenzeit (nesting.maschinenzeit) oder None ohne Schneiddaten."""
+    zeit = nesting_zeitwerte(g, kopf, positionen, k, tabellen, m)
+    minute = _n((m or {}).get("stundensatz")) / 60 if einstellung_wert(einst, "nesting_zeit_bewerten") == "ja" else 0.0
+    return dict(artikelwechsel=_n(einstellung_wert(einst, "nesting_eur_artikelwechsel")),
+                zwischenlager=_n(einstellung_wert(einst, "nesting_eur_zwischenlager")), minute=round(minute, 6),
+                saetze=int(_n(einstellung_wert(einst, "nesting_saetze"))), zeit=zeit)
+
+
+def nesting_zeitwerte(g, kopf, positionen, k, tabellen, m):
+    """(s je Stangenwechsel, s je mm Trennschnitt, s je Schnitt für Einstiche) aus Maschine und den Schneiddaten der
+    ersten Position der Gruppe (Vorschub groß, Einstechzeit) – eine Schätzung für den Strategievergleich; None ohne
+    Schneiddaten."""
+    try:
+        wechsel = stangenwechsel_zeiten(m or {})[1 if any(t.drehung == opt.FEST for t in g.teile) else 0]
+        p = positionen[g.teile[0].zeile - ZEILE0]
+        _, v, _ = schneidzeit(p, kopf_von(p, kopf), wand_position(p, k), tabellen, k)
+        h = _n(v[0])
+        if not h:
+            return None
+        pr = (k.profile.get(g.profil) if k is not None else None) or {}
+        return (round(wechsel, 3), round(60.0 / h, 6), round(einstiche_ende(pr.get("form")) * _n(v[4]), 3))
+    except Exception:       # noqa: BLE001 – ohne Schneiddaten keine Zeitschätzung
+        return None
 
 
 def nesting_planen(g, wahl, daten, bisher=None):

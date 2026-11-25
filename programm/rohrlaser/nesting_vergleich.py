@@ -26,7 +26,13 @@ SPALTEN = (("name", "Strategie"), ("laengen", "Stangen"), ("gekauft_m", "Eingeka
            ("verschnitt_mm", "Verschnitt [mm]"), ("ausnutzung", "Ausnutzung"), ("eur_teil", "€ je Teil"),
            ("beladungen", "Beladungen"), ("belegungen", "Belegungen"), ("ersparnis", "Einkauf ggü. bisher [€]"),
            ("ineinander", "Enden ineinander"), ("konturen", "davon Endkonturen"), ("trennschnitte", "Trennschnitte"),
+           ("schnitte", "Schnitte"), ("artikelwechsel", "Artikelwechsel"), ("zwischenlager", "Zwischenlager [Teile]"),
+           ("maschine_min", "Maschinenzeit planabh. [min]"), ("punkte", "Bewertung X [€]"),
            ("machbar", "Machbarkeit"), ("zeit", "Rechenzeit [s]"))
+EIGENE = (BISHER, AKTUELL, OHNE_KONTUR)
+# Kennzahlen für „übertroffen“ (Variantenlogik, Patrick 25.11.2026): kleiner ist besser
+DOMINANZ = ("gekauft_m", "einkauf", "beladungen", "belegungen", "verschnitt_mm", "artikelwechsel", "zwischenlager",
+            "maschine_min")
 
 
 def _gruppen(kopf, positionen, k, tabellen, einst):
@@ -71,7 +77,69 @@ def zeile(name, werte, bisher=None, zs=None, zeit=None):
                 verschnitt_mm=w.get("verschnitt_mm"), ausnutzung=w.get("ausnutzung"), eur_teil=w.get("eur_teil"),
                 beladungen=w["beladungen"], belegungen=w.get("belegungen"), ersparnis=ersparnis, zeit=zeit,
                 ineinander=w.get("ineinander"), konturen=w.get("konturen"), trennschnitte=w.get("trennschnitte"),
-                zuschnitt=bool(zs), machbar="zulässig", zulaessig=True)
+                schnitte=w.get("schnitte"), artikelwechsel=w.get("artikelwechsel"),
+                zwischenlager=w.get("zwischenlager"), zuschnitt=bool(zs), machbar="zulässig", zulaessig=True)
+
+
+def abdruck(p):
+    """Fingerabdruck eines Plans: Stangen in Reihenfolge mit Länge, Teilen, Drehung und Reststück."""
+    return tuple((laenge, tuple((t.zeile, t.nr, r) for t, r in f), rest) for laenge, f, rest in p.stangen)
+
+
+def zeile_von(v, s):
+    """Tabellenzeile der Strategie s (auch wenn s mit einer anderen Strategie in einer Zeile steht) oder {}."""
+    return next((z for z in v["zeilen"] if z["strategie"] == s or s in z.get("auch", ())), {})
+
+
+def _uebertroffen(a, b):
+    """Ist Zeile a in jeder Kennzahl höchstens so gut wie b und in einer schlechter (b übertrifft a)?"""
+    schlechter = False
+    for n in DOMINANZ:
+        x, y = a.get(n), b.get(n)
+        if x is None or y is None:
+            if x is None and y is None:
+                continue
+            return False
+        if y > x + 1e-6:
+            return False
+        if y < x - 1e-6:
+            schlechter = True
+    return schlechter
+
+
+def varianten_ordnen(zeilen, empfohlen, gewaehlt="", hoechstens=0):
+    """Variantenlogik (Patrick 25.11.2026): Strategien mit genau gleichem Plan stehen in einer Zeile (die empfohlene
+    bzw. erste trägt die anderen unter „auch“), Zeilen, die eine andere in allen Kennzahlen übertrifft, werden
+    markiert (uebertroffen), und mit hoechstens > 0 bleiben nur so viele Strategiezeilen (nach Bewertung X; die
+    empfohlene, die gewählte und die eigenen Zeilen bisher/aktuell bleiben immer)."""
+    gruppen = {}
+    for z in zeilen:
+        if z["strategie"] in EIGENE or z.get("abdruck") is None:
+            continue
+        gruppen.setdefault(z["abdruck"], []).append(z)
+    weg = set()
+    for liste in gruppen.values():
+        if len(liste) < 2:
+            continue
+        kopf = next((z for z in liste if z["strategie"] == empfohlen), None) or \
+            next((z for z in liste if z["strategie"] == gewaehlt), None) or liste[0]
+        kopf["auch"] = [z["strategie"] for z in liste if z is not kopf]
+        kopf["name"] += " (= " + ", ".join(kopf["auch"]) + ")"
+        weg.update(id(z) for z in liste if z is not kopf)
+    out = [z for z in zeilen if id(z) not in weg]
+    strat = [z for z in out if z["strategie"] not in EIGENE]
+    for z in strat:
+        besser = next((y for y in strat if y is not z and y.get("zulaessig", True) and _uebertroffen(z, y)), None)
+        if besser is not None:
+            z["uebertroffen"] = besser["strategie"]
+    if hoechstens and len(strat) > hoechstens:
+        fest = {empfohlen, gewaehlt}
+        reihe = sorted(strat, key=lambda z: (bool(z.get("uebertroffen")), z.get("punkte") is None,
+                                             z.get("punkte") or 0.0))
+        behalten = {id(z) for z in reihe[:hoechstens]} | {id(z) for z in strat if z["strategie"] in fest
+                                                          or fest & set(z.get("auch", ()))}
+        out = [z for z in out if z["strategie"] in EIGENE or id(z) in behalten]
+    return out
 
 
 def aktueller_plan(g, ergebnis, positionen):
@@ -197,21 +265,41 @@ def vergleich(kopf, positionen, k, tabellen, einst, abbruch=None, fortschritt=No
                             gruppen=len(gruppen), gruppe_nr=n + 1)
                 status(dict(live))
         wb = plaene[BISHER].werte if BISHER in plaene else None
-        befunde = {s: _machbarkeit(g, p, mg or m, k, daten["reste"]) for s, p in plaene.items()}
+        befunde, je_abdruck = {}, {}
+        for s, p in plaene.items():      # Machbarkeit je verschiedenem Plan nur einmal (gleiche Pläne gleich)
+            a = abdruck(p) if s != OHNE_KONTUR else None
+            if a is None or a not in je_abdruck:
+                b = _machbarkeit(g, p, mg or m, k, daten["reste"])
+                if a is not None:
+                    je_abdruck[a] = b
+            befunde[s] = je_abdruck[a] if a is not None else b
+        zeit = (daten.get("gewichte") or {}).get("zeit")
         zeilen = []
         for s, p in plaene.items():
             name = {BISHER: "bisher", AKTUELL: "aktuell (gespeichert)",
                     OHNE_KONTUR: "ohne Konturverschachtelung"}.get(s) or f"{s} {ne.STRATEGIEN[s]}"
             z_ = dict(zeile(name, p.werte, wb, zs.get(s), round(zeiten.get(s, 0.0), 2)), strategie=s)
             z_.update(machbar=nm.text(befunde[s], 2), zulaessig=nm.zulaessig(befunde[s]))
+            mz = ne.maschinenzeit(p.werte, zeit)
+            z_["maschine_min"] = round(mz / 60, 2) if mz is not None and not zs.get(s) else None
+            pk = ne.punkte_x(p, daten.get("gewichte"))
+            z_["punkte"] = round(pk, 2) if pk != float("inf") and not zs.get(s) else None
+            if s not in EIGENE:
+                z_["abdruck"] = (abdruck(p), repr(zs[s]["werte"]) if zs.get(s) else None)
             zeilen.append(z_)
         for s, z in zs.items():
             if s not in plaene:
                 zeilen.append(dict(zeile(f"{s} {ne.STRATEGIEN[s]}", dict(je_laenge={}, gekauft_mm=0, beladungen=0,
                                                                          teile_mm=None), wb, z,
                                          round(zeiten.get(s, 0.0), 2)), strategie=s))
-        emp = ne.empfehlung({s: p for s, p in plaene.items() if s not in (BISHER, AKTUELL, OHNE_KONTUR)
-                             and nm.zulaessig(befunde.get(s, ()))}, wb)
+        kand = {s: p for s, p in plaene.items() if s not in (BISHER, AKTUELL, OHNE_KONTUR)
+                and nm.zulaessig(befunde.get(s, ()))}
+        emp = ne.empfehlung(kand, wb)
+        # Mehrzielbewertung (Patrick 25.11.2026): X wird empfohlen, wenn es nach allen Zielen besser ist als E und E
+        # keine bessere Zuschnitt-Variante hat (die rechnet X nicht)
+        if ne.X in kand and emp[0] == ne.E and ne.E not in zs and \
+                ne.punkte_x(kand[ne.X], daten.get("gewichte")) < ne.punkte_x(kand[ne.E], daten.get("gewichte")) - 0.005:
+            emp = ne.empfehlung({ne.X: kand[ne.X]}, wb)
         if emp[0] in zs:                                   # Zeile zeigt die Zuschnitt-Variante: Text danach
             r = next(z for z in zeilen if z["strategie"] == emp[0])
             teile = [r["laengen"], f"eingekauft {rechnen.zahl(r['gekauft_m'], 2)} m"]
@@ -223,6 +311,8 @@ def vergleich(kopf, positionen, k, tabellen, einst, abbruch=None, fortschritt=No
         gew = (kopf.get("nesting") or {}).get(schl) or ""
         if (kopf.get("stangen_hand") or {}).get(schl):
             gew = rechnen.NESTING_HAND
+        zeilen = varianten_ordnen(zeilen, emp[0], gew,
+                                  int(rechnen._n(rechnen.einstellung_wert(einst, "nesting_varianten_max"))))
         out.append(dict(schluessel=schl, titel=f"{g.profil} / {g.werkstoff}" + (f" / {g.oberflaeche}"
                                                                                   if g.oberflaeche else "")
                         + f" ({rechnen.m_text(g.stange)} m)", gruppe=g, daten=daten, plaene=plaene, zuschnitt=zs,
@@ -283,7 +373,7 @@ def text(z, schl):
         return rechnen.zahl(w, 2)
     if schl in ("schnitt_mm", "rest_verwertbar_mm", "verschnitt_mm"):
         return rechnen.zahl(w, 0)
-    if schl == "zeit":
+    if schl in ("zeit", "maschine_min", "punkte"):
         return rechnen.zahl(w, 2)
     return str(w)
 
@@ -426,7 +516,22 @@ def protokoll(v):
                       f"{z(v.get('zeiten', {}).get(s, 0.0), 2)} s; geprüft (jedes Teil einmal, keine Stange überbelegt, "
                       f"Längenbilanz); Machbarkeit: {nm.text(b)}"
                       + (f"; Enden ineinander {w['ineinander']}, davon Endkonturen {w['konturen']}"
-                         if w.get("konturen") else ""))
+                         if w.get("konturen") else "")
+                      + (f"; Schnittfolge: {w['artikelwechsel']} Artikelwechsel, {w['schnitte']} Schnitte"
+                         if w.get("schnitte") is not None else "")
+                      + (f", höchstens {w['zwischenlager']} Teile warten auf einen fertigen Satz"
+                         if w.get("zwischenlager") is not None else "")
+                      + (f", erster Satz fertig auf Stange {w['satz_erster']}" if w.get("satz_erster") else "")
+                      + (f"; Satz {w['satz_aufbau']}, {w['saetze']} Sätze" if w.get("satz_aufbau") else ""))
+        if s == ne.X and p.schritte:
+            zeilen.append("   Bewertung X (Punkte in €, kleiner ist besser): " + "; ".join(p.schritte))
+    for z_ in v["zeilen"]:
+        if z_.get("auch"):
+            zeilen.append(f"Gleicher Plan: {z_['strategie']} = {', '.join(z_['auch'])} (eine Zeile im Vergleich, "
+                          f"Machbarkeit einmal geprüft)")
+        if z_.get("uebertroffen"):
+            zeilen.append(f"{z_['strategie']} wird von {z_['uebertroffen']} in allen Kennzahlen erreicht oder "
+                          f"übertroffen (grau)")
     ke = kontur_einsparung(v)
     if ke is not None:
         zeilen.append(f"Konturverschachtelung: {ke['stellen']} Stellen mit Endkonturen ineinander; gegenüber der "

@@ -83,7 +83,7 @@ def verschachtelung(vergleich):
         basis = v["plaene"].get(nv.AKTUELL) or v["plaene"].get(nv.BISHER)
         if p is None or basis is None or s in (nv.AKTUELL, nv.BISHER, nv.OHNE_KONTUR) or s in v["zuschnitt"]:
             continue
-        z = next((x for x in v["zeilen"] if x["strategie"] == s), {})
+        z = nv.zeile_von(v, s)
         if not z.get("zulaessig", True):
             continue
         w, b = p.werte, basis.werte
