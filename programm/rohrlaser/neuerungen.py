@@ -26,7 +26,8 @@ NEUERUNGEN = [
                 "<b>rechts ziehen</b>, egal welche Mausbelegung eingestellt ist; das Mausrad zoomt immer. Vorher tat die "
                 "rechte Taste mit der Belegung <i>wie Inventor</i> nichts, obwohl unten „rechte verschieben“ stand. Die "
                 "Zeile unten im 3D nennt jetzt die Tasten der eingestellten Belegung. Mausräder und Touchpads, die nur "
-                "waagrecht oder in Pixeln melden, zoomen ebenfalls."],
+                "waagrecht oder in Pixeln melden, zoomen ebenfalls.",
+     "3D: links dreht, rechts verschiebt in jeder Mausbelegung; Hinweis nennt die Tasten"],
     ["0.9.498", "<b>Nesting-Kern: neue Strategien und schnellerer Vergleich</b> ([[nesting]]): Neu sind "
                 "<i>N Gleiche Teile nacheinander</i> (volle Stangen je Artikel, Reste am Stangenende mit der besten "
                 "Füllung), <i>S Satzweise schneiden</i> (Satz aus den Mengen erkannt, Satz nur am Stangenende geteilt) "
