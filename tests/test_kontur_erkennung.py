@@ -139,6 +139,45 @@ def test_formen():
     print("OK formen")
 
 
+def test_freimachung():
+    """Rechteck mit Freimachungen Ø d (mittig auf der Ecke / um r längs versetzt), Ausklinkung am Ende."""
+    def bogen(mx, my, r, w0, w1, n=36):
+        return [(mx + r * math.cos(math.radians(w0 + (w1 - w0) * i / n)),
+                 my + r * math.sin(math.radians(w0 + (w1 - w0) * i / n))) for i in range(n + 1)]
+
+    def gerade(a, b, n=40):
+        return [(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n) for i in range(1, n)]
+    # 60 × 20, Ø10 mittig auf den Ecken: je Ecke 270° außen herum
+    mittig = (bogen(-30, -10, 5, 90, 360) + gerade((-25, -10), (25, -10)) + bogen(30, -10, 5, 180, 450)
+              + gerade((30, -5), (30, 5)) + bogen(30, 10, 5, 270, 540) + gerade((25, 10), (-25, 10))
+              + bogen(-30, 10, 5, 0, 270) + gerade((-30, 5), (-30, -5)))
+    # dasselbe um r längs versetzt (Mitte auf der langen Seite, Patrick „besser“): je Ecke ein Halbkreis
+    versetzt = (bogen(-25, -10, 5, 180, 360) + gerade((-20, -10), (20, -10)) + bogen(25, -10, 5, 180, 360)
+                + gerade((30, -10), (30, 10)) + bogen(25, 10, 5, 0, 180) + gerade((20, 10), (-20, 10))
+                + bogen(-25, 10, 5, 0, 180) + gerade((-30, 10), (-30, -10)))
+    r = fe.erkennen(mittig)
+    pruef(r and r["text"] == "Rechteck 60 × 20, Freimachung 4 × Ø10 mittig", f"mittig: {r and r['text']}")
+    pruef(r and r.get("freimachung_d") == 10 and r.get("freimachung_lage") == "mittig"
+          and r.get("freimachung_anzahl") == 4, f"Felder {r}")
+    r = fe.erkennen(versetzt)
+    pruef(r and r["text"] == "Rechteck 60 × 20, Freimachung 4 × Ø10 versetzt", f"versetzt: {r and r['text']}")
+    # eine Freimachung kleiner (Ø6 statt Ø10): kein einheitliches Rechteck mit Freimachung
+    schief = (bogen(-30, -10, 3, 90, 360) + gerade((-27, -10), (25, -10)) + mittig[37 + 39:])
+    r = fe.erkennen(schief)
+    pruef(not r or r["typ"] != fe.RECHTECK_FREI, f"falsche Lage erkannt: {r and r['text']}")
+    # Ausklinkung am Ende (Tiefe je Umfangsstelle), RE 60 × 40 scharfkantig wie Patricks Teil C
+    qs = qs_von("Rechteckrohr", 60, 40, 3, 0.0)
+    um = [[0.0, 0.0], [19.999, 0.0], [20.001, 35.0]]
+    um += [[20 + 5 * math.sin(math.radians(a)), 30 + 5 * math.cos(math.radians(a))] for a in range(3, 90, 3)]
+    um += [[25.0, 30.0], [35.0, 30.0]]
+    um += [[40 - 5 * math.cos(math.radians(a)), 30 + 5 * math.sin(math.radians(a))] for a in range(3, 90, 3)]
+    um += [[39.999, 35.0], [40.001, 0.0], [199.95, 0.0]]
+    er = ek.erkennen(qs, um)
+    pruef(ek.erkannt_text(er) == "Ausklinkung 20 × 30, Freimachung 2 × Ø10 mittig", f"Ende: {ek.erkannt_text(er)}")
+    pruef(er and er["freimachung"]["d"] == 10 and er["ausklinkung"]["tiefe"] == 30, f"Ende Felder {er}")
+    print("OK freimachung")
+
+
 def test_zuschlag_2d():
     """Gemessenes komplexes Ende (Schwenk 45°) eines 2D-Teils: kein Zuschlag Wand × tan(Schwenk)."""
     qs = QS[1][1]
@@ -169,6 +208,8 @@ def test_step_pruefsatz():
             txt = teile_editor.ende_text(b)
             pruef("erkannt, Umriss wie STEP" in txt, f"{n}: Anzeige {txt!r}")
             # Verschachtelung: 2D-Schnitt, Tiefe wie konstruiert (kein Schwenk-Zuschlag)
+            if (b.get("kontur_erkannt") or {}).get("freimachung"):
+                continue
             p = t["position"]
             _, kb, _ = rechnen.kontur_enden(p, t["profil"], p.get("a_gerade") == "ja", p.get("b_gerade") == "ja")
             soll_t = ek.tiefe(sk.Querschnitt(t["profil"]), (b.get("kontur_erkannt") or {}).get("kontur"))
@@ -187,6 +228,7 @@ if __name__ == "__main__":
     test_kurven_abstand()
     test_endkontur_rundlauf()
     test_formen()
+    test_freimachung()
     test_zuschlag_2d()
     test_step_pruefsatz()
     print("FEHLER:", fehler)

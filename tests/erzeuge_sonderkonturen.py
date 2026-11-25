@@ -93,6 +93,18 @@ def schluesselloch(r, b, lg):
             ("B", (x0, h), (-r, 0), (x0, -h))]
 
 
+def kreis(mz, mx, r):
+    return [("B", (mz + r, mx), (mz, mx + r), (mz - r, mx)), ("B", (mz - r, mx), (mz, mx - r), (mz + r, mx))]
+
+
+def mit_freimachung(rohr, z1, z2, x1, x2, r, mitten):
+    """Rechteck-Ausschnitt (z1..z2 längs, x1..x2 quer) und Kreise r um die Mitten (Freimachungen)."""
+    s = ausschnitt(rohr, vieleck([(z1, x1), (z2, x1), (z2, x2), (z1, x2)]))
+    for mz, mx in mitten:
+        s = ausschnitt(s, kreis(mz, mx, r))
+    return s
+
+
 def teile():
     """{Name: (Form, Soll (typ, Textanfang))}"""
     out = {}
@@ -106,6 +118,18 @@ def teile():
     for name, rohr in (("QR60", et.kastenrohr(60, 60, 3, L, 6)), ("RE80x40", et.kastenrohr(80, 40, 3, L, 6))):
         for art, st, soll in arten:
             out[f"SK_{name}_{art}"] = (ausschnitt(rohr, st), soll)
+    # Freimachungen (Patrick 25.11.: Ø10 mittig auf den Ecken bzw. um r längs versetzt; Ausklinkung am Ende)
+    re = et.kastenrohr(80, 40, 3, L, 6)
+    ecken = [(-30, -10), (30, -10), (30, 10), (-30, 10)]
+    out["SK_RE80x40_FreiMittig"] = (mit_freimachung(re, -30, 30, -10, 10, 5, ecken),
+                                    ("Rechteck mit Freimachung", "Rechteck 60 × 20, Freimachung 4 × Ø10 mittig"))
+    out["SK_RE80x40_FreiVersetzt"] = (mit_freimachung(re, -30, 30, -10, 10, 5,
+                                                      [(z + (5 if z < 0 else -5), x) for z, x in ecken]),
+                                      ("Rechteck mit Freimachung", "Rechteck 60 × 20, Freimachung 4 × Ø10 versetzt"))
+    # Ausklinkung 20 breit, 30 tief am Ende B (obere Wand), Ø10 mittig auf den inneren Ecken
+    out["EK_RE80x40_AusklinkungFrei"] = (mit_freimachung(re, L / 2 - 30, L / 2 + 5, -10, 10, 5,
+                                                         [(L / 2 - 30, -10), (L / 2 - 30, 10)]),
+                                         dict(text="Ausklinkung 20 × 30, Freimachung 2 × Ø10 mittig"))
     rr = et.rundrohr(60.3, 3, L)
     out["SK_RR60_Langloch0"] = (ausschnitt(rr, langloch(40, 8, 0)), ("Langloch", "Langloch 40 × 8"))
     return out
