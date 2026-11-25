@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.497", "<b>Freimachungen erkennen</b> ([[schneidweg_rechner]]): Rechteck-Ausschnitte mit runden "
+    ["0.9.501", "<b>Freimachungen erkennen</b> ([[schneidweg_rechner]]): Rechteck-Ausschnitte mit runden "
                 "Freimachungen an den Ecken heißen jetzt z. B. <i>Rechteck 60 × 20, Freimachung 4 × Ø10 mittig</i> "
                 "(Kreis um die Ecke) oder <i>… versetzt</i> (Kreismitte um den Radius längs einer Seite neben der "
                 "Ecke). Eine Ausklinkung am Ende mit Freimachungen in den inneren Ecken heißt z. B. <i>Ausklinkung "
@@ -29,6 +29,16 @@ NEUERUNGEN = [
                 "und Kreise den gemessenen Umriss überall auf 0,1 mm treffen; geschnitten wird weiter der Umriss der "
                 "STEP.",
      "Rechteck-Ausschnitte und Ausklinkungen mit Freimachung Ø d mittig/versetzt erkannt"],
+    ["0.9.498", "<b>Nesting-Kern: neue Strategien und schnellerer Vergleich</b> ([[nesting]]): Neu sind "
+                "<i>N Gleiche Teile nacheinander</i> (volle Stangen je Artikel, Reste am Stangenende mit der besten "
+                "Füllung), <i>S Satzweise schneiden</i> (Satz aus den Mengen erkannt, Satz nur am Stangenende geteilt) "
+                "und <i>X Automatisch</i>. X bewertet alle Pläne nach Material, Beladungen, Artikelwechseln, "
+                "Zwischenlager und Schneidzeit, die Gewichte sind einstellbar. Gleiche Pläne stehen im Vergleich in "
+                "einer Zeile, übertroffene sind grau. Neue Spalten: Schnitte, Artikelwechsel, Zwischenlager, "
+                "Maschinenzeit. Die Präzisionsoptimierung P rechnet nur noch, wo sie etwas ändern kann. Gemessen an "
+                "20 Fällen: A bis H und P liefern genau dieselben Pläne wie vorher, große Aufträge rechnen 40 bis "
+                "46 % schneller (Baugruppe 6/12 m: 4,8 → 2,9 s, 500 Teile 6/12 m: 2,8 → 1,5 s).",
+     "Neue Strategien Gleiche Teile, Satzweise, Automatisch; gleiche Pläne zusammengefasst, bis 46 % schneller"],
     ["0.9.494", "<b>EK-CSV-Import und Kundenlisten-Import mit Assistent</b> ([[ek_import_assistent]], [[kunden_csv]]): "
                 "beide Importe laufen jetzt auf einer gemeinsamen Importbasis (Kodierung, Trennzeichen, Dezimalformat, "
                 "mit oder ohne Kopfzeile, Spaltennamen deutsch und englisch, Importprofile auch bei anderer "

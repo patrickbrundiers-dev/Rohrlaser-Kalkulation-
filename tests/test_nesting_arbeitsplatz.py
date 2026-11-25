@@ -40,8 +40,12 @@ assert set(vorher) == {6000} and not any(x.get("nesting") for x in s.ergebnis["s
 v = s.nesting_vergleich()
 assert len(v) == 1
 namen = [z["strategie"] for z in v[0]["zeilen"]]
-assert namen[0] == nv.BISHER and set(namen[1:]) - {nv.AKTUELL} == {ne.A, ne.B, ne.D, ne.E, ne.F, ne.G, ne.H, ne.P}, namen
-a = next(z for z in v[0]["zeilen"] if z["strategie"] == ne.A)
+# gleiche Pläne stehen in einer Zeile (Nesting-Kern 25.11.2026): Strategien + „auch“ decken alle ab
+alle_s = set(namen[1:]) | {a for z in v[0]["zeilen"] for a in z.get("auch", ())}
+assert namen[0] == nv.BISHER and alle_s - {nv.AKTUELL} == {ne.A, ne.B, ne.D, ne.E, ne.F, ne.G, ne.H, ne.P, ne.N, ne.S,
+                                                           ne.X}, namen
+assert len(set(z["abdruck"] for z in v[0]["zeilen"] if z.get("abdruck"))) == len(namen) - 2, "Pläne doppelt gezeigt"
+a = nv.zeile_von(v[0], ne.A)
 b = next(z for z in v[0]["zeilen"] if z["strategie"] == nv.BISHER)
 assert a["gekauft_m"] < b["gekauft_m"], (a, b)
 assert all(nv.text(z, "ausnutzung").endswith("%") or z["zuschnitt"] for z in v[0]["zeilen"])
