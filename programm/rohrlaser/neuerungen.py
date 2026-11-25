@@ -33,6 +33,17 @@ NEUERUNGEN = [
                 "und Liste gleich. Die Rolle lässt sich per Rechtsklick von Hand ändern. Messwerte und Preise bleiben "
                 "gleich.",
      "Rolle und Schneidbarkeit (1–4) je Kontur, Schneidweg-Bilanz, STEP-Viewer mit Abwicklung und Farben je Rolle."],
+    ["0.9.492", "<b>Erkennung von Endkonturen und Sonderkonturen</b> ([[schneidweg_rechner]], [[nesting]]): Komplexe "
+                "Enden aus der STEP werden mit ihrer Konturart erkannt (V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, Bogen "
+                "konvex/konkav, S-Kurve, Schräg, Stufen) samt Maßen, wenn sie den gemessenen Umriss überall auf 0,1 mm "
+                "treffen; der Umriss der STEP bleibt maßgebend, <i>Endkontur …</i> öffnet die erkannte Kontur zum "
+                "Bearbeiten. Sonderkonturen in der Wand bekommen ihre Form als Bemerkung: Kreis, Langloch und Rechteck "
+                "(mit Eckradius) in beliebiger Lage, Dreieck, Quadrat, Sechseck und andere Vielecke, sonst Freiform mit "
+                "Geraden und Bögen. Endkonturen rechnen an Quadrat- und Rechteckrohren mit dem echten Eckradius. Die "
+                "Verschachtelung nimmt bei 2D-Schnitten keinen Zuschlag für den Schwenk mehr an (gemessene Enden "
+                "rücken bis zu 3 mm näher zusammen). Prüfsatz und Werkzeug <i>werkzeuge/kontur_erkennung.py</i>: "
+                "24 von 24 Enden und 14 von 14 Sonderkonturen richtig.",
+     "Konturart komplexer STEP-Enden und Form von Sonderkonturen erkannt, Verschachtelung 2D genauer"],
     ["0.9.491", "<b>Fasen an den Rohrenden wie in der STEP</b> ([[step]]): Im Editor und in der 3D-Ansicht "
                 "liegt das Ende mit Fase jetzt wie in der STEP (vorher gerade an der längsten Stelle, bis 3 mm "
                 "daneben). Der Import misst Tiefe, Höhe und Winkel der Fase. Geht sie durch die ganze Wand und ist die "
