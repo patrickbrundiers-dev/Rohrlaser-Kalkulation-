@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.493", "<b>Freimachungen erkennen</b> ([[schneidweg_rechner]]): Rechteck-Ausschnitte mit runden "
+                "Freimachungen an den Ecken heißen jetzt z. B. <i>Rechteck 60 × 20, Freimachung 4 × Ø10 mittig</i> "
+                "(Kreis um die Ecke) oder <i>… versetzt</i> (Kreismitte um den Radius längs einer Seite neben der "
+                "Ecke). Eine Ausklinkung am Ende mit Freimachungen in den inneren Ecken heißt z. B. <i>Ausklinkung "
+                "20 × 30, Freimachung 2 × Ø10 mittig (erkannt, Umriss wie STEP)</i>. Erkannt wird nur, wenn Rechteck "
+                "und Kreise den gemessenen Umriss überall auf 0,1 mm treffen; geschnitten wird weiter der Umriss der "
+                "STEP.",
+     "Rechteck-Ausschnitte und Ausklinkungen mit Freimachung Ø d mittig/versetzt erkannt"],
     ["0.9.492", "<b>Erkennung von Endkonturen und Sonderkonturen</b> ([[schneidweg_rechner]], [[nesting]]): Komplexe "
                 "Enden aus der STEP werden mit ihrer Konturart erkannt (V-Spitze, V-Kerbe, U-Kerbe, U-Zunge, Bogen "
                 "konvex/konkav, S-Kurve, Schräg, Stufen) samt Maßen, wenn sie den gemessenen Umriss überall auf 0,1 mm "
