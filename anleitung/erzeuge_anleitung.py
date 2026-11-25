@@ -7769,7 +7769,12 @@ def kapitel_optimieren(i):
             "<i>wie Inventor</i>: Umschalt+Mitte drehen, Mitte verschieben.",
             "<i>wie SolidWorks</i>: Mitte drehen, Strg+Mitte verschieben.",
             "<i>wie Creo</i>: Mitte drehen, Umschalt+Mitte verschieben.",
-            "Bei allen Belegungen bleiben Klick, Auswahl und Messen auf der linken Maustaste.",
+            "Bei allen Belegungen bleiben Klick, Auswahl und Messen auf der linken Maustaste. Seit 0.9.496 dreht "
+            "<b>links ziehen</b> und verschiebt <b>rechts ziehen</b> in jeder Belegung (Rechtsklick ohne Ziehen öffnet "
+            "weiter das Menü), das <b>Mausrad</b> zoomt immer. Die Belegung legt nur die mittlere Taste fest.",
+            "Die Zeile unten in jeder 3D-Ansicht nennt die Tasten der eingestellten Belegung, z. B. bei "
+            "<i>wie Inventor</i>: „Drehen: links oder Umschalt+Rad gedrückt ziehen · Verschieben: rechts oder Rad "
+            "gedrückt ziehen · Mausrad zoomen“.",
             "<i>Zoomrichtung des Mausrads umkehren</i> und <i>Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang) "
             "unter Zoomen bzw. Drehen.")
     i.abschnitt("Schnittansicht und Explosionsansicht", marke="schnitt_explosion_3d")

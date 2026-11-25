@@ -14,7 +14,8 @@ Umdrehung geht beliebig oft. Gezeichnet wird nur mit der Matrix: die Bauteilkoor
 Drehart „Drehteller“ (Einstellung): wie bisher um die Hochachse des Modells, Kippen jetzt aber ohne Grenze.
 Einstellungen je Arbeitsplatz (teilen.LOKAL): Drehart, Drehtempo, Richtung waagrecht/senkrecht umkehren, Zoom- und
 Verschiebetempo, Drehzentrum, Nachlauf (Trägheit, Vorgabe aus). V4 (19.11.2026): Mausbelegung wie Inventor/SolidWorks/
-Creo, Zoomrichtung umkehren, Stärke des Nachlaufs."""
+Creo, Zoomrichtung umkehren, Stärke des Nachlaufs. 25.11.2026: links dreht und rechts verschiebt in jeder Belegung,
+Hinweis im 3D nach der Belegung (hinweis), Mausrad auch waagrecht/als Pixel (rad_schritte)."""
 import math
 
 DREH_GRUND = 0.012          # rad je Pixel bei Tempo 1 (wie bisher)
@@ -30,7 +31,8 @@ PROGRAMM = "Programm (links drehen, rechts/Mitte verschieben)"
 MAUSBELEGUNGEN = {
     PROGRAMM: [("links", None, "drehen"), ("rechts", None, "schieben"), ("mitte", None, "schieben")],
     "wie Inventor (Umschalt+Mitte drehen, Mitte verschieben)": [
-        ("mitte", {"umschalt"}, "drehen"), ("mitte", None, "schieben"), ("links", None, "drehen")],
+        ("mitte", {"umschalt"}, "drehen"), ("mitte", None, "schieben"), ("rechts", None, "schieben"),
+        ("links", None, "drehen")],
     "wie SolidWorks (Mitte drehen, Strg+Mitte verschieben)": [
         ("mitte", {"strg"}, "schieben"), ("mitte", None, "drehen"), ("rechts", None, "schieben"),
         ("links", None, "drehen")],
@@ -38,6 +40,11 @@ MAUSBELEGUNGEN = {
         ("mitte", {"umschalt"}, "schieben"), ("mitte", None, "drehen"), ("rechts", None, "schieben"),
         ("links", None, "drehen")],
 }
+# Patrick 25.11.2026 „Mausrad/Verschieben ging nicht“: Mit der Belegung „wie Inventor“ tat die rechte Taste nichts,
+# der Hinweis unten im 3D sagte aber „rechte verschieben“. Jetzt gilt in JEDER Belegung: links ziehen dreht, rechts
+# ziehen verschiebt (Rechtsklick ohne Ziehen bleibt das Menü), Mausrad zoomt; die Belegung legt nur die mittlere Taste
+# (und Zusatztasten) fest. Der Hinweis im 3D kommt aus hinweis() und nennt die aktive Belegung.
+IMMER = (("links", None, "drehen"), ("rechts", None, "schieben"))
 # Einstellungen (Name, Vorgabe)
 VORGABEN = {"nav_drehart": FREI, "nav_dreh_tempo": 1.0, "nav_umkehren_h": "nein", "nav_umkehren_v": "nein",
             "nav_zoom_tempo": 1.0, "nav_schiebe_tempo": 1.0, "nav_drehzentrum": UNTER_MAUS, "nav_traegheit": "nein",
@@ -125,10 +132,40 @@ def aktion(taste, zusatz, werte=None):
     (Menge aus 'umschalt', 'strg') nach der Mausbelegung."""
     belegung = MAUSBELEGUNGEN.get((werte or {}).get("nav_maus"), MAUSBELEGUNGEN[PROGRAMM])
     zusatz = set(zusatz or ())
-    for t, z, was in belegung:
+    for t, z, was in (*belegung, *IMMER):      # IMMER: links dreht, rechts verschiebt in jeder Belegung
         if t == taste and (z is None or set(z) <= zusatz):
             return was
     return None
+
+
+def _tasten_text(taste, zusatz=None):
+    name = {"links": "links", "mitte": "Rad gedrückt", "rechts": "rechts"}[taste]
+    return "+".join([*(z.capitalize() for z in sorted(zusatz or ())), name])
+
+
+def hinweis(werte=None):
+    """Bedienhinweis unten im 3D nach der aktiven Mausbelegung, z. B. bei Inventor „Drehen: links oder
+    Umschalt+Rad gedrückt ziehen · Verschieben: rechts oder Rad gedrückt ziehen · Mausrad zoomen“ (kurz, damit er
+    auch in die kleine 3D-Ansicht des Editors passt)."""
+    w = werte or {}
+    belegung = MAUSBELEGUNGEN.get(w.get("nav_maus"), MAUSBELEGUNGEN[PROGRAMM])
+    je = {"drehen": [], "schieben": []}
+    for t, z, was in (*IMMER, *belegung):
+        text = _tasten_text(t, z)
+        if was in je and text not in je[was] and aktion(t, z, w) == was:
+            je[was].append(text)
+    return (f"Drehen: {' oder '.join(je['drehen'])} ziehen · Verschieben: {' oder '.join(je['schieben'])} "
+            "ziehen · Mausrad zoomen")
+
+
+def rad_schritte(winkel_y, winkel_x=0, pixel_y=0):
+    """Mausrad-Schritte (120 = ein Raster) aus einem Rad-Ereignis: senkrechtes Rad, sonst waagrechtes (Qt tauscht die
+    Richtung bei gedrückter Alt-Taste), sonst Pixel (Touchpads ohne Rasterwert, 1 Pixel ≈ 1/8 Raster wie bei Qt)."""
+    if winkel_y:
+        return winkel_y
+    if winkel_x:
+        return winkel_x
+    return pixel_y * 8 if pixel_y else 0
 
 
 def zoom_faktor(rad_schritte, werte=None):
