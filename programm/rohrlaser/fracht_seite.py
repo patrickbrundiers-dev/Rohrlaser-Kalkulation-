@@ -731,9 +731,9 @@ class RechnerSeite(QWidget):
                 it = QTableWidgetItem(str(w))
                 it.setData(Qt.UserRole, z.get("tarif_id"))
                 if z["status"] == "lücke":
-                    it.setForeground(Qt.darkGray)
+                    it.setForeground(stil.farbe("#7F8A99"))
                 elif z["preisart"] == "Richtwert":
-                    it.setForeground(Qt.darkYellow)
+                    it.setForeground(stil.farbe("#7A5A00"))
                 elif z.get("tarif_id") and z["tarif_id"] == auto:
                     f = it.font()
                     f.setBold(True)
