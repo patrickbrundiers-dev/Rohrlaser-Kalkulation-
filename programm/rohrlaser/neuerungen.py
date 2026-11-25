@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.484", "<b>CAD-Kern 3.0</b>: Große STEP-Dateien werden beim zweiten Mal viel schneller eingelesen. Das "
+                "Programm merkt sich die gelesenen und geheilten Körper (Einstellung <i>STEP-Zwischenspeicher</i>, "
+                "neue Vorgabe <i>ja, mit gelesenen Körpern</i>). Beispiel Baugruppe mit 870 Körpern: Einlesen 297 s "
+                "beim ersten Mal, danach 0,2 s. Gleiche Teile und Nahtstellen in sehr großen Baugruppen werden "
+                "schneller gefunden, mit gleichem Ergebnis.",
+     "CAD-Kern 3.0: große STEP-Dateien beim zweiten Einlesen in Sekunden"],
     ["0.9.483", "<b>Austauschordner 2.0, Paket C</b> ([[austausch]]): STEP-Dateien öffnen mit einem Klick im "
                 "<b>STEP-Viewer</b> des Programms. LST, BPF und ArTube gleichen Namens stehen als <i>Zugehörige "
                 "Programme</i> neben der STEP. Neuer Knopf <b>Dateien im Austausch</b> bei Kunde, Angebot und "
