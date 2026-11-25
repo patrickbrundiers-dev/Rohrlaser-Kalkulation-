@@ -1610,6 +1610,38 @@ def kapitel_angebote(i):
            "beschädigt, meldet das Programm das und du wählst den Kunden von Hand. Ist ein Kunde gesetzt, öffnet "
            "der Link <i>Kundenprofil</i> neben dem Namen sein Profil in der Kundenverwaltung.")
 
+    i.abschnitt("Kunde bleibt gebunden, Stückzahlen und STEP-Zuordnung", marke="anfrage_import")
+    i.text("Der Kunde einer Anfrage gilt bis zum Auftrag: im Prüfdialog, in den Positionen, im Angebot und in den "
+           "Mail-Antworten. Stückzahlen werden je Position aus Mail, PDF und Scan gelesen, STEP-Dateien über die "
+           "Artikelnummer zugeordnet, auch mit Anhängen wie _REV02, -02 oder _final.", kurz=True)
+    i.genauer()
+    i.liste("<b>Kundenbindung</b>: Ist der Kunde beim Eingang eindeutig erkannt, von Hand gewählt oder bestätigt, "
+            "nimmt der Prüfdialog keinen anderen aus der Mail oder dem Formular. Er zeigt nur den Hinweis, dass die "
+            "Mail auf einen anderen Kunden deutet. Ein im Prüfdialog gewählter Kunde wird in die Anfrage "
+            "übernommen.",
+            "<b>Kunde ändern</b>: Hat die Anfrage schon Angebote mit dem bisherigen Kunden, fragt ein Fenster, ob die "
+            "<i>offenen Angebote</i> mitwechseln (vorgehakt). <i>Beauftragte Angebote</i> (Auftrag) wechseln nur, "
+            "wenn du sie ausdrücklich anhakst. Änderst du den Kunden im Angebot, folgt die Anfrage (Verlauf: <i>im "
+            "Angebot gewählt</i>). Bei einem beauftragten Angebot fragt das Programm vorher nach.",
+            "<b>Stückzahlen</b>: erkannt werden z. B. <i>20 Stück</i>, <i>20 Stk.</i>, <i>Menge: 20</i>, "
+            "<i>Stückzahl 20</i>, <i>Anzahl: 20</i>, <i>50x benötigt</i>, <i>12 pcs</i> und <i>Artikel 12345 – 20 "
+            "Stück</i>, aus Mailtext, PDF mit Text, Tabellen, Positionslisten und Scans. Jede Menge gehört zu genau "
+            "einer Position. Der Tooltip an der Stückzahl zeigt die <b>Fundstelle</b> (Datei und Zeile).",
+            "<b>Widerspruch</b>: Nennen Mail und PDF verschiedene Mengen, ist die Stückzahl gelb mit beiden Angaben. "
+            "Unsichere Werte sind gelb, du bestätigst sie selbst. Steht zu einem Teil keine Menge in Mail oder PDF, "
+            "ist das Feld rot: <i>Stückzahl nicht erkannt</i>. Das Programm erfindet keine Menge.",
+            "<b>Artikelnummer und Revision</b>: Aus Dateinamen wie <i>123456_A</i>, <i>123456_final</i>, "
+            "<i>123456_neu</i>, <i>123456_Bearbeitet</i>, <i>123456-02</i>, <i>123456_002</i>, <i>123456_REV02</i>, "
+            "<i>123456 Rev_A</i> oder <i>123456_V02</i> wird die Grundnummer 123456. Die Revision bleibt als eigene "
+            "Angabe erhalten und wird an der Position gespeichert. Reine Ziffernanhänge zählen nur bei eindeutiger "
+            "Artikelnummer: <i>4711-020</i> bleibt eine Artikelnummer.",
+            "<b>Mehrere Versionen</b>: Gibt es zu einer Artikelnummer mehrere Dateien (z. B. _REV01 und _REV02), "
+            "ordnet das Programm nicht still zu. Die Menge ist gelb mit <i>mehrere Dateien zu 123456 … bitte Revision "
+            "prüfen</i>. Nennt der Text selbst eine Revision (<i>123456-02</i>), gilt die passende Datei.",
+            "<b>An der Position gespeichert</b>: Artikelnummer, Revision, Datei, Stückzahl mit Quelle und Status "
+            "(sicher, unsicher, von Hand, nicht erkannt) sowie die Zeichnung, aus der Angaben stammen. "
+            "Vorhandene Positionen und Daten bleiben unverändert.")
+
     i.abschnitt("Mail-Art, Sachgebiet und technische Angaben", marke="anfrage_art")
     i.text("Das Programm erkennt bei jeder Mail, was sie ist: neue Anfrage, Angebotsnachfrage, Angebotsänderung, "
            "Bestellung, Auftragsänderung, technische Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, "

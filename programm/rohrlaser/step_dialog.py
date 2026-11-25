@@ -1111,6 +1111,7 @@ class StepPruefDialog(QDialog):
             elif not ist_zk:    # Werkstoff eines Rohrs geändert: automatische Blech-Werkstoffe der Datei nachziehen
                 ws.currentTextChanged.connect(lambda t, d=datei: self._bleche_nachziehen(d))
             sp.valueChanged.connect(lambda v, z=z: z.werte.__setitem__(self._modus(z.datei), v))
+            sp.valueChanged.connect(lambda v, z=z, m=m: self._stueck_eingetragen(z, m))
             if datei in self.baugruppen:       # Farbe des Teils in der Baugruppen-Ansicht
                 punkt = QPixmap(12, 12)
                 punkt.fill(QColor(TEILFARBEN[len(self.zeilen) % len(TEILFARBEN)]))
@@ -1661,6 +1662,11 @@ class StepPruefDialog(QDialog):
         knickverbindung.loesen(self.messwerte, i)
         self._neu_aufbauen(i)
 
+    def _stueck_eingetragen(self, z, m):
+        """Stückzahl von Hand eingetragen: „nicht erkannt“ (rot) ist erledigt."""
+        if m.pop("_stueck_fehlt", None):
+            self._vorschlag_faerben(z, m)
+
     def _vorschlag_faerben(self, z, m):
         """Stückzahl aus Formular/Mail bzw. Zeichnung (W6b, 28.10.2026): Tooltip, unsicher gelb; Werkstoff aus dem
         Schriftfeld einer Zeichnung gelb."""
@@ -1679,8 +1685,18 @@ class StepPruefDialog(QDialog):
                                if staffel else "")
                             + (f"\nAbweichend: {zeichnung} – es gilt das Anfrageformular" if zeichnung else "")
                             + (f"\nStückliste: {m['_stueck_je_bg']}" if m.get("_stueck_je_bg") else "")
+                            # 25.11.2026: Fundstelle, Widerspruch zwischen Mail/PDF, Revision/Grundnummer
+                            + (f"\nFundstelle: {m['_stueck_fundstelle']}" if m.get("_stueck_fundstelle") else "")
+                            + (f"\nWiderspruch: {m['_stueck_widerspruch']} – bitte prüfen"
+                               if m.get("_stueck_widerspruch") else "")
+                            + (f"\n{m['_stueck_hinweis']}" if m.get("_stueck_hinweis") else "")
                             + _bearbeitung_text(m))
             z.sp.setStyleSheet("" if sicher and not anders and not zeichnung else gelb)
+        elif m.get("_stueck_fehlt"):        # Mail/PDF da, Menge zum Teil nicht gefunden: nie erfinden
+            z.sp.setToolTip("Stückzahl nicht erkannt (in Mail/PDF keine Menge zu diesem Teil) – bitte eintragen"
+                            + (f"\n{m['_stueck_hinweis']}" if m.get("_stueck_hinweis") else "")
+                            + _bearbeitung_text(m))
+            z.sp.setStyleSheet(f"background: {stil.farbe(stil.ROT_FLAECHE).name()};")
         else:
             z.sp.setToolTip(_bearbeitung_text(m).strip())
             z.sp.setStyleSheet("")
@@ -1881,7 +1897,10 @@ class StepPruefDialog(QDialog):
                 continue
             z.werte["einzeln"] = (m.get("_stueck") if "_stueck" in m else self.stueck) or 0
             if self._modus(z.datei) == "einzeln":
+                fehlt = m.get("_stueck_fehlt")
                 z.sp.setValue(z.werte["einzeln"])
+                if fehlt:               # Vorschlag gesetzt, nicht von Hand: „nicht erkannt“ bleibt
+                    m["_stueck_fehlt"] = True
             if z.ws is not None and not z.blech:
                 z.ws.setCurrentText(m.get("_werkstoff", self.werkstoff) or "")
             self._vorschlag_faerben(z, m)

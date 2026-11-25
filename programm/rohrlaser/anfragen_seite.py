@@ -1863,9 +1863,13 @@ class AnfragenSeite(QWidget):
         return mails[0] if mails else None
 
     # ------------------------------------------------------------------ Herkunft und Kunde (19.11.2026)
-    def kunde_zuordnen(self, nr=None, bestaetigen=False, regel=False, domain=False, grund="", im_fenster=None):
+    def kunde_zuordnen(self, nr=None, bestaetigen=False, regel=False, domain=False, grund="", im_fenster=None,
+                       angebote_mit=None, auftraege_mit=None):
         """Kunde von Hand zuordnen bzw. Vorschlag übernehmen (bestaetigen). Ohne nr: Fenster „Kunde aus der Anfrage“
-        (erkannte Kunden, Suche, Gegenüberstellung Datenbank | Neue E-Mail, neuer Kunde, „Als Regel merken“; im_fenster(d): Tests bedienen es statt exec). regel/domain: Lernregel Adresse bzw. Domain → Kunde anlegen. Ergebnis: Akte oder None."""
+        (erkannte Kunden, Suche, Gegenüberstellung Datenbank | Neue E-Mail, neuer Kunde, „Als Regel merken“; im_fenster(d): Tests bedienen es statt exec). regel/domain: Lernregel Adresse bzw. Domain → Kunde anlegen.
+        Kundenbindung (25.11.2026): hat die Anfrage schon Angebote mit anderem Kunden, fragt ein Fenster, ob die offenen
+        (angebote_mit, Vorgabe ja) bzw. die beauftragten (auftraege_mit, Vorgabe nein) mitwechseln; ohne Bildschirm
+        (Tests) nur mit ausdrücklichem angebote_mit/auftraege_mit. Ergebnis: Akte oder None."""
         a = self.akte()
         if a is None:
             return None
@@ -1912,11 +1916,52 @@ class AnfragenSeite(QWidget):
                                 f"Anfrage {{nr}}: Kunde {nr} {name}".rstrip() + (" (als Regel gemerkt)." if r else "."))
         if akte is not None:            # 20.11.2026: Rückmeldung zur Kunden-Erkennung (Auswertung)
             self._rueckmelden(a, "kunde", auto, str(nr))
+            self._angebote_folgen(akte, str(nr or ""), name, angebote_mit, auftraege_mit)
             ap = getattr(self, "_ansprech_merken", None)
             self._ansprech_merken = None
             if ap:                      # gewählter Ansprechpartner aus dem Kundenstamm
                 self.ansprechpartner_setzen(ap)
         return akte
+
+    def _angebote_folgen(self, akte, nr, name, offen=None, beauftragt=None):
+        """Kundenwechsel der Anfrage an ihre Angebote weitergeben – nur nach Rückfrage (kundenbindung). Ergebnis:
+        umgestellte Angebotsnummern."""
+        from . import kundenbindung as kb
+        if self.db.nur_lesen:
+            return []
+        w = kb.wechsel(self.db, akte, nr)
+        if not w["offen"] and not w["beauftragt"]:
+            return []
+        if (offen is None or beauftragt is None) and not self.f.stumm:
+            d = QDialog(self)
+            d.setWindowTitle("Kunde der Anfrage geändert")
+            lay = QVBoxLayout(d)
+            text = QLabel(kb.wechsel_text(w, f"{nr} {name}".strip() or "ohne Kunde"))
+            text.setWordWrap(True)
+            lay.addWidget(text)
+            h_offen = QCheckBox(f"Offene Angebote ({len(w['offen'])}) auf den neuen Kunden umstellen")
+            h_offen.setChecked(True)
+            h_offen.setVisible(bool(w["offen"]))
+            h_auftrag = QCheckBox(f"Auch beauftragte Angebote ({len(w['beauftragt'])}) umstellen")
+            h_auftrag.setVisible(bool(w["beauftragt"]))
+            lay.addWidget(h_offen)
+            lay.addWidget(h_auftrag)
+            knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            knoepfe.accepted.connect(d.accept)
+            knoepfe.rejected.connect(d.reject)
+            lay.addWidget(knoepfe)
+            if d.exec() != QDialog.Accepted:
+                offen, beauftragt = False, False
+            else:
+                offen = h_offen.isChecked() if offen is None else offen
+                beauftragt = h_auftrag.isChecked() if beauftragt is None else beauftragt
+        liste = (w["offen"] if offen else []) + (w["beauftragt"] if beauftragt else [])
+        geaendert = kb.angebote_umstellen(self.db, liste, nr)
+        bleibt = [a["nummer"] for a in w["offen"] + w["beauftragt"] if a["nummer"] not in geaendert]
+        if geaendert or bleibt:
+            self.f.meldung((f"Kunde auch in Angebot {', '.join(geaendert)} geändert. " if geaendert else "")
+                           + (f"Beim bisherigen Kunden geblieben: {', '.join(bleibt)}." if bleibt else ""))
+        return geaendert
 
     def _mail_daten(self, a):
         """Kundendaten aus der Mail der Anfrage (bei interner Weiterleitung aus der Mail des Kunden darin): Firma,

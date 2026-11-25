@@ -73,6 +73,11 @@ def revision(name):
     """(Name ohne Revision, Revision oder "") – „4711-020_Rev B“ -> („4711-020“, „Rev B“)."""
     t = _REVISION.search(name or "")
     if not t or not name[:t.start()].strip():
+        # 25.11.2026: weitere Anhänge wie überall (artikelnr): „123456_002“, „123456-02“, „123456_A“, „123456_final“
+        from . import artikelnr
+        z = artikelnr.zerlegen(name or "")
+        if z.grund != z.roh and z.roh == (name or "").strip() and z.grund.strip():
+            return z.grund, z.revision
         return name, ""
     return name[:t.start()].strip(" _-"), t.group(1).strip()
 
@@ -163,7 +168,7 @@ def bestimmen(m, benennung, muster=""):
             notiz.append(f"Revision „{datei_rev}“ abgetrennt")
         return dict(artikel=bisher, bezeichnung=bereinigt(t.group(1)) if datei_rev else None,
                     herkunft="; ".join([herkunft] + notiz),
-                    unsicher=bool(standard and benennung != BENENNUNGEN[1]))
+                    unsicher=bool(standard and benennung != BENENNUNGEN[1]), revision=datei_rev)
     nummer, bezeichnung, unsicher = name, None, False
     herkunft = "Bauteilname"
     tn = teilenummern(m.get("_pfad")).get(roh) or teilenummern(m.get("_pfad")).get(name)
@@ -193,7 +198,7 @@ def bestimmen(m, benennung, muster=""):
         nummer = f"{revision(bereinigt(Path(str(m.get('datei') or '')).stem))[0]}-{nummer}"
         herkunft = "Dateiname + " + herkunft
     return dict(artikel=nummer or bisher, bezeichnung=bezeichnung, herkunft="; ".join([herkunft] + notiz),
-                unsicher=unsicher)
+                unsicher=unsicher, revision=rev or datei_rev)
 
 
 def artikel_aus(m, benennung, muster=""):
@@ -223,6 +228,9 @@ def anwenden(messwerte, profil=None, einstellungen=None):
             b = bestimmen(m, benennung, p.get("muster") or "")
             m["artikel"] = b["artikel"]
             m["_artikel_herkunft"], m["_artikel_unsicher"] = b["herkunft"], b["unsicher"]
+            m.pop("_revision", None)
+            if b.get("revision"):       # 25.11.2026: Revision getrennt von der Artikelnummer behalten
+                m["_revision"] = b["revision"]
             m.pop("_bezeichnung", None)
             if b["bezeichnung"]:
                 m["_bezeichnung"] = b["bezeichnung"]

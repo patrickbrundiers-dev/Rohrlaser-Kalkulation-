@@ -22,6 +22,10 @@ LAENGE_DAVOR = re.compile(r"(?:l\s*=|länge|laenge|lg\.?|x)\s*$", re.I)
 LAENGE_DANACH = re.compile(r"^\s*(?:mm|cm|m\b|°)", re.I)
 DATUM = re.compile(r"^\d{1,2}\.\d{1,2}\.(?:\d{2}|\d{4})$")
 KOPF_MENGE = re.compile(r"\b(menge|stück|stk|anzahl|qty|quantity)\b", re.I)
+# 25.11.2026 (Master-Auftrag Outlook-Import): „Menge: 20“, „Stückzahl 20“, „Anzahl: 1.000“, „Qty 20“ = sicher
+MENGE_VOR = re.compile(rf"\b(?:menge|st(?:ü|ue)ckzahl|anzahl|qty|quantity|bedarf|st(?:ü|ue)ck)\s*[:=]\s*{_MENGE}"
+                       rf"(?![\d,.]|\s*(?:mm|cm|m\b|kg|°|x\s*\d))|\b(?:menge|st(?:ü|ue)ckzahl|anzahl|qty|quantity)\s+"
+                       rf"{_MENGE}(?![\d,.]|\s*(?:mm|cm|m\b|kg|°|x\s*\d))", re.I)
 
 
 def ohne_zeichen(text, ocr=False):
@@ -127,13 +131,16 @@ def _schluessel(name, ocr=False):
     return ohne_zeichen(s, ocr)
 
 
-def stueckzahlen(text, namen, ocr=False, unsicher=()):
+def stueckzahlen(text, namen, ocr=False, unsicher=(), info=None):
     """Stückzahl je Name (STEP-Dateiname oder Artikelnummer) aus dem Text: eine Zeile, die den Namen enthält (ohne
     Leer- und Sonderzeichen verglichen), mit „20 Stk“ (sicher) oder sonst einer einzelnen Zahl, die nicht zum Namen
     gehört (unsicher; Positionsnummern 10, 20 … am Zeilenanfang zählen nicht). ocr (Text aus einem Scan): Namen mit
     verwechselbaren Zeichen gleichsetzen und, wo kein genauer Treffer ist, je 10 Zeichen ein falsches Zeichen
     erlauben (nur in Zeilen ohne genauen Treffer eines anderen Namens); unsicher = Wörter, die Tesseract nur unsicher
-    erkannt hat (Menge daraus gilt als unsicher). Ergebnis {Name: (Menge, sicher)}."""
+    erkannt hat (Menge daraus gilt als unsicher). 25.11.2026: ohne Treffer des ganzen Namens zählt die Grundnummer
+    (artikelnr: „123456_REV02.step“ ↔ „123456 – 20 Stück“), nur wenn genau eine Zeile sie frei enthält; weicht die
+    Revision in der Zeile von der des Namens ab, ist die Menge unsicher. info (dict): je Name die Fundstelle
+    dict(zeile, weg 'name'/'grundnummer', revision). Ergebnis {Name: (Menge, sicher)}."""
     zeilen = [z for z in (text or "").split("\n") if z.strip()]
     form = [ohne_zeichen(z, ocr) for z in zeilen]
     menge_spalte = any(KOPF_MENGE.search(z) for z in zeilen)
@@ -155,6 +162,8 @@ def stueckzahlen(text, namen, ocr=False, unsicher=()):
                             break
                 if w:
                     out[name] = w
+                    if info is not None:
+                        info[name] = dict(zeile=z.strip(), weg="name", revision="")
                     break
     if ocr:                                         # Lesefehler im Namen (Scan)
         for name, schl in schluessel.items():
@@ -166,8 +175,40 @@ def stueckzahlen(text, namen, ocr=False, unsicher=()):
                     w = _menge(_ohne_name_ocr(z, schl, fehler), menge_spalte, unsicher)
                     if w:
                         out[name] = (w[0], False)
+                        if info is not None:
+                            info[name] = dict(zeile=z.strip(), weg="name", revision="")
                         break
+    _grund_suchen(zeilen, belegt, schluessel, out, menge_spalte, unsicher, info)
     return out
+
+
+def _grund_suchen(zeilen, belegt, schluessel, out, menge_spalte, unsicher, info):
+    """Grundnummer-Durchgang von stueckzahlen (Namen ohne Treffer)."""
+    from . import artikelnr
+    for name in schluessel:
+        if name in out:
+            continue
+        t = artikelnr.zerlegen(name)
+        g = artikelnr.ohne_zeichen(t.grund)
+        if len(g) < 4 or g == schluessel[name] or not any(c.isdigit() for c in g):
+            continue
+        treffer = []
+        for i, z in enumerate(zeilen):
+            if i in belegt or not (lage := artikelnr.im_text(g, z)):
+                continue
+            w = _menge(z[:lage[0]] + " " + z[lage[1]:], menge_spalte, unsicher, _pos_vorn(z, g))
+            if w:
+                treffer.append((i, w, lage[2]))
+        if len({(w, r) for _, w, r in treffer}) > 1 and t.rev:     # mehrere Revisionen im Text: die der Datei
+            treffer = [x for x in treffer if x[2].lstrip("0") == t.rev.lstrip("0")] or treffer
+        if len({(w, r) for _, w, r in treffer}) != 1:
+            continue                # keine oder mehrere verschiedene Zeilen: nichts raten
+        i, w, rev = treffer[0]
+        gleich = not rev or rev == t.rev or rev.lstrip("0") == t.rev.lstrip("0")
+        out[name] = (w[0], w[1] and gleich)
+        if info is not None:
+            info[name] = dict(zeile=zeilen[i].strip(), weg="grundnummer", revision=rev,
+                              hinweis="" if gleich else f"Revision im Text {rev}, Datei {t.revision or 'ohne'}")
 
 
 def menge_zahl(t):
@@ -186,6 +227,9 @@ def _menge(rest, menge_spalte, unsicher, pos=False):
     m = STUECK.search(rest)
     if m and (n := menge_zahl(m.group(1))):
         return n, m.group(1) not in unsicher
+    m = MENGE_VOR.search(rest)
+    if m and (n := menge_zahl(m.group(1) or m.group(2))):
+        return n, (m.group(1) or m.group(2)) not in unsicher
     zahlen = [(n, z.start()) for z in ZAHL.finditer(rest) if (n := menge_zahl(z.group(1)))
               and not LAENGE_DAVOR.search(rest[:z.start()]) and not LAENGE_DANACH.match(rest[z.end():])]
     vorn = bool(zahlen) and not rest[:zahlen[0][1]].strip()
@@ -224,17 +268,31 @@ def _ohne_name(zeile, name):
     return re.sub(muster, " ", zeile, count=1, flags=re.I) if muster else zeile
 
 
-def stueck_aus(formulare, namen):
-    """Stückzahlen aus mehreren gelesenen Formularen (dict text, ocr, unsicher): sichere Werte gehen vor."""
-    gesamt = {}
+def stueck_aus(formulare, namen, info=None):
+    """Stückzahlen aus mehreren gelesenen Formularen (dict text, ocr, unsicher): sichere Werte gehen vor. info (dict,
+    25.11.2026): je Name dict(quelle, zeile, weg, hinweis, anders [„Datei: Menge“ anderer Quellen mit anderer Zahl])
+    – Fundstelle und Widerspruch für den Prüfdialog."""
+    gesamt, alle = {}, {}
     for f in formulare or ():
+        quelle = f.get("datei") or (f.get("quelle") or "")[4:] or ("E-Mail" if f.get("mail") else "Formular")
         tab = stueck_tabelle(f.get("tabelle") or [], namen)      # Tabelle über die Lage (31.10.2026) geht vor
         # Zeilenlogik nur für Teile ohne Tabellenzeile: in der Zeile stehen sonst auch „4x M8“ und Staffeln
+        fund = {}
         zeilen = {n: w for n, w in stueckzahlen(f.get("text"), namen, f.get("ocr", False),
-                                                f.get("unsicher", ())).items() if n not in tab}
+                                                f.get("unsicher", ()), info=fund).items() if n not in tab}
         for n, w in list(tab.items()) + list(zeilen.items()):
+            stelle = dict(fund.get(n) or {}, quelle=quelle) if n in zeilen else dict(quelle=quelle, zeile="Tabelle",
+                                                                                     weg="tabelle")
+            alle.setdefault(n, []).append((w, stelle))
             if n not in gesamt or (w[1] and not gesamt[n][1]):
                 gesamt[n] = w
+                if info is not None:
+                    info[n] = stelle
+    if info is not None:            # Widerspruch: eine andere Quelle nennt eine andere Zahl
+        for n, liste in alle.items():
+            anders = [f"{st['quelle']}: {w[0]}" for w, st in liste if w[0] != gesamt[n][0]]
+            if anders and n in info:
+                info[n] = dict(info[n], anders=list(dict.fromkeys(anders)))
     return gesamt
 
 
@@ -270,11 +328,22 @@ def datei_lesen(pfad, programmordner=None):
     return pdf_art.lesen(pfad, programmordner)
 
 
-def stueck_setzen(messwerte, stueck):
+def stueck_setzen(messwerte, stueck, info=None):
     """Stückzahlen aus dem Formular in die Messwerte (vor dem Prüfdialog): Abgleich über Dateiname und Artikelnummer
     (Bauteilname). Ein Satz (_saetze) bleibt unberührt. Setzt _stueck und _stueck_formular (True = sicher, False =
-    unsicher). Ergebnis: Anzahl gesetzter Teile."""
+    unsicher). 25.11.2026: auch über die Grundnummer (artikelnr: „123456_REV02“ ↔ „123456“); haben mehrere Teile
+    dieselbe Grundnummer (Revisionen), ist eine darüber gefundene Menge unsicher (_stueck_hinweis: bitte Revision
+    prüfen). info (aus stueck_aus): Fundstelle (_stueck_fundstelle), Widerspruch (_stueck_widerspruch), Revision im
+    Text (_stueck_hinweis). Ergebnis: Anzahl gesetzter Teile."""
+    from . import artikelnr
     je = {_schluessel(n): w for n, w in (stueck or {}).items()}
+    je_info = {_schluessel(n): x for n, x in (info or {}).items()}
+    grund = {}
+    for m in messwerte:             # Teile je Grundnummer (Datei bzw. Artikel)
+        if not m.get("_saetze"):
+            k = artikelnr.schluessel(m.get("datei") or m.get("artikel") or "")
+            if len(k) >= 4:
+                grund.setdefault(k, []).append(m)
     n = 0
     for m in messwerte:
         if m.get("_saetze"):
@@ -282,7 +351,24 @@ def stueck_setzen(messwerte, stueck):
         for kandidat in (m.get("artikel"), m.get("bauteil"), m.get("datei")):     # Bauteilname auch unbereinigt
             w = je.get(_schluessel(kandidat)) if kandidat else None
             if w:
-                m["_stueck"], m["_stueck_formular"] = w[0], w[1]
+                m["_stueck"], m["_stueck_formular"], m["_stueck_vorschlag"] = w[0], w[1], w[0]
+                x = je_info.get(_schluessel(kandidat)) or {}
+                if x.get("quelle"):
+                    m["_stueck_fundstelle"] = x["quelle"] + (f": „{x['zeile']}“" if x.get("zeile") else "")
+                if x.get("anders"):
+                    m["_stueck_widerspruch"] = "; ".join(x["anders"])
+                    m["_stueck_formular"] = False
+                hinweis = [x["hinweis"]] if x.get("hinweis") else []
+                k = artikelnr.schluessel(m.get("datei") or m.get("artikel") or "")
+                andere = [o for o in grund.get(k, ()) if o is not m and o.get("datei") != m.get("datei")]
+                if andere and (x.get("weg") == "grundnummer" or kandidat != m.get("datei")):   # nur über Grundnr./
+                    # Artikel gefunden, es gibt aber mehrere Dateien (Revisionen) dazu: nie still die falsche
+                    m["_stueck_formular"] = False
+                    hinweis.append("mehrere Dateien zu " + artikelnr.grund(m.get("datei") or m.get("artikel")) + ": "
+                                   + ", ".join(sorted({Path(str(o.get("datei") or o.get("artikel"))).name
+                                                       for o in [m] + andere})) + " – bitte Revision prüfen")
+                if hinweis:
+                    m["_stueck_hinweis"] = "; ".join(hinweis)
                 n += 1
                 break
     return n
@@ -434,8 +520,9 @@ def _teil_zu_zeile(namen, zeilen):
         andere = [y for y in zeilen if y is not z and len(ohne_zeichen(y.get("artikel"))) >= 3
                   and any(_schluessel(n).startswith(ohne_zeichen(y.get("artikel"))) for n in passend)]
         if len({schl[n] for n in passend}) == 1 and not andere:     # ein Teil (Dateiname und Artikel zählen einmal)
-            for n in passend:
-                out[n] = dict(z, _teilweise=True)
+            from . import artikelnr
+            for n in passend:   # 25.11.2026: Rest ist nur Revision/Zusatz (123456_REV02 ↔ 123456) = sicher zugeordnet
+                out[n] = dict(z, _teilweise=artikelnr.schluessel(n) != a, _grundnummer=True)
     return out
 
 
