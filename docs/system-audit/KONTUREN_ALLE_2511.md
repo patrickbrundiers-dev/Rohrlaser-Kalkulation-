@@ -16,7 +16,7 @@ Schnittlängen und Preise bleiben gleich, solange kein Test einen Fehler nachwei
 | P2 | Rolle (8) und Schneidbarkeit (1–4) je Kontur, Importanalyse | PR A |
 | P3 | Schneidweg-Bilanz: jede Schnittkante genau einer Kontur | PR A |
 | P4 | echte Innenkante bei 3D-Schnitten statt Wand × tan | nach dem Endkonturen-PR |
-| P5 | Viewer 3D/2D: Farben je Rolle, Schalter, Auswahl, Handkorrektur | nach P2 |
+| P5 | Viewer 3D/2D: Farben je Rolle, Schalter, Auswahl, Handkorrektur | PR A |
 
 ## P1 Testsammlung
 
@@ -73,6 +73,21 @@ Schema-Sprung, kein neuer Messwert. Offene Profile haben eine eigene Konturerken
 
 Ergebnis: 149 Rohrteile aus der Prüfbasis und der Testsammlung, **0 fehlende, 0 doppelte Kanten**. Zeit für die
 Bilanz: 0,02 s bei 54 s Messung (0,03 %).
+
+## P5 STEP-Viewer 3D/2D
+
+- Farben nach Art, Rolle (Vorgabe; Anfangsschnitt orange, Endeschnitt rot) oder Schneidbarkeit (`sv.konturfarben`,
+  `ROLLENFARBEN`, `STUFENFARBEN`).
+- Konturen ein/aus je Rolle: Linien im 3D (`sv.ohne_konturen`) und in der Abwicklung ausgeblendet.
+- Abwicklung unter dem 3D (`Abwicklung2D`, Kern `sv.abwicklung_2d`/`sv.treffer_2d`): Umrisse der Messung (s, z),
+  gerade Enden als Linie über den Umfang; Klick wählt die Kontur in Liste und 3D, Auswahl in Liste/3D wird in der
+  Abwicklung dick gezeichnet.
+- Handkorrektur der Rolle: Rechtsklick in der Konturliste, gespeichert als `rolle_hand` in der Kontur der Messwerte
+  (geht mit „Übernehmen“ in die Position, konturrolle beachtet sie; Stufe bleibt gemessen).
+- Nebenbei behoben: „inkl. Innensteg 0,0 mm“ erschien bei Enden, deren Schnittlänge nur durch die Rundung auf zwei
+  Stellen kleiner war als ende_a/ende_b (Schwelle jetzt 0,05 mm, nur Anzeige).
+
+Test: `tests/test_konturen_viewer_2511.py` (Kern lokal grün, Fenster in der CI).
 
 ## Abgrenzung
 

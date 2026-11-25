@@ -26,6 +26,9 @@ Schneidbarkeit (STUFEN, Abschnitt 5 des Auftrags):
 3 problematisch  – Kontur ohne Grundform, Fase am Ende, Kontur über mehrere Wände, Öffnung kleiner als die Wand
 4 nicht sicher   – keine Schnittlänge, Form nicht erkannt, Werte fehlen
 
+Handkorrektur: steht in der Kontur "rolle_hand" (eine der ROLLEN), gilt diese Rolle (hand=True, Grund nennt die
+gemessene); die Stufe bleibt die gemessene, denn die Hand ändert nicht, wie gut der Laser die Kontur schneidet.
+
 Problematische Konturen werden nie still übergangen: jede Stufe hat einen Grund (Text), Stufe 3 und 4 erscheinen in der
 Importanalyse als „prüfen“.
 
@@ -69,7 +72,12 @@ def rolle(d, wand=None, sicher=True):
     kleiner als die Wand“), sicher: Erkennung der Konturen des Teils sicher (Spalte sicherheit, konturen=sicher).
     Ergebnis: dict(rolle, stufe 1 … 4, stufe_text, grund, schnitt). Wirft nie."""
     try:
-        return _rolle(d or {}, _f(wand), sicher)
+        r = _rolle(d or {}, _f(wand), sicher)
+        hand = (d or {}).get("rolle_hand")
+        if hand in ROLLEN and hand != r["rolle"]:
+            # Handkorrektur (Viewer, Rechtsklick „Rolle ändern“): Rolle wie gesetzt, Stufe bleibt die gemessene
+            r = dict(r, rolle=hand, hand=True, grund=f"Rolle von Hand gesetzt (gemessen: {r['rolle']}); {r['grund']}")
+        return r
     except Exception as e:  # noqa: BLE001 – unerwartete Werte: nie still übergehen, als „nicht sicher“ melden
         return _ergebnis(UNKLAR, NICHT_SICHER, f"Kontur nicht auswertbar ({type(e).__name__})")
 

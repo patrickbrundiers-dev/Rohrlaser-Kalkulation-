@@ -5568,6 +5568,23 @@ def kapitel_step(i):
             "unsicher, blau reparierbar, rot fehlerhaft, dunkelgrau ausgeschlossene Normteile); auffällige Körper "
             "stehen auch im Baum farbig, und beim Anklicken zeigt das Feld Erkennung Toleranz, Fehler, Reparatur-Probe "
             "und den Abgleich mit den Prüfwerten des CAD (siehe [[geometriepruefung]]).",
+            "<b>Farben nach Art, Rolle oder Schneidbarkeit</b> (ab 0.9.490, Auswahlfeld neben <i>Konturen nach "
+            "Art</i>, Vorgabe Rolle): <i>Rolle</i> färbt Anfangsschnitt (orange) und Endeschnitt (rot) verschieden, "
+            "dazu Anschlusskontur, Innenkontur, Durchbruch, Ausschnitt, Freiformkontur und nicht eindeutige Konturen; "
+            "<i>Schneidbarkeit</i> färbt 1 eindeutig grün, 2 wahrscheinlich blau, 3 problematisch orange, "
+            "4 nicht sicher rot (siehe [[importanalyse]]). <b>Konturen ein/aus</b> blendet Konturen je Rolle im 3D "
+            "und in der Abwicklung aus. Die Konturliste hat die Spalten <i>Rolle</i> und <i>Schneidbarkeit</i> "
+            "(Grund im Tooltip).",
+            "<b>Abwicklung unter dem 3D</b> (Einzelteil): der Mantel aufgerollt, Ende A links, Umfang senkrecht, "
+            "jede Kontur in derselben Farbe wie im 3D. Ein Klick auf eine Linie wählt die Kontur in der Liste und "
+            "im 3D; eine Kontur, die in der Liste oder im 3D gewählt ist, wird in der Abwicklung dick gezeichnet. "
+            "So lassen sich 3D und Abwicklung direkt vergleichen. Die Höhe stellt der Trenner zwischen 3D und "
+            "Abwicklung ein.",
+            "<b>Rolle von Hand ändern:</b> Rechtsklick auf eine Kontur → <i>Rolle ändern</i>, z. B. wenn ein "
+            "Sattel eigentlich ein Endeschnitt ist. Die Liste zeigt dann „(Hand)“, die Schneidbarkeit bleibt die "
+            "gemessene. <i>Gemessene Rolle wiederherstellen</i> nimmt die Änderung zurück. Mit <i>Ins Angebot "
+            "übernehmen</i> geht die Korrektur in die Position (Importanalyse). Schnittlänge und Preis ändern sich "
+            "nicht.",
             "<b>Gegenprobe:</b> Die Spalte <i>Linie 3D</i> ist die Länge der Konturlinien im 3D-Bild, unabhängig "
             "von der Messung zusammengezählt; ✓ heißt: sie passt zur Schnittlänge (2 %, mindestens 0,5 mm). Bei "
             "offenen Profilen zählt eine Seite der Wand, Bohrungen im Rundrohr zeigen <i>✓ 2D-Schnitt</i> (der "

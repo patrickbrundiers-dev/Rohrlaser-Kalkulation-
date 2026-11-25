@@ -27,8 +27,12 @@ NEUERUNGEN = [
                 "2 wahrscheinlich, 3 problematisch, 4 nicht sicher, mit Grund). Problematische Konturen findet "
                 "<i>Nächstes zu prüfen</i>. Neu ist auch die <b>Schneidweg-Bilanz</b>: Jede geschnittene Kante muss "
                 "zu genau einer Kontur gehören, sonst nennt ein Hinweis fehlende oder doppelte Kanten. Dazu kommen "
-                "10 Referenzteile mit Sollmaßen aus der Konstruktion als Test. Messwerte und Preise bleiben gleich.",
-     "Rolle und Schneidbarkeit (1–4) je Kontur, Schneidweg-Bilanz, 10 Referenzteile mit Sollmaßen."],
+                "10 Referenzteile mit Sollmaßen aus der Konstruktion als Test. Der <b>STEP-Viewer</b> ([[step_viewer]]) "
+                "färbt nach Rolle (Anfang und Ende verschieden) oder Schneidbarkeit. Konturen lassen sich je Rolle "
+                "ein- und ausblenden. Unter dem 3D zeigt er die Abwicklung, und die Auswahl ist in 3D, Abwicklung "
+                "und Liste gleich. Die Rolle lässt sich per Rechtsklick von Hand ändern. Messwerte und Preise bleiben "
+                "gleich.",
+     "Rolle und Schneidbarkeit (1–4) je Kontur, Schneidweg-Bilanz, STEP-Viewer mit Abwicklung und Farben je Rolle."],
     ["0.9.489", "<b>Supportpaket 25.11.: BLM-Programme mit Fasen, Schnitt auf 0, Transportschiene</b> "
                 "([[blm_programm]], [[null_schnitt]]): BPF/ARTUBE vom LT7 mit Fasen-Enden (3D-Kopf) ließen sich nicht "
                 "lesen (<i>BPF-Datei beschädigt</i>, ein Behälter von 2 KB stand in einem eigenen Block) und hingen "
