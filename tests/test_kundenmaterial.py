@@ -116,7 +116,7 @@ assert "Material S235 EN10219 vom Kunden beigestellt" in t_k and "inkl. Material
 assert "inkl. Material S235 EN10219" in t_e
 ang = ausgabe.angebot(kopf, pos, z, k, einst, ergebnis=erg)
 assert ang["beistellung"] == f"Material wird vom Kunden beigestellt: {len(kunde)} Stange{'n' if len(kunde) > 1 else ''} " \
-    "Quadratrohr 40 x 40 x 3, S235 EN10219, à 6.000 mm.", ang["beistellung"]
+    "Quadratrohr 40x40x3, S235 EN10219, à 6.000 mm.", ang["beistellung"]
 assert ausgabe.angebot(kopf, pos, z, k, dict(einst, beistellung_hinweis="nein"), ergebnis=erg)["beistellung"] == ""
 assert ausgabe.angebot(kopf, pos, z, k, einst)["beistellung"] == "Das Material der Pos. 20 wird vom Kunden beigestellt."
 assert ausgabe.angebot(db.angebot(eigen), db.positionen(eigen), z0, k, einst, ergebnis=erg0)["beistellung"] == ""

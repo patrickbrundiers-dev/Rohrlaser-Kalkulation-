@@ -49,22 +49,22 @@ def _mm(x):
 
 
 def masse_text(d):
-    """'Ø30 × 120 mm' (Drehteil, hohl 'Ø40/Ø25 × 50 mm') bzw. '100 × 60 × 20 mm' (Frästeil)."""
+    """'Ø30x120 mm' (Drehteil, hohl 'Ø40/Ø25x50 mm') bzw. '100x60x20 mm' (Frästeil); kompakt wie masstext."""
     if d.get("art") == DREHTEIL:
         innen = f"/Ø{_mm(d['innen'])}" if d.get("innen") else ""
-        return f"Ø{_mm(d.get('durchmesser'))}{innen} × {_mm(d.get('laenge'))} mm"
-    return f"{_mm(d.get('laenge'))} × {_mm(d.get('breite'))} × {_mm(d.get('hoehe'))} mm"
+        return f"Ø{_mm(d.get('durchmesser'))}{innen}x{_mm(d.get('laenge'))} mm"
+    return f"{_mm(d.get('laenge'))}x{_mm(d.get('breite'))}x{_mm(d.get('hoehe'))} mm"
 
 
 def text(m):
-    """Kurztext für Prüfdialog und Bericht, z. B. 'Drehteil Ø30 × 120 mm (3 Außendurchmesser …)'."""
+    """Kurztext für Prüfdialog und Bericht, z. B. 'Drehteil Ø30x120 mm (3 Außendurchmesser …)'."""
     d = daten(m) or {}
     merk = ", ".join((d.get("merkmale") or []) + (d.get("zusatz") or []))
     return f"{d.get('art') or m.get('profilform')} {masse_text(d)}" + (f" ({merk})" if merk else "")
 
 
 def bezeichnung(d, werkstoff=None):
-    """Bezeichnung des Zukaufartikels, z. B. 'Drehteil Ø30 × 120 mm S235-10219'."""
+    """Bezeichnung des Zukaufartikels, z. B. 'Drehteil Ø30x120 mm S235-10219'."""
     return " ".join(x for x in (d.get("art"), masse_text(d), werkstoff) if x)
 
 

@@ -67,13 +67,13 @@ def _mm(x):
 
 
 def masse_text(form, abm, laenge=None):
-    """'Ø20 × 150 mm' bzw. '20 × 20 × 150 mm' (ohne Länge: 'Ø20 mm' bzw. '20 × 20 mm')."""
-    quer = f"Ø{_mm(abm)}" if form == RUNDSTAHL else f"{_mm(abm)} × {_mm(abm)}"
-    return f"{quer} × {_mm(laenge)} mm" if laenge is not None else f"{quer} mm"
+    """'Ø20x150 mm' bzw. '20x20x150 mm' (ohne Länge: 'Ø20 mm' bzw. '20x20 mm'; kompakte Schreibweise, masstext)."""
+    quer = f"Ø{_mm(abm)}" if form == RUNDSTAHL else f"{_mm(abm)}x{_mm(abm)}"
+    return f"{quer}x{_mm(laenge)} mm" if laenge is not None else f"{quer} mm"
 
 
 def bezeichnung(form, abm, laenge, werkstoff=None):
-    """Bezeichnung eines Vollmaterial-Artikels, z. B. 'Rundstahl Ø20 × 150 mm S235JR'."""
+    """Bezeichnung eines Vollmaterial-Artikels, z. B. 'Rundstahl Ø20x150 mm S235JR'."""
     return " ".join(x for x in (form, masse_text(form, abm, laenge), werkstoff) if x)
 
 

@@ -127,7 +127,7 @@ def sauber(name, t):
 
 
 sauber("Angebot", alles)
-assert "Holm links" in alles and "Rundrohr Ø 42,4 x 2" in alles, "F1 Bezeichnung und Profiltext"
+assert "Holm links" in alles and "Rundrohr Ø42,4x2" in alles, "F1 Bezeichnung und Profiltext"
 assert "Angebotssumme" not in alles, "F2 nie: keine Übersicht unter dem Titel"
 assert "Ab 24 Stk.: 10" in alles.replace("\r", "") or "Ab 24 Stk.:" in alles, "Staffelpreise in einer Zeile"
 assert alles.count("Industriestraße 12") == 2, "Anschrift nur in Absenderzeile und Fuß (nicht dreimal)"

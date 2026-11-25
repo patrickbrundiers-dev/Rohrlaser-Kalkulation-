@@ -145,13 +145,13 @@ def _():
     ang = ausgabe.angebot(KOPF, POS, Z, k, EINST)
     assert ang["zeilen"][0]["art"] == "satz", ang["zeilen"]
     texte = [z["text"] for z in ang["zeilen"]]
-    assert "   1 x Blech S235-10219 500 × 300 × 5 mm" in texte, texte
+    assert "   1 x Blech S235-10219 500x300x5 mm" in texte, texte
     nah(ang["zeilen"][0]["preis"], ausgabe.kaufm_runden(Z[0]["preis_teil"] + 25 / 0.98, 2),       # aus ungerundeten Stückpreisen
         "Satzpreis mit Blech")
     pos = [dict(POS[0], satz=None), dict(POS[1], satz=None)]
     ang = ausgabe.angebot(KOPF, pos, Z, k, EINST)
     b = ang["zeilen"][1]
-    assert b["text"] == "Blech S235-10219 500 × 300 × 5 mm" and b["menge"] == 4, b
+    assert b["text"] == "Blech S235-10219 500x300x5 mm" and b["menge"] == 4, b
     nah(b["preis"], ausgabe.kaufm_runden(25 / 0.98, 2), "kaufmännisch gerundet")
 
 
@@ -181,7 +181,7 @@ def _():
 def _():
     wp = ausgabe.werkstatt(KOPF, POS, ERG, k, tab)
     assert wp["zukaufteile"] == [dict(pos=20, artikel="B1", bezeichnung="Blech", stueck=4,
-                                      text="Blech S235-10219 500 × 300 × 5 mm")], wp["zukaufteile"]
+                                      text="Blech S235-10219 500x300x5 mm")], wp["zukaufteile"]
     pdf.werkstatt_pdf(tmp / "w.pdf", KOPF, wp)
     pdf.kalkulation_pdf(tmp / "k.pdf", KOPF, Z, S, EINST)
     ang = ausgabe.angebot(KOPF, POS, Z, k, EINST)

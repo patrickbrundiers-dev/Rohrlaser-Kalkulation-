@@ -54,7 +54,7 @@ def _():
     b = step.blech(MW[3])
     assert b["laenge"] == 400 and b["breite"] == 200 and b["dicke"] == 4, b
     assert b["bohrungen"] == {"10.0": 4, "20.0": 1} and b["innen"] == 5, b
-    assert step.blech_text(MW[3]) == "Blech 400 × 200 × 4 mm", step.blech_text(MW[3])
+    assert step.blech_text(MW[3]) == "Blech 400x200x4 mm", step.blech_text(MW[3])
     assert step.blech(MW[0]) is None
 
 
@@ -81,8 +81,8 @@ def _():
         assert step.gleiche_teile(MW) == {0: [0]}, step.gleiche_teile(MW)
         erg = step.uebernehmen(MW, [], k, db.zeilen("gewinde"), None, "S235-10219", 1)
         assert [p["artikel"] for p in erg["positionen"]] == ["B14_Baugruppe_Rohr_2Bleche-K1"], erg["positionen"]
-        assert sum("Blech 150 × 150 × 8 mm ist kein Rohrlaserteil" in z for z in erg["bericht"]) == 2, erg["bericht"]
-        assert any("Blech 400 × 200 × 4 mm ist kein Rohrlaserteil" in z for z in erg["bericht"]), erg["bericht"]
+        assert sum("Blech 150x150x8 mm ist kein Rohrlaserteil" in z for z in erg["bericht"]) == 2, erg["bericht"]
+        assert any("Blech 400x200x4 mm ist kein Rohrlaserteil" in z for z in erg["bericht"]), erg["bericht"]
         db.con.close()
 
 
@@ -121,11 +121,11 @@ def _():
         assert b3["_zukauf"] == {"neu": "neu2"} and len(erg["zukauf_neu"]) == 2
         # Patrick 03.11.2026: Werkstoff der Bleche wie die Rohre der Datei (ohne Blech-Werkstoffe: der Rohr-Werkstoff)
         assert b1["werkstoff_id"] == "S235-10219" and b1["gewicht_teil"] > 0, "Werkstoff der Rohre gilt für Bleche"
-        assert b1["stueck"] == 2 and b1["laenge"] == 150 and b1["bezeichnung"] == "Blech S235-10219 150 × 150 × 8 mm"
+        assert b1["stueck"] == 2 and b1["laenge"] == 150 and b1["bezeichnung"] == "Blech S235-10219 150x150x8 mm"
         werte, bezuege = erg["zukauf_neu"]["neu2"]
         assert werte["artikeltyp"] == "Blech" and werte["step_datei"] == "B02_Blech_400x200x4_Bohrungen.step", werte
         assert bezuege[0]["lieferant"] == "Technik" and bezuege[0]["preise"] == []
-        assert any("neuer Zukaufartikel Blech S235-10219 400 × 200 × 4 mm, EK fehlt" in z for z in erg["bericht"]), \
+        assert any("neuer Zukaufartikel Blech S235-10219 400x200x4 mm, EK fehlt" in z for z in erg["bericht"]), \
             erg["bericht"]
         assert any("Werkstoff wie Rohre: S235-10219" in z for z in erg["bericht"]), erg["bericht"]
         assert any("Werkstoff wie Vorgabe Rohre: S235-10219" in z for z in erg["bericht"]), erg["bericht"]
@@ -137,7 +137,7 @@ def _():
         dichte = k.werkstoffe["S235-10219"]["dichte"]
         bl = step.blech(MW[3])
         assert b["werkstoff_id"] == "S235-10219" and abs(b["gewicht_teil"] - bl["volumen"] * dichte / 1e6) < 1e-3, b
-        assert erg["zukauf_neu"]["neu2"][0]["bezeichnung"] == "Blech S235-10219 400 × 200 × 4 mm"
+        assert erg["zukauf_neu"]["neu2"][0]["bezeichnung"] == "Blech S235-10219 400x200x4 mm"
         # Dublette: vorhandener Artikel wird verwendet, kein neuer
         i = db.zukauf_speichern(None, *zukauf.blech_artikel(bl, "S235-10219", "alt.step"))
         mw = [dict(m) for m in MW]
