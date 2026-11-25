@@ -1195,17 +1195,22 @@ class NestingDialog(QDialog):
             t.insertRow(r)
             for c, (schl, _) in enumerate(nv.SPALTEN):
                 it = QTableWidgetItem(nv.text(z, schl))
-                if z["strategie"] == s:
+                if z["strategie"] == s or s in z.get("auch", ()):
                     f = it.font()
                     f.setBold(True)
                     it.setFont(f)
                 if not z.get("zulaessig", True):
                     it.setForeground(stil.farbe(stil.ROT))
+                elif z.get("uebertroffen"):      # in allen Kennzahlen von einer anderen Strategie übertroffen
+                    it.setForeground(stil.farbe(stil.TEXT_GRAU))
+                    it.setToolTip(f"In allen Kennzahlen höchstens so gut wie Strategie {z['uebertroffen']}.")
+                elif z.get("auch"):
+                    it.setToolTip("Gleicher Plan wie Strategie " + ", ".join(z["auch"]) + " (einmal gezeigt).")
                 t.setItem(r, c, it)
         t.blockSignals(False)
         self._links_fuellen(v)
         self.protokoll.setPlainText("\n".join(nv.protokoll(v)))
-        ziel = next((r for r, z in enumerate(v["zeilen"]) if z["strategie"] == s), 0)
+        ziel = next((r for r, z in enumerate(v["zeilen"]) if z["strategie"] == s or s in z.get("auch", ())), 0)
         t.selectRow(ziel)
         self.zeile_gewaehlt()
 
@@ -1575,7 +1580,7 @@ class NestingDialog(QDialog):
                                  "die Konturen bleiben ineinander verschachtelt. Abschalten: Einstellung "
                                  "„Verschachtelung: beliebige Endkonturen ineinanderlegen“.")
             return None
-        z = next((x for x in v["zeilen"] if x["strategie"] == s), {})
+        z = nv.zeile_von(v, s)
         if not z.get("zulaessig", True):
             self.hinweis.setText(f"Strategie {s} ist technisch nicht zulässig: {z.get('machbar')}")
             return None

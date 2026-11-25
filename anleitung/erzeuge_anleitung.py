@@ -3875,7 +3875,43 @@ def abschnitte_profirst_angebot(i):
             "<b>P Präzisionsoptimierung</b> (seit 0.9.488): rechnet wie A, sucht aber zusätzlich die Reihenfolge "
             "und Drehung der Teile mit Endkonturen bzw. Gehrungen lokal nach (Teile verschieben und tauschen, solange "
             "der Verbrauch sinkt) und gibt der exakten Suche viermal so viele Schritte. Nie schlechter als A; "
-            "sinnvoll bei vielen Teilen mit Endkonturen.")
+            "sinnvoll bei vielen Teilen mit Endkonturen. Seit 0.9.498 rechnet P nur noch, wo es etwas ändern kann "
+            "(Teile mit Gehrungen oder Endkonturen zum Ineinanderlegen, oder eine exakte Suche, die nicht fertig "
+            "wurde); sonst ist P derselbe Plan wie A, ohne zweite Rechnung.",
+            "<b>N Gleiche Teile nacheinander</b> (seit 0.9.498): je Artikel (gleicher Artikel und gleiche Länge, "
+            "auch über mehrere Positionen) so viele volle Stangen nur mit diesem Teil wie möglich; die übrigen Teile "
+            "kommen ans <i>Stangenende</i> der vollen Stangen, jeweils auf die Stange mit dem kleinsten passenden "
+            "freien Platz. Was dann noch bleibt, plant die Kostensuche. Die Reihenfolge der Stangen ist die "
+            "Schnittfolge: gleiche Teile werden direkt nacheinander geschnitten (weniger Umstellen und Sortieren). "
+            "Braucht das mehr Material als A, zeigt der Vergleich es offen.",
+            "<b>S Satzweise schneiden</b> (seit 0.9.498): der Satz wird aus den Mengen erkannt (größter gemeinsamer "
+            "Teiler, z. B. 20 × A, 40 × B, 20 × C = 20 Sätze aus 1 A + 2 B + 1 C) oder mit der Einstellung "
+            "<i>Verschachtelung satzweise: Zahl der Sätze (0 = aus den Mengen erkennen)</i> vorgegeben. Die Sätze liegen in Satzfolge auf den "
+            "Stangen; passt das nächste Teil nicht mehr, füllt das längste passende Teil des laufenden oder des "
+            "nächsten Satzes das Stangenende (ein Satz wird nur dort geteilt). So ist der erste Satz meist schon "
+            "auf der ersten Stange fertig, und es warten wenige Teile im Zwischenlager. Ohne erkennbaren Satz "
+            "(z. B. 7 × A und 3 × B) gibt es keine Zeile S.",
+            "<b>X Automatisch (alle Ziele)</b> (seit 0.9.498): bewertet alle Pläne in € und nimmt den besten: "
+            "Material + Beladungen + € je Belegung (wie E) + € je Artikelwechsel + € je Teil im Zwischenlager + "
+            "Schneidzeit der Trennschnitte mit dem Stundensatz der Maschine. Die Gewichte stehen in den Einstellungen "
+            "(Seite <i>Verschachtelung</i>): <i>Verschachtelung automatisch: € je Artikelwechsel in der Schnittfolge "
+            "(Umstellen, Sortieren bei der Entnahme)</i> (Vorgabe 0,50 €), <i>Verschachtelung automatisch: € je Teil, "
+            "das auf einen fertigen Satz wartet (Zwischenlager, höchster Stand)</i> (Vorgabe 0,20 €) und "
+            "<i>Verschachtelung automatisch: Schneidzeit der Trennschnitte mit dem Stundensatz der Maschine "
+            "bewerten</i> (Vorgabe ja). So entscheidet das Programm selbst, ob die klassische "
+            "Optimierung, gleiche Teile nacheinander oder satzweise wirtschaftlicher ist. Empfohlen wird X nur, "
+            "wenn es nach diesen Zielen besser ist als E; E selbst rechnet genau wie bisher.")
+    i.text("<b>Varianten im Vergleich</b> (seit 0.9.498): Strategien, die genau denselben Plan liefern, stehen in "
+           "<i>einer</i> Zeile, z. B. „E Ausgewogen (= A, B, F, P)“; die Machbarkeit wird je Plan nur einmal "
+           "geprüft. Grau ist eine Zeile, die eine andere Strategie in allen Kennzahlen (Material, Einkauf, "
+           "Beladungen, Belegungen, Verschnitt, Artikelwechsel, Zwischenlager, Maschinenzeit) erreicht oder "
+           "übertrifft. Mit <i>Nesting-Arbeitsplatz: höchstens so viele verschiedene Strategien zeigen "
+           "(0 = alle; gleiche Pläne stehen immer in einer Zeile)</i> (Vorgabe 0) bleiben nur die besten nach Bewertung X sichtbar, die empfohlene und die gewählte "
+           "immer. Neue Spalten: <i>Schnitte</i> (Trennschnitte + Anfang und Ende je Stange), "
+           "<i>Artikelwechsel</i> (wie oft sich das Teil in der Schnittfolge ändert), <i>Zwischenlager</i> (höchste "
+           "Zahl geschnittener Teile, die auf einen fertigen Satz warten), <i>Maschinenzeit planabh.</i> "
+           "(Stangenwechsel + Trennschnitte mit Vorschub und Einstechzeit der Schneiddaten, eine Schätzung nur für "
+           "den Vergleich; die Laserzeit im Angebot rechnet wie bisher) und <i>Bewertung X</i> in €.")
     i.text("<b>Konturverschachtelung</b> (seit 0.9.488): Nicht nur ebene Gehrungen, sondern beliebige Endkonturen "
            "(V, U, S, Bogen, Stufen, Freiform, Gegenrohr, gemessene Enden aus der STEP) legt die Optimierung "
            "ineinander, wenn es technisch zulässig ist. Zwei Nachbarteile rücken nur so weit zusammen, dass die "
@@ -4001,7 +4037,7 @@ def abschnitte_profirst_angebot(i):
             "<b>Hinweise</b> (lokal, ohne Internet, nur Vorschläge): mögliche Einsparung, schwach belegte Stange, hoher "
             "Verschnitt, passende Reststücke im Lager, fehlende Preise. Die Hinweise rechnen und ändern nichts.",
             "Das Kundenangebot zeigt davon nichts: keine Strategie, keine Einkaufspreise, keine Reststücke.",
-            "Für alle Abmessungen auf einmal: Einstellungen → Lieferlängen-Regeln → <i>Verschachtelung: Strategie für "
+            "Für alle Abmessungen auf einmal: Einstellungen → Verschachtelung → <i>Verschachtelung: Strategie für "
             "alle Abmessungen</i> (Vorgabe „bisher“). Eine Wahl je Abmessung im Nesting-Arbeitsplatz geht vor. "
             "Kundenmaterial, Musterteile und von Hand vorgegebene Stangen rechnen immer wie bisher.")
     i.abschnitt("Schachtelvergleich in einer Tabelle", marke="schachtelvergleich")
@@ -7769,7 +7805,7 @@ def kapitel_optimieren(i):
             "<i>wie Inventor</i>: Umschalt+Mitte drehen, Mitte verschieben.",
             "<i>wie SolidWorks</i>: Mitte drehen, Strg+Mitte verschieben.",
             "<i>wie Creo</i>: Mitte drehen, Umschalt+Mitte verschieben.",
-            "Bei allen Belegungen bleiben Klick, Auswahl und Messen auf der linken Maustaste. Seit 0.9.496 dreht "
+            "Bei allen Belegungen bleiben Klick, Auswahl und Messen auf der linken Maustaste. Seit 0.9.503 dreht "
             "<b>links ziehen</b> und verschiebt <b>rechts ziehen</b> in jeder Belegung (Rechtsklick ohne Ziehen öffnet "
             "weiter das Menü), das <b>Mausrad</b> zoomt immer. Die Belegung legt nur die mittlere Taste fest.",
             "Die Zeile unten in jeder 3D-Ansicht nennt die Tasten der eingestellten Belegung, z. B. bei "
@@ -12859,8 +12895,9 @@ def kapitel_einstellungen(i):
         ["Angebot", "Texte im PDF", "Hinweise im Angebot, Text der Auftragsbestätigung"],
         ["Angebot", "Automatik und Prüfung", "automatisch optimieren, Löschschutz, Mindestmarge, Nachfassen, Angebotsvergleich"],
         ["Angebot", "Materialanfrage", "Betreff und Text der E-Mail"],
-        ["Material", "Lieferlängen-Regeln, Auswahllisten", "Lieferlängen vergleichen, Zuschnitt, Händler-Mehrlänge; "
-                                                          "Profilformen und Werkstoff-Kategorien"],
+        ["Material", "Lieferlängen-Regeln, Verschachtelung, Auswahllisten", "Lieferlängen vergleichen, Zuschnitt, "
+                                                          "Händler-Mehrlänge; Strategie und Gewichte der "
+                                                          "Verschachtelung; Profilformen und Werkstoff-Kategorien"],
         ["Blech", "Blech-Richtpreis", "Kosten, Tafel, Kanten, Kantbarkeit (Experte), DXF-Ausgabe"],
         ["Schweißen und Konstruktion", "Schweißbaugruppen, Knickrahmen und Steckverbindung",
          "Vorkalkulation, a-Maß, Gravur; Vorgaben für Knickrahmen und Steckverbindungen"],
