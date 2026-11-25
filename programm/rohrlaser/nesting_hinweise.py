@@ -25,6 +25,9 @@ def hinweise(v):
     z = rechnen.zahl
     bisher = v["plaene"].get("bisher")
     zeilen = {x["strategie"]: x for x in v["zeilen"]}
+    for x in v["zeilen"]:
+        for a in x.get("auch", ()):
+            zeilen.setdefault(a, x)
     b = zeilen.get("bisher")
     if b and b.get("einkauf"):
         beste = max((x for x in v["zeilen"] if x["strategie"] != "bisher" and x.get("ersparnis") is not None),
