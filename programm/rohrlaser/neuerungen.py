@@ -21,13 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.491", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
+    ["0.9.492", "<b>Fasen-Enden und schräge Konturen: mit 3D wie in der STEP</b> ([[step]]): Der Import misst Tiefe, "
                 "Höhe und Winkel einer Fase am Rohrende und bei Sonderkonturen mit schräger Schnittfläche auch den Rand "
                 "auf der Innenwand. Ist die 3D-Schnittbearbeitung gewählt, zeigt der Editor beides wie in der STEP und "
                 "rechnet es als 3D-Schnitt (Fase durch die ganze Wand: Kopf um den Fasenwinkel; schräge Kontur: Zeile "
                 "Kontur 3D mit dem gemessenen Schwenk). Ohne 3D wird die Innenkante mit 90° durch die Wand projiziert: "
                 "Fasen nicht gelasert, Ende gerade; schräge Konturen mit Umriss und Schnittlänge der Innenkante.",
      "Fasen-Enden und schräge Konturen mit 3D wie in der STEP, ohne 3D Innenkante 90°"],
+    ["0.9.491", "<b>Fasen an den Rohrenden wie in der STEP</b> ([[step]]): Im Editor und in der 3D-Ansicht "
+                "liegt das Ende mit Fase jetzt wie in der STEP (vorher gerade an der längsten Stelle, bis 3 mm "
+                "daneben). Der Import misst Tiefe, Höhe und Winkel der Fase. Geht sie durch die ganze Wand und ist die "
+                "3D-Schnittbearbeitung am Teil aktiviert, wird sie als 3D-Schnitt gerechnet (Kopf um den Fasenwinkel "
+                "geschwenkt); sonst wird sie wie bisher nicht gelasert.",
+     "Fasen-Enden im Editor wie in der STEP, Fase durch die ganze Wand mit 3D als 3D-Schnitt"],
     ["0.9.490", "<b>Einheitliche Maßschreibweise</b> ([[massschreibweise]]): Material- und Profilabmessungen stehen "
                 "überall kompakt ohne Leerzeichen, z. B. <i>50x50x3</i>, <i>Ø60x3</i>, <i>40x20x2,5</i> statt "
                 "„50 x 50 x 3“ – in Anzeigen, Angebots- und Werkstatt-PDFs, Angebotsakte, E-Mails, Materialanfragen und "

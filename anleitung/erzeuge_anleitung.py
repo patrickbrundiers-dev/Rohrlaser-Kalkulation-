@@ -4276,7 +4276,7 @@ def kapitel_step(i):
             "im Bericht „3D prüfen“. Eine Fase am Ende zählt nur, wenn sie durch die ganze Wand geht (siehe unten). Über der Grenze der Maschine wird begrenzt "
             "(WARNUNG im Status). Ändern je Teil im Schneidweg-Rechner ([[schneidweg_rechner]]); bei Rundrohren ist "
             "die gemessene Querneigung auf etwa ±1,5° genau.",
-            "<b>Fasen an den Enden</b> (seit 0.8.27, erweitert 0.9.491): Der Import erkennt eine Fase am Rohrende, "
+            "<b>Fasen an den Enden</b> (seit 0.8.27, erweitert 0.9.491, 0.9.492): Der Import erkennt eine Fase am Rohrende, "
             "schreibt den Hinweis „Ende B: Fase erkannt …“ in den Bericht und misst Tiefe (längs), Höhe (in die Wand) "
             "und Winkel der Fase. Gezeigt und gerechnet wird so: "
             "Geht die Fase <b>durch die ganze Wand</b> und ist die <i>3D-Schnittbearbeitung</i> am Teil aktiviert, "
@@ -4287,7 +4287,7 @@ def kapitel_step(i):
             "Länge = längste Länge des Teils, Endschnitt = gerader Schnitt an der Außenkontur, Text „Fase nicht "
             "gelasert“; eine Fase durch die ganze Wand ohne 3D bekommt dazu einen Hinweis. Das Teil bleibt "
             "<i>plausibel</i> und wird ohne Häkchen-Prüfung übernommen.",
-            "<b>Schräge Konturen</b> (seit 0.9.491): Steht die Schnittfläche einer Sonderkontur in der STEP schräg "
+            "<b>Schräge Konturen</b> (seit 0.9.492): Steht die Schnittfläche einer Sonderkontur in der STEP schräg "
             "zur Wand (gemessen ab 0,5°, z. B. ein Fenster mit Schlitz, dessen Flanken 33° geneigt sind), misst der "
             "Import auch ihren Rand auf der Innenwand. Mit <i>3D-Schnittbearbeitung</i> zeigt der Editor die Kontur "
             "wie in der STEP (außen und innen wie gemessen, schräge Flanken) und rechnet sie als Zeile „Kontur 3D“ "
