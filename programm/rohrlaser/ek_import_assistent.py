@@ -286,7 +286,8 @@ class EkAssistent(IA.Assistent):
                 self.material.werkstoffe.setEnabled(False)
                 self.material.werkstoffe.setToolTip("Werkstoffe sind durch den Admin geschützt")
         except Exception:       # noqa: BLE001  (Datei ohne Admin-Vorgaben)
-            pass
+            from . import protokoll
+            protokoll.warnung("Admin-Schutz für Werkstoffe nicht lesbar")
         self.preise = PreisSchritt(self)
         self.vorschau_s = VorschauSchritt(self)
         self.abschluss = AbschlussSchritt(self)
