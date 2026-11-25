@@ -15,11 +15,33 @@ BEISPIEL = "BEISPIEL – kein echter Tarif, bitte durch eigene Werte ersetzen"
 ZONENARTEN = ("normal", "Insel", "Randgebiet", "Sondergebiet", "Ausland")
 RICHTUNGEN = ("beide", "Empfang", "Versand")
 TARIFARTEN = ("Standardtarif", "Rahmenvertrag", "Sondertarif", "Kundentarif", "interner Verrechnungstarif")
-MODELLE = ("Gewichtstarif", "Palettentarif", "Gitterboxtarif", "Kombinationstarif", "Individueller Tarif")
-BEZUG = ("Sendung", "kg", "100 kg", "Ladungsträger", "Stellplatz", "km", "Lademeter")
+MODELLE = ("Gewichtstarif", "Palettentarif", "Gitterboxtarif", "Kombinationstarif", "Individueller Tarif",
+           "Pakettarif")
+# Packstück = Preis je Paket nach seinem frachtpflichtigen Gewicht (Gewichtsstaffel je Paket, Mehrpaket = Summe);
+# Paketgröße = Preis je Paket nach Größenklasse „längste + kürzeste Seite“ in mm (GLS, DPD, Hermes) – Fracht 2.0
+BEZUG = ("Sendung", "kg", "100 kg", "Ladungsträger", "Stellplatz", "km", "Lademeter", "Packstück", "Paketgröße")
 PREISARTEN = ("Festpreis", "je Einheit")
 LHT_ARTEN = ("Europalette", "Einwegpalette", "Industriepalette", "Gitterbox", "Sonderpalette", "Langgut",
-             "Sonderladung", "Karton")
+             "Sonderladung", "Karton", "Palette mit Aufsetzrahmen", "Sonderbehälter")
+# Versandarten (Fracht 2.0, Patrick 25.11.2026): feste Auswahl im Rechner und in den Tarifen (Freitext bleibt erlaubt).
+# Mehrpaket und Sperrgut sind Paketversand (Anzahl Pakete, Zuschlag nach Maß), Palette mit Aufsetzrahmen, Gitterbox
+# und Langgut sind Ladungsträger im Palettenversand bzw. Stückgut.
+VERSANDARTEN = ("Paket", "Palettenversand", "Stückgut", "Teilladung", "Komplettladung", "Express", "Eigene Anlieferung")
+VERSANDART_TEXT = {
+    "Paket": "Paket, Mehrpaket und Sperrgut: Gewicht, Maße, Gurtmaß je Paket",
+    "Palettenversand": "Europalette, Palette mit Aufsetzrahmen, Gitterbox, Langgut: Anzahl, Tarifzone, Höhe, Gewicht",
+    "Stückgut": "Gewicht, Volumen und Relation (frachtpflichtiges Gewicht)",
+    "Teilladung": "Lademeter bzw. Ladevolumen und Entfernung",
+    "Komplettladung": "Fahrzeug je Sendung und Entfernung",
+    "Express": "Laufzeit und Expresszuschläge",
+    "Eigene Anlieferung": "eigener Lkw oder Transporter je km"}
+# Tarifbasis (Fracht 2.0): woher die Preise eines Tarifs stammen; „Tariflücke“ = kein Preis bekannt, wird nie
+# automatisch gewählt und im Vergleich als „Tarif fehlt – Angebot einholen“ gezeigt
+TARIFBASEN = ("Geschäftskundenangebot", "Kundentarif", "Listenpreis", "Schnittstelle", "Richtwert", "Schätzwert",
+              "Tariflücke")
+LUECKE = "Tariflücke"
+ECHTE_PREISE = ("Geschäftskundenangebot", "Kundentarif", "Listenpreis", "Schnittstelle")   # Anbieterpreise
+ABRECHNUNGEN = ("Kauf", "Miete", "Tausch")
 LIEFERBEDINGUNGEN = ("frei Haus", "frei Frachtführer", "unfrei", "ab Werk", "Abholung")
 # Lieferbedingungen, bei denen der Kunde die Fracht trägt: Frachtkosten 0 mit Hinweis
 OHNE_FRACHT = ("unfrei", "ab Werk", "Abholung")
@@ -35,6 +57,7 @@ BEDINGUNGEN = ("immer", "nur wenn gewählt", "Gewicht unter", "Gewicht über", "
 # feste Auswahllisten (stammdaten.Kontext.gruppiert fragt hier nach, wenn eine Quelle dort fehlt)
 AUSWAHL_FEST = {"zonenart": ZONENARTEN, "richtung": RICHTUNGEN, "tarifart": TARIFARTEN, "modell": MODELLE,
                 "bezug": BEZUG, "preisart": PREISARTEN, "lhtart": LHT_ARTEN,
+                "tarifbasis": TARIFBASEN, "abrechnung": ABRECHNUNGEN, "versandart": VERSANDARTEN,
                 "lieferbedingung": LIEFERBEDINGUNGEN, "zuschlagtyp": ZUSCHLAGTYPEN, "berechnung": BERECHNUNGEN,
                 "zuschlagbasis": BASEN, "bedingung": BEDINGUNGEN}
 
@@ -66,6 +89,8 @@ def _tarif_pruefung(z, k):
         return "FEHLER: Kundentarif ohne Kundennummer"
     if "BEISPIEL" in (z.get("bemerkung") or "") + (z.get("tarif_id") or ""):
         return "WARNUNG: Beispieltarif, keine echten Preise"
+    if z.get("basis") == LUECKE:
+        return "WARNUNG: Tariflücke, noch keine Preise (Angebot eintragen oder Preisstaffeln per CSV einlesen)"
     return None
 
 
@@ -76,6 +101,8 @@ def _preis_pruefung(z, k):
 
 
 def _lht_pruefung(z, k):
+    if z.get("art") == "Palette mit Aufsetzrahmen" and not (z.get("rahmen_hoehe") and z.get("rahmen_max")):
+        return "FEHLER: Palette mit Aufsetzrahmen braucht Rahmenhöhe und max. Anzahl Rahmen"
     if z.get("art") not in ("Sonderladung",) and not z.get("nutzlast"):
         return "WARNUNG: Nutzlast fehlt (Packvorschlag rechnet 1 Ladungsträger)"
     if z.get("stapelbar") == "ja" and not z.get("stapelfaktor"):
@@ -182,12 +209,28 @@ TARIFE = Tabelle(
      Feld("bemerkung", "Bemerkung", breite=260),
      # Frachtlaufzeit (Patrick 10.11.2026, frachtzeit.py): Lieferdatum frei Haus = ab Werk + so viele Arbeitstage;
      # leer = Vorgabe der Einstellungen (Inland/Ausland). Am Ende, damit die Beispiel-Tupel gleich bleiben.
-     Feld("laufzeit_tage", "Laufzeit [Arbeitstage]", "ganz", 0, 60, breite=80)),
+     Feld("laufzeit_tage", "Laufzeit [Arbeitstage]", "ganz", 0, 60, breite=80),
+     # Fracht 2.0 (Patrick 25.11.2026): Preisgrundlage und Paketregeln je Tarif; leer = wie bisher
+     Feld("basis", "Tarifbasis", "auswahl", auswahl="tarifbasis", breite=130),
+     Feld("quelle", "Quelle (Angebot, Liste, Adresse)", breite=220),
+     Feld("stand", "Preisstand", "datum", breite=85),
+     Feld("paket_max_l", "Paket max. Länge [mm]", "ganz", 0, 10000, breite=80),
+     Feld("paket_max_b", "Paket max. Breite [mm]", "ganz", 0, 10000, breite=80),
+     Feld("paket_max_h", "Paket max. Höhe [mm]", "ganz", 0, 10000, breite=80),
+     Feld("paket_max_gurt", "Paket max. Gurtmaß [mm]", "ganz", 0, 20000, breite=85),
+     Feld("paket_max_kg", "Paket max. Gewicht [kg]", "zahl", 0, 10000, stellen=1, breite=80),
+     Feld("sperr_max_l", "Sperrgut max. Länge [mm]", "ganz", 0, 10000, breite=80),
+     Feld("sperr_max_gurt", "Sperrgut max. Gurtmaß [mm]", "ganz", 0, 20000, breite=85),
+     Feld("sperr_zuschlag", "Sperrgutzuschlag je Paket [€]", "zahl", 0, 10000, stellen=2, breite=85)),
     ("tarif_id",),
     "Tarifkopf: wofür der Tarif gilt (Dienstleister, Versandart, Länder, Zonen, Kunde, Zeitraum) und wie er "
     "rechnet (Tarifmodell, Mindestfracht, Rabatt, frachtpflichtiges Gewicht). Leere Länder, Zonen, Versandart "
     "= alle. Die Preise stehen darunter in den Preisstaffeln. Tarifart leer = Standardtarif. Laufzeit = "
-    "Arbeitstage von ab Werk bis frei Haus beim Kunden (leer = Vorgabe der Einstellungen).",
+    "Arbeitstage von ab Werk bis frei Haus beim Kunden (leer = Vorgabe der Einstellungen). Tarifbasis, Quelle und "
+    "Preisstand zeigen, woher die Preise stammen (Tariflücke = noch kein Preis, wird nie automatisch gewählt). "
+    "Paketregeln: Pakete über Länge, Breite, Höhe (sortiert), Gurtmaß (Länge + 2 × Breite + 2 × Höhe) oder Gewicht "
+    "sind Sperrgut (mit Zuschlag je Paket bis zu den Sperrgut-Grenzen) bzw. nicht als Paket versendbar; leer = "
+    "keine Grenze. Volumengewicht über „Frachtpfl. Gewicht je m³“ (Divisor 5.000 = 200 kg, 6.000 = 167 kg).",
     pruefung=_tarif_pruefung)
 
 PREISE = Tabelle(
@@ -222,11 +265,29 @@ LHT = Tabelle(
      Feld("stapelfaktor", "Stapelfaktor", "ganz", 1, 10, breite=65),
      Feld("stellplaetze", "Stellplätze je Stück", "zahl", 0, 100, stellen=2, breite=80),
      Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
-     Feld("bemerkung", "Bemerkung", breite=260)),
+     Feld("bemerkung", "Bemerkung", breite=260),
+     # Packmitteldatenbank (Fracht 2.0, Patrick 25.11.2026); am Ende, leer = wie bisher (keine Packmittelkosten)
+     Feld("aussen_laenge", "Außen Länge [mm]", "ganz", 0, 30000, breite=75),
+     Feld("aussen_breite", "Außen Breite [mm]", "ganz", 0, 5000, breite=75),
+     Feld("aussen_hoehe", "Außen Höhe [mm]", "ganz", 0, 5000, breite=75),
+     Feld("max_hoehe", "Max. Gesamthöhe [mm]", "ganz", 0, 5000, breite=80),
+     Feld("preis", "Preis je Stück [€]", "zahl", 0, 100000, stellen=2, breite=80),
+     Feld("abrechnung", "Kauf/Miete/Tausch", "auswahl", auswahl="abrechnung", breite=85),
+     Feld("pfand", "Pfand/Tauschwert [€]", "zahl", 0, 100000, stellen=2, breite=80),
+     Feld("sicherung", "Sicherungsmaterial je Stück [€]", "zahl", 0, 10000, stellen=2, breite=85),
+     Feld("packzeit", "Packzeit je Stück [min]", "zahl", 0, 1440, stellen=1, breite=80),
+     Feld("rahmen_hoehe", "Aufsetzrahmen Höhe [mm]", "ganz", 0, 2000, breite=80),
+     Feld("rahmen_gewicht", "Aufsetzrahmen Gewicht [kg]", "zahl", 0, 1000, stellen=1, breite=80),
+     Feld("rahmen_preis", "Aufsetzrahmen Preis [€]", "zahl", 0, 10000, stellen=2, breite=80),
+     Feld("rahmen_max", "Aufsetzrahmen max. Anzahl", "ganz", 0, 20, breite=75)),
     ("lht_id",),
     "Ladungsträger mit Maßen, Eigengewicht und Nutzlast. Max. Teillänge: längere Teile kommen im Packvorschlag "
     "auf Langgut; ist sie größer als die Länge, dürfen Teile längs überstehen, quer nie. Karton: Maße = Innenmaße, "
-    "Nutzlast = Gewichtsklasse des Pakets − Eigengewicht. Stapelfaktor = wie viele übereinander einen Stellplatz teilen. Stellplätze je Stück leer = 1.",
+    "Nutzlast = Gewichtsklasse des Pakets − Eigengewicht. Stapelfaktor = wie viele übereinander einen Stellplatz teilen. Stellplätze je Stück leer = 1. Packmittel: Preis "
+    "je Stück (Kauf bzw. Miete je Sendung; Tausch = 0 € mit Hinweis auf den Pfand), Sicherungsmaterial (Folie, "
+    "Umreifung, Kantenschutz, Zwischenlagen) und Packzeit (× Stundensatz „Verpackung“). Außenmaße für Gitterbox, Karton "
+    "und Sonderbehälter (Maße = Innenmaße). Max. Gesamthöhe leer = Einstellung. Palette mit Aufsetzrahmen: Maße = "
+    "Innenmaß des Rahmens, Höhe = Palettenhöhe; das Programm setzt so viele Rahmen auf, wie die Ladung hoch ist.",
     pruefung=_lht_pruefung)
 
 ZUSCHLAEGE = Tabelle(
@@ -477,4 +538,66 @@ def plz_csv_lesen(text, zonen, laender):
             fehler.append(f"Zeile {nr}: {meldung}")
         else:
             zeilen.append({n: z.get(n) for n in CSV_PLZ})
+    return zeilen, fehler
+
+
+# ------------------------------------------------------------------ CSV der Preisstaffeln (Fracht 2.0)
+CSV_PREISE = ("tarif_id", "zone_id", "bezug", "lht_art", "bis", "preis", "preisart", "bemerkung")
+
+
+def preise_csv(zeilen):
+    """Preisstaffeln als CSV (Semikolon, UTF-8 mit BOM, Kopfzeile mit den Spaltentiteln), z. B. als Vorlage für das
+    Angebot eines Dienstleisters (MBE-Center, Spedition)."""
+    puffer = io.StringIO()
+    w = csv.writer(puffer, delimiter=";", lineterminator="\r\n")
+    w.writerow([PREISE.feld(n).titel for n in CSV_PREISE])
+    for z in zeilen:
+        w.writerow(["" if z.get(n) is None else (zahl_als_text(z[n]) if isinstance(z[n], (int, float)) else z[n])
+                    for n in CSV_PREISE])
+    return "﻿" + puffer.getvalue()
+
+
+def preise_csv_lesen(text, tarife, zonen=()):
+    """CSV der Preisstaffeln lesen und prüfen (Tarif muss bekannt sein, Zone leer oder bekannt, Bezugseinheit aus
+    BEZUG). tarife/zonen: Kennungen oder Zeilen. Ergebnis: (zeilen, fehler); fehlerhafte Zeilen werden nicht
+    übernommen."""
+    from .stammdaten import wert_aus_text
+    tarife = {t.get("tarif_id") if isinstance(t, dict) else t for t in tarife}
+    zonen = {z.get("zone_id") if isinstance(z, dict) else z for z in zonen}
+    text = text.lstrip("﻿")
+    probe = text.splitlines()[0] if text.strip() else ""
+    trenner = ";" if probe.count(";") >= probe.count(",") else ","
+    leser = csv.reader(io.StringIO(text, newline=""), delimiter=trenner)
+    titel = {PREISE.feld(n).titel.lower(): n for n in CSV_PREISE} | {n: n for n in CSV_PREISE}
+    zeilen, fehler, spalten = [], [], None
+    for nr, roh in enumerate(leser, 1):
+        if not any(c.strip() for c in roh):
+            continue
+        if spalten is None:
+            spalten = [titel.get(c.strip().lower()) for c in roh]
+            if "tarif_id" not in spalten or "bezug" not in spalten:
+                return [], [f"Zeile {nr}: Kopfzeile mit mindestens 'Tarif' und 'Bezugseinheit' erwartet"]
+            continue
+        z, meldung = {}, None
+        for name, wert in zip(spalten, roh):
+            if not name:
+                continue
+            try:
+                z[name] = wert_aus_text(PREISE.feld(name), wert.strip())
+            except ValueError as e:
+                meldung = str(e)
+                break
+        if not meldung:
+            if z.get("tarif_id") not in tarife:
+                meldung = f"Tarif '{z.get('tarif_id') or ''}' unbekannt"
+            elif z.get("zone_id") and z["zone_id"] not in zonen:
+                meldung = f"Zone '{z['zone_id']}' unbekannt"
+            elif z.get("bezug") not in BEZUG:
+                meldung = f"Bezugseinheit '{z.get('bezug') or ''}' unbekannt"
+            elif z.get("preisart") and z["preisart"] not in PREISARTEN:
+                meldung = f"Preisart '{z['preisart']}' unbekannt"
+        if meldung:
+            fehler.append(f"Zeile {nr}: {meldung}")
+        else:
+            zeilen.append({n: z.get(n) for n in CSV_PREISE})
     return zeilen, fehler

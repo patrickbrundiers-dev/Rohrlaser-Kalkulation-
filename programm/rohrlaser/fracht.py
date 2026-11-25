@@ -32,7 +32,9 @@ RANG = {"Kundentarif": 0, "Rahmenvertrag": 1, "Sondertarif": 2, "Standardtarif":
         "interner Verrechnungstarif": 9}
 ERLAUBT = {"Gewichtstarif": {"Sendung", "kg", "100 kg"},
            "Palettentarif": {"Sendung", "Ladungsträger", "Stellplatz"},
-           "Gitterboxtarif": {"Sendung", "Ladungsträger", "Stellplatz"}}
+           "Gitterboxtarif": {"Sendung", "Ladungsträger", "Stellplatz"},
+           "Pakettarif": {"Sendung", "Packstück", "Paketgröße"}}
+PAKET_BEZUG = ("Packstück", "Paketgröße")   # Preis je Paket (Fracht 2.0)
 LHT_BEZUG = ("Ladungsträger", "Stellplatz")
 PAKET = "Paket"             # Versandart des Paketversands (fracht_richtwerte.PAKET)
 SONDERZONEN = ("Insel", "Randgebiet", "Sondergebiet")
@@ -284,13 +286,18 @@ def lht_werte(eintraege, lht_zeilen):
             hinweise.append(f"Ladehilfsmittel '{e.get('lht_id')}' unbekannt")
             continue
         l, b, h = z.get("laenge"), z.get("breite"), z.get("hoehe")
+        rahmen = int(_n(e.get("rahmen")))          # Palette mit Aufsetzrahmen (Fracht 2.0): Rahmen der Sendung
+        if rahmen and h and _n(z.get("rahmen_hoehe")):
+            h = h + _n(z["rahmen_hoehe"]) * rahmen / n
         stapel = int(z["stapelfaktor"]) if z.get("stapelbar") == "ja" and _n(z.get("stapelfaktor")) > 1 else 1
         plaetze = math.ceil(n / stapel)
         je.append(dict(lht_id=z["lht_id"], art=z.get("art"), bezeichnung=z.get("bezeichnung") or z["lht_id"], anzahl=n,
                        masse=(l, b, h), volumen=l * b * h / 1e9 * n if l and b and h else None,
                        stellplaetze=plaetze * (z.get("stellplaetze") or 1),
                        lademeter=plaetze * l * b / 1e6 / 2.4 if l and b else None,
-                       eigengewicht=_n(z.get("eigengewicht")) * n,
+                       eigengewicht=_n(z.get("eigengewicht")) * n + rahmen * _n(z.get("rahmen_gewicht")),
+                       rahmen=rahmen, brutto_je=list(e.get("brutto_je") or ()) or None,
+                       aussen=_aussen(z, e),
                        brutto=_n(e["gewicht"]) * n if _zahl(e.get("gewicht")) else None,
                        nutzlast=_n(z.get("nutzlast")) * n if z.get("nutzlast") else None, stapel=stapel))
     vol = [x["volumen"] for x in je]
@@ -303,6 +310,73 @@ def lht_werte(eintraege, lht_zeilen):
                 brutto_lht=sum(x["brutto"] for x in je) if je and all(x["brutto"] is not None for x in je) else None,
                 nutzlast=sum(x["nutzlast"] for x in je) if je and all(x["nutzlast"] for x in je) else None,
                 hinweise=hinweise)
+
+
+def _aussen(z, e):
+    """Außenmaß (l, b, h) [mm] eines Packstücks: aus der Packliste (masse), sonst Außenmaße des Ladungsträgers,
+    sonst seine Maße; None, wenn eins fehlt."""
+    m = e.get("masse")
+    if m and len(m) == 3 and all(_n(x) > 0 for x in m):
+        return tuple(sorted((float(x) for x in m), reverse=True))
+    m = [_n(z.get("aussen_laenge")) or _n(z.get("laenge")), _n(z.get("aussen_breite")) or _n(z.get("breite")),
+         _n(z.get("aussen_hoehe")) or _n(z.get("hoehe"))]
+    return tuple(sorted(m, reverse=True)) if all(m) else None
+
+
+def paket_stuecke(lw, g):
+    """Einzelne Pakete der Sendung (Fracht 2.0): [{lht_id, art, kg (brutto), masse (l, b, h) oder None}]. Gewicht je
+    Paket aus der Packliste (brutto_je), sonst das Bruttogewicht gleich auf alle Pakete verteilt."""
+    n_ges = sum(x["anzahl"] for x in lw["je"])
+    out = []
+    for x in lw["je"]:
+        bj = x.get("brutto_je") or []
+        for i in range(x["anzahl"]):
+            kg = _n(bj[i]) if len(bj) == x["anzahl"] else (g["brutto"] / n_ges if n_ges else 0.0)
+            out.append(dict(lht_id=x["lht_id"], art=x.get("art"), kg=kg, masse=x.get("aussen")))
+    return out
+
+
+def gurtmass(m):
+    """Gurtmaß = längste Seite + 2 × Breite + 2 × Höhe [mm]."""
+    return m[0] + 2 * m[1] + 2 * m[2]
+
+
+def paket_pruefen(tarif, stuecke):
+    """Paketregeln des Tarifs je Paket: (Sperrgut-Zeilen [(Text, €, Erklärung)], fehler, hinweise). Über den
+    Standardmaßen bzw. dem Gurtmaß ist ein Paket Sperrgut (Zuschlag je Paket, bis zu den Sperrgut-Grenzen), darüber
+    oder über dem Höchstgewicht nicht als Paket versendbar."""
+    lim = [_n(tarif.get(k)) for k in ("paket_max_l", "paket_max_b", "paket_max_h")]
+    gurt, kg_max = _n(tarif.get("paket_max_gurt")), _n(tarif.get("paket_max_kg"))
+    s_l, s_g, s_z = _n(tarif.get("sperr_max_l")), _n(tarif.get("sperr_max_gurt")), tarif.get("sperr_zuschlag")
+    if not (any(lim) or gurt or kg_max or s_l or s_g):
+        return [], [], []
+    sperr, fehler, hinweise, ohne = 0, [], [], 0
+    for nr, p in enumerate(stuecke, 1):
+        if kg_max and p["kg"] > kg_max + EPS:
+            fehler.append(f"Paket {nr}: {z2(p['kg'], 1)} kg über dem Höchstgewicht {z2(kg_max, 1)} kg des Tarifs "
+                          f"{tarif['tarif_id']} – als Palette versenden")
+        m = p.get("masse")
+        if not m:
+            ohne += 1
+            continue
+        g = gurtmass(m)
+        standard = all(not x or m[i] <= x + EPS for i, x in enumerate(lim)) and (not gurt or g <= gurt + EPS)
+        if standard:
+            continue
+        if (s_l or s_g) and (not s_l or m[0] <= s_l + EPS) and (not s_g or g <= s_g + EPS) and _zahl(s_z):
+            sperr += 1
+            continue
+        fehler.append(f"Paket {nr} ({_mass(m)}, Gurtmaß {z2(g / 10, 0)} cm) zu groß für Tarif {tarif['tarif_id']}"
+                      + (" (Sperrgutzuschlag fehlt)" if (s_l or s_g) and not _zahl(s_z) else "") + " – als Palette versenden")
+    if ohne:
+        hinweise.append(f"{ohne} Paket(e) ohne Maße: Paketgrenzen nicht geprüft")
+    zeilen = [("Sperrgutzuschlag", sperr * _n(s_z), f"{sperr} Paket{'e' if sperr != 1 else ''} × {euro(_n(s_z))}")] \
+        if sperr else []
+    return zeilen, fehler, hinweise
+
+
+def _mass(m):
+    return " × ".join(zahl_als_text(x / 10, 0) for x in m) + " cm"
 
 
 def packvorschlag(teile, lht_zeilen, standard_id, langgut_id):
@@ -413,6 +487,8 @@ def tarife_finden(daten, s, zone):
             continue
         if RANG.get(t.get("tarifart"), 3) == 9 and t["tarif_id"] != s.get("tarif_id"):
             continue                       # interne Verrechnungstarife nur, wenn ausdrücklich gewählt
+        if t.get("basis") == "Tariflücke" and t["tarif_id"] != s.get("tarif_id"):
+            continue                       # Fracht 2.0: Tarif ohne Preise nie automatisch
         passend.append(t)
     passend.sort(key=lambda t: (tarif_rang(t), t["tarif_id"]))
     if s.get("tarif_id"):
@@ -479,6 +555,11 @@ def grundfracht(tarif, preise, zone, lw, kg, s):
             if preis_art(x) not in abgedeckt:
                 fehler.append(f"Tarif {tarif['tarif_id']} ohne Preis für {x['art']} ({x['anzahl']} Stück)")
     for (bezug, art), zeilen_g in sorted(gruppen.items(), key=lambda kv: (BEZUG_FOLGE.get(kv[0][0], 9), kv[0][1])):
+        if bezug in PAKET_BEZUG:
+            z_, f_ = _je_paket(tarif, bezug, art, zeilen_g, lw)
+            zeilen += z_
+            fehler += f_
+            continue
         if bezug in LHT_BEZUG:
             dabei = [x for x in lw["je"] if preis_art(x) == art]
             if not dabei:
@@ -534,7 +615,52 @@ def grundfracht(tarif, preise, zone, lw, kg, s):
 
 
 GEWICHT = ("kg", "100 kg")
-BEZUG_FOLGE = {"Sendung": 0, "Gewicht": 1, "km": 3, "Lademeter": 4, "Stellplatz": 5, "Ladungsträger": 6}
+BEZUG_FOLGE = {"Sendung": 0, "Gewicht": 1, "Packstück": 2, "Paketgröße": 2, "km": 3, "Lademeter": 4, "Stellplatz": 5,
+               "Ladungsträger": 6}
+
+
+def _je_paket(tarif, bezug, art, zeilen_g, lw):
+    """Preis je Paket (Fracht 2.0): jedes Paket nach seinem frachtpflichtigen Gewicht (Brutto oder Volumengewicht
+    nach „Frachtpfl. Gewicht je m³“, aufgerundet nach Tarif) bzw. nach seiner Größenklasse (längste + kürzeste Seite)
+    in die Stufe. Ergebnis: (zeilen [(Text, €, Erklärung)] je Stufe, fehler)."""
+    folge = sorted(zeilen_g, key=lambda p: (p.get("bis") is None, _n(p.get("bis"))))
+    stuecke = [p for p in lw.get("stuecke") or () if not art or p["lht_id"] == art or p.get("art") == art]
+    fm, r = _n(tarif.get("faktor_m3")), _n(tarif.get("rundung_kg"))
+    gruppen, fehler = {}, []
+    for nr, p in enumerate(stuecke, 1):
+        if bezug == "Paketgröße":
+            if not p.get("masse"):
+                fehler.append(f"Paket {nr}: Maße fehlen – Größenklasse nicht bestimmbar")
+                continue
+            m, einheit = p["masse"][0] + p["masse"][2], "mm (längste + kürzeste Seite)"
+        else:
+            m, einheit = p["kg"], "kg"
+            if fm and p.get("masse"):
+                m = max(m, p["masse"][0] * p["masse"][1] * p["masse"][2] / 1e9 * fm)
+            if r > 0:
+                m = math.ceil(m / r - 1e-9) * r
+        stufe = next((q for q in folge if q.get("bis") is None or m <= q["bis"] + EPS), None)
+        if stufe is None:
+            fehler.append(f"Paket {nr}: {z2(m, 1)} {einheit.split()[0]} über der letzten Stufe des Tarifs "
+                          f"{tarif['tarif_id']} (bis {zahl_als_text(folge[-1]['bis'])})")
+            continue
+        if stufe.get("preis") is None:
+            fehler.append(f"Paket {nr}: Stufe ohne Preis – individuelle Berechnung nötig")
+            continue
+        preis = stufe["preis"] * (m if stufe.get("preisart") == "je Einheit" else 1)
+        gruppen.setdefault(id(stufe), [stufe, 0, 0.0])
+        gruppen[id(stufe)][1] += 1
+        gruppen[id(stufe)][2] += preis
+    zeilen = []
+    for stufe, n, betrag in gruppen.values():
+        grenze = (f"bis {zahl_als_text(stufe['bis'])} {'kg' if bezug == 'Packstück' else 'mm'}"
+                  if stufe.get("bis") is not None else "ohne Obergrenze")
+        zeilen.append((f"Paket {grenze}", betrag, f"{n} Paket{'e' if n != 1 else ''} × "
+                       + (euro(stufe["preis"]) if stufe.get("preisart") != "je Einheit" else "Preis je Einheit")
+                       + (" (Größe = längste + kürzeste Seite)" if bezug == "Paketgröße" else "")))
+    if not stuecke:
+        fehler.append(f"Tarif {tarif['tarif_id']}: keine Pakete in der Sendung")
+    return zeilen, fehler
 
 
 # ------------------------------------------------------------------ Zuschläge
@@ -752,7 +878,16 @@ def kalkulieren(snap, s):
             hinweise.append(f"Tarif in {snap['waehrung']}, umgerechnet mit 1 {snap['waehrung']} = "
                             f"{z2(kurs, 4)} €" + (f" (Stand {_datum(snap['kurs_stand'])})" if snap.get("kurs_stand")
                                                    else ""))
+    paket = tarif.get("modell") == "Pakettarif" or any(_n(tarif.get(k)) for k in (
+        "paket_max_l", "paket_max_gurt", "paket_max_kg", "sperr_max_l"))
+    if paket:                           # Fracht 2.0: einzelne Pakete, Volumengewicht, Gurtmaß, Sperrgut
+        lw["stuecke"] = paket_stuecke(lw, g)
     gz, staffeln, w2, f2 = grundfracht(tarif, snap["preise"], snap["zone"], lw, kg, s)
+    if paket:
+        sp, f3, h3 = paket_pruefen(tarif, lw["stuecke"])
+        gz = list(gz) + sp
+        f2 = list(f2) + f3
+        hinweise += h3
     warnungen += w2
     fehler += f2
     out["staffeln"] = staffeln

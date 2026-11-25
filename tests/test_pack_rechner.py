@@ -136,8 +136,13 @@ r.packvorschlag()
 v = r.vergleich_liste
 pakete = {x["std_id"]: x for x in v if x["paket"]}
 assert set(pakete) == {"K-S", "K-M", "K-L"}, list(pakete)
-assert pakete["K-S"]["lht"] == [dict(lht_id="K-S", anzahl=2)] and abs(pakete["K-S"]["gesamt"] - 20.98) < 1e-6
-assert pakete["K-M"]["lht"] == [dict(lht_id="K-M", anzahl=1)] and abs(pakete["K-M"]["gesamt"] - 18.99) < 1e-6
+def _kurz(lht):      # Fracht 2.0: Kartons tragen zusätzlich brutto_je und masse (Preis je Paket)
+    return [dict(lht_id=x["lht_id"], anzahl=x["anzahl"]) for x in lht]
+
+
+assert len(pakete["K-S"]["lht"][0]["brutto_je"]) == 2 and len(pakete["K-S"]["lht"][0]["masse"]) == 3
+assert _kurz(pakete["K-S"]["lht"]) == [dict(lht_id="K-S", anzahl=2)] and abs(pakete["K-S"]["gesamt"] - 20.98) < 1e-6
+assert _kurz(pakete["K-M"]["lht"]) == [dict(lht_id="K-M", anzahl=1)] and abs(pakete["K-M"]["gesamt"] - 18.99) < 1e-6
 assert v[0]["std_id"] == "K-M" and v[0]["gesamt"] < min(x["gesamt"] for x in v if not x["paket"])
 assert r.versandart.currentText() == fracht_richtwerte.PAKET and r.lht_eintraege()[0]["lht_id"] == "K-M"
 e = r.rechnen()

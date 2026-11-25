@@ -51,7 +51,7 @@ from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VO
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 105    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 106    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -221,6 +221,9 @@ SCHEMA_VERSION = 105    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 105: Austauschordner 2.0 (24.11.2026, austausch_dateien.py): Tabellen austausch_dateien
                         #      (Metadaten je Datei: Zuordnung, Bearbeiter, Status …) und austausch_ereignisse
                         #      (Kommentare, Verlauf), beide geteilt; neue Tabellen leer, bestehende Daten unverändert
+                        # 106: Fracht + Verpackung 2.0 (25.11.2026, fracht_tarife.py): fracht_tarife.basis/quelle/stand
+                        #      und Paket-/Sperrgutgrenzen, fracht_lht Außenmaße, Preis, Abrechnung, Pfand, Sicherung,
+                        #      Packzeit und Aufsetzrahmen; neue Spalten leer = wie bisher gerechnet
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -2401,6 +2404,68 @@ class Datenbank:
         if (self.einstellung("fracht_versandart") or "Stückgut") == "Stückgut":
             self.einstellung_setzen("fracht_versandart", VERSANDART)
         return weg, neu
+
+    def _zeilen_einfuegen(self, tabelle, zeilen):
+        namen = [f.name for f in ALLE_TABELLE[tabelle].felder]
+        n = 0
+        for z in zeilen:
+            n += self.con.execute(
+                f'INSERT OR IGNORE INTO "{tabelle}" ({", ".join(chr(34) + x + chr(34) for x in namen)}) '
+                f'VALUES ({", ".join("?" * len(namen))})', [z.get(x) for x in namen]).rowcount
+        return n
+
+    @schreibt
+    def fracht_vorlagen_laden(self):
+        """Tarifvorlagen (fracht_tarife.vorlagen: Listenpreise DHL/GLS/Hermes, Tariflücken MBE, UPS, FedEx, DPD,
+        Cargoboard, Speditionen) anlegen. Vorhandene Einträge mit gleicher Kennung bleiben (der eigene gilt); Preise
+        nur für neu angelegte Tarife. Ergebnis: Anzahl eingefügter Zeilen."""
+        from .fracht_tarife import vorlagen
+        v = vorlagen()
+        n = 0
+        with self.con:
+            for tab in ("fracht_dienstleister", "fracht_laender", "fracht_zonen"):
+                n += self._zeilen_einfuegen(tab, v[tab])
+            neu = set()
+            for t in v["fracht_tarife"]:
+                if self._zeilen_einfuegen("fracht_tarife", [t]):
+                    neu.add(t["tarif_id"])
+                    n += 1
+            n += self._zeilen_einfuegen("fracht_preise", [p for p in v["fracht_preise"] if p["tarif_id"] in neu])
+        return n
+
+    @schreibt
+    def packmittel_vorlagen_laden(self):
+        """Standard-Packmittel (fracht_tarife.packmittel: Europalette mit Aufsetzrahmen, Gitterbox, Rohrkartons,
+        Sonderbehälter) anlegen, ohne Preise; vorhandene Kennungen bleiben. Ergebnis: Anzahl eingefügter Zeilen."""
+        from .fracht_tarife import packmittel
+        with self.con:
+            return self._zeilen_einfuegen("fracht_lht", packmittel())
+
+    @schreibt
+    def fracht_preise_einlesen(self, zeilen):
+        """Preisstaffeln aus einer CSV (fracht_daten.preise_csv_lesen) übernehmen: die Preise der enthaltenen Tarife
+        werden ersetzt (vorher Sicherung 'vor_Frachtpreise_CSV'); ein Tarif mit Tarifbasis 'Tariflücke' oder ohne
+        Basis wird 'Geschäftskundenangebot' mit Stand heute, sonst wird nur der Stand gesetzt. Ergebnis:
+        (entfernt, eingefügt, Pfad der Sicherung)."""
+        from .fracht_daten import LUECKE
+        ids = sorted({z["tarif_id"] for z in zeilen if z.get("tarif_id")})
+        if not ids:
+            return 0, 0, None
+        pfad = self.sicherung(zusatz="vor_Frachtpreise_CSV")
+        heute = datetime.date.today().isoformat()
+        weg = 0
+        with self.con:
+            for i in ids:
+                weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id=?", (i,)).rowcount
+                basis = (self.con.execute("SELECT basis FROM fracht_tarife WHERE tarif_id=?", (i,)).fetchone()
+                         or [None])[0]
+                if not basis or basis == LUECKE:
+                    self.con.execute("UPDATE fracht_tarife SET basis=?, stand=? WHERE tarif_id=?",
+                                     ("Geschäftskundenangebot", heute, i))
+                else:
+                    self.con.execute("UPDATE fracht_tarife SET stand=? WHERE tarif_id=?", (heute, i))
+            neu = self._zeilen_einfuegen("fracht_preise", zeilen)
+        return weg, neu, pfad
 
     @schreibt
     def fracht_zonen_zuruecksetzen(self, absender_plz=None):

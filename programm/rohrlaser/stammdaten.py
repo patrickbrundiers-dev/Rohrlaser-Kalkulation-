@@ -2090,6 +2090,13 @@ EINSTELLUNGEN = (
                 auswahl="lht"),
     Einstellung("fracht_lht_langgut", "Ladungsträger für lange Teile (Langgut)", "Frachtkosten", "auswahl", "LG",
                 auswahl="lht"),
+    # Fracht + Verpackung 2.0 (Patrick 25.11.2026): Packmittelkosten aus der Packliste (Preis, Sicherung, Packzeit,
+    # Aufsetzrahmen der Packmittel) statt der Tabelle Verpackung – nur für neu berechnete Fracht, Vorgabe aus.
+    # Live-Preise über Schnittstellen (fracht_api.py) nur auf Knopfdruck und nur, wenn eingeschaltet (Vorgabe aus).
+    Einstellung("fracht_packmittel_kosten", "Verpackungskosten aus den Packmitteln der Packliste rechnen",
+                "Frachtkosten", "auswahl", "nein", auswahl="janein"),
+    Einstellung("fracht_api_aktiv", "Live-Frachtpreise über Schnittstellen abfragen (UPS, FedEx, DHL Express, "
+                "Cargoboard; nur auf Knopfdruck)", "Frachtkosten", "auswahl", "nein", auswahl="janein"),
     # Versand und Palettenschein (Plan Palettenbegleitschein 24.10.2026): Paletten nach Gewicht und Packraum
     # (paletten.py, auch im Packvorschlag der Fracht), Feiertage für Arbeitstage, Arbeitsschritte des Scheins
     # Richtwerte Stückgut/Palettennetz (Recherche 24.10.2026): Europalette 1200 × 800, Eigenhöhe 144 mm, Nutzlast

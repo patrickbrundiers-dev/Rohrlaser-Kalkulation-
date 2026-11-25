@@ -21,6 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.511", "<b>Fracht und Verpackung 2.0</b> ([[fracht_vergleich]], [[fracht_packmittel]]): <i>Tarifvorlagen "
+                "laden</i> legt Listenpreise von DHL (2026 und ab 2027, national und EU), GLS und Hermes mit Quelle und "
+                "Preisstand an, dazu <b>Tariflücken</b> ohne Preise für MBE, UPS, FedEx, DPD, Cargoboard und "
+                "Speditionen: sie werden nie automatisch gewählt, ein Angebot kommt per CSV hinein. Paketregeln je "
+                "Paket (Größenklasse, Gurtmaß, Volumengewicht, Sperrgut), Packmittel mit Außenmaß, Preis, Kauf/Miete/"
+                "Tausch, Sicherung, Packzeit und <b>Palette mit Aufsetzrahmen</b> (Rahmenzahl automatisch). Im "
+                "Frachtrechner neu die Reiter <i>Preisvergleich</i> (günstigster, schnellster, Preis-Leistung, "
+                "Richtwerte gekennzeichnet, Anbieter übernehmen) und <i>Packliste und Packmittelkosten</i>. Im Angebot "
+                "Fracht <i>nach Volumen</i> oder als <i>eigene Position</i>, Verpackung aus der Packliste mit Haken. "
+                "Live-Preise über UPS, FedEx, DHL Express und Cargoboard nur mit eigenem Zugang und eingeschalteter "
+                "Einstellung (Vorgabe aus). Bestehende Angebote rechnen unverändert.",
+     "Fracht 2.0: Tarifvorlagen und Tariflücken, Paketregeln, Packmittel mit Aufsetzrahmen, Preisvergleich, Fracht "
+     "als eigene Position"],
     ["0.9.510", "<b>Outlook-Import: Kundenbindung, Stückzahlen und STEP-Zuordnung</b> ([[anfrage_import]]): Der "
                 "Kunde einer Anfrage (automatisch eindeutig erkannt oder von Hand) gilt bis zum Auftrag; Abweichungen "
                 "aus Mail/Formular sind nur ein Hinweis. Kundenwechsel: offene Angebote der Anfrage wechseln nach "

@@ -500,6 +500,12 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
     # Allgemeine Zusatzarbeiten (23.11.2026): eigene Zeilen unter den Positionen, % auf die Summe der Zeilen davor
     zeilen += zusatz_global.ausgabe_zeilen(
         kopf, kaufm_runden(sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None), 2), einst)
+    # Fracht 2.0 (25.11.2026): Fracht und Verpackung als eigene Position (Umlage „eigene Position“)
+    fr_eigen = kaufm_runden(sum(_wert(z.get("fracht_eigen_teil")) * _wert(z.get("stueck")) for z in kalk_zeilen if z), 2)
+    frei_ab = _wert(einst.get("frachtfrei_ab"))
+    if fr_eigen > 0 and not (frei_ab > 0 and sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None) >= frei_ab):
+        zeilen.append(dict(art="einmal", pos=None, artikel=None, einheit="pausch.", menge=1, preis=fr_eigen,
+                           gesamt=fr_eigen, fracht_position=True, text=fracht_angebot.position_text(kopf)))
     hinweise = sum(1 for i, p in enumerate(positionen)
                    if position_aktiv(p) and kalk_zeilen[i] and kalk_zeilen[i]["hinweis"])
     netto = kaufm_runden(sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None), 2)    # Summe ohne Gleitkommareste
