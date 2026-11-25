@@ -122,11 +122,13 @@ SCHRITTE = (
     ("bearbeitung", "Bearbeitung", "Maschinenzeit, Schnitt-, Rüst- und Zusatzkosten ansehen.",
      "Schnittwege, Maschinenzeiten, Rüsten und Gemeinkosten rechnet das Programm automatisch mit denselben Werten "
      "wie im Expertenmodus. Eingreifen müssen Sie nur bei Zusatzarbeiten (z. B. Gewinde, Senken, Entgraten) und "
-     "Zukaufteilen. Vorgeschlagene Arbeiten übernehmen Sie mit einem Klick."),
+     "Zukaufteilen. Vorgeschlagene Arbeiten übernehmen Sie mit einem Klick. Frachtkosten tragen Sie unter "
+     "„Frachtkosten“ von Hand ein oder lassen sie mit „Fracht berechnen …“ (Paket oder Palette, Tarif) rechnen."),
     ("ergebnis", "Ergebnis", "Kosten, Verkaufspreis und Marge auf einen Blick.",
      "Die Ergebnisübersicht zeigt Material-, Bearbeitungs-, Maschinen- und Zusatzkosten, die Gesamtkosten, den "
      "Verkaufspreis und den Gewinn mit Marge. Die Ampel sagt, ob der Preis wirtschaftlich ist (grün gut, orange "
-     "knapp, rot kritisch). Darunter steht der Preis je Bauteil."),
+     "knapp, rot kritisch). Unter „Marge einstellen“ tragen Sie die gewünschte Marge ein; das Programm stellt den "
+     "Gewinn passend ein. Darunter steht der Preis je Bauteil."),
     ("angebot", "Angebot", "Kunden wählen, Mengen und Preise prüfen, PDF erstellen.",
      "Wählen Sie den Kunden, kontrollieren Sie Mengen und Preise und erstellen Sie das Angebot als PDF. Gespeichert "
      "wird jede Änderung sofort; mit gemeinsamem Ordner sehen die Kollegen das Angebot nach dem Abgleich. Für "
@@ -153,6 +155,10 @@ FELD_HILFE = {
     "gesamt": "Alle Kosten des Angebots (Selbstkosten ohne Gewinn), wie die Kachel „Gewinn und Marge“ im Expertenmodus.",
     "verkauf": "Netto-Verkaufspreis des ganzen Angebots, so wie er im PDF steht.",
     "gewinn": "Verkaufspreis minus Gesamtkosten; die Marge ist der Gewinn im Verhältnis zum Warenwert.",
+    "fracht": "Frachtkosten des ganzen Angebots: von Hand oder berechnet (Paket/Palette, Tarif), auf die Bauteile "
+              "verteilt je Stück oder nach Gewicht. Fracht wird ohne Gewinn durchgereicht.",
+    "marge": "Gewünschte Marge vom Warenwert: das Programm stellt den Gewinnzuschlag so ein, dass der Verkaufspreis "
+             "sie genau erreicht (wie „Auf Zielmarge setzen“ in der Preisleiter); rückgängig möglich.",
 }
 
 # ------------------------------------------------------------------ Kosten gruppiert

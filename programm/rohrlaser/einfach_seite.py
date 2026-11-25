@@ -15,7 +15,7 @@ Strg+Alt+M (einrichten, umschalten).
 """
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QKeySequence, QPainter, QShortcut
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel,
                                QLineEdit, QListWidget, QListWidgetItem, QPushButton, QScrollArea,
                                QSizePolicy, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
                                QToolButton, QVBoxLayout, QWidget)
@@ -404,13 +404,15 @@ class EinfachBereich(QWidget):
             bm.hilfe_setzen(self.db, an)
 
     FELDER_JE_SCHRITT = {bm.BAUTEILE: ("stueck", "profil", "laenge"), bm.MATERIAL: ("werkstoff", "preis_m", "verfuegbar"),
-                         bm.BEARBEITUNG: ("maschinenzeit", "schnitt", "ruesten", "zusatz", "zukauf", "gemein"),
-                         bm.ERGEBNIS: ("gesamt", "verkauf", "gewinn")}
+                         bm.BEARBEITUNG: ("maschinenzeit", "schnitt", "ruesten", "zusatz", "zukauf", "gemein",
+                                          "fracht"),
+                         bm.ERGEBNIS: ("gesamt", "verkauf", "gewinn", "marge")}
     FELD_TITEL = {"stueck": "Stück", "profil": "Querschnitt", "laenge": "Länge", "werkstoff": "Werkstoff",
                   "preis_m": "Preis je Meter", "verfuegbar": "Verfügbarkeit", "maschinenzeit": "Maschinenzeit",
                   "schnitt": "Schnittkosten", "ruesten": "Rüstkosten", "zusatz": "Zusatzarbeiten",
                   "zukauf": "Zukaufteile", "gemein": "Gemeinkosten", "gesamt": "Gesamtkosten",
-                  "verkauf": "Verkaufspreis", "gewinn": "Gewinn und Marge"}
+                  "verkauf": "Verkaufspreis", "gewinn": "Gewinn und Marge",
+                  "fracht": "Frachtkosten", "marge": "Marge einstellen"}
 
     def _hilfe_setzen(self):
         _, titel, kurz, lang = bm.SCHRITTE[self.schritt]
@@ -1043,6 +1045,7 @@ class EinfachBereich(QWidget):
         r = Raster(min_breite=200)
         r.setzen(list(self.kz.values()))
         v.addWidget(r)
+        v.addWidget(self._fracht_karte_bauen())
         aktion = Karte("Wo Sie eingreifen können")
         aktion.lay.addWidget(_label("Alles Übrige rechnet das Programm automatisch mit denselben Werten wie im "
                                     "Expertenmodus.", "e_klein"))
@@ -1083,6 +1086,7 @@ class EinfachBereich(QWidget):
             tipp = self._gruppen_tipp(n)
             self.kz[n].setzen(bm.euro(g[n]), bm.FELD_HILFE[n] if n != "material" else "Stangen inkl. Verschnitt",
                               tipp=(bm.FELD_HILFE[n] + ("\n\n" + tipp if tipp else "")))
+        self._fracht_fuellen()
         n_vorschlaege = sum(len(v or ()) for v in getattr(self.seite.pos_modell, "vorschlaege", ()) or ())
         self.vorschlag_knopf.setText(f"Vorgeschlagene Arbeiten übernehmen ({n_vorschlaege})" if n_vorschlaege else
                                      "Keine offenen Vorschläge")
@@ -1104,6 +1108,228 @@ class EinfachBereich(QWidget):
         self.aktualisieren()
         return erg
 
+    # -------------------------------------------------------------- Fracht (Patrick 25.11.2026, gleiche Rechnung)
+    def _darf_aendern(self):
+        s = self.seite
+        return s is not None and not s.db.nur_lesen and not s.fremd()
+
+    def _fracht_karte_bauen(self):
+        """Frachtkosten wie im Angebotskopf des Expertenmodus: Frachtart, Betrag von Hand, Verteilung, „Fracht
+        berechnen …“ (Paket/Palette, Tarif, auch je Staffelmenge) und automatisch nachführen (fracht_angebot.py)."""
+        from . import fracht_angebot as fa
+        k = Karte("Frachtkosten")
+        k.lay.addWidget(_label("Fracht geht wie im Expertenmodus in den Verkaufspreis ein und wird auf die Bauteile "
+                               "verteilt. Betrag von Hand eintragen oder vom Programm berechnen lassen.", "e_klein"))
+        g = QGridLayout()
+        g.setHorizontalSpacing(10)
+        g.setVerticalSpacing(6)
+        self.fr_modus = QComboBox()
+        self.fr_modus.addItems(fa.MODI)
+        self.fr_modus.setToolTip("manuell: Betrag von Hand · berechnet: aus „Fracht berechnen …“ · keine Fracht "
+                                 "(Abholung, ab Werk) und im Artikelpreis enthalten: 0 € in der Kalkulation")
+        self.fr_modus.activated.connect(lambda _i: self.fracht_modus_setzen(self.fr_modus.currentText()))
+        self.fr_betrag = QDoubleSpinBox()
+        self.fr_betrag.setRange(0, 100000)
+        self.fr_betrag.setDecimals(2)
+        self.fr_betrag.setSuffix(" €")
+        self.fr_betrag.setGroupSeparatorShown(True)
+        self.fr_betrag.setKeyboardTracking(False)
+        self.fr_betrag.setToolTip("Frachtkosten für das ganze Angebot (netto)")
+        self.fr_betrag.editingFinished.connect(lambda: self.fracht_setzen(self.fr_betrag.value()))
+        self.fr_umlage = QComboBox()
+        self.fr_umlage.addItems(fa.UMLAGEN)
+        self.fr_umlage.setToolTip("je Stück: jedes Teil trägt gleich viel · nach Gewicht: Anteil am Gesamtgewicht")
+        self.fr_umlage.activated.connect(lambda _i: self.fracht_umlage_setzen(self.fr_umlage.currentText()))
+        self.fr_auto = QCheckBox("Fracht automatisch berechnen")
+        self.fr_auto.setToolTip("Fracht bei jeder Änderung aus Ziel-PLZ des Kunden, Gewicht, Packvorschlag (Paket "
+                                "oder Palette) und Tarif rechnen")
+        self.fr_auto.clicked.connect(self.fracht_auto)
+        self.fr_knopf = _knopf("Fracht berechnen …", self.fracht_berechnen,
+                               "Fracht aus PLZ, Gewicht, Paket/Palette und Tarif berechnen (wie im Expertenmodus)")
+        g.addWidget(_label("Frachtart", "e_wert_titel"), 0, 0)
+        g.addWidget(self.fr_modus, 0, 1)
+        g.addWidget(_label("Betrag", "e_wert_titel"), 0, 2)
+        g.addWidget(self.fr_betrag, 0, 3)
+        g.addWidget(_label("Verteilen", "e_wert_titel"), 1, 0)
+        g.addWidget(self.fr_umlage, 1, 1)
+        g.addWidget(self.fr_auto, 1, 2, 1, 2)
+        g.setColumnStretch(4, 1)
+        k.lay.addLayout(g)
+        zeile = QHBoxLayout()
+        self.fr_text = _label("", "e_klein")
+        zeile.addWidget(self.fr_text, 1)
+        zeile.addWidget(self.fr_knopf)
+        k.lay.addLayout(zeile)
+        return k
+
+    def _fracht_fuellen(self):
+        from . import fracht_angebot as fa
+        from . import funktionen
+        s, d = self.seite, self.daten
+        if s is None or d is None:
+            return
+        kopf = s.kopf or {}
+        m = fa.modus(kopf)
+        for w, wert in ((self.fr_modus, m), (self.fr_umlage, fa.umlage(kopf))):
+            w.blockSignals(True)
+            w.setCurrentText(wert)
+            w.blockSignals(False)
+        self.fr_betrag.blockSignals(True)
+        self.fr_betrag.setValue(float(kopf.get("fracht") or 0))
+        self.fr_betrag.blockSignals(False)
+        self.fr_auto.blockSignals(True)
+        self.fr_auto.setChecked(fa.auto(kopf))
+        self.fr_auto.blockSignals(False)
+        darf = self._darf_aendern()
+        berechnet = m == fa.BERECHNET
+        self.fr_modus.setEnabled(darf)
+        self.fr_umlage.setEnabled(darf and m in (fa.MANUELL, fa.BERECHNET))
+        self.fr_betrag.setEnabled(darf and m == fa.MANUELL)
+        rechnen_an = funktionen.an("funktion_fracht")
+        self.fr_auto.setVisible(rechnen_an)
+        self.fr_auto.setEnabled(darf and berechnet)
+        self.fr_knopf.setVisible(rechnen_an)
+        self.fr_knopf.setEnabled(darf and bool(s.positionen))
+        betrag = float(d["summen"].get("fracht") or 0)
+        frei = float(d["summen"].get("frachtfrei") or 0)
+        teile = [f"In der Kalkulation: <b>{bm.euro(betrag)}</b>"]
+        if abs(frei) > 0.004:
+            teile.append(f"Frachtfrei-Umlage {bm.euro(frei)}")
+        hinweis = fa.angebotstext(kopf)
+        if hinweis:
+            teile.append(f"Im Angebot: <i>{hinweis}</i>")
+        if berechnet and not betrag:
+            teile.append("Noch nicht berechnet: „Fracht berechnen …“")
+        self.fr_text.setText(" · ".join(teile))
+
+    def _kopf_wert(self, name, wert):
+        s = self.seite
+        if not self._darf_aendern():
+            return False
+        from .angebot import KOPF
+        s._kopf_speichern(next(f for f in KOPF if f.name == name), wert)
+        self.aktualisieren()
+        return True
+
+    def fracht_setzen(self, betrag):
+        """Frachtbetrag von Hand (€, ganzes Angebot); stellt die Frachtart auf „manuell“, falls sie keine Fracht
+        rechnet."""
+        from . import fracht_angebot as fa
+        s = self.seite
+        if s is None:
+            return False
+        betrag = round(float(betrag or 0), 2) or None
+        if betrag == (s.kopf.get("fracht") or None):
+            return False
+        if betrag and fa.modus(s.kopf) in (fa.KEINE, fa.ENTHALTEN):
+            self._kopf_wert("fracht_modus", fa.MANUELL)
+        return self._kopf_wert("fracht", betrag)
+
+    def fracht_modus_setzen(self, modus):
+        from . import fracht_angebot as fa
+        s = self.seite
+        if s is None or modus not in fa.MODI or modus == fa.modus(s.kopf):
+            return False
+        return self._kopf_wert("fracht_modus", modus)
+
+    def fracht_umlage_setzen(self, umlage):
+        from . import fracht_angebot as fa
+        s = self.seite
+        if s is None or umlage not in fa.UMLAGEN or umlage == fa.umlage(s.kopf):
+            return False
+        return self._kopf_wert("fracht_umlage", umlage)
+
+    def fracht_auto(self, an):
+        s = self.seite
+        if not self._darf_aendern():
+            return False
+        s.fracht_auto_setzen(bool(an))
+        self.aktualisieren()
+        return True
+
+    def fracht_berechnen(self):
+        """Dialog „Fracht berechnen“ des Expertenmodus (Paket/Palette, Tarif, Übernehmen setzt „berechnet“)."""
+        s = self.seite
+        if not self._darf_aendern() or not s.positionen:
+            return None
+        d = s.fracht_berechnen()
+        self.aktualisieren()
+        return d
+
+    # -------------------------------------------------------------- Marge (Patrick 25.11.2026, marge.py/Preisleiter)
+    def _marge_karte_bauen(self):
+        """Marge einstellen: stellt den Gewinn des Angebots über die volle Kalkulation so ein, dass die Marge vom
+        Warenwert erreicht wird (AngebotSeite.auf_marge_setzen, wie „Auf Zielmarge setzen“ in der Preisleiter)."""
+        k = Karte("Marge einstellen")
+        k.lay.addWidget(_label("Gewünschte Marge vom Warenwert eintragen: das Programm stellt den Gewinn so ein, "
+                               "dass der Verkaufspreis genau diese Marge ergibt (Rabatt, Rundung und Mindestpreis "
+                               "zählen mit). Fracht und Verpackung werden ohne Gewinn durchgereicht.", "e_klein"))
+        zeile = QHBoxLayout()
+        zeile.addWidget(_label("Marge", "e_wert_titel"))
+        self.mg_wert = QDoubleSpinBox()
+        self.mg_wert.setRange(0, 90)
+        self.mg_wert.setDecimals(1)
+        self.mg_wert.setSingleStep(0.5)
+        self.mg_wert.setSuffix(" %")
+        self.mg_wert.setToolTip("Marge = Gewinn ÷ Warenwert (Verkaufspreis ohne Fracht, Verpackung, Skonto)")
+        zeile.addWidget(self.mg_wert)
+        self.mg_knopf = _knopf("Marge übernehmen", lambda: self.marge_setzen(self.mg_wert.value()),
+                               "Gewinn so einstellen, dass die eingetragene Marge erreicht wird (rückgängig möglich)")
+        self.mg_knopf.setObjectName("primaer")
+        zeile.addWidget(self.mg_knopf)
+        self.mg_ziel = _knopf("", lambda: self.marge_setzen(self._satz("zielmarge") * 100),
+                              "Marge auf die Zielmarge aus den Einstellungen setzen")
+        self.mg_min = _knopf("", lambda: self.marge_setzen(self._satz("mindestmarge") * 100),
+                             "Marge auf die Mindestmarge aus den Einstellungen setzen")
+        zeile.addWidget(self.mg_ziel)
+        zeile.addWidget(self.mg_min)
+        zeile.addStretch(1)
+        k.lay.addLayout(zeile)
+        self.mg_text = _label("", "e_klein")
+        k.lay.addWidget(self.mg_text)
+        return k
+
+    def _satz(self, name):
+        from . import preisleiter
+        return preisleiter._anteil(self.seite.einst if self.seite else {}, name)
+
+    def _marge_fuellen(self):
+        from . import rechnen
+        s, d = self.seite, self.daten
+        if s is None or d is None:
+            return
+        e = d["ergebnis"]
+        if not self.mg_wert.hasFocus():
+            self.mg_wert.setValue(round(100 * e["marge"], 1) if e["marge"] is not None else 0)
+        darf = self._darf_aendern() and bool(s.positionen)
+        for w in (self.mg_wert, self.mg_knopf):
+            w.setEnabled(darf)
+        for knopf, name, titel in ((self.mg_ziel, "zielmarge", "Zielmarge"), (self.mg_min, "mindestmarge",
+                                                                              "Mindestmarge")):
+            satz = self._satz(name)
+            knopf.setVisible(bool(satz))
+            knopf.setEnabled(darf)
+            if satz:
+                knopf.setText(f"{titel} {bm.zahl(100 * satz, 1)} %")
+        g = rechnen._n(s.einst.get("gewinn"))
+        self.mg_text.setText(f"Jetzt: Marge {bm.zahl(100 * e['marge'], 1) if e['marge'] is not None else '–'} % · "
+                             f"Gewinnzuschlag {bm.zahl(100 * g, 2)} % · Gewinn {bm.euro(e['gewinn'])}")
+
+    def marge_setzen(self, prozent):
+        """Marge in % vom Warenwert einstellen; Ergebnis: neuer Gewinnsatz (Anteil) oder None."""
+        s = self.seite
+        if not self._darf_aendern() or not s.positionen or not prozent or prozent <= 0:
+            return None
+        if s.stand_optimierung() != "aktuell":
+            self.automatisch_rechnen()
+            if s.stand_optimierung() != "aktuell":       # nie auf einem veralteten Schnittplan einstellen
+                self.f.meldung("Marge nicht eingestellt: der Schnittplan ist nicht aktuell. Bitte zuerst „Neu "
+                               "berechnen“ (Schritt 4) und die Hinweise prüfen.", fehler=True)
+                return None
+        g = s.auf_marge_setzen(float(prozent) / 100)
+        self.aktualisieren()
+        return g
+
     # -------------------------------------------------------------- Schritt 5: Ergebnis
     def _ergebnis_bauen(self):
         w = QWidget()
@@ -1123,6 +1349,7 @@ class EinfachBereich(QWidget):
         unten = Raster(min_breite=200)
         unten.setzen(list(self.ek2.values()))
         v.addWidget(unten)
+        v.addWidget(self._marge_karte_bauen())
         auf = Karte("Kostenaufteilung")
         self.balken = Balken()
         self.balken_legende = _label("", "e_klein")
@@ -1154,6 +1381,7 @@ class EinfachBereich(QWidget):
                                  _farbe(farbe) if farbe else None,
                                  tipp=bm.FELD_HILFE["gewinn"] + "".join("\n• " + x for x in e["gruende"]))
         self.ek["gesamt"].setzen(bm.euro(e["gesamt"]), "ohne Gewinn")
+        self._marge_fuellen()
         for n in ("material", "bearbeitung", "maschine", "zusatz"):
             self.ek2[n].setzen(bm.euro(e[n]))
         g = e["gruppen"]

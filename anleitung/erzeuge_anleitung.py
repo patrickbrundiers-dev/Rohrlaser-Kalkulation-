@@ -17219,12 +17219,30 @@ def kapitel_einfacher_modus(i):
         ["3 Material", "Je Werkstoff und Abmessung eine Karte: Werkstoff wählen, Wand, Preis je m und kg, "
          "Preisstand und Verfügbarkeit. Fehlt ein Preis, führt <i>Preis eintragen …</i> direkt dorthin."],
         ["4 Bearbeitung", "Maschinenzeit, Schnitt, Rüsten, Bearbeitung, Zusatzarbeiten, Zukauf und Gemeinkosten "
-         "als Kacheln; Knöpfe für Zusatzarbeiten, Vorschläge übernehmen und Neu berechnen."],
+         "als Kacheln; Karte <i>Frachtkosten</i>; Knöpfe für Zusatzarbeiten, Vorschläge übernehmen und Neu "
+         "berechnen."],
         ["5 Ergebnis", "Verkaufspreis, Gewinn und Marge mit Ampel, Gesamtkosten, Aufteilung in Material, "
-         "Bearbeitung, Maschine und Zusatz als Balken, Preis je Teil und die Prüfliste."],
+         "Bearbeitung, Maschine und Zusatz; Karte <i>Marge einstellen</i>; Kostenbalken, Preis je Teil und die "
+         "Prüfliste."],
         ["6 Angebot", "Kunde wählen, Mengen ändern, Gesamtsumme, PDF erstellen und öffnen, E-Mail, Speichern; "
          "<i>Im Expertenmodus weiterbearbeiten</i> für alles Weitere."],
     ], [38, 226])
+    i.abschnitt("Fracht und Marge im Einfachen Modus", marke="einfach_fracht_marge")
+    i.text("Seit 0.9.506 lassen sich Frachtkosten und Marge auch im Einfachen Modus einstellen. Beides schreibt "
+           "dieselben Angebotsfelder wie der Expertenmodus und rechnet mit derselben Kalkulation.", kurz=True)
+    i.liste("<b>Frachtkosten</b> (Schritt 4): <i>Frachtart</i> (manuell, berechnet, keine Fracht, im Artikelpreis "
+            "enthalten), <i>Betrag</i> für das ganze Angebot und <i>Verteilen</i> (je Stück oder nach Gewicht). "
+            "Ein Betrag bei „keine Fracht“ stellt die Frachtart auf manuell. <i>Fracht berechnen …</i> öffnet "
+            "denselben Dialog wie im Expertenmodus (Ziel-PLZ, Gewicht, Paket oder Palette, Tarif; [[fracht]]); "
+            "<i>Fracht automatisch berechnen</i> führt die berechnete Fracht nach jeder Änderung nach. Darunter "
+            "steht der Betrag, der in die Kalkulation eingeht, und der Hinweis fürs Angebots-PDF.",
+            "<b>Marge einstellen</b> (Schritt 5): gewünschte Marge vom Warenwert eintragen und <i>Marge "
+            "übernehmen</i>. Das Programm stellt den Gewinnzuschlag so ein, dass der Verkaufspreis genau diese "
+            "Marge ergibt, wie <i>Auf Zielmarge setzen</i> in der Preisleiter; Rabatt, Rundung und Mindestpreis "
+            "zählen mit, Fracht und Verpackung bleiben ohne Gewinn. Beispiel: 20 % Marge = 25 % Gewinnzuschlag "
+            "auf die Kosten. Sind in den Einstellungen Ziel- oder Mindestmarge eingetragen, setzen die Knöpfe "
+            "<i>Zielmarge …</i> und <i>Mindestmarge …</i> sie mit einem Klick. Die Änderung lässt sich mit "
+            "<i>Rückgängig</i> zurücknehmen.")
     i.abschnitt("Automatik, Prüfung und Hilfe", marke="einfach_hilfe")
     i.liste("Das Programm rechnet bei den Schritten 3 bis 5 selbst neu, wenn sich etwas geändert hat.",
             "Unsichere oder fehlende Werte (Stückzahl, Materialpreis, unsichere Erkennung, fehlender Kunde) "
@@ -17244,8 +17262,9 @@ def kapitel_einfacher_modus(i):
             "Schritt 2: <i>Weitere Bauteile importieren …</i>, <i>Im Editor prüfen</i> und <i>Bauteil entfernen</i> "
             "(wie im Expertenmodus mit <i>Rückgängig</i> in der Einblendung).",
             "Schritt 3: <i>Materialpreise und Lieferlängen …</i> öffnet das Materialfenster des Expertenmodus.",
-            "Schritt 4: <i>Zusatzarbeiten hinzufügen …</i> und <i>Vorgeschlagene Arbeiten übernehmen</i> "
+            "Schritt 4: <i>Fracht berechnen …</i>, <i>Zusatzarbeiten hinzufügen …</i> und <i>Vorgeschlagene Arbeiten übernehmen</i> "
             "(übernimmt die erkannten Arbeitsschritte wie Gewinde oder Senkungen).",
+            "Schritt 5: <i>Marge übernehmen</i>, <i>Zielmarge …</i> und <i>Mindestmarge …</i>.",
             "Schritt 6: <i>PDF erstellen</i>, <i>PDF öffnen</i>, <i>Per E-Mail senden …</i> (nur wenn die Funktion "
             "Angebot per Mail eingeschaltet ist) und <i>Angebot speichern</i>.")
 
