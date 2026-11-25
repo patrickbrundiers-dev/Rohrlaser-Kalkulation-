@@ -2775,6 +2775,8 @@ class StepPruefDialog(QDialog):
             m = self.messwerte[z.liste[0]]
             herkunft = "von Hand geändert" if m.get("_artikel_hand") else m.get("_artikel_herkunft")
             tipp = [f"Artikelnummer aus: {herkunft}"] if herkunft else []
+            if m.get("_revision"):      # 25.11.2026: Revision getrennt von der Artikelnummer (artikelnr)
+                tipp.append(f"Revision: {m['_revision']} (wird an der Position gespeichert)")
             if m.get("_artikel_hand") and m.get("_artikel_auto"):
                 tipp.append(f"Aus der STEP bestimmt: {m['_artikel_auto']} (Feld leeren = wieder diese)")
             farbe = None
