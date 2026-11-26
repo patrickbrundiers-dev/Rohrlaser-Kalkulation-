@@ -31,3 +31,27 @@ NAVIGATION_TEXT = "#C8D2DE"         # Symbole und Text auf der dunklen Leiste
 NAVIGATION_GRUPPE = "#8593A4"       # Gruppentitel (Arbeiten, Auftrag, Pflege)
 HAUPTKNOPF_DUNKEL = "#2F6CA8"       # Hauptknöpfe im Dunkelmodus
 ABSTAND_KLEIN, ABSTAND, ABSTAND_GROSS = 6, 10, 16       # px zwischen Feldern, Karten, Abschnitten
+
+# Designsystem „Klar“ (UI/UX Next Level, Freigabe Patrick 26.11.2026, Variante A): eine Stelle für Flächen, Ecken,
+# Größen und Schriftstufen der Oberfläche. stil.py baut daraus das Stylesheet, bausteine.py die Bausteine (Seitenkopf,
+# Karte, Kennzahl, Status-Chip, Hinweisband). Neue Oberflächen nehmen nur diese Werte (Prüfung: test_bausteine.py).
+ARBEITSFLAECHE = "#F2F4F7"          # Grund hinter Karten und Tabellen, leicht bläulich
+KARTE = "#FFFFFF"
+KARTE_RAHMEN = "#E3E7EC"
+EINGABE_RAHMEN = "#C5CCD6"
+AKZENT_FLAECHE = "#EAF1F8"          # Auswahl, gewählter Reiter-Chip, Info-Chip
+AUSWAHL = "#DCE9F8"                 # gewählte Tabellenzeile
+NEUTRAL_FLAECHE = "#EEF1F4"         # neutraler Chip (Entwurf, Zähler)
+TABELLENKOPF = "#F7F9FB"
+ECKE, ECKE_KARTE = 6, 8             # px Eckenradius Knöpfe/Eingaben bzw. Karten
+CHIP_ECKE = 10
+# Schriftstufen der Oberfläche [px bei 100 %]: Seitentitel, Abschnitt, Text, Nebentext; Kennzahl groß
+UI_TITEL, UI_ABSCHNITT, UI_TEXT, UI_KLEIN, UI_KENNZAHL = 20, 15, 13, 12, 22
+# Status-Chips: Stufe -> (Schrift, Fläche, Zeichen). Status nie nur über die Farbe (Zeichen ✓ ! ✕ i)
+CHIPS = {
+    "ok": (GRUEN, GRUEN_FLAECHE, "✓"),
+    "warnung": (GELB_TEXT, GELB_FLAECHE, "!"),
+    "fehler": (ROT, ROT_FLAECHE, "✕"),
+    "info": (AKZENT, AKZENT_FLAECHE, "i"),
+    "neutral": (TEXT_GRAU, NEUTRAL_FLAECHE, ""),
+}
