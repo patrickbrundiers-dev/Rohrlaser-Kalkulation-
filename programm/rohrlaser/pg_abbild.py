@@ -106,5 +106,21 @@ def nach_sqlite(con, abbild, ziel_datei):
         finally:
             probe.close()
     finally:
-        v._roh(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+        _probe_loeschen(v, name)
     return Path(ziel_datei)
+
+
+def _probe_loeschen(v, name):
+    """Probe-Datenbank löschen. Nach pg_restore startet der Server dort oft eine Autovacuum-Arbeit; WITH (FORCE)
+    darf die als Nicht-Superuser nicht beenden („permission denied to terminate process“). Daher zuerst ohne FORCE
+    (der Server bricht Autovacuum dabei selbst ab), bei Bedarf kurz warten und erneut, zuletzt mit FORCE."""
+    import time
+    for versuch in range(6):
+        try:
+            v._roh(f'DROP DATABASE IF EXISTS "{name}"')
+            return
+        except db_verbindung.DbFehler:
+            if versuch == 5:
+                break
+            time.sleep(0.5)
+    v._roh(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')

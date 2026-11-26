@@ -5605,8 +5605,9 @@ class Hauptfenster(QMainWindow):
             from . import admin_schutz
             if not admin_schutz.aktiv(self.db) or admin_schutz.ist_admin(self.db):
                 return True
-        except Exception:       # noqa: BLE001
-            pass
+        except Exception:       # noqa: BLE001 – im Zweifel nur mit Hauptadmin-Lizenz
+            from . import protokoll
+            protokoll.warnung("Admin-Prüfung für die Betriebsart misslungen")
         stelle = getattr(self, "lizenz", None)
         return bool(getattr(stelle, "hauptadmin", False))
 

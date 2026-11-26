@@ -17044,7 +17044,10 @@ def kapitel_admin_datenbank(i):
             "Programm neu starten. Die bisherigen Daten des PCs bleiben unverändert; <i>Zurück zur lokalen "
             "Datenbank …</i> stellt sie wieder her.",
             "<b>Anmelden</b>: Beim Start fragt das Programm Kürzel und Passwort. Die Prüfung macht der Server selbst; "
-            "jeder Mitarbeiter hat einen eigenen Zugang und kann an jedem Arbeitsplatz arbeiten.",
+            "jeder Mitarbeiter hat einen eigenen Zugang und kann an jedem Arbeitsplatz arbeiten. Ist der Server "
+            "nicht erreichbar, bietet das Programm <i>Noch einmal</i>, <i>Lokal arbeiten (eigene Daten dieses "
+            "PCs)</i> (die Daten von vor dem Umstellen) oder <i>Beenden</i>. Startet ein Verwalter eine neuere "
+            "Version, fragt es <i>Server umstellen</i> oder <i>Nur ansehen</i>.",
             nummeriert=True)
     i.tabelle(["Thema", "Im Serverbetrieb"], [
         ["Sicherheit", "Verbindung nur verschlüsselt (TLS) mit dem eigenen Zertifikat des Servers; ein anderer "
