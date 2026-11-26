@@ -39,5 +39,5 @@ if os.environ.get("RL_KOMPILIERT"):
     print("kompiliert:", kompiliert_tauschen(a, os.environ["RL_KOMPILIERT"]), "Module")
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="STEP-Import", console=True, upx=False,
-          version=versionsinfo("STEP-Import", "STEP-Messung der Rohrlaser Angebotskalkulation", workpath))
+          version=versionsinfo("STEP-Import", "STEP-Messung von NexTube", workpath))
 coll = COLLECT(exe, a.binaries, a.datas, name="STEP-Import", upx=False)

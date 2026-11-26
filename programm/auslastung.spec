@@ -16,9 +16,9 @@ import versionsinfo as vi  # noqa: E402
 VERSION = re.search(r'VERSION = "([^"]+)"', open(os.path.join(SPECPATH, "rl_auslastung", "__init__.py"),
                                                  encoding="utf-8").read()).group(1)
 vi.version = lambda: VERSION            # eigene Versionsnummer, nicht die der Kalkulation
-vi.PRODUKT = "Rohrlaser Auslastung"
+vi.PRODUKT = "NexTube Auslastung"
 
-a = Analysis([os.path.join(SPECPATH, "start_auslastung.py")], pathex=[SPECPATH], binaries=[], datas=[],
+a = Analysis([os.path.join(SPECPATH, "start_auslastung.py")], pathex=[SPECPATH], binaries=[], datas=[(os.path.join(SPECPATH, "rohrlaser", "bilder"), "rohrlaser/bilder")],
              # rohrlaser.auslastung / etiketten / qt_slots: nur in Funktionen der Kalkulation nachgeladen, hier nie;
              # rohrlaser.datenbank: nur in datenspeicher.umstellen/zurueck der Kalkulation nachgeladen, hier nie
              hiddenimports=["rohrlaser.update_schluessel", "rohrlaser.lizenz_schluessel", "rohrlaser.pg_lokal",
@@ -33,7 +33,7 @@ fremd = [n for n, *_ in a.pure if n.startswith("rohrlaser.") and n not in (
     "rohrlaser.update_netz",                                        # Proxy und Firmen-Zertifikat für das Update
     "rohrlaser.mausrad",                                            # das Mausrad ändert keine Werte
     "rohrlaser.lizenz", "rohrlaser.lizenz_schluessel", "rohrlaser.lizenz_dialog",   # Plan 2.4: Lizenz
-    "rohrlaser.aktivierung",                                        # Lizenz 2.0: Aktivierung ohne Internet
+    "rohrlaser.aktivierung", "rohrlaser.module", "rohrlaser.marke",  # Lizenz 2.0, Module, Marke NexTube
     "rohrlaser.passwort", "rohrlaser.klartext",
     "rohrlaser.hauptadmin", "rohrlaser.anmelde_fenster",        # Hauptadmin-Anmeldung beim Start
     "rohrlaser.db_verbindung", "rohrlaser.datenspeicher",           # Datenspeicher je PC: SQLite oder PostgreSQL
@@ -42,5 +42,6 @@ if fremd:
     raise SystemExit("auslastung.spec: das Programm zieht Module der Kalkulation mit: " + ", ".join(fremd))
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Rohrlaser-Auslastung", console=False, upx=False,
-          version=vi.versionsinfo("Rohrlaser-Auslastung", "Rohrlaser Auslastung", workpath))
+          icon=os.path.join(SPECPATH, "rohrlaser", "bilder", "nextube.ico"),     # Marke NexTube (marke.py)
+          version=vi.versionsinfo("Rohrlaser-Auslastung", "NexTube Auslastung", workpath))
 coll = COLLECT(exe, a.binaries, a.datas, name="Rohrlaser-Auslastung", upx=False)
