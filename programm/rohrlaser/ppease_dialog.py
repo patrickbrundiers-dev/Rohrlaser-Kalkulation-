@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QListWidget, QMessageBox, QProgressBar, QPushButton,
                                QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
@@ -18,6 +18,7 @@ from . import protokoll, stil
 from .klartext import fehler_text
 
 SP_DOK, SP_TYP, SP_GROESSE, SP_QUELLE, SP_ZIEL, SP_STATUS, SP_AKTION = range(7)
+VERSCHIEBEN = "leiste_ppease_verschieben"     # je Arbeitsplatz, nie abgeglichen (leiste_*); Vorgabe an
 STATUS_FARBE = {pa.NEU: stil.AKZENT, pa.GLEICH: stil.GRUEN, pa.SCHON: stil.GRUEN, pa.GEAENDERT: stil.ORANGE}
 
 
@@ -28,8 +29,9 @@ class PpeaseDialog(QDialog):
     ersetzen."""
 
     def __init__(self, parent, db, kopf=None, angebotsordner=None, anfrage_dateien=(), oeffnen=None, kuerzel="ICH",
-                 stumm=False, akte_erstellen=None):
+                 stumm=False, akte_erstellen=None, nach_verschieben=None):
         super().__init__(parent)
+        self.nach_verschieben = nach_verschieben    # Rückruf [(alt, neu)] nach dem Verschieben (Anfrage-Akten)
         self.db, self.kopf, self.kuerzel, self.stumm = db, dict(kopf or {}), kuerzel, stumm
         self.oeffnen_fn, self.akte_erstellen = oeffnen, akte_erstellen
         self.angebotsordner = Path(angebotsordner) if angebotsordner else None
@@ -189,6 +191,23 @@ class PpeaseDialog(QDialog):
                                       "Speichervorgangs entfernen.")
         for k in (self.knopf_ordner, self.knopf_dazu, self.knopf_pfad, self.knopf_pruefen):
             l4.addWidget(k)
+        # Verschieben statt kopieren (Patrick 26.11.2026 „keine doppelten Daten“), gemerkt je Arbeitsplatz
+        self.verschieben = QCheckBox("Verschieben (keine doppelten Daten)")
+        self.verschieben.setToolTip(
+            "An: Mail mit Anhängen, Kundendateien und Dokumente der Angebotsakte kommen in den PPEASE-Angebotsordner; "
+            "das Original wird erst nach geprüfter Kopie entfernt. Programmdateien (JSON, Zwischenspeicher) bleiben "
+            "immer, wo sie sind. Das Programm findet die Dateien über die PPEASE-Nummer wieder.\nAus: nur kopieren.")
+        try:
+            self.verschieben.setChecked(self.db.einstellung(VERSCHIEBEN) is not False)
+        except Exception:       # noqa: BLE001
+            self.verschieben.setChecked(True)
+        if getattr(self.db, "nur_lesen", False):
+            # Lesemodus: der neue Ort ließe sich nicht am Angebot bzw. in der Anfrage merken -> nur kopieren
+            self.verschieben.setChecked(False)
+            self.verschieben.setEnabled(False)
+            self.verschieben.setToolTip("Im Lesemodus wird nur kopiert: der neue Ort ließe sich nicht merken.")
+        self.verschieben.toggled.connect(self._verschieben_umgeschaltet)
+        l4.addWidget(self.verschieben)
         if self.akte_erstellen:
             self.knopf_akte = QPushButton("Angebotsdokument erstellen …")
             self.knopf_akte.setToolTip("Angebotsakte (Kundenangebot, interne Kalkulation, Schnittschema) erzeugen; "
@@ -199,6 +218,18 @@ class PpeaseDialog(QDialog):
         l4.addWidget(self.knopf_schliessen)
         l4.addWidget(self.knopf_speichern)
         lay.addWidget(b4)
+        self._knopf_text()
+
+    def _knopf_text(self):
+        self.knopf_speichern.setText("Dokumente verschieben" if self.verschieben.isChecked() else "Dokumente speichern")
+
+    def _verschieben_umgeschaltet(self, an):
+        self._knopf_text()
+        try:
+            if not getattr(self.db, "nur_lesen", False):
+                self.db.einstellung_setzen(VERSCHIEBEN, bool(an))
+        except Exception as e:  # noqa: BLE001 – nur Merker
+            protokoll.warnung(f"PPEASE-Ablage: Merker Verschieben nicht gespeichert ({type(e).__name__}: {e})")
 
     # ------------------------------------------------------------------ Liste
     def _ziel_auswahl(self, d):
@@ -214,7 +245,8 @@ class PpeaseDialog(QDialog):
         self.liste.blockSignals(True)
         self.liste.clear()
         for d in self.dokumente:
-            e = QTreeWidgetItem([d.name, d.typ, pa.groesse_text(d.groesse), d.quelle, "", "", ""])
+            e = QTreeWidgetItem([d.name, d.typ, pa.groesse_text(d.groesse),
+                                 d.quelle + (" · Programmdatei, bleibt" if d.intern else ""), "", "", ""])
             e.setFlags(e.flags() | Qt.ItemIsUserCheckable)
             e.setCheckState(SP_DOK, Qt.Checked if d.gewaehlt else Qt.Unchecked)
             e.setToolTip(SP_DOK, str(d.pfad))
@@ -263,15 +295,15 @@ class PpeaseDialog(QDialog):
     def alle(self, an):
         self.liste.blockSignals(True)
         for e, d in self._zeilen():
-            d.gewaehlt = an
-            e.setCheckState(SP_DOK, Qt.Checked if an else Qt.Unchecked)
+            d.gewaehlt = an and not d.intern        # Programmdateien nur einzeln von Hand (26.11.2026)
+            e.setCheckState(SP_DOK, Qt.Checked if d.gewaehlt else Qt.Unchecked)
         self.liste.blockSignals(False)
         self._zaehlen()
 
     def nur_neue(self):
         self.liste.blockSignals(True)
         for e, d in self._zeilen():
-            d.gewaehlt = self.status.get(id(d), (pa.NEU,))[0] in (pa.NEU, pa.GEAENDERT)
+            d.gewaehlt = self.status.get(id(d), (pa.NEU,))[0] in (pa.NEU, pa.GEAENDERT) and not d.intern
             e.setCheckState(SP_DOK, Qt.Checked if d.gewaehlt else Qt.Unchecked)
         self.liste.blockSignals(False)
         self._zaehlen()
@@ -508,6 +540,27 @@ class PpeaseDialog(QDialog):
                 + "\n".join("• " + n for n in ersetzen[:12]) + ("\n…" if len(ersetzen) > 12 else "")
                 + f"\n\nErsetzen? Die bisherige Fassung bleibt im Unterordner {pa.VERSIONEN}."):
             return None
+        verschieben = self.verschieben.isChecked() and self.verschieben.isEnabled()
+        if verschieben:
+            # erst den Ordner am Angebot merken: ohne diesen Vermerk fände das Programm verschobene Dateien nicht
+            try:
+                pa.merken(self.db, self.kopf.get("id"), nr, self.kunde.text().strip(),
+                          self.bezeichnung.text().strip(), self.ordner)
+            except Exception as e:      # noqa: BLE001 – dann lieber nichts verschieben
+                protokoll.warnung(f"PPEASE-Ablage: Nummer nicht gemerkt, Verschieben abgelehnt ({type(e).__name__}: {e})")
+                self.melden("Dokumente verschieben",
+                            "Die PPEASE-Nummer lässt sich am Angebot nicht speichern, deshalb fände das Programm "
+                            "verschobene Dateien nicht wieder.\n\nEs wurde nichts verschoben. Mit „Verschieben“ aus "
+                            f"lässt sich kopieren.\n\n{fehler_text(e) if isinstance(e, OSError) else e}")
+                return None
+        bewegt = [d for d in gewaehlt if not d.intern]
+        if verschieben and bewegt and not self.fragen(
+                "Dokumente verschieben",
+                f"{len(bewegt)} Datei(en) werden in den PPEASE-Angebotsordner verschoben:\n{self.ordner}\n\n"
+                "Jede Datei wird erst kopiert und geprüft, erst danach wird das Original entfernt. Programmdateien "
+                "(JSON, Zwischenspeicher, Messungen) bleiben, wo sie sind; die Kalkulation findet die Dateien über "
+                "die PPEASE-Nummer wieder.\n\nVerschieben?"):
+            return None
         self.fortschritt.setRange(0, len(gewaehlt))
         self.fortschritt.setValue(0)
 
@@ -519,7 +572,8 @@ class PpeaseDialog(QDialog):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             b = pa.ablegen(self.v, self.ordner, self.dokumente, self.kuerzel, self.aktionen,
-                           angebot=self.kopf.get("nummer") or "", nummer=nr, fortschritt=weiter)
+                           angebot=self.kopf.get("nummer") or "", nummer=nr, fortschritt=weiter,
+                           verschieben=verschieben)
         except pa.Gesperrt as e:
             QApplication.restoreOverrideCursor()
             self.melden("Dokumente speichern", str(e))
@@ -536,10 +590,20 @@ class PpeaseDialog(QDialog):
         except Exception:       # noqa: BLE001 – Lesemodus: Ablage ist trotzdem geschehen
             protokoll.warnung("PPEASE-Ablage: Nummer am Angebot nicht gemerkt")
         protokoll.info(f"PPEASE-Ablage {nr}: {b.text()} ({self.ordner})")
+        if b.verschoben:
+            if self.nach_verschieben:
+                try:
+                    self.nach_verschieben(b.verschoben)
+                except Exception as e:      # noqa: BLE001 – die Dateien liegen sicher im Ordner
+                    protokoll.warnung(f"PPEASE-Ablage: neuer Ort nicht vermerkt ({type(e).__name__}: {e})")
+            weg = {a for a, _ in b.verschoben}
+            self.dokumente = [d for d in self.dokumente if str(d.pfad) not in weg]
+            self._liste_fuellen()
         self.fortschritt.setFormat("fertig" if b.ok else "mit Fehlern beendet")
         teile = [b.text()]
         teile += [f"✕ {n}: {t}" for n, t in b.fehler[:6]]
         teile += [f"– {n}: {t}" for n, t in b.uebersprungen[:6]]
+        teile += [f"⚠ {n}: {t}" for n, t in b.nicht_entfernt[:6]]
         self.ergebnis.setText("\n".join(teile))
         self.ergebnis.setStyleSheet(f"color: {stil.GRUEN if b.ok else stil.ROT};")
         self.aktualisieren()

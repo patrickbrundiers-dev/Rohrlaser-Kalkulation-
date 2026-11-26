@@ -9,7 +9,7 @@ setCurrentWidget, setCurrentIndex, currentChanged), damit Aufrufer und Tests unv
 """
 from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QSizePolicy, QStackedWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QLineEdit, QSizePolicy, QStackedWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 # Thema -> Seiten (Name der Stammdatentabelle bzw. Schlüssel der eigenen Seiten); Unbekanntes landet unter WEITERE
 # Seiten der Einstellungen (einstellungen_ordnung.SEITEN, Schlüssel e_…) stehen beim Thema (Plan „Einstellungen
@@ -128,11 +128,30 @@ class NurSichtbareSeite(QObject):
 
 
 class NavigationsReiter(QWidget):
+    """Ebenen (Patrick 26.11.2026): oben die Wahl Grundeinstellungen / Erweitert / Expertenbereich; die Navigation
+    zeigt nur Seiten bis zu dieser Ebene, die Seiten nur ihre Abschnitte bis zu dieser Ebene. Die Suche findet immer
+    alle Seiten und Einstellungen. Wer eine höher eingeordnete Seite aufruft (Befehlspalette, Hinweis, Knopf), bekommt
+    die Ebene dafür umgestellt."""
     currentChanged = Signal(int)
+    ebene_geaendert = Signal(str)
 
     def __init__(self, parent=None):
+        from . import einstellungen_ordnung as ordnung
         super().__init__(parent)
         self.seiten, self.titel, self.items = [], [], []
+        self.ebene = ordnung.EXPERTE        # ohne Wahl alles (Tests, eigene Fenster); EinstellungenBereich setzt sie
+        self.ebene_merken = None            # Rückruf: gewählte Ebene speichern (je Benutzer/Arbeitsplatz)
+        self.ebene_wahl = QComboBox()
+        for e in ordnung.EBENEN:
+            self.ebene_wahl.addItem(ordnung.EBENE_TITEL[e], e)
+            self.ebene_wahl.setItemData(self.ebene_wahl.count() - 1, ordnung.EBENE_TEXT[e], Qt.ToolTipRole)
+        self.ebene_wahl.setCurrentIndex(self.ebene_wahl.findData(self.ebene))
+        self.ebene_wahl.setToolTip("Welche Einstellungen zu sehen sind. Ausgeblendete Einstellungen gelten weiter mit "
+                                   "ihrem Wert; die Suche findet immer alle.")
+        self.ebene_wahl.currentIndexChanged.connect(lambda _: self.ebene_setzen(self.ebene_wahl.currentData()))
+        self.ebene_info = QLabel()
+        self.ebene_info.setWordWrap(True)
+        self.ebene_info.setStyleSheet("color: #5F6B7A; font-size: 11px;")
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Einstellung suchen …")
         self.suche.setToolTip("Seiten und Felder der Einstellungen durchsuchen, z. B. Gewinn, Schneiddaten, Firmenlogo")
@@ -149,8 +168,10 @@ class NavigationsReiter(QWidget):
         self.stapel = SeitenStapel()
         links = self.links = QVBoxLayout()
         links.setContentsMargins(0, 0, 0, 0)
+        links.addWidget(self.ebene_wahl)
         links.addWidget(self.suche)
         links.addWidget(self.baum, 1)
+        links.addWidget(self.ebene_info)
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addLayout(links)
@@ -226,11 +247,52 @@ class NavigationsReiter(QWidget):
             self.verborgen.discard(i)
         self.filtern(self.suche.text())
         if ja and self.currentIndex() == i:
-            frei = [j for j in range(len(self.items)) if j not in self.verborgen]
+            frei = [j for j in range(len(self.items)) if j not in self.verborgen and self.ebene_zeigt(j)]
             if frei:
                 self.setCurrentIndex(frei[0])
 
+    # -------------------------------------------------- Ebenen
+    def seite_ebene(self, i):
+        from . import einstellungen_ordnung as ordnung
+        return ordnung.seite_ebene(schluessel(self.seiten[i]))
+
+    def ebene_zeigt(self, i):
+        from . import einstellungen_ordnung as ordnung
+        return ordnung.zeigen(self.seite_ebene(i), self.ebene)
+
+    def ebene_setzen(self, ebene, merken=True):
+        """Ebene der Anzeige umstellen (Navigation, Abschnitte der Seiten, Wahlfeld)."""
+        from . import einstellungen_ordnung as ordnung
+        if ebene not in ordnung.EBENEN:
+            return
+        neu = ebene != self.ebene
+        self.ebene = ebene
+        if self.ebene_wahl.currentData() != ebene:
+            self.ebene_wahl.blockSignals(True)
+            self.ebene_wahl.setCurrentIndex(self.ebene_wahl.findData(ebene))
+            self.ebene_wahl.blockSignals(False)
+        for s in self.seiten:
+            if hasattr(s, "ebene_setzen"):
+                s.ebene_setzen(ebene)
+        self.filtern(self.suche.text())
+        mehr = sum(1 for i in range(len(self.seiten)) if i not in self.verborgen and not self.ebene_zeigt(i))
+        self.ebene_info.setText(f"{mehr} weitere Seite{'n' if mehr != 1 else ''} unter „Erweitert“ bzw. "
+                                "„Expertenbereich“; die Suche findet sie." if mehr else "")
+        if neu:
+            if merken and self.ebene_merken:
+                self.ebene_merken(ebene)
+            self.ebene_geaendert.emit(ebene)
+
+    def mindestens(self, ebene):
+        """Ebene mindestens auf ebene stellen (eine höher eingeordnete Seite/Einstellung wird gezeigt)."""
+        from . import einstellungen_ordnung as ordnung
+        if ebene and not ordnung.zeigen(ebene, self.ebene):
+            self.ebene_setzen(ebene)
+
     def setCurrentIndex(self, i):
+        if 0 <= i < len(self.items) and i not in self.verborgen and not self.ebene_zeigt(i) \
+                and not self.suche.text().strip():
+            self.mindestens(self.seite_ebene(i))
         if 0 <= i < len(self.items) and i not in self.verborgen:
             self.items[i].setHidden(False)
             self.items[i].parent().setHidden(False)
@@ -256,7 +318,8 @@ class NavigationsReiter(QWidget):
     def treffer(self, suche):
         """Indizes der Seiten, die zur Suche passen (leer = alle)."""
         return [i for i, (s, t) in enumerate(zip(self.seiten, self.titel)) if i not in self.verborgen
-                and (not suche.strip() or any(passt(x, suche) for x in suchtexte(s, t)))]
+                and ((not suche.strip() and self.ebene_zeigt(i))
+                     or (suche.strip() and any(passt(x, suche) for x in suchtexte(s, t))))]
 
     def filtern(self, suche):
         gefunden = set(self.treffer(suche))

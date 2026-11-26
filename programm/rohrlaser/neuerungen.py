@@ -33,6 +33,15 @@ NEUERUNGEN = [
                 "der Packliste sind jetzt Vorgabe (ohne Packmittelpreise gilt die Tabelle Verpackung). Neue Paletten: "
                 "Europalette, Halbpalette, Einweg- und Industriepalette. Ältere Angebote rechnen unverändert.",
      "Palettentausch je Dienstleister, Wiederbeschaffung nicht getauschter Packmittel"],
+    ["0.9.519", "<b>Einfacher bedienen</b>: Der Rechtsklick auf Positionen ist aufgeräumt (oben die täglichen Aktionen, "
+                "Seltenes in den Untermenüs <i>Prüfen und anzeigen</i>, <i>Teil ändern</i>, <i>Kennzeichnen</i>, "
+                "<i>Satz und Baugruppe</i>, <i>Reihenfolge</i>; Löschen abgesetzt unten, ab drei Positionen bzw. bei "
+                "einem ganzen Satz mit Rückfrage). Die Einstellungen zeigen zuerst nur die "
+                "<i>Grundeinstellungen</i>; <i>Erweitert</i> und <i>Expertenbereich</i> über das Feld über der Suche "
+                "(je Arbeitsplatz gemerkt, die Suche findet immer alles, alle Werte gelten weiter). PPEASE-Ablage "
+                "<i>verschiebt</i> jetzt Mail, Anhänge, Kundendateien und Angebotsakte in den PPEASE-Angebotsordner "
+                "(keine doppelten Daten, Original erst nach geprüfter Kopie gelöscht, Programmdateien bleiben); das "
+                "Programm findet die Dateien über die PPEASE-Nummer wieder.", "Einfacher bedienen"],
     ["0.9.516", "<b>Supportpaket 26.11.</b>: Der Kundenimport stürzte im Prüfschritt ab, sobald ein neuer Kunde mit "
                 "Kundennummer in der Datei stand (Fehlermeldung „multiple values for keyword argument kundennr“); "
                 "behoben. <i>Fracht berechnen …</i> und <i>Packvorschlag</i> hingen bei sehr großen Angeboten "

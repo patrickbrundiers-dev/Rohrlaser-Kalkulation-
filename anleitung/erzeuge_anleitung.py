@@ -3686,10 +3686,35 @@ def kapitel_angebot(i):
             "angewählt (z. B. mit Tab), drückt Enter diesen Knopf. Ausnahmen sind nur reine Ja/Nein-Fragen (Enter = "
             "die vorgeschlagene Antwort), die Dateiauswahl und <i>Suchen und ausführen</i> (Strg+K).")
     i.abschnitt("Rechtsklick auf Positionen", marke="rechtsklick")
-    i.text("Der Rechtsklick auf eine Position zeigt nur, was zu ihr passt: bei Rohrlaserteilen Schneidweg-Rechner, "
-           "Material, Schweißnaht, Bohrungen und Anbauteile, bei Blechen den Blech-Editor, bei Schweißbaugruppen "
-           "<i>Baugruppe bearbeiten</i>; Zusatzarbeiten, Zukaufteile, Stückzahl und Löschen immer. Tastenkürzel "
-           "stehen rechts daneben.", kurz=True)
+    i.text("Der Rechtsklick auf eine Position zeigt nur, was zu ihr passt, und seit 0.9.519 aufgeräumt: oben die "
+           "täglichen Aktionen (Bearbeiten im passenden Editor – Schneidweg-Rechner, Blech-Editor, Richtpreis "
+           "Dreh-/Frästeil oder <i>Baugruppe bearbeiten</i> –, <i>Material …</i>, <i>Zusatzarbeiten …</i>, "
+           "<i>Zukaufteile bearbeiten …</i>, <i>Stückzahl ändern …</i>), darunter <i>Position duplizieren</i>, dann "
+           "die Untermenüs <b>Prüfen und anzeigen</b>, <b>Teil ändern</b>, <b>Kennzeichnen</b>, <b>Satz und "
+           "Baugruppe</b> und <b>Reihenfolge</b>; <b>Positionen löschen</b> steht abgesetzt ganz unten. Ein "
+           "Untermenü ohne passenden Eintrag fehlt ganz. Tastenkürzel stehen rechts daneben.", kurz=True)
+    i.tabelle(["Wo", "Einträge"], [
+        ["direkt", "Schneidweg berechnen / Blech-Editor / Richtpreis Dreh-/Frästeil / Baugruppe bearbeiten (je nach "
+                   "Art), Material, Zusatzarbeiten, Zusatzarbeit hinzufügen, Zukaufteile bearbeiten, Stückzahl ändern; "
+                   "Position duplizieren, Für markierte setzen, Positionen aus anderem Angebot übernehmen"],
+        ["Prüfen und anzeigen", "Im STEP-Viewer öffnen, Bohrungen prüfen, Anbauteile prüfen, STEP-Merkmale prüfen, "
+                                "Ähnliche Teile und Revisionen, Abwicklung 1:1 drucken"],
+        ["Teil ändern", "Art ändern, Material suchen und zuweisen, Wandstärke ändern, Schweißnaht, Fräsen nach "
+                        "Bearbeitung, Rohr teilen, Teil wenden, Teilefamilie, 3D aus STEP nachladen, Virtuelles "
+                        "Bauteil als STEP, Stege abtrennen"],
+        ["Kennzeichnen", "Muster an/aus, Geometrie geprüft / nur kalkuliert, Wenden erlaubt / nicht wenden"],
+        ["Satz und Baugruppe", "Satz in 3D, Satz bearbeiten (Anzahl Sätze, Blech-EK je Satz/Baugruppe), Satz per Text "
+                               "ändern, Zusatzarbeit für ganzen Satz, Als Satz zusammenfassen, Satz auflösen, Satz ↔ "
+                               "Schweißbaugruppe, Alle Schweißbaugruppen nachrechnen, Baugruppe in anderes Angebot "
+                               "kopieren"],
+        ["Reihenfolge", "Nach oben, Nach unten, An den Anfang, Ans Ende, Positionsnummern neu vergeben"],
+        ["ganz unten", "Positionen löschen (Entf): eine oder zwei Positionen sofort, ab drei Positionen oder bei einem "
+                       "ganzen Satz bzw. einer ganzen Baugruppe mit Rückfrage; danach immer Rückgängig (Strg+Z)"]],
+        breiten=[38 * mm, 132 * mm])
+    i.text("Der frühere Eintrag <i>Blech-EK je Satz/Baugruppe …</i> öffnete dasselbe Fenster wie <i>Satz bearbeiten "
+           "…</i> und ist darin aufgegangen; <i>Satz bearbeiten …</i> erscheint dafür jetzt auch bei Schweißbaugruppen. "
+           "Alle Aktionen sind weiter auch über das Menü <i>Bearbeiten</i>, Doppelklick und die Tastenkürzel "
+           "erreichbar.")
     i.text("Sind mehrere Rohrlaserteile markiert, setzt <b>Für markierte setzen …</b> Werkstoff und/oder Oberfläche "
            "für alle auf einmal (<i>(nicht ändern)</i> lässt den Wert, wie er ist), ein Schritt für Rückgängig. "
            "<i>Satz in 3D</i> erscheint nur bei Positionen eines Satzes, <i>Baugruppe in anderes Angebot "
@@ -10554,8 +10579,10 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("<i>Ausgaben → Dokumentenablage / PPEASE-Verknüpfung …</i> (auch im Menü <i>Datei</i> und im Kontextmenü "
            "der Angebotsübersicht) legt ausgewählte Dokumente der Kalkulation im Ordner des <b>PPEASE-Angebots</b> "
            "ab: Hauptordner einmal festlegen, PPEASE-Angebotsnummer eingeben, Dokumente anhaken, <b>Dokumente "
-           "speichern</b>. Die eigene Ablage und die Angebotsakte ([[angebotsakte]]) bleiben unverändert; kopiert "
-           "wird.", kurz=True)
+           "speichern</b>. Seit 0.9.519 ist <b>Verschieben (keine doppelten Daten)</b> angehakt: die Mail mit allen "
+           "Anhängen, die Kundendateien (STEP, DXF, PDF …) und die Dokumente der Angebotsakte ([[angebotsakte]]) "
+           "liegen danach nur noch im PPEASE-Ordner; das Programm findet sie über die PPEASE-Nummer wieder. Ohne Haken "
+           "wird wie bisher nur kopiert.", kurz=True)
     i.genauer()
     i.liste("Das Fenster hat vier Bereiche: <b>1 Angebotszuordnung</b> (Nummer, Kunde, Bezeichnung, Speicherpfad, "
             "Ordnerstatus), <b>2 Dokumentenauswahl</b> (Liste mit Haken und Vorschau), <b>3 Speicherübersicht</b> "
@@ -10598,6 +10625,23 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Absturz entfernt <i>Ablage prüfen</i> bzw. das nächste Speichern die Zwischendatei und meldet den "
             "unterbrochenen Vorgang. Während ein Platz speichert, sperrt er den Ordner kurz (<i>… speichert gerade</i>); "
             "eine verwaiste Sperre nach einem Absturz gilt nach 10 Minuten nicht mehr.",
+            "<b>Verschieben</b> (Vorgabe, je Arbeitsplatz gemerkt; vorerst nur von Hand über den Knopf <i>Dokumente "
+            "verschieben</i>): nach einer Rückfrage wird jede Datei erst kopiert und geprüft (Größe und Prüfsumme), "
+            "erst danach wird das Original gelöscht. Mitverschoben werden die Mail (.msg) samt allem, was darin "
+            "stand, die Kundendateien der Anfrage, STEP, DXF und die PDFs der Angebotsakte. <b>Nie verschoben</b> "
+            "werden Programmdateien: JSON der Kalkulation und der Akte (<i>Kalkulationsdaten</i>), Zwischenspeicher, "
+            "Messungen, Sperren, Protokolle und Zwischendateien. Sie stehen ausgegraut unten in der Liste "
+            "(„Programmdatei, bleibt“) und bleiben, wo das Programm sie braucht.",
+            "<b>Nach dem Verschieben</b> merkt sich <i>ablage.json</i>, woher jede Datei kam. Angebotsakte öffnen "
+            "(Angebotsübersicht), <i>Art ändern</i> mit der STEP der Position und die Dateien der Anfrage "
+            "([[anfragen]], Vorschau, Kalkulieren) finden die Dateien im PPEASE-Ordner; die Anfrage zeigt im Verlauf "
+            "„In den PPEASE-Angebotsordner verschoben“. Beim nächsten Öffnen bietet das Fenster nichts doppelt an.",
+            "<b>Sicherheit beim Verschieben</b>: ist eine Datei gerade geöffnet (gesperrt), bleibt das Original "
+            "liegen und wird beim nächsten Mal entfernt (die Kopie ist schon geprüft). Bricht das Netzwerk ab, "
+            "bleibt das Original der betroffenen Datei. Liegt im Zielordner schon eine andere Datei mit demselben "
+            "Namen, wird nichts gelöscht (<i>Bei vorhandener Datei</i> entscheidet). Speichert ein Kollege gerade in "
+            "denselben Ordner, wartet das Programm (Sperre). Keine Datei geht verloren: im schlimmsten Fall liegt "
+            "eine geprüfte Kopie zu viel.",
             "<b>Protokoll</b>: im Angebotsordner <i>_Protokoll</i> steht <i>ablage.json</i> (jede Datei mit Version, "
             "Prüfsumme, Speicherzeit, Änderungsdatum, Mitarbeiter und Quelle) und je Mitarbeiter eine Protokolldatei "
             "mit jeder Speicheraktion. Die Datenbank merkt sich nur die Nummer am Angebot.",
@@ -12950,6 +12994,22 @@ def kapitel_einstellungen(i):
     i.text("Wert ändern, Feld verlassen: gespeichert. Er gilt ab der nächsten Rechnung für alle Angebote. Jede Seite "
            "hat Abschnitte als Karten; Abschnitte mit „(Experte)“ sind eingeklappt, der Haken in der Überschrift "
            "klappt sie auf.", kurz=True)
+    i.text("<b>Drei Ebenen</b> (seit 0.9.519): Über der Suche wählt das Feld <b>Grundeinstellungen</b> (Vorgabe: die "
+           "wichtigsten Einstellungen für den täglichen Betrieb, rund 80 statt über 450), <b>Erweiterte "
+           "Einstellungen</b> (dazu selten benötigte, sinnvolle Optionen) oder <b>Expertenbereich</b> (dazu technische "
+           "Parameter, Toleranzen, Faktoren und Sonderfunktionen). Die Navigation zeigt nur die Seiten und Abschnitte "
+           "bis zur gewählten Ebene, unten steht, wie viele Seiten darüber liegen. Die Wahl gilt je Benutzer bzw. "
+           "Arbeitsplatz.")
+    i.liste("Ausgeblendet heißt nur <i>nicht angezeigt</i>: jede Einstellung gilt weiter mit ihrem Wert bzw. dem "
+            "Standard, Rechnung, Import und Abgleich bleiben gleich.",
+            "Die <b>Suche</b> findet immer alle Seiten und Einstellungen, auch über der gewählten Ebene.",
+            "Wer eine höher eingeordnete Seite oder Einstellung aufruft (Strg+K, Hinweis, Knopf wie "
+            "<i>Schneiddaten …</i>), bekommt die Ebene dafür umgestellt.",
+            "Grundeinstellungen: Favoriten, Bedienoberfläche, Firma, Mein Arbeitsplatz (Benutzer, Ansicht, Ordner), "
+            "Ablage (PPEASE), Zuschläge und Preise, Neue Angebote, Texte im PDF, Angebot per E-Mail, Materialanfrage, "
+            "Stundensätze, Zusatzarbeiten, Profile, Werkstoffe, Oberflächen, Preise, Maschinen, Kundenvorgaben. "
+            "Expertenbereich u. a.: Schneiddaten, Gewinde, Prüfregeln, K-Faktoren, Schweiß-Kennwerte, Knickrahmen, "
+            "STEP-Messung und Toleranzen, Verschachtelung, 3D-Kanten, Dreh-/Frästeil-Grenzen, Fracht-Feinheiten.")
     i.bild("einstellungen_unten", "Einstellungen, Seite Zuschläge und Preise", hoehe=110 * mm, kurz=False)
     i.genauer("die Seiten")
     i.text("Bis Version 0.9.196 standen alle Einstellungen auf einer langen Seite <i>Vorgaben</i>. Jetzt hat jedes "
