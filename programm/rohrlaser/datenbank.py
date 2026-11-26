@@ -3763,7 +3763,10 @@ class Datenbank:
         großen Datendateien dauert sie, Prüfung Datenbank bei vielen Angeboten 4b); Ergebnis dann SicherungLauf
         (oder None, wenn heute schon gesichert)."""
         ordner = Path(ordner) if ordner else self.pfad.parent / "Sicherung"
-        if any(ordner.glob(f"{self.pfad.stem}_{datetime.date.today():%Y-%m-%d}_*.db")):
+        # nur fertige Sicherungen zählen (die .json kommt als Letztes): eine durch einen Windows-Neustart halb
+        # geschriebene Datei verhinderte sonst die Sicherung des ganzen Tages (Windows-Update-Sicherheit 26.11.2026)
+        if any(p.with_suffix(".json").is_file()
+               for p in ordner.glob(f"{self.pfad.stem}_{datetime.date.today():%Y-%m-%d}_*.db")):
             return None
         if not hintergrund:
             return self.sicherung(ordner)
