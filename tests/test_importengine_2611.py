@@ -348,6 +348,36 @@ def _n5():
     assert not any("Naht ohne Spalt" in h for h in t.hinweise), t.hinweise
 
 
+@fall("N6 Richtungsraster Dreh-/Frästeilprüfung: gleiche Richtungen wie der Vergleich mit allen (20.000 Normalen)")
+def _n6():
+    import random
+    import step_drehfraes as df
+    rnd = random.Random(26112026)
+    basis = []
+    for _ in range(300):
+        v = [rnd.gauss(0, 1) for _ in range(3)]
+        lg = math.sqrt(sum(x * x for x in v))
+        basis.append(tuple(x / lg for x in v))
+    normalen = []
+    for _ in range(20000):        # um die Basis gestreut, viele knapp an der Grenze 0,5°, auch Gegenrichtungen
+        b = rnd.choice(basis)
+        s = rnd.choice((1, -1))
+        v = [s * x + rnd.uniform(-0.012, 0.012) for x in b]
+        lg = math.sqrt(sum(x * x for x in v))
+        normalen.append(tuple(x / lg for x in v))
+    normalen += [(1.0, 0.0, 0.0), (-1.0, 0.0, 0.0), (0.0, 0.0, 1.0), (0.0, 1e-17, -1.0)]
+    alt = []
+    for n in normalen:
+        if not any(df._parallel(n, r) for r in alt):
+            alt.append(n)
+    assert df._richtungen(normalen) == alt, (len(df._richtungen(normalen)), len(alt))
+    ri = df._Richtungen()
+    for r in alt:
+        ri.dazu(r)
+    for n in normalen[:3000]:
+        assert ri.erste(n) == next((k for k in alt if df._parallel(k, n)), None), n
+
+
 @fall("C1 Zwischenspeicher: LST neben der TUBX gehört zum Schlüssel, STEP-Schlüssel unverändert")
 def _c1():
     import step_messen as sm
