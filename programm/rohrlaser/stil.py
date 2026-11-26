@@ -8,7 +8,7 @@ import re as _re
 # Grundfarben aus design.py (gemeinsam mit den PDF-Ausgaben, UI-Modernisierung U7): Dunkelblau AKZENT für aktiven
 # Reiter, Titel und Hauptknöpfe; ROT Fehler, GELB Warnung, ORANGE Abweichung, GRUEN in Ordnung
 from .design import (  # noqa: E402,F401
-    AKZENT, AKZENT_DUNKEL, BLAU_FLAECHE, FLAECHE, GELB_FLAECHE, GELB_TEXT, GRUEN, GRUEN_FLAECHE, LINIE, ORANGE, RAHMEN,
+    ARBEITSFLAECHE, CHIPS, AKZENT, AKZENT_DUNKEL, BLAU_FLAECHE, FLAECHE, GELB_FLAECHE, GELB_TEXT, GRUEN, GRUEN_FLAECHE, LINIE, ORANGE, RAHMEN,
     ROT, ROT_FLAECHE, TEXT, TEXT_GRAU,
 )
 # Abschnitte in Balken (kostenbalken.py) der Reihe nach: gut unterscheidbar, auch in Graustufen
@@ -21,10 +21,10 @@ ROTER_RAHMEN = f"border: 1px solid {ROT}; border-radius: 3px; background: {ROT_F
 # Einheitliches Aussehen angelehnt an die PDF-Ausgaben: Dunkelblau #1F4E78 als Akzent (aktiver Reiter, Titel,
 # Hauptknöpfe, Linie unter Tabellenköpfen), helle neutrale Flächen, Karten mit dünnem Rahmen, Zebra-Zeilen
 STIL = """
-QFrame#karte { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 6px; }
+QFrame#karte { background: #FFFFFF; border: 1px solid #E3E7EC; border-radius: 8px; }
 QLabel#kartentitel { font-weight: bold; color: #1F4E78; }
 QLabel#gruppentitel { font-weight: bold; color: #3A4656; padding-bottom: 2px; border-bottom: 1px solid #E3E7EC; }
-QFrame#kennzahl { background: #F5F7FA; border: 1px solid #E3E7EC; border-radius: 4px; }
+QFrame#kennzahl { background: #FFFFFF; border: 1px solid #E3E7EC; border-radius: 8px; }
 QLabel#kennzahltitel { color: #5F6B7A; }
 QLabel#kennzahlwert { font-weight: bold; color: #1F2937; }
 QLabel#summenzeile { background: #F5F7FA; border: 1px solid #E3E7EC; border-radius: 4px; padding: 6px; }
@@ -39,7 +39,7 @@ QToolButton#aufklapper { border: none; text-align: left; color: #3A4656; padding
 QToolButton#meldung_ok { border: none; color: #1E6B34; font-weight: bold; padding: 2px 0; }
 QToolButton#meldung_warnung { border: none; color: #7A5A00; font-weight: bold; padding: 2px 0; }
 QToolButton#meldung_fehler { border: none; color: #B42318; font-weight: bold; padding: 2px 0; }
-QPushButton { padding: 4px 10px; border: 1px solid #C5CCD6; border-radius: 4px; background: #FFFFFF; }
+QPushButton { padding: 4px 10px; border: 1px solid #D5DBE3; border-radius: 6px; background: #FFFFFF; }
 QPushButton:hover { background: #F1F4F8; }
 QPushButton:pressed { background: #E2E8F0; }
 QPushButton:disabled { color: #9AA3AF; }
@@ -51,7 +51,7 @@ QPushButton[menu="true"] { padding-right: 18px; }
 QToolBar QToolButton[popupMode="2"], QStatusBar QToolButton[popupMode="2"] { padding-right: 13px; }
 QToolBar QToolButton[popupMode="2"]::menu-indicator, QStatusBar QToolButton[popupMode="2"]::menu-indicator {
     subcontrol-origin: padding; subcontrol-position: right center; right: 2px; }
-QTabWidget::pane { border: 1px solid #D5DBE3; top: -1px; }
+QTabWidget::pane { border: 1px solid #E3E7EC; top: -1px; }
 QTabBar::tab { background: transparent; color: #5F6B7A; border: none; border-bottom: 2px solid transparent;
                padding: 4px 11px; margin-right: 1px; }
 QTabBar::tab:selected { color: #1F4E78; border-bottom: 2px solid #1F4E78; }
@@ -77,15 +77,50 @@ QToolButton#navknopf:hover { background: #26354A; }
 QToolButton#navknopf:checked { background: #2C3E55; color: #FEFEFE; border-left: 3px solid #6FA8DC; }
 QToolButton#navumschalter { color: #8593A4; background: transparent; border: none; padding: 4px; }
 QToolButton#navumschalter:hover { color: #FEFEFE; }
-QGroupBox { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 6px; margin-top: 16px; padding-top: 6px; }
+QGroupBox { background: #FFFFFF; border: 1px solid #E3E7EC; border-radius: 8px; margin-top: 16px; padding-top: 6px; }
 QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 8px; padding: 0 4px;
                    color: #1F4E78; font-weight: bold; }
 QTreeView::item { min-height: 20px; }
-QTableView, QTreeView { gridline-color: #E3E7EC; selection-background-color: #CFE0F5; selection-color: #111827;
+QTableView, QTreeView { gridline-color: #E3E7EC; selection-background-color: #DCE9F8; selection-color: #111827;
                         alternate-background-color: #F5F8FB; }
-QHeaderView::section { background: #F3F6FA; color: #1F2937; border: none; border-right: 1px solid #DDE2E8;
-                       border-bottom: 2px solid #1F4E78; padding: 3px; font-weight: bold; }
+QHeaderView::section { background: #F7F9FB; color: #3A4656; border: none; border-right: 1px solid #E3E7EC;
+                       border-bottom: 1px solid #D5DBE3; padding: 3px; font-weight: bold; }
 QHeaderView::section:vertical { border-bottom: 1px solid #E3E7EC; border-right: 1px solid #C9D0D8; font-weight: normal; }
+/* Designsystem „Klar“ (UI/UX Next Level 26.11.2026): Menüs, Hinweise, Bildlaufleisten, Statuszeile, Bausteine */
+QMenu { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 6px; padding: 4px; }
+QMenu::item { padding: 5px 24px 5px 10px; border-radius: 4px; }
+QMenu::item:selected { background: #EAF1F8; color: #1F4E78; }
+QMenu::item:disabled { color: #9AA3AF; }
+QMenu::separator { height: 1px; background: #E3E7EC; margin: 4px 6px; }
+QToolTip { background: #FFFFFF; color: #1F2937; border: 1px solid #D5DBE3; padding: 4px 6px; }
+QStatusBar { background: #FFFFFF; border-top: 1px solid #E3E7EC; color: #5F6B7A; }
+QScrollBar:vertical { background: transparent; width: 12px; margin: 0; }
+QScrollBar:horizontal { background: transparent; height: 12px; margin: 0; }
+QScrollBar::handle:vertical { background: #C5CCD6; border-radius: 4px; min-height: 28px; margin: 2px 3px; }
+QScrollBar::handle:horizontal { background: #C5CCD6; border-radius: 4px; min-width: 28px; margin: 3px 2px; }
+QScrollBar::handle:hover { background: #9AA3AF; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; border: none; background: none; }
+QScrollBar::add-page, QScrollBar::sub-page { background: none; }
+QLabel#seitentitel { font-size: 15pt; font-weight: bold; color: #1F2937; }
+QLabel#abschnitt { font-weight: bold; color: #1F2937; }
+QLabel#nebentext { color: #5F6B7A; }
+QLabel#kennzahl_gross { font-size: 16pt; font-weight: bold; color: #1F2937; }
+QFrame#kennzahl_hervor { background: #1F4E78; border: 1px solid #1F4E78; border-radius: 8px; }
+QFrame#kennzahl_hervor QLabel { color: #FFFFFF; }
+QLabel#chip_ok { background: #E3F4E8; color: #1E6B34; border-radius: 10px; padding: 1px 8px; }
+QLabel#chip_warnung { background: #FFF4CE; color: #7A5A00; border-radius: 10px; padding: 1px 8px; }
+QLabel#chip_fehler { background: #FDECEA; color: #B42318; border-radius: 10px; padding: 1px 8px; }
+QLabel#chip_info { background: #EAF1F8; color: #1F4E78; border-radius: 10px; padding: 1px 8px; }
+QLabel#chip_neutral { background: #EEF1F4; color: #5F6B7A; border-radius: 10px; padding: 1px 8px; }
+QFrame#hinweis_warnung { background: #FFF4CE; border: 1px solid #F0D98C; border-radius: 8px; }
+QFrame#hinweis_fehler { background: #FDECEA; border: 1px solid #F3B8B2; border-radius: 8px; }
+QFrame#hinweis_info { background: #EAF1F8; border: 1px solid #C9DAEE; border-radius: 8px; }
+QFrame#hinweis_ok { background: #E3F4E8; border: 1px solid #B7DFC3; border-radius: 8px; }
+QFrame#hinweis_warnung QLabel { color: #7A5A00; }
+QFrame#hinweis_fehler QLabel { color: #B42318; }
+QFrame#hinweis_info QLabel { color: #1F4E78; }
+QFrame#hinweis_ok QLabel { color: #1E6B34; }
+QFrame#seitenkopf { background: transparent; }
 """
 
 
@@ -188,6 +223,8 @@ UMSETZUNG = {
         "#1F4E79": "#6CA6DE", "#1F3864": "#8FB3E8", "#5A6470": "#A3ADBA", "#C0392B": "#F28B82", "#7F6000": "#E0C060",
         "#A0A0A0": "#7A8494", "#999999": "#7A8494", "#C62828": "#F28B82", "#1565C0": "#64A8F0", "#00838F": "#4DD0E1",
         "#E8F0FA": "#22324A",
+        # Designsystem „Klar“ (26.11.2026): Arbeitsfläche
+        "#F2F4F7": "#161B22",
         # Sätze in Positionsliste und Kalkulation (satzgruppen.py, 27.10.2026): Tönung Blau/Violett und Satzname
         "#E4EEFA": "#1E3550", "#EEE6F7": "#35284A", "#285F9E": "#8BBBE8", "#6E3FA3": "#C7A6F0",
         # Schweißbaugruppen grün getönt (03.11.2026)
@@ -211,6 +248,18 @@ UMSETZUNG = {
     },
 }
 ZUSATZ = {      # nur in diesen Themes: deutlicher Tastaturfokus (B9)
+    # Hell (Designsystem „Klar“, 26.11.2026): Eingabefelder weiß mit feinem, rundem Rahmen und Akzentrahmen beim
+    # Bearbeiten; Größe wie bisher (gleicher Innenabstand wie Dunkel)
+    "Hell": "QLineEdit, QComboBox, QAbstractSpinBox { border: 1px solid #C5CCD6; border-radius: 5px; "
+            "padding: 1px 3px; background: #FFFFFF; }\n"
+            "QLineEdit:disabled, QComboBox:disabled, QAbstractSpinBox:disabled { background: #F7F9FB; "
+            "border-color: #E3E7EC; }\n"
+            "QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus { border: 1px solid #1F4E78; }\n"
+            "QComboBox::drop-down, QDateTimeEdit::drop-down { border: none; width: 18px; }\n"
+            "QComboBox::down-arrow, QDateTimeEdit::down-arrow { image: url({PFEIL_GRAU}); width: 9px; height: 9px; }\n"
+            "QAbstractSpinBox::up-button, QAbstractSpinBox::down-button { border: none; width: 14px; }\n"
+            "QAbstractSpinBox::up-arrow { image: url({PFEIL_GRAU_AUF}); width: 7px; height: 7px; }\n"
+            "QAbstractSpinBox::down-arrow { image: url({PFEIL_GRAU}); width: 7px; height: 7px; }\n",
     # Hell- und Dunkelmodus optisch verbessert (26.10.2026): Fusion zeichnet Rahmen von Eingabefeldern und Häkchen-
     # kästchen aus der Fensterfarbe (dunkler) – auf dunklem Grund fast unsichtbar; Hauptknopf weiße Schrift auf
     # Hellblau war kaum lesbar (2,6 : 1), jetzt kräftiges Blau (5,5 : 1)
@@ -341,11 +390,11 @@ def farbe_fest(hell):
 
 
 def stylesheet(name="Hell", dichte="normal"):
-    """Stylesheet für Theme und Dichte; Hell + normal = STIL unverändert."""
+    """Stylesheet für Theme und Dichte: STIL im Theme, dazu die Ergänzung des Themes (ZUSATZ) und die Dichte."""
     name = thema_aufloesen(name)
     zusatz = ZUSATZ.get(name, "")
     if "{" + "HAKEN}" in zusatz or "{" + "PFEIL" in zusatz:
-        for schluessel, datei in _zeichen().items():
+        for schluessel, datei in sorted(_zeichen().items(), key=lambda kv: -len(kv[0])):   # PFEIL_GRAU vor PFEIL
             zusatz = zusatz.replace("{" + schluessel + "}", datei)
     return umsetzen(STIL, name) + zusatz + DICHTE_CSS.get(dichte, "")
 
@@ -375,7 +424,12 @@ def _zeichen():
                 ("PFEIL", lambda p: (p.setPen(Qt.NoPen), p.setBrush(QColor("#C3CBD6")),
                                      p.drawPolygon(QPolygonF([QPointF(4, 8), QPointF(22, 8), QPointF(13, 19)])))),
                 ("PFEIL_AUF", lambda p: (p.setPen(Qt.NoPen), p.setBrush(QColor("#C3CBD6")),
-                                         p.drawPolygon(QPolygonF([QPointF(4, 18), QPointF(22, 18), QPointF(13, 7)]))))):
+                                         p.drawPolygon(QPolygonF([QPointF(4, 18), QPointF(22, 18), QPointF(13, 7)])))),
+                ("PFEIL_GRAU", lambda p: (p.setPen(Qt.NoPen), p.setBrush(QColor("#5F6B7A")),
+                                          p.drawPolygon(QPolygonF([QPointF(4, 8), QPointF(22, 8), QPointF(13, 19)])))),
+                ("PFEIL_GRAU_AUF", lambda p: (p.setPen(Qt.NoPen), p.setBrush(QColor("#5F6B7A")),
+                                              p.drawPolygon(QPolygonF([QPointF(4, 18), QPointF(22, 18),
+                                                                       QPointF(13, 7)]))))):
             bild = QImage(26, 26, QImage.Format_ARGB32)
             bild.fill(0)
             p = QPainter(bild)
@@ -386,7 +440,7 @@ def _zeichen():
             bild.save(str(datei))
             ergebnis[name] = datei.as_posix()
     except OSError:         # Temp-Ordner nicht beschreibbar: Kästchen ohne Häkchen-Bild (gefüllt = an)
-        ergebnis = {k: "" for k in ("HAKEN", "PUNKT", "PFEIL", "PFEIL_AUF")}
+        ergebnis = {k: "" for k in ("HAKEN", "PUNKT", "PFEIL", "PFEIL_AUF", "PFEIL_GRAU", "PFEIL_GRAU_AUF")}
     _ZEICHEN = ergebnis
     return ergebnis
 
@@ -418,7 +472,8 @@ KONTRAST_PAARE = [
     (AKZENT, "#FFFFFF", "Kartentitel"), ("#FFFFFF", AKZENT, "Hauptknopf"), (ROT, ROT_FLAECHE, "Fehler"),
     (GELB_TEXT, GELB_FLAECHE, "Warnung"), (GRUEN, GRUEN_FLAECHE, "OK"), ("#8C1D18", "#FDECEA", "Stand veraltet"),
     ("#7A5A00", "#FFF6DB", "Stand offen"), (TEXT, "#FFFCF0", "Eingabezelle"), (TEXT, "#EDEDED", "berechnete Zelle"),
-    ("#111827", "#CFE0F5", "Auswahl"), ("#285F9E", "#E4EEFA", "Satzname Blau"), ("#6E3FA3", "#EEE6F7", "Satzname Violett"),
+    ("#111827", "#DCE9F8", "Auswahl"),
+    *[(t, f, "Chip " + n) for n, (t, f, _z) in CHIPS.items()], (TEXT_GRAU, "#F7F9FB", "Tabellenkopf"), ("#285F9E", "#E4EEFA", "Satzname Blau"), ("#6E3FA3", "#EEE6F7", "Satzname Violett"),
     (TEXT, "#E4EEFA", "Satzzeile Blau"), (TEXT, "#EEE6F7", "Satzzeile Violett"),
     *[(t, f, "Satzname " + n) for t, f, n in zip(("#1F4E8C", "#8A4300", "#5B2E91", "#0F6359", "#8E2049", "#4F5E10",
                                                    "#2E6B30"), ("#C7DAF3", "#FAD9BD", "#DDCDF1", "#C6E8E2", "#F5CEDA",
@@ -440,11 +495,11 @@ def palette(name):
     if name == "Hell":
         # Fensterfläche im kühlen Grau der Karten und Kennzahlen statt Fusion-Grau #EFEFEF (26.10.2026): weniger
         # Mischung aus warmem und kühlem Grau
-        p.setColor(QPalette.Window, QColor(FLAECHE))
+        p.setColor(QPalette.Window, QColor(ARBEITSFLAECHE))     # Designsystem „Klar“ 26.11.2026
         p.setColor(QPalette.Button, QColor("#EEF1F5"))
         return p
     u = lambda h: QColor(umsetzen(h, name))     # noqa: E731
-    rollen = {QPalette.Window: FLAECHE, QPalette.WindowText: TEXT, QPalette.Base: "#FFFFFF",
+    rollen = {QPalette.Window: ARBEITSFLAECHE, QPalette.WindowText: TEXT, QPalette.Base: "#FFFFFF",
               QPalette.AlternateBase: "#F5F8FB", QPalette.Text: TEXT, QPalette.Button: "#EEF1F5",
               QPalette.ButtonText: TEXT, QPalette.Highlight: "#CFE0F5", QPalette.HighlightedText: "#111827",
               QPalette.ToolTipBase: "#FFFFFF", QPalette.ToolTipText: TEXT, QPalette.PlaceholderText: "#9AA3AF",

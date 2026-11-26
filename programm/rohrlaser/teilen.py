@@ -305,6 +305,8 @@ def bearbeiter_nachtragen(db):
 
 
 def ordner(db):
+    if getattr(db, "server", None) is not None:     # Serverbetrieb: alle arbeiten in einer Datenbank, kein Abgleich
+        return None
     o = str(db.einstellung("teilen_ordner") or "").strip()
     return Path(o) if o else None
 

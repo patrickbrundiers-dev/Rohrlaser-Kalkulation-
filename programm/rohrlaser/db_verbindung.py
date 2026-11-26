@@ -491,6 +491,12 @@ class PostgresVerbindung(Verbindung):
             raise VerbindungWeg(f"Keine Verbindung zur Datenbank auf {werte['host']}:{werte['port']} – "
                                 f"läuft der Datenbank-PC? ({_kurz(e)})") from e
         self._tiefe = 0
+        if z.get("rolle"):      # Serverbetrieb (server_betrieb): eigener Login, gearbeitet wird als Programmrolle
+            try:
+                self.con.execute(f'SET ROLE "{z["rolle"]}"')
+            except self._psycopg.Error as e:
+                self.con.close()
+                raise KeineBerechtigung(f"Keine Rechte am Server ({_kurz(e)}).") from e
         if self._lesen_start or self._lesen:
             self.nur_lesen(True)
 

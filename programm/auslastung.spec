@@ -33,6 +33,7 @@ fremd = [n for n, *_ in a.pure if n.startswith("rohrlaser.") and n not in (
     "rohrlaser.update_netz",                                        # Proxy und Firmen-Zertifikat für das Update
     "rohrlaser.mausrad",                                            # das Mausrad ändert keine Werte
     "rohrlaser.lizenz", "rohrlaser.lizenz_schluessel", "rohrlaser.lizenz_dialog",   # Plan 2.4: Lizenz
+    "rohrlaser.aktivierung",                                        # Lizenz 2.0: Aktivierung ohne Internet
     "rohrlaser.passwort", "rohrlaser.klartext",
     "rohrlaser.hauptadmin", "rohrlaser.anmelde_fenster",        # Hauptadmin-Anmeldung beim Start
     "rohrlaser.db_verbindung", "rohrlaser.datenspeicher",           # Datenspeicher je PC: SQLite oder PostgreSQL

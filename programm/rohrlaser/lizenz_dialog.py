@@ -94,12 +94,34 @@ class LizenzDialog(QDialog):
                                   "USB-Stick, und am anderen Rechner hier laden")
         self.ha_export.clicked.connect(lambda: self.hauptadmin_exportieren())
         knoepfe.rejected.connect(self.reject)
+        # Lizenz 2.0 (aktivierung.py): mit Lizenzschlüssel aktivieren, ohne Internet
+        zeile2 = QHBoxLayout()
+        self.aktivieren_knopf = QPushButton("Mit Lizenzschlüssel aktivieren …")
+        self.aktivieren_knopf.setToolTip("Lizenzschlüssel LZ-… eingeben: das Programm erstellt eine Aktivierungsanfrage "
+                                         "(Datei oder Code) für Patrick")
+        self.aktivieren_knopf.clicked.connect(lambda: self.aktivieren())
+        self.einfuegen_knopf = QPushButton("Aktivierung einfügen …")
+        self.einfuegen_knopf.setToolTip("Den Aktivierungscode AKTIVIERUNG-… aus Patricks Antwort einfügen (eine "
+                                        "Antwortdatei geht auch über „Lizenzdatei laden …“)")
+        self.einfuegen_knopf.clicked.connect(lambda: self.aktivierung_einfuegen())
+        self.freigeben_knopf = QPushButton("Platz freigeben …")
+        self.freigeben_knopf.setToolTip("Diesen Rechner abmelden, z. B. vor einem PC-Wechsel: der Platz wird für einen "
+                                        "anderen Rechner frei")
+        self.freigeben_knopf.clicked.connect(lambda: self.platz_freigeben())
+        for k in (self.aktivieren_knopf, self.einfuegen_knopf, self.freigeben_knopf):
+            zeile2.addWidget(k)
+        zeile2.addStretch(1)
+        lay.addLayout(zeile2)
         lay.addWidget(knoepfe)
         self.anzeigen()
 
     def anzeigen(self):
         z = self.stelle.zustand or self.stelle.pruefen()
         self.admin.setVisible(z.admin_aus)
+        aktiviert = bool(getattr(self.stelle, "aktiviert", lambda: False)())
+        self.freigeben_knopf.setVisible(aktiviert)
+        self.aktivieren_knopf.setVisible(hasattr(self.stelle, "aktivierung_anfragen"))
+        self.einfuegen_knopf.setVisible(hasattr(self.stelle, "aktivierung_laden"))
         ha = bool(getattr(self.stelle, "hauptadmin_ok", False))
         self.ha_passwort.setVisible(ha and not getattr(self.stelle, "hauptadmin_notfall", False))
         self.ha_export.setVisible(ha)
@@ -118,6 +140,27 @@ class LizenzDialog(QDialog):
             return
         art = dict(admin="Admin (unbefristet)", benutzer="Benutzer", test="Testlizenz (Aufdruck TESTVERSION)",
                    hauptadmin="Hauptadmin (unbefristet, ohne Rechner-ID, Passwort beim Start)")
+        if i.get("version") == 2:
+            from .aktivierung import TYP_TEXT
+            plaetze = i.get("plaetze") or 1
+            for titel, wert in (("Lizenznummer:", i.get("lizenz_id")),
+                                ("Lizenzart:", f"{TYP_TEXT.get(i.get('typ'), i.get('typ'))}, {plaetze} "
+                                               f"Platz{'' if plaetze == 1 else 'plätze'}"
+                                               + (f", {i['benutzer']} Benutzer" if i.get("benutzer") else "")),
+                                ("Lizenznehmer:", ", ".join(x for x in (i.get("inhaber"), i.get("firma")) if x)),
+                                ("Gültig:", f"{_datum(i.get('gueltig_ab'))} bis "
+                                            f"{_datum(i.get('gueltig_bis')) if i.get('gueltig_bis') else 'unbefristet'}"),
+                                ("Updates bis:", _datum(i.get("updates_bis")) if i.get("updates_bis") else ""),
+                                ("Dieser Platz:", f"{i.get('aktivierung_id')} (aktiviert am {_datum(i.get('aktiviert_am'))})"),
+                                ("Module:", ", ".join(i.get("funktionen") or ["alle"])),
+                                ("Hinweis:", i.get("hinweis"))):
+                if wert:
+                    w = QLabel(str(wert))
+                    w.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                    self.form.addRow(titel, w)
+            if z.tage_rest is not None and z.tage_rest >= 0:
+                self.form.addRow("Restlaufzeit:", QLabel(f"{z.tage_rest} Tage"))
+            return
         for titel, wert in (("Lizenz-ID:", i.get("lizenz_id")), ("Art:", art.get(i.get("art"), i.get("art"))),
                             ("Inhaber:", i.get("inhaber")), ("Firma:", i.get("firma")),
                             ("Ausgestellt:", _datum(i.get("ausgestellt"))),
@@ -154,12 +197,14 @@ class LizenzDialog(QDialog):
         """Lizenzdatei prüfen und übernehmen (eine Hauptadmin-Lizenz nur mit ihrem Passwort). Ergebnis: True = geladen."""
         if pfad is None:
             pfad, _ = QFileDialog.getOpenFileName(self, "Lizenzdatei laden", str(Path.home()),
-                                                  "Lizenzdatei (*.lizenz);;Alle Dateien (*)")
+                                                  "Lizenzdatei (*.lizenz *.json);;Alle Dateien (*)")
             if not pfad:
                 return False
-        from . import hauptadmin
+        from . import aktivierung, hauptadmin
         if hauptadmin.ist_datei(Path(pfad)) and hasattr(self.stelle, "hauptadmin_laden"):
             return self.hauptadmin_laden(pfad, passwort)
+        if aktivierung.ist_format2(Path(pfad)) and hasattr(self.stelle, "aktivierung_laden"):
+            return self.aktivierung_uebernehmen(Path(pfad))
         try:
             z = self.stelle.laden(Path(pfad))
         except lizenz.LizenzFehler as e:
@@ -173,6 +218,97 @@ class LizenzDialog(QDialog):
         if not self.stumm:
             QMessageBox.information(self, "Lizenz", f"Lizenz übernommen: {stufe_text(z)}.\n\n{self.stelle.text()}")
         return True
+
+    # -------------------------------------------------------------- Lizenz 2.0
+    def aktivieren(self, schluessel=None, ziel=None):
+        """Lizenzschlüssel abfragen, Aktivierungsanfrage erstellen, als Datei speichern und als Code kopieren.
+        Ergebnis: (Anfrage-dict, Code) oder None."""
+        from . import aktivierung
+        if schluessel is None:
+            schluessel, ok = QInputDialog.getText(self, "Mit Lizenzschlüssel aktivieren",
+                                                  "Lizenzschlüssel (LZ-XXXXX-XXXXX-XXXXX-XXXXX):")
+            if not ok or not schluessel.strip():
+                return None
+        try:
+            anfrage = self.stelle.aktivierung_anfragen(schluessel)
+        except (lizenz.LizenzFehler, OSError) as e:
+            if not self.stumm:
+                QMessageBox.warning(self, "Aktivierung", f"Keine Anfrage erstellt:\n\n{fehler_text(e)}")
+            return None
+        code = aktivierung.als_code(anfrage)
+        if ziel is None and not self.stumm:
+            ziel, _ = QFileDialog.getSaveFileName(self, "Aktivierungsanfrage speichern",
+                                                  str(Path.home() / f"Aktivierungsanfrage_{self.stelle.rechner}.json"),
+                                                  "Aktivierungsanfrage (*.json)")
+        if ziel:
+            import json
+            Path(ziel).write_text(json.dumps(anfrage, indent=1, ensure_ascii=False), encoding="utf-8")
+        QGuiApplication.clipboard().setText(code)
+        if not self.stumm:
+            QMessageBox.information(
+                self, "Aktivierung",
+                "Die Aktivierungsanfrage ist fertig" + (f" und gespeichert:\n{ziel}" if ziel else ".") +
+                "\n\nDer Code ist in der Zwischenablage. Bitte Datei oder Code an Patrick senden "
+                f"({lizenz.EMAIL}). Die Antwort dann hier mit „Aktivierung einfügen …“ oder "
+                "„Lizenzdatei laden …“ übernehmen. Eine laufende Lizenz bleibt bis dahin gültig.")
+        return anfrage, code
+
+    def aktivierung_einfuegen(self, text=None):
+        """Aktivierungscode (AKTIVIERUNG-…) einfügen. Ergebnis: True = übernommen."""
+        if text is None:
+            text, ok = QInputDialog.getMultiLineText(self, "Aktivierung einfügen",
+                                                     "Aktivierungscode aus Patricks Antwort (AKTIVIERUNG-…):")
+            if not ok or not text.strip():
+                return False
+        return self.aktivierung_uebernehmen(text.strip())
+
+    def aktivierung_uebernehmen(self, quelle):
+        try:
+            z = self.stelle.aktivierung_laden(quelle)
+        except (lizenz.LizenzFehler, OSError) as e:
+            if not self.stumm:
+                QMessageBox.warning(self, "Aktivierung", f"Die Aktivierung wurde nicht übernommen:\n\n{fehler_text(e)}"
+                                    "\n\nDie bisherige Lizenz bleibt unverändert.")
+            return False
+        self.anzeigen()
+        if hasattr(self.f, "lizenz_anwenden"):
+            self.f.lizenz_anwenden()
+        if not self.stumm:
+            QMessageBox.information(self, "Aktivierung", f"Aktiviert: {stufe_text(z)}.\n\n{self.stelle.text()}")
+        return True
+
+    def platz_freigeben(self, ziel=None, bestaetigt=None):
+        """Diesen Platz freigeben: Freigabebeleg speichern (für Patrick), Aktivierung entfernen. Ergebnis: Beleg."""
+        from . import aktivierung
+        if bestaetigt is None:
+            bestaetigt = QMessageBox.question(
+                self, "Platz freigeben", "Diesen Rechner von der Lizenz abmelden?\n\nDanach ist hier nur noch "
+                "Ansehen möglich (oder die bisherige Lizenzdatei gilt), und der Platz wird für einen anderen Rechner "
+                "frei, sobald Patrick den Freigabebeleg erhalten hat.") == QMessageBox.Yes
+        if not bestaetigt:
+            return None
+        try:
+            beleg = self.stelle.platz_freigeben()
+        except (lizenz.LizenzFehler, OSError) as e:
+            if not self.stumm:
+                QMessageBox.warning(self, "Platz freigeben", f"Nicht freigegeben:\n\n{fehler_text(e)}")
+            return None
+        code = aktivierung.als_code(beleg)
+        if ziel is None and not self.stumm:
+            ziel, _ = QFileDialog.getSaveFileName(self, "Freigabebeleg speichern",
+                                                  str(Path.home() / f"Freigabe_{beleg['inhalt']['aktivierung_id']}.json"),
+                                                  "Freigabebeleg (*.json)")
+        if ziel:
+            import json
+            Path(ziel).write_text(json.dumps(beleg, indent=1), encoding="utf-8")
+        QGuiApplication.clipboard().setText(code)
+        self.anzeigen()
+        if hasattr(self.f, "lizenz_anwenden"):
+            self.f.lizenz_anwenden()
+        if not self.stumm:
+            QMessageBox.information(self, "Platz freigeben", "Platz freigegeben. Bitte den Freigabebeleg (Datei oder "
+                                    "Code in der Zwischenablage) an Patrick senden.")
+        return beleg
 
     def hauptadmin_laden(self, pfad, passwort=None):
         """Hauptadmin-Lizenz übernehmen: Signatur prüfen, Passwort abfragen, danach als Hauptadmin angemeldet."""

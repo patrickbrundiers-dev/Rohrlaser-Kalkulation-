@@ -9386,7 +9386,7 @@ def kapitel_zukauf_angebot(i):
            "(Querschnitt exakt, jede Kontur lagegenau abgezogen) und misst es wie eine STEP-Datei mit Prüfdialog und "
            "3D-Ansicht. Liegt neben einer TUBX die gleichnamige LST, misst die TUBX das Teil aus der LST (genauer als "
            "das Netz). Job-Listen mit mehreren Programmen bekommen die Werte je Teil ohne 3D-Messung.")
-    i.text("<b>Importengine 2.0</b> (Patrick 26.11.2026, seit 0.9.525): Das 3D-Teil aus LST, BPF und ARTUBE wird "
+    i.text("<b>Importengine 2.0</b> (Patrick 26.11.2026, seit 0.9.537): Das 3D-Teil aus LST, BPF und ARTUBE wird "
            "genauer und schneller gebaut, geprüft an deinen Programmen 10186133 gegen die STEP-Datei desselben Teils. "
            "<b>Werkzeuge direkt aus dem Netz</b>: Jede Kontur wird ein Werkzeugkörper aus Dreiecken, die jetzt mit "
            "gemeinsamen Kanten gebaut werden statt einzeln zusammengenäht. Das ist mehrfach schneller und vermeidet "
@@ -9399,13 +9399,18 @@ def kapitel_zukauf_angebot(i):
            "Seiten), bleibt der Abfall im Körper und die Meldung sagt es; eine TUBX misst dieses Teil dann aus ihrem "
            "Netz statt aus der LST daneben. <b>Kerben und Rohrecken</b>: Offene Konturen mit einem Bahnstück kürzer "
            "als die Schnittfuge werden an den Knicken geteilt, und an Rohrecken reicht das Werkzeug nicht mehr bis in "
-           "den Mittelpunkt des Eckenradius (P10 hing vorher über 20 Minuten, jetzt unter einer Minute). <b>Format am "
+           "den Mittelpunkt des Eckenradius (P10 hing vorher über 20 Minuten, jetzt rund 2,6 Minuten für Lesen und Messen). <b>Format am "
            "Inhalt</b>: Beim Import und in der Messung zählt, was in der Datei steht, nicht nur die Endung: STEP als "
            ".txt aus dem Mailprogramm wird gemessen, ein ZIP mit Endung .step entpackt, eine IGES-Datei mit Endung "
            ".stp vom IGES-Leser gelesen, SolidWorks-Dateien unter falscher Endung und TRUMPF-Fertigungsaufträge ohne "
            "Schneidweg klar gemeldet; jeweils mit Hinweis im Prüfdialog. Die Erkennung nennt auch Hersteller, Software "
            "und Version (z. B. TubeCAM 5.1.1, Programming Tube 5.1.1, SolidWorks 2025, AP214). <b>Zwischenspeicher</b>: "
-           "Ändert sich die LST neben einer TUBX bzw. das BPF neben einer ARTUBE, wird neu gemessen.")
+           "Ändert sich die LST neben einer TUBX bzw. das BPF neben einer ARTUBE, wird neu gemessen. "
+           "<b>Fertigungsauftrag mit mehreren Programmen</b>: Jedes Programm ist ein eigenes Rohr; die Rohre liegen "
+           "alle im Nullpunkt übereinander und werden deshalb nicht als Baugruppe ausgewertet (kein Verbundkern, "
+           "keine Nahtkandidaten). <b>Schneller auch bei STEP</b>: Die Suche nach Blechnähten ohne Spalt und die "
+           "Dreh-/Frästeilprüfung vergleichen nur noch Flächen, die sich nahe kommen; die 144 Prüf-STEPs messen "
+           "gleich wie vorher und rund 12 % schneller.")
     i.text("<b>Laserzeit aus der LST</b>: Die LST teilt die Maschinenzeit nach Laserleistung auf "
            "(<i>CONSUMPTION_TIMES</i>): <i>Laser an</i> ist das Schneiden einschließlich der Einstiche, <i>Laser aus</i> "
            "das Verfahren und Drehen. Beide zusammen sind die berechnete TRUMPF-Zeit je Teil. Beladen, Entladen, "
@@ -13240,7 +13245,9 @@ def kapitel_einstellungen(i):
          "<i>OpenGL</i>: immer mit Grafikkarte, wenn möglich. Klappt OpenGL nicht, zeichnet die Ansicht von selbst "
          "ohne Grafikkarte weiter ([[step_3d_ansicht]]). Gilt für neu geöffnete Ansichten, nur an diesem Arbeitsplatz."],
         ["Ansicht", "Farbschema (Hell, Dunkel, Hoher Kontrast, Wie Windows)",
-         "<i>Hell</i> (Vorgabe) wie bisher; <i>Dunkel</i>: dunkle Flächen, helle Schrift, für dunkle Räume und lange "
+         "<i>Hell</i> (Vorgabe): ruhige, leicht bläuliche Arbeitsfläche, weiße Karten und Eingabefelder mit feinem, "
+         "rundem Rahmen (blau beim Bearbeiten), schmale Bildlaufleisten, Tabellenköpfe in Grau, Status als farbige "
+         "Marke mit Zeichen (✓ in Ordnung, ! prüfen, ✕ Fehler, i Hinweis; Designsystem seit 0.9.526); <i>Dunkel</i>: dunkle Flächen, helle Schrift, für dunkle Räume und lange "
          "Arbeit am Bildschirm; <i>Hoher Kontrast</i>: dunklere Schrift und deutlich umrandete Knöpfe; <i>Wie "
          "Windows</i>: hell oder dunkel wie in den Windows-Einstellungen (Personalisierung › Farben › Standard-App-"
          "Modus). Im Dunkelmodus sind Eingabezellen blaugrau und berechnete Zellen dunkler, auch Skizzen, "
@@ -16164,8 +16171,8 @@ def kapitel_frachtkosten(i):
     i.genauer()
     i.tabelle(["Ladehilfsmittel", "Bedeutung"], [
         ["<b>Ladehilfsmittel</b>, Bezeichnung", "Kurzname und Klartext"],
-        ["<b>Art</b>", "Europalette, Einwegpalette, Industriepalette, Gitterbox, Sonderpalette, Langgut, "
-                       "Sonderladung oder Karton (Paketversand; Maße = Innenmaße wie bei der Gitterbox)"],
+        ["<b>Art</b>", "Europalette, Einwegpalette, Industriepalette, Halbpalette, Gitterbox, Sonderpalette, "
+                       "Langgut, Sonderladung oder Karton (Paketversand; Maße = Innenmaße wie bei der Gitterbox)"],
         ["Länge, Breite, Höhe [mm]", "für Volumen und Lademeter; fehlt ein Maß, rechnet das Programm ohne Volumen"],
         ["Eigengewicht, Nutzlast [kg]", "Eigengewicht = Verpackungsgewicht; Nutzlast für Packvorschlag und Warnung "
                                         "(Karton: Gewichtsklasse des Pakets − Kartongewicht, z. B. 10 − 0,3 = 9,7 kg)"],
@@ -16177,10 +16184,17 @@ def kapitel_frachtkosten(i):
         ["Außen Länge [mm], Außen Breite [mm], Außen Höhe [mm]", "Außenmaß des Packstücks für Paketregeln und "
                                                                  "Gurtmaß (leer = Maße)"],
         ["Max. Gesamthöhe [mm]", "Höhe mit Ware für dieses Packmittel (leer = Einstellung Palettenhöhe)"],
-        ["Preis je Stück [€], Kauf/Miete/Tausch, Pfand/Tauschwert [€]", "Kauf oder Miete = Preis je Stück; Tausch "
-                                                                        "(Europool) = 0 € mit Pfand-Hinweis"],
-        ["Sicherungsmaterial je Stück [€], Packzeit je Stück [min]", "je Packstück; Packzeit × Stundensatz "
-                                                                    "Verpackung"],
+        ["Preis je Stück [€], Kauf/Miete/Tausch, Pfand je Stück [€]", "Kauf oder Miete = Preis je Stück; Tausch "
+                                                                       "(Europool) = Tauschregel des Dienstleisters "
+                                                                       "([[fracht_tausch]]); Pfand für „Tausch gegen "
+                                                                       "Pfand“"],
+        ["Verpackung/Sicherung je Stück [€], Packzeit je Stück [min]", "je Packstück (Folie, Umreifung, "
+                                                                      "Kantenschutz); Packzeit × Stundensatz "
+                                                                      "Verpackung"],
+        ["Wiederbeschaffungswert [€], Tauschwert [€]", "was ein nicht getauschtes Tauschpackmittel kostet (leer = "
+                                                       "Tauschwert, dann Preis; fehlt alles: Hinweis, kein Betrag)"],
+        ["Tauschzuschlag je Stück [€]", "gilt bei „Tausch gegen Zuschlag“ ohne eigenen Betrag in der Regel"],
+        ["Verfügbar [Stück]", "Bestand; braucht eine Sendung mehr, kommt ein Hinweis (leer = unbegrenzt)"],
         ["Aufsetzrahmen Höhe [mm], Aufsetzrahmen Gewicht [kg], Aufsetzrahmen Preis [€], Aufsetzrahmen max. Anzahl",
          "nur Palette mit Aufsetzrahmen: das Programm "
                                                                     "rechnet die Rahmen aus der Ladehöhe (z. B. 350 "
@@ -16189,15 +16203,54 @@ def kapitel_frachtkosten(i):
          "Packstück", "Grenzen des Packkerns 3.0 nur für dieses Packmittel ([[packkern]]); leer = Einstellung. "
                       "Gitterbox, Karton und Sonderbehälter haben nie Überstand"]],
               [75, 190])
-    i.text("<b>Standard-Packmittel laden</b> legt Europalette mit Aufsetzrahmen, Gitterbox EPAL (außen 1.240 × 835 × "
-           "970 mm, innen 1.200 × 800 × 800 mm, 85 kg), Rohrkartons 1,2 m und 2 m sowie einen Sonderbehälter mit "
-           "Normmaßen an, ohne Preise: Preise tragen Sie selbst ein. Vorhandene bleiben.")
+    i.text("<b>Standard-Packmittel laden</b> legt Europalette, Europalette mit Aufsetzrahmen, Halbpalette, "
+           "Einwegpalette, Industriepalette, Gitterbox EPAL (außen 1.240 × 835 × 970 mm, innen 1.200 × 800 × 800 mm, "
+           "85 kg), Rohrkartons 1,2 m und 2 m sowie einen Sonderbehälter mit Normmaßen an, ohne Preise und "
+           "Wiederbeschaffungswerte: die tragen Sie selbst ein. Vorhandene bleiben.")
     i.text("<b>Packmittelkosten</b>: Preis (Kauf/Miete) + Sicherungsmaterial + Packzeit × Stundensatz Verpackung + "
            "Aufsetzrahmen × Rahmenpreis, ohne Gewinn. Der Frachtrechner zeigt sie im Reiter <i>Packliste und "
            "Packmittelkosten</i>. Ins Angebot kommen sie mit dem Haken <b>Verpackung aus der Packliste</b> im Fenster "
            "<i>Fracht berechnen …</i> (bzw. Einstellung <i>Verpackungskosten aus den Packmitteln der Packliste "
            "rechnen</i> für die automatische Fracht) statt der Tabelle Verpackung; ältere Angebote rechnen wie "
            "bisher.")
+    i.abschnitt("Packmitteltausch je Dienstleister", marke="fracht_tausch")
+    i.text("Ob ein Dienstleister Europaletten, Gitterboxen und andere Tauschpackmittel tauscht, steht je "
+           "Dienstleister und Packmittel unter Einstellungen → Fracht → Dienstleister, Bereich "
+           "<b>Packmitteltausch je Dienstleister</b>. Ohne Regel tauscht er nicht: jedes Stück kostet seinen "
+           "Wiederbeschaffungswert.", kurz=True)
+    i.genauer()
+    i.tabelle(["Tausch", "Was das Programm rechnet"], [
+        ["vollständiger Tausch", "0 € (Zuschlag je Stück, wenn eingetragen)"],
+        ["teilweiser Tausch", "Getauscht [%] (abgerundet) bzw. Getauscht höchstens [Stück]; nur die übrigen "
+                              "kosten den Wiederbeschaffungswert"],
+        ["kein Tausch", "Anzahl × Wiederbeschaffungswert, z. B. 3 × 22 € = 66 €"],
+        ["Tausch gegen Zuschlag", "Anzahl × Zuschlag je Stück (leer = Tauschzuschlag des Packmittels), ab der "
+                                  "Freimenge"],
+        ["Tausch gegen Pfand", "Anzahl × Pfand je Stück (leer = Pfand des Packmittels), eigene Kostenart Pfand"],
+        ["Tausch nur bei Rücklieferung", "Anzahl × Rückführung je Stück (leer = Wiederbeschaffungswert)"]], [60, 205])
+    i.tabelle(["Packmitteltausch", "Bedeutung"], [
+        ["<b>Regel</b>, Dienstleister, Packmittel", "Kurzname; Dienstleister und Packmittel (einzelnes Packmittel "
+                                                    "oder Art, z. B. Europalette) leer = alle"],
+        ["Tausch, Getauscht [%], Getauscht höchstens [Stück]", "Art des Tauschs (Tabelle oben)"],
+        ["Zuschlag je Stück [€], Zuschlag je Lieferung [€], Freimenge ohne Zuschlag [Stück]", "Zuschlag je "
+         "getauschtem Stück über der Freimenge; je Lieferung einmal je Sendung"],
+        ["Pfand je Stück [€], Rückführung je Stück [€]", "für Tausch gegen Pfand bzw. nur bei Rücklieferung"],
+        ["Tausch ab [Stück]", "Mindestmenge: darunter kein Tausch"],
+        ["Kundennummer, Gültig ab, Gültig bis, Aktiv, Bemerkung (Vertrag, Ansprechpartner)", "Vertragskonditionen "
+         "für einen Kunden oder Zeitraum; die speziellere Regel gilt (Kunde vor Dienstleister vor Packmittel vor "
+         "Art vor allgemein)"]], [75, 190])
+    i.text("Je Stück gilt genau eine Abrechnung (getauscht, Pfand, Rückführung oder Wiederbeschaffung): Pfand, "
+           "Tauschzuschlag und Wiederbeschaffung kommen nie doppelt. Gekaufte und gemietete Packmittel kosten nur "
+           "ihren Preis. Im Reiter <i>Packliste und Packmittelkosten</i> stehen die Kosten je Kostenart "
+           "(Packmittel, Verpackung und Sicherung, Tauschzuschläge, nicht getauschte Packmittel, Pfand, "
+           "Rückführung) und die <b>Kostenaufschlüsselung Logistik</b> mit reiner Fracht, sonstigen "
+           "Transportzuschlägen und der Gesamtsumme; in der Kalkulation des Angebots stehen sie getrennt unter "
+           "Verpackung. Der <b>Preisvergleich</b> rechnet den Tausch je Anbieter mit (z. B. „+ 66,00 € Tausch“) und "
+           "empfiehlt nach Fracht + Tausch. Neu berechnete Fracht merkt sich die Regeln; ältere Angebote rechnen wie "
+           "bisher.")
+    i.text("<b>Korrektur von Hand</b>: Im Fenster <i>Fracht berechnen …</i> lässt sich die berechnete Fracht um einen "
+           "Betrag ändern, nur mit Begründung (z. B. Angebot der Spedition). Die Korrektur gilt je Sendung, auch in "
+           "jeder Staffelstufe, und steht mit Begründung im Text der Fracht.")
     i.abschnitt("Packkern 3.0: Ladung berechnen und ansehen", marke="packkern")
     i.text("Der Packkern legt die Teile Lage für Lage auf den Ladungsträger: gleiche Artikel als Block, Lücken mit "
            "passenden anderen Teilen gefüllt, Überstand nur an der langen Seite, die kurze Seite (800 mm) nie. Der "
@@ -16300,7 +16353,14 @@ def kapitel_frachtkosten(i):
         ["<b>Dienstleister</b>, Name", "Kurzname und Name des Frachtführers"],
         ["Versandarten", "mit Komma getrennt, erscheinen im Rechner zur Auswahl"],
         ["Unsere Kundennummer beim Dienstleister", "zur Info"],
-        ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
+        ["Aktiv, Bemerkung", "leer = aktiv; freier Text"],
+        ["Max. Länge Packstück [mm], Max. Höhe Packstück [mm], Max. Gewicht je Packstück [kg]", "Transport"
+         "bedingungen; leer = keine Grenze"],
+        ["Hebebühne möglich, Gefahrgut möglich", "„nein“ = nicht möglich, wenn der Zuschlag Hebebühne bzw. "
+                                                 "Gefahrgut gewählt ist"]], [75, 190])
+    i.text("Erfüllt ein Dienstleister eine Transportbedingung nicht, steht er im Preisvergleich rot mit Grund und "
+           "wird nie automatisch empfohlen; von Hand übernehmen geht mit Warnung. Darunter stehen die "
+           "Tauschregeln ([[fracht_tausch]]).")
     i.abschnitt("Historie und Einstellungen", marke="fracht_einstellungen")
     i.bild("fracht_historie", "Historie und Einstellungen", hoehe=100 * mm, legende=[
         (1, "Gespeicherte Kalkulationen: Datum, Bezeichnung, Empfänger, Zone, Tarif, frachtpflichtiges Gewicht, "
@@ -17105,6 +17165,47 @@ def kapitel_admin_datenbank(i):
             "Eine Eingabe, die gerade nicht gespeichert werden kann, geht nicht verloren: Sie bleibt sichtbar, wird "
             "gemerkt und gespeichert, sobald die Datenbank wieder erreichbar ist (in der Reihenfolge der Eingabe). "
             "Hat jemand dasselbe Feld inzwischen geändert, kommt die Rückfrage <i>Inzwischen geändert</i>.")
+    i.abschnitt("Zentraler Server (Serverversion)", marke="admin_server")
+    i.text("Statt jeder PC mit eigener Datenbank und Abgleich über den gemeinsamen Ordner können alle Arbeitsplätze "
+           "mit <b>einer zentralen Datenbank</b> auf einem Server-Rechner im Firmennetz arbeiten (ausgelegt für 10 "
+           "bis 25 gleichzeitige Mitarbeiter). Das Programm ist dasselbe; nur die Betriebsart ändert sich. Die "
+           "lokale Betriebsart bleibt unverändert und lässt sich jederzeit wieder wählen.")
+    i.liste("<b>Server einrichten</b> (einmal, auf dem Server-Rechner, in der Eingabeaufforderung): "
+            "<i>Rohrlaser-Angebotskalkulation.exe --server einrichten --ordner D:\\RohrlaserServer --admin PB "
+            "--name \"Firma\" --adresse SERVERNAME 192.168.1.10</i>. Das Passwort des ersten Administrators wird "
+            "abgefragt. Es entstehen der Datenordner, ein eigenes Zertifikat und die Zugangsdatei "
+            "<i>Arbeitsplatz-Zugang.rlserver</i> (ohne Passwort). Der Fingerabdruck des Zertifikats wird angezeigt.",
+            "<b>Mitarbeiter anlegen</b>: <i>… --server benutzer --ordner D:\\RohrlaserServer --kuerzel AB --recht "
+            "bearbeiten --name \"Anna Becker\"</i> (Recht <i>bearbeiten</i>, <i>lesen</i> für die Werkstatt oder "
+            "<i>verwalter</i>). <i>--sperren</i> sperrt einen Zugang, <i>status</i> zeigt Version, Verbindungen und "
+            "Benutzer. Firewall: Port 5432 im Firmennetz freigeben.",
+            "<b>Arbeitsplatz verbinden</b>: <i>Datei → Datenbank … → Mit dem Server verbinden …</i>, Zugangsdatei "
+            "wählen, Fingerabdruck mit der Anzeige am Server vergleichen, mit Kürzel und Passwort anmelden, "
+            "Programm neu starten. Die bisherigen Daten des PCs bleiben unverändert; <i>Zurück zur lokalen "
+            "Datenbank …</i> stellt sie wieder her.",
+            "<b>Anmelden</b>: Beim Start fragt das Programm Kürzel und Passwort. Die Prüfung macht der Server selbst; "
+            "jeder Mitarbeiter hat einen eigenen Zugang und kann an jedem Arbeitsplatz arbeiten. Ist der Server "
+            "nicht erreichbar, bietet das Programm <i>Noch einmal</i>, <i>Lokal arbeiten (eigene Daten dieses "
+            "PCs)</i> (die Daten von vor dem Umstellen) oder <i>Beenden</i>. Startet ein Verwalter eine neuere "
+            "Version, fragt es <i>Server umstellen</i> oder <i>Nur ansehen</i>.",
+            nummeriert=True)
+    i.tabelle(["Thema", "Im Serverbetrieb"], [
+        ["Sicherheit", "Verbindung nur verschlüsselt (TLS) mit dem eigenen Zertifikat des Servers; ein anderer "
+         "Rechner, der sich als Server ausgibt, wird abgewiesen. Passwörter nur als Prüfwert am Server."],
+        ["Rechte", "<i>lesen</i> setzt der Server selbst durch (nicht nur das Programm). Verwalter dürfen die "
+         "Programmversion des Servers heben."],
+        ["Programmversion", "Alle Arbeitsplätze rechnen mit derselben Version. Eine abweichende Version öffnet nur "
+         "zum Ansehen (oder gar nicht, wenn sich der Aufbau der Datenbank geändert hat). Startet ein Verwalter eine "
+         "neuere Version, fragt das Programm, ob der Server umgestellt wird; danach müssen alle aktualisieren."],
+        ["Angebotsnummern", "Vergibt der Server in einer Transaktion: eindeutig, auch wenn mehrere gleichzeitig "
+         "anlegen, nie zweimal."],
+        ["Einstellungen", "Firmenwerte (Preise, Zuschläge, Regeln, Admin-Vorgaben) gelten für alle. Ordner, "
+         "Geräte und Fensteransicht gelten je Arbeitsplatz; Name, Signatur und Darstellung je Mitarbeiter."],
+        ["Abgleich, Sicherung je PC", "Entfallen: alle arbeiten in derselben Datenbank."],
+    ], [38 * mm, 132 * mm])
+    i.hinweis("Ausbaustand: Datenbank, Anmeldung, Rechte, Nummern und Einstellungen arbeiten zentral. Die zentrale "
+              "Dateiablage, Hintergrundberechnungen am Server und die automatische Serversicherung folgen in den "
+              "nächsten Ausbaustufen. Bis dahin den Serverbetrieb nur zum Erproben nutzen.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",
@@ -17221,6 +17322,55 @@ def kapitel_lizenz(i):
             "Die Lizenz liegt im Datenordner im Unterordner <i>Lizenz</i>, nicht in der Datendatei. Sicherung, "
             "Wiederherstellen und Daten exportieren nehmen sie deshalb nicht mit auf einen anderen Rechner.",
             "<i>Hilfe → Über …</i> zeigt die Lizenz und die Rechner-ID ebenfalls.")
+    i.abschnitt("Mit Lizenzschlüssel aktivieren (Lizenz 2.0)", marke="lizenz_aktivieren")
+    i.text("Neue Lizenzen gibt Patrick als <b>Lizenzschlüssel</b> aus, zum Beispiel <i>LZ-7H3MQ-9X2KD-…</i>. Er gehört "
+           "zu einem Lizenzzertifikat mit Lizenzart (<b>Einzelplatz</b>, <b>Mehrplatz</b> oder <b>Server</b>), Zahl "
+           "der Plätze, Laufzeit und Modulen. Die Aktivierung läuft ganz ohne Internet:")
+    i.liste("<i>Hilfe → Lizenz …</i>, <b>Mit Lizenzschlüssel aktivieren …</b>, Schlüssel eingeben. Ein Tippfehler "
+            "fällt sofort auf (Prüfzeichen).",
+            "Das Programm speichert eine <b>Aktivierungsanfrage</b> als Datei und legt sie als Code in die "
+            "Zwischenablage. Datei oder Code per E-Mail an Patrick senden.",
+            "Patrick schickt eine <b>Aktivierung</b> zurück: als Datei (über <b>Lizenzdatei laden …</b> oder auf das "
+            "Fenster ziehen) oder als Code <i>AKTIVIERUNG-…</i> (über <b>Aktivierung einfügen …</b>).",
+            nummeriert=True, kurz=True)
+    i.genauer()
+    i.liste("Bei der Anfrage legt das Programm einen eigenen <b>Geräteschlüssel</b> an. Er ist mit Windows für diesen "
+            "Rechner verschlüsselt und verlässt ihn nie. Die Aktivierung gilt nur zusammen mit diesem Schlüssel: ein "
+            "kopierter Lizenzordner läuft auf einem anderen Rechner nicht.",
+            "Die Aktivierung prüft drei Merkmale des Rechners (Windows-Kennung, Systemplatte, Hauptplatine). Zwei "
+            "von drei genügen; eine neue Festplatte oder ein Windows-Update stören also nicht.",
+            "<b>Windows neu installiert</b>: einfach neu aktivieren. Erkennt Patricks Werkzeug denselben Rechner, wird "
+            "der alte Platz automatisch frei. Jede Lizenz hat außerdem eine Reserve-Aktivierung für einen "
+            "Hardwaretausch.",
+            "<b>Platz freigeben …</b> (vor einem PC-Wechsel): Das Programm meldet diesen Rechner ab und erzeugt einen "
+            "<b>Freigabebeleg</b> (Datei und Code). Sobald Patrick ihn hat, ist der Platz für einen anderen Rechner "
+            "frei.",
+            "Läuft die Laufzeit ab, gilt wie bisher erst die Kulanzzeit, danach der Lesemodus. Die Daten bleiben "
+            "immer erhalten. Eine neue Anfrage (zum Beispiel zur Verlängerung) lässt die laufende Aktivierung bis zur "
+            "Antwort gültig.",
+            "Bisherige Lizenzdateien (<i>.lizenz</i> mit Rechner-ID) gelten unverändert weiter. Ist eine "
+            "Aktivierung ungültig, aber eine alte Lizenzdatei gültig, gilt die alte.",
+            "Ein deaktivierter Platz oder eine gesperrte Lizenz kommt wie bisher mit der Sperrliste beim Update-Check.",
+            "Die Rohrlaser Auslastung nutzt eine Aktivierung der Kalkulation auf demselben Rechner mit.")
+    i.text("<b>Verlängerung oder mehr Plätze:</b> Patrick stellt ein neues Zertifikat mit <b>demselben "
+           "Lizenzschlüssel</b> aus. Jeder Rechner holt es sich mit <b>Mit Lizenzschlüssel aktivieren …</b> (gleicher "
+           "Schlüssel, Anfrage an Patrick); es wird dabei kein zusätzlicher Platz belegt.")
+    i.abschnitt("Lizenz-Werkzeug: Lizenzen 2.0 verwalten (nur Patrick)", marke="lizenzen2_werkzeug")
+    i.text("Im Lizenz-Werkzeug öffnet <b>Lizenzen 2.0 (Lizenzschlüssel) …</b> die Übersicht aller Lizenzen: oben "
+           "Lizenznehmer, Firma, Art, belegte Plätze, Ablauf und Status (gelb: läuft bald ab, rot: abgelaufen, grau: "
+           "gesperrt), unten die Plätze der markierten Lizenz mit Rechnername und Datum. Die Suche findet auch "
+           "Rechnernamen.")
+    i.liste("<b>Neue Lizenz …</b>: Lizenznehmer, Art, Plätze, Reserve, Laufzeit (oder unbefristet), Module und "
+            "Kunden-Admins. Der Lizenzschlüssel landet in der Zwischenablage.",
+            "<b>Anfrage beantworten …</b>: Code einfügen oder Datei wählen. Die Antwort (Code und Datei) geht an den "
+            "Kunden.",
+            "<b>Freigabe verbuchen …</b>: Freigabebeleg eines Rechners, der Platz wird frei.",
+            "<b>Platz deaktivieren …</b>: für einen defekten oder verlorenen Rechner. Der Platz wird frei und kommt "
+            "auf die Sperrliste (danach Sperrliste hochladen).",
+            "<b>Verlängern …</b> und <b>Ändern / übertragen …</b>: neues Zertifikat mit gleichem Schlüssel, die "
+            "Plätze ziehen mit. Weniger Plätze als belegt lehnt das Werkzeug ab. Ersetzte Lizenzen zeigt der Haken "
+            "<i>ersetzte Lizenzen zeigen</i>.",
+            "<b>Sperren …</b>: ganze Lizenz mit allen Plätzen auf die Sperrliste.")
     i.abschnitt("Hauptadmin-Lizenz (ohne Rechner-ID)", marke="hauptadmin")
     i.text("Die <b>Hauptadmin-Lizenz</b> ist Patricks persönliche Lizenz. Sie ist an keinen Rechner gebunden, gilt "
            "auf beliebig vielen eigenen Rechnern und ist unbefristet, bis sie im Lizenz-Werkzeug gesperrt wird. "

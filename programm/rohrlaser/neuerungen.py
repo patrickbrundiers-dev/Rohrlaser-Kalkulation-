@@ -21,14 +21,55 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.525", "<b>Importengine 2.0</b>: TRUMPF-LST, BPF und ARTUBE werden genauer und schneller zum 3D-Teil. "
+    ["0.9.537", "<b>Importengine 2.0</b>: TRUMPF-LST, BPF und ARTUBE werden genauer und schneller zum 3D-Teil. "
                 "Werkzeuge der Konturen entstehen direkt mit gemeinsamen Kanten statt genäht (LST 10186133 P10 hing "
-                "über 20 min, jetzt unter 1 min; P20 jetzt wie die STEP statt 718 mm³ zu wenig). Fenster und Kerben "
+                "über 20 min, jetzt 2,6 min; P20 jetzt wie die STEP statt 718 mm³ zu wenig). Fenster und Kerben "
                 "aus zwei offenen Schnitten mit Haltestegen werden als Öffnung erkannt (P30: Volumen wie STEP statt "
-                "24.114 mm³ zu viel); Schnittlänge und Einstiche bleiben gleich. Das Format zählt jetzt am Inhalt, "
+                "24.114 mm³ zu viel); Schnittlänge und Einstiche aus dem NC-Programm bleiben gleich. Ein "
+                "Fertigungsauftrag mit mehreren Programmen wird nicht mehr als Baugruppe ausgewertet (P30 war "
+                "„Verbundkern“ in P10). STEP-Import rund 12 % schneller bei gleichen Messwerten (Nahtsuche). Das Format zählt jetzt am Inhalt, "
                 "nicht nur an der Endung (STEP als .txt, ZIP als .step, IGES als .stp, Fertigungsauftrag ohne "
                 "Schneidweg), mit Hersteller und Softwareversion im Hinweis ([[trumpf_programm]]).",
      "Importengine 2.0: LST/BPF/ArTube genauer und schneller, Format am Inhalt"],
+    ["0.9.534", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
+                "steht jetzt, ob er tauscht (vollständig, teilweise, gar nicht, gegen Zuschlag, gegen Pfand, nur bei "
+                "Rücklieferung), mit Zuschlag je Stück oder Lieferung, Freimenge, Mindestmenge, Kunde und Gültigkeit. "
+                "Ohne Regel tauscht er nicht: nicht getauschte Europaletten und Gitterboxen kosten ihren neuen "
+                "<b>Wiederbeschaffungswert</b> (z. B. 3 × 22 € = 66 €). Je Stück genau eine Abrechnung, Pfand, "
+                "Tauschzuschlag und Wiederbeschaffung nie doppelt. Packmittelkosten erscheinen je Kostenart getrennt, "
+                "dazu eine Kostenaufschlüsselung Logistik; der Preisvergleich rechnet den Tausch je Anbieter mit und "
+                "empfiehlt keinen Dienstleister, der eine Transportbedingung (Länge, Höhe, Gewicht, Hebebühne, "
+                "Gefahrgut) nicht erfüllt. Fracht lässt sich mit Begründung von Hand korrigieren. Packmittelkosten aus "
+                "der Packliste sind jetzt Vorgabe (ohne Packmittelpreise gilt die Tabelle Verpackung). Neue Paletten: "
+                "Europalette, Halbpalette, Einweg- und Industriepalette. Ältere Angebote rechnen unverändert.",
+     "Palettentausch je Dienstleister, Wiederbeschaffung nicht getauschter Packmittel"],
+    ["0.9.532", "<b>Lizenz-Werkzeug: Lizenzen 2.0 verwalten</b> (nur für Patrick): Der neue Knopf <b>Lizenzen 2.0 "
+                "(Lizenzschlüssel) …</b> öffnet eine Übersicht aller Lizenzen mit belegten Plätzen, Ablauf und Status "
+                "(gelb: läuft bald ab, rot: abgelaufen) und darunter die Plätze der markierten Lizenz. Knöpfe für neue "
+                "Lizenz, Anfrage beantworten, Freigabe verbuchen, Platz deaktivieren, Verlängern, Ändern/Übertragen und "
+                "Sperren. Beim Verlängern bleibt der Lizenzschlüssel gleich, die Plätze ziehen mit.",
+     "Lizenz-Werkzeug: Übersicht Lizenzen 2.0 mit allen Aktionen"],
+    ["0.9.527", "<b>Lizenz 2.0: Aktivierung mit Lizenzschlüssel</b>: Unter <i>Hilfe → Lizenz …</i> lässt sich das "
+                "Programm jetzt mit einem Lizenzschlüssel (<i>LZ-…</i>) aktivieren, ganz ohne Internet. Das Programm "
+                "erstellt eine Aktivierungsanfrage als Datei oder Code, Patricks Antwort kommt über <b>Aktivierung "
+                "einfügen …</b> oder <b>Lizenzdatei laden …</b> zurück. Lizenzen gibt es als Einzelplatz, Mehrplatz "
+                "und Server mit Zahl der Plätze. Jeder Rechner hat einen eigenen, mit Windows geschützten "
+                "Geräteschlüssel, deshalb läuft ein kopierter Lizenzordner auf einem anderen Rechner nicht. Eine neue "
+                "Festplatte oder Windows neu installiert schließt niemanden aus; <b>Platz freigeben …</b> meldet einen "
+                "Rechner vor einem PC-Wechsel ab. Bisherige Lizenzdateien gelten weiter ([[lizenz_aktivieren]]).",
+     "Lizenz 2.0: Aktivierung mit Lizenzschlüssel ohne Internet, Plätze freigeben"],
+    ["0.9.526", "<b>Neues Designsystem, Schritt 1</b> (Oberfläche „Klar“): Farben, Rahmen und Abstände kommen aus einer "
+                "Stelle. Ruhigere Arbeitsfläche, weiße Eingabefelder mit feinem, rundem Rahmen, schlichtere "
+                "Tabellenköpfe, modernere Menüs, Hinweise und Bildlaufleisten. Funktionen und Berechnungen sind "
+                "unverändert; die weiteren Schritte (Kopfleiste mit Befehlssuche, Angebot mit Kopfband, "
+                "Materialfenster, Einstellungen) folgen.",
+     "Neues Designsystem „Klar“, Schritt 1: ruhigere Flächen, moderne Eingabefelder"],
+    ["0.9.523", "<b>Serverversion (Stufe 1)</b>: Neben der lokalen Datenbank je PC gibt es die Betriebsart "
+                "<i>Zentraler Server</i>: alle Arbeitsplätze arbeiten mit einer PostgreSQL-Datenbank auf einem Rechner im "
+                "Firmennetz (verschlüsselt, eigenes Kürzel und Passwort je Mitarbeiter, Nummern zentral ohne Doppelte, "
+                "Einstellungen je Firma, Arbeitsplatz oder Benutzer). Einrichten mit <i>start.py --server einrichten</i>, "
+                "verbinden unter Datei → Datenbank. Die lokale Betriebsart bleibt unverändert (Kapitel 30.6).",
+     "Serverversion Stufe 1: zentrale Datenbank als Betriebsart"],
     ["0.9.522", "<b>Windows-Updates und Neustarts</b>: Startet Windows für Updates neu, während das Programm offen ist, "
                 "schließt es jetzt Datenbank, PostgreSQL und Datensperre selbst sauber. Endete der letzte Lauf "
                 "trotzdem unerwartet (Stromausfall, Absturz), meldet das Programm das beim nächsten Start und legt "

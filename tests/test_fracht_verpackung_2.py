@@ -95,8 +95,10 @@ ok(f"Bitgleich: Palette nach München weiter {vorher['gesamt']:.2f} € ({vorher
    f"{sum_vor['verkauf']:.2f} € unverändert")
 
 # ------------------------------------------------------------------ Paketregeln
+vorhanden = {z["lht_id"] for z in db.zeilen("fracht_lht")}
 n_pm = db.packmittel_vorlagen_laden()
-assert n_pm == 5 and db.packmittel_vorlagen_laden() == 0
+assert n_pm == len([v for v in fracht_tarife.packmittel() if v["lht_id"] not in vorhanden]) >= 5
+assert db.packmittel_vorlagen_laden() == 0
 daten = db.fracht_daten()
 paket = dict(land="DE", plz="80331", absender_plz="33129", versandart="Paket", tarif_id="DHL-PAKET-2026")
 

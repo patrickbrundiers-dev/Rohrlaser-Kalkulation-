@@ -656,6 +656,11 @@ def lht_liste(e):
                 x["ldm"] = round(sum(m[0] * m[1] for m in a) / 1e6 / 2.4, 4)
         if any(p.get("rahmen") for p in pals):
             x["rahmen"] = sum(p.get("rahmen") or 0 for p in pals)
+        if pals:                 # Transportbedingungen (26.11.2026): größtes beladenes Packstück, schwerstes Packstück
+            a = [p.get("aussen") for p in pals]
+            if all(m and len(m) == 3 for m in a):
+                x["ladung"] = [max(_n(m[i]) for m in a) for i in range(3)]
+            x["kg_max"] = round(max(_n(p.get("brutto")) for p in pals), 3)
         out.append(x)
     return out
 
@@ -666,11 +671,17 @@ def ladung(positionen, werte, lht_zeilen, std_id, lg_id, einst=None):
     return lht_liste(e), e["hinweise"]
 
 
-def packmittel_kosten(eintraege, lht_zeilen, satz_verpackung=0.0):
+def packmittel_kosten(eintraege, lht_zeilen, satz_verpackung=0.0, tausch=None, dienstleister=None, kundennr=None,
+                      datum=None):
     """Kosten der Packmittel einer Sendung (Fracht 2.0): je Ladungsträger Preis (Kauf bzw. Miete; Tausch 0 € mit
     Hinweis auf den Pfand) + Sicherungsmaterial + Packzeit × Stundensatz Verpackung, dazu die Aufsetzrahmen.
     eintraege = [{lht_id, anzahl, rahmen?}]. Ergebnis: dict(gesamt, zeilen [(Text, €)], hinweise, mit_preis
-    (mindestens ein Packmittel hat einen Preis))."""
+    (mindestens ein Packmittel hat einen Preis)).
+    tausch = Tauschregeln (Packmittelmanagement 26.11.2026, packmittel_tausch.py; None = wie bisher): Tauschpackmittel
+    kosten dann je nach Regel des Dienstleisters Tauschzuschlag, Pfand, Rückführung oder Wiederbeschaffung; dazu
+    kategorien (Kostenart je Zeile), posten {Kostenart: €}, tausch_stuecke und neu=True."""
+    if tausch is not None:
+        return _packmittel_kosten_2(eintraege, lht_zeilen, satz_verpackung, tausch, dienstleister, kundennr, datum)
     lht = {z["lht_id"]: z for z in lht_zeilen or () if z.get("lht_id")}
     zeilen, hinweise, mit_preis = [], [], False
     for e in eintraege or ():
@@ -707,6 +718,50 @@ def packmittel_kosten(eintraege, lht_zeilen, satz_verpackung=0.0):
     zeilen = [(t, kaufm_runden(b, 2)) for t, b in zeilen]
     return dict(gesamt=kaufm_runden(sum(b for _, b in zeilen), 2), zeilen=zeilen, hinweise=hinweise,
                 mit_preis=mit_preis)
+
+
+def _packmittel_kosten_2(eintraege, lht_zeilen, satz_verpackung, regeln, dienstleister, kundennr, datum):
+    """Packmittelkosten mit Tauschregeln: Kostenart je Zeile (packmittel_tausch.KATEGORIEN), nie doppelt."""
+    from . import packmittel_tausch as pt
+    from .ausgabe import kaufm_runden
+    lht = {z["lht_id"]: z for z in lht_zeilen or () if z.get("lht_id")}
+    zeilen, hinweise, mit_preis = [], [], False
+    for e in eintraege or ():
+        z, n = lht.get(e.get("lht_id")), int(_n(e.get("anzahl")))
+        if not z or n <= 0:
+            continue
+        name = z.get("bezeichnung") or z["lht_id"]
+        if not pt.tauschbar(z):
+            if _zahl(z.get("preis")):
+                zeilen.append((f"{n} × {name} ({z.get('abrechnung') or 'Kauf'})", n * _n(z["preis"]), pt.PACKMITTEL))
+            else:
+                hinweise.append(f"{name}: Preis fehlt (Packmittel → Preis je Stück)")
+        if _n(z.get("sicherung")):
+            zeilen.append((f"Verpackung/Sicherung {n} × {zahl_als_text(_n(z['sicherung']), 2)} €",
+                           n * _n(z["sicherung"]), pt.VERPACKUNG))
+        if _n(z.get("packzeit")) and _n(satz_verpackung):
+            zeilen.append((f"Packzeit {n} × {zahl_als_text(_n(z['packzeit']), 1)} min × "
+                           f"{zahl_als_text(_n(satz_verpackung), 2)} €/h", n * _n(z["packzeit"]) / 60
+                           * _n(satz_verpackung), pt.VERPACKUNG))
+        r = int(_n(e.get("rahmen")))
+        if r and _n(z.get("rahmen_preis")):
+            zeilen.append((f"{r} Aufsetzrahmen × {zahl_als_text(_n(z['rahmen_preis']), 2)} €",
+                           r * _n(z["rahmen_preis"]), pt.PACKMITTEL))
+        elif r:
+            hinweise.append(f"{name}: Preis der Aufsetzrahmen fehlt")
+        if _zahl(z.get("bestand")) and n > z["bestand"]:
+            hinweise.append(f"{name}: {n} Stück nötig, nur {int(z['bestand'])} verfügbar")
+    t = pt.kosten(eintraege, lht_zeilen, regeln, dienstleister, kundennr, datum)
+    zeilen += t["zeilen"]
+    hinweise += t["hinweise"]
+    mit_preis = bool(zeilen) or any(x["getauscht"] for x in t["stuecke"])
+    zeilen = [(text, kaufm_runden(b, 2), k) for text, b, k in zeilen]
+    posten = {}
+    for _, b, k in zeilen:
+        posten[k] = round(posten.get(k, 0.0) + b, 2)
+    return dict(gesamt=kaufm_runden(sum(b for _, b, _ in zeilen), 2), zeilen=[(x, b) for x, b, _ in zeilen],
+                kategorien=[k for _, _, k in zeilen], posten=posten, hinweise=hinweise, mit_preis=mit_preis,
+                tausch_stuecke=t["stuecke"], fehlt=t["fehlt"], neu=True, dienstleister=dienstleister)
 
 
 # ------------------------------------------------------------------ günstigste Ladungsträger (Patrick 29.10.2026, 3a)

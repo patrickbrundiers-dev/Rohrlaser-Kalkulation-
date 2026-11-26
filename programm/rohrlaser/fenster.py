@@ -4938,6 +4938,11 @@ class Hauptfenster(QMainWindow):
     def anmeldung_beim_start(self):
         """Beim Start anmelden, wenn eingeschaltet (rollen.pflicht). Ergebnis: weiter ja/nein (Abbrechen = beenden)."""
         from . import rollen
+        if self.db.server is not None:      # Serverbetrieb: schon am Server angemeldet (eigener Login)
+            if rollen.SITZUNG is not None:
+                rollen.SITZUNG.kuerzel = self.db.server.kuerzel
+            self.rechte_anwenden()
+            return True
         if self.stumm or not rollen.pflicht(self.db):
             return True
         from PySide6.QtWidgets import QDialog
@@ -5597,8 +5602,35 @@ class Hauptfenster(QMainWindow):
         text = datenspeicher.status(self.db)
         self.meldung(text)
         if not self.stumm:
-            QMessageBox.information(self, "Datenbank", text)
+            m = QMessageBox(QMessageBox.Information, "Datenbank", text, parent=self)
+            verbinden = zurueck = None
+            if self.ist_hauptadmin_oder_frei():     # Umstellen der Betriebsart (Serverversion S1)
+                if self.db.server is None:
+                    verbinden = m.addButton("Mit dem Server verbinden …", QMessageBox.ActionRole)
+                else:
+                    zurueck = m.addButton("Zurück zur lokalen Datenbank …", QMessageBox.ActionRole)
+            m.addButton(QMessageBox.Close)
+            m.exec()
+            from . import server_dialog
+            if verbinden is not None and m.clickedButton() is verbinden:
+                server_dialog.verbinden(self, self.db.pfad)
+            elif zurueck is not None and m.clickedButton() is zurueck:
+                server_dialog.zurueck(self, self.db.pfad)
         return text
+
+    def ist_hauptadmin_oder_frei(self):
+        """Darf die Betriebsart umstellen: Hauptadmin-Lizenz, freigeschalteter Admin oder Verwalter am Server."""
+        if self.db.server is not None:
+            return self.db.server.verwalter
+        try:
+            from . import admin_schutz
+            if not admin_schutz.aktiv(self.db) or admin_schutz.ist_admin(self.db):
+                return True
+        except Exception:       # noqa: BLE001 – im Zweifel nur mit Hauptadmin-Lizenz
+            from . import protokoll
+            protokoll.warnung("Admin-Prüfung für die Betriebsart misslungen")
+        stelle = getattr(self, "lizenz", None)
+        return bool(getattr(stelle, "hauptadmin", False))
 
     def daten_exportieren(self):
         from PySide6.QtWidgets import QFileDialog
