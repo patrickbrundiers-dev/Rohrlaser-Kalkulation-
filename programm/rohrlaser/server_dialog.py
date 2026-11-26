@@ -126,7 +126,7 @@ class VerbindenDialog(QDialog):
         self.datei = QLineEdit()
         self.datei.setReadOnly(True)
         waehlen = QPushButton("Zugangsdatei wählen …")
-        waehlen.clicked.connect(self.waehlen)
+        waehlen.clicked.connect(lambda: self.waehlen())
         zeile.addWidget(self.datei, 1)
         zeile.addWidget(waehlen)
         lay.addLayout(zeile)
