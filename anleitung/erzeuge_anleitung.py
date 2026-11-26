@@ -17274,6 +17274,25 @@ def kapitel_lizenz(i):
             "Aktivierung ungültig, aber eine alte Lizenzdatei gültig, gilt die alte.",
             "Ein deaktivierter Platz oder eine gesperrte Lizenz kommt wie bisher mit der Sperrliste beim Update-Check.",
             "Die Rohrlaser Auslastung nutzt eine Aktivierung der Kalkulation auf demselben Rechner mit.")
+    i.text("<b>Verlängerung oder mehr Plätze:</b> Patrick stellt ein neues Zertifikat mit <b>demselben "
+           "Lizenzschlüssel</b> aus. Jeder Rechner holt es sich mit <b>Mit Lizenzschlüssel aktivieren …</b> (gleicher "
+           "Schlüssel, Anfrage an Patrick); es wird dabei kein zusätzlicher Platz belegt.")
+    i.abschnitt("Lizenz-Werkzeug: Lizenzen 2.0 verwalten (nur Patrick)", marke="lizenzen2_werkzeug")
+    i.text("Im Lizenz-Werkzeug öffnet <b>Lizenzen 2.0 (Lizenzschlüssel) …</b> die Übersicht aller Lizenzen: oben "
+           "Lizenznehmer, Firma, Art, belegte Plätze, Ablauf und Status (gelb: läuft bald ab, rot: abgelaufen, grau: "
+           "gesperrt), unten die Plätze der markierten Lizenz mit Rechnername und Datum. Die Suche findet auch "
+           "Rechnernamen.")
+    i.liste("<b>Neue Lizenz …</b>: Lizenznehmer, Art, Plätze, Reserve, Laufzeit (oder unbefristet), Module und "
+            "Kunden-Admins. Der Lizenzschlüssel landet in der Zwischenablage.",
+            "<b>Anfrage beantworten …</b>: Code einfügen oder Datei wählen. Die Antwort (Code und Datei) geht an den "
+            "Kunden.",
+            "<b>Freigabe verbuchen …</b>: Freigabebeleg eines Rechners, der Platz wird frei.",
+            "<b>Platz deaktivieren …</b>: für einen defekten oder verlorenen Rechner. Der Platz wird frei und kommt "
+            "auf die Sperrliste (danach Sperrliste hochladen).",
+            "<b>Verlängern …</b> und <b>Ändern / übertragen …</b>: neues Zertifikat mit gleichem Schlüssel, die "
+            "Plätze ziehen mit. Weniger Plätze als belegt lehnt das Werkzeug ab. Ersetzte Lizenzen zeigt der Haken "
+            "<i>ersetzte Lizenzen zeigen</i>.",
+            "<b>Sperren …</b>: ganze Lizenz mit allen Plätzen auf die Sperrliste.")
     i.abschnitt("Hauptadmin-Lizenz (ohne Rechner-ID)", marke="hauptadmin")
     i.text("Die <b>Hauptadmin-Lizenz</b> ist Patricks persönliche Lizenz. Sie ist an keinen Rechner gebunden, gilt "
            "auf beliebig vielen eigenen Rechnern und ist unbefristet, bis sie im Lizenz-Werkzeug gesperrt wird. "

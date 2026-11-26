@@ -189,14 +189,102 @@ def lizenz_sperren(ordner, nr, heute=None, pw=None):
     return W.sperren(ordner, [nr], pw)
 
 
+def aendern(ordner, nr, heute=None, pw=None, ziel=None, **neu):
+    """Lizenz ändern (verlängern, Plätze/Benutzer ändern, übertragen): neues Zertifikat mit DEMSELBEN Lizenzschlüssel
+    und Feld ersetzt=nr; die aktiven Plätze ziehen mit. Die Rechner holen sich das neue Zertifikat mit einer neuen
+    Anfrage (gleicher Geräteschlüssel → gleiche Aktivierung, kein neuer Platz). neu: lizenznehmer, firma, kundennr,
+    typ, plaetze, benutzer, reserve, module, bis (date oder None = unbefristet), updates_bis, admins, hinweis.
+    Ergebnis: (neue Lizenznummer, Zertifikat-Datei)."""
+    heute = heute or datetime.date.today()
+    ordner = Path(ordner)
+    d = register_lesen(ordner)
+    e = d["zertifikate"].get(nr)
+    if e is None:
+        raise SystemExit(f"Lizenz {nr} ist nicht im Register.")
+    if e.get("ersetzt_durch"):
+        raise SystemExit(f"Lizenz {nr} wurde schon durch {e['ersetzt_durch']} ersetzt.")
+    if e.get("gesperrt"):
+        raise SystemExit(f"Lizenz {nr} ist gesperrt.")
+    alt = e["zertifikat"]["inhalt"]
+    werte = dict(lizenznehmer=alt["lizenznehmer"], firma=alt.get("firma", ""), kundennr=alt.get("kundennr", ""),
+                 typ=alt["typ"], plaetze=alt["plaetze"], benutzer=alt.get("benutzer", 0),
+                 reserve=alt["aktivierungen_max"] - alt["plaetze"], module=alt.get("module"),
+                 bis=datetime.date.fromisoformat(alt["gueltig_bis"]) if alt.get("gueltig_bis") else None,
+                 updates_bis=datetime.date.fromisoformat(alt["updates_bis"]) if alt.get("updates_bis") else None,
+                 admins=alt.get("admins") or [], hinweis=alt.get("hinweis", ""))
+    unbekannt = set(neu) - set(werte)
+    if unbekannt:
+        raise SystemExit(f"Unbekannte Felder: {', '.join(sorted(unbekannt))}")
+    werte.update(neu)
+    belegt = len(aktive(d, nr))
+    maximal = (1 if werte["typ"] == "einzelplatz" else int(werte["plaetze"])) + max(0, int(werte["reserve"]))
+    if belegt > maximal:
+        raise SystemExit(f"{belegt} Plätze sind belegt, die neue Lizenz erlaubt nur {maximal}. Erst Plätze "
+                         "freigeben oder deaktivieren.")
+    sid = W.aktueller_schluessel(ordner)
+    privat = W.privat_laden(ordner, sid, pw)
+    neu_nr = naechste_nr(d, heute)
+    schluessel = e["lizenzschluessel"]
+    inhalt = A.zertifikat_inhalt(neu_nr, schluessel, werte["lizenznehmer"], werte["typ"], werte["plaetze"],
+                                 firma=werte["firma"], kundennr=werte["kundennr"], benutzer=werte["benutzer"],
+                                 reserve=werte["reserve"], module=werte["module"], gueltig_bis=werte["bis"],
+                                 updates_bis=werte["updates_bis"], admins=werte["admins"], heute=heute,
+                                 schluessel_id=sid, hinweis=werte["hinweis"], ersetzt=nr)
+    zert = dict(format=A.FORMAT, inhalt=inhalt, signatur=lizenz.signieren(inhalt, privat))
+    A.zertifikat_pruefen(zert, {sid: lizenz.oeffentlich_text(privat)})
+    e["ersetzt_durch"] = neu_nr
+    d["zertifikate"][neu_nr] = dict(zertifikat=zert, lizenzschluessel=schluessel, gesperrt="", ersetzt=nr)
+    for a in aktive(d, nr):
+        a["lizenz_nr"] = neu_nr
+    register_schreiben(ordner, d)
+    ziel = Path(ziel) if ziel else ordner / "Zertifikate"
+    ziel.mkdir(parents=True, exist_ok=True)
+    datei = ziel / f"{neu_nr}_{_dateiname(werte['firma'] or werte['lizenznehmer'])}.zertifikat"
+    datei.write_text(json.dumps(zert, indent=1, ensure_ascii=False), encoding="utf-8")
+    return neu_nr, datei
+
+
+def status(eintrag, heute=None):
+    """(Kurzwort, Text) einer Lizenz im Register: gesperrt, ersetzt, abgelaufen, laeuft_ab, gueltig, unbefristet."""
+    heute = heute or datetime.date.today()
+    z = eintrag["zertifikat"]["inhalt"]
+    if eintrag.get("gesperrt"):
+        return "gesperrt", f"gesperrt seit {eintrag['gesperrt']}"
+    if eintrag.get("ersetzt_durch"):
+        return "ersetzt", f"ersetzt durch {eintrag['ersetzt_durch']}"
+    if not z.get("gueltig_bis"):
+        return "unbefristet", "unbefristet"
+    rest = (datetime.date.fromisoformat(z["gueltig_bis"]) - heute).days
+    if rest < 0:
+        return "abgelaufen", f"abgelaufen seit {-rest} Tagen"
+    if rest <= W.ERINNERUNG_TAGE:
+        return "laeuft_ab", f"läuft in {rest} Tagen ab"
+    return "gueltig", "gültig"
+
+
+def aktivierungen_von(ordner, nr):
+    """Alle Aktivierungen einer Lizenz (auch über ersetzte Vorgänger), neueste zuerst."""
+    d = register_lesen(ordner)
+    kette = {nr}
+    while True:
+        mehr = {e.get("ersetzt") for k, e in d["zertifikate"].items() if k in kette and e.get("ersetzt")} - kette
+        if not mehr:
+            break
+        kette |= mehr
+    return sorted((a for a in d["aktivierungen"] if a["lizenz_nr"] in kette), key=lambda a: a["aktivierung_id"],
+                  reverse=True)
+
+
 def uebersicht(ordner, heute=None):
     """Zeilen je Zertifikat: Nummer, Lizenznehmer, Typ, belegt/max, Ablauf, gesperrt (für liste2 und Dashboard)."""
     d = register_lesen(ordner)
     zeilen = []
     for nr, e in sorted(d["zertifikate"].items()):
         z = e["zertifikat"]["inhalt"]
+        st, st_text = status(e, heute)
         zeilen.append(dict(lizenz_nr=nr, lizenznehmer=z["lizenznehmer"], firma=z.get("firma", ""), typ=z["typ"],
-                           plaetze=z["plaetze"], belegt=len(aktive(d, nr)), max=z["aktivierungen_max"],
-                           gueltig_bis=z.get("gueltig_bis") or "unbefristet", gesperrt=e.get("gesperrt", ""),
-                           lizenzschluessel=e["lizenzschluessel"]))
+                           plaetze=z["plaetze"], benutzer=z.get("benutzer", 0), belegt=len(aktive(d, nr)),
+                           max=z["aktivierungen_max"], gueltig_bis=z.get("gueltig_bis") or "unbefristet",
+                           gesperrt=e.get("gesperrt", ""), lizenzschluessel=e["lizenzschluessel"], status=st,
+                           status_text=st_text, ersetzt_durch=e.get("ersetzt_durch", "")))
     return zeilen

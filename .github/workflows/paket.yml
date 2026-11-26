@@ -364,7 +364,7 @@ jobs:
         shell: pwsh
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed --name Lizenz-Werkzeug --paths programm --paths werkzeuge `
-            --hidden-import lizenz_werkzeug_fenster --hidden-import lizenz2_werkzeug --distpath dist_werkzeug --workpath build_werkzeug werkzeuge/lizenz_werkzeug.py
+            --hidden-import lizenz_werkzeug_fenster --hidden-import lizenz2_werkzeug --hidden-import lizenz2_fenster --distpath dist_werkzeug --workpath build_werkzeug werkzeuge/lizenz_werkzeug.py
           if (Test-Path dist/Rohrlaser-Angebotskalkulation/Lizenz-Werkzeug.exe) { throw "Lizenz-Werkzeug im Programmordner" }
           $env:ROHRLASER_LIZENZ_ORDNER = "$env:RUNNER_TEMP\lizenz_test"
           $env:ROHRLASER_LIZENZ_PASSWORT = "build-test-123"
