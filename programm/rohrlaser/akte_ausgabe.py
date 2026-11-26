@@ -256,13 +256,17 @@ def menue_fuellen(menue, f, kopf):
             titel += " – veraltet?"
     unter = menue.addMenu(titel)
     nummer = kopf.get("nummer") or ""
+    from . import ppease_ablage
+
+    def finden(p):          # Akte in den PPEASE-Angebotsordner verschoben (26.11.2026)
+        return ppease_ablage.wo(f.db, kopf.get("id"), p)
     for text, art in (("Komplettes Dokument öffnen", "gesamt"), ("Kundenangebot öffnen", "kunde"),
                       ("Interne Kalkulation öffnen", "intern"),
                       ("Technisches Kalkulationsblatt öffnen", "technik")):
-        p = akte_ablage.datei(o, nummer, art) if o else None
+        p = akte_ablage.datei(o, nummer, art, finden) if o else None
         a = unter.addAction(text, lambda p=p: f.datei_oeffnen(p))
         a.setEnabled(p is not None)
-    p = (akte_ablage.datei(o, nummer, "gesamt") or akte_ablage.datei(o, nummer, "kunde")) if o else None
+    p = (akte_ablage.datei(o, nummer, "gesamt", finden) or akte_ablage.datei(o, nummer, "kunde", finden)) if o else None
     a = unter.addAction("Drucken …", lambda p=p: _drucken(f, p))
     a.setEnabled(p is not None)
     unter.addSeparator()
