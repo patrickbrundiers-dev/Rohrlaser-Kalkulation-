@@ -124,6 +124,10 @@ def _vorlaeufige(db):
 def neue_nummer(db, datum=None):
     """Nummer für ein neues Angebot: mit gemeinsamem Ordner reserviert (sonst vorläufig), ohne lokal hochgezählt."""
     jahr = _jahr(datum)
+    if getattr(db, "server", None) is not None:     # Serverbetrieb: Nummer in einer Transaktion am Server
+        from . import server_betrieb
+        return server_betrieb.nummer_vergeben(db, ORDNER, hoechster_lokal(db), nummer, jahr,
+                                              lambda nr: _vergeben(db, nr))
     if teilen.aktiv(db):
         try:
             return reservieren(db, jahr)
@@ -159,7 +163,13 @@ def endgueltig(db, angebot_id=None):
     spalten = set(db_verbindung.spalten(db.con, "angebote"))
     out = []
     for grund, glieder in gruppen.items():
-        nr = reservieren(db, _jahr(glieder[0][3]))
+        jahr = _jahr(glieder[0][3])
+        if getattr(db, "server", None) is not None:     # Serverbetrieb (übernommene vorläufige Nummern)
+            from . import server_betrieb
+            nr = server_betrieb.nummer_vergeben(db, ORDNER, hoechster_lokal(db), nummer, jahr,
+                                                lambda x: _vergeben(db, x))
+        else:
+            nr = reservieren(db, jahr)
         neu_von = {grund: nr}
         neu_von.update({alt: nr + zusatz for _, alt, zusatz, _ in glieder})
         with db.con:
@@ -220,6 +230,11 @@ def ab_nummer(db, kopf, datum=None):
         return str(kopf.get("nummer") or "")
     jahr = _jahr(datum)
     n = _ab_hoechster_lokal(db)
+    if getattr(db, "server", None) is not None:     # Serverbetrieb: Nummer in einer Transaktion am Server
+        from . import server_betrieb
+        nr = server_betrieb.nummer_vergeben(db, AB_ORDNER, n, lambda j, z: f"AB-{j}-{z:05d}", jahr)
+        db.einstellung_setzen("letzte_ab_nummer", nr)
+        return nr
     if teilen.aktiv(db):
         w = teilen.weg(db)
         if w is None or not w.erreichbar():
