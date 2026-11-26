@@ -51,7 +51,7 @@ from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VO
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 107    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 108    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -226,6 +226,9 @@ SCHEMA_VERSION = 107    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #      Packzeit und Aufsetzrahmen; neue Spalten leer = wie bisher gerechnet
                         # 107: Packkern 3.0 (25.11.2026, packkern.py): fracht_lht.pack_ueberstand/pack_rand/
                         #      pack_abstand/pack_max_artikel (Grenzen je Packmittel); leer = Einstellung
+                        # 108: Packmittelmanagement (26.11.2026, packmittel_tausch.py): Tabelle fracht_tauschregeln
+                        #      (Tausch je Dienstleister und Packmittel), fracht_lht.wiederbeschaffung/tauschwert/
+                        #      tauschzuschlag/bestand, fracht_dienstleister Transportbedingungen; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),

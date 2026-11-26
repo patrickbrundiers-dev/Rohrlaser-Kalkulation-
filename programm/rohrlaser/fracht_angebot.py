@@ -392,7 +392,18 @@ def stufe_details(kopf, positionen, werte):
     versand = "Paket" if ist_paket(s, snap) else ("Palette" if lht else "")
     text = f"Fracht {fracht.euro(e['gesamt'])}: {fracht.z2(g.get('brutto') or 0, 1)} kg brutto" + \
         (f", {lht}" if lht else "") + (f" ({vergleich})" if vergleich else "")
-    return dict(out, betrag=e["gesamt"], text=text, ladung=lht, versand=versand, brutto=g.get("brutto"))
+    betrag, k = e["gesamt"], korrektur(d)
+    if k:                         # Korrektur von Hand mit Begründung (26.11.2026), je Sendung
+        betrag = round(max(0.0, betrag + k["betrag"]), 2)
+        text += f", Korrektur {fracht.euro(k['betrag'])} ({k['begruendung']})"
+    return dict(out, betrag=betrag, text=text, ladung=lht, versand=versand, brutto=g.get("brutto"))
+
+
+def korrektur(d):
+    """Korrektur von Hand der gespeicherten Frachtberechnung: dict(betrag, begruendung) oder None."""
+    k = (d or {}).get("korrektur") or {}
+    b = k.get("betrag")
+    return dict(betrag=float(b), begruendung=k.get("begruendung") or "") if isinstance(b, (int, float)) and b else None
 
 
 def stufe(kopf, positionen, werte):
@@ -445,7 +456,10 @@ def packmittel(kopf, positionen, werte, satz_verpackung=0.0):
     if auto(kopf) and positionen is not None and werte is not None:
         eintraege, _ = paletten.ladung(positionen, werte, lht, d.get("lht_standard"), d.get("lht_langgut"),
                                        d.get("paletten"))
-    return paletten.packmittel_kosten(eintraege, lht, satz_verpackung)
+    snap = d.get("snapshot") or {}
+    return paletten.packmittel_kosten(eintraege, lht, satz_verpackung, tausch=snap.get("tausch"),
+                                      dienstleister=(snap.get("tarif") or {}).get("dienstleister"),
+                                      kundennr=s.get("kundennr"), datum=s.get("datum") or snap.get("datum"))
 
 
 def angebotstext(kopf):
