@@ -101,6 +101,8 @@ try:
     # ------------------------------------------------------------------ Auslastung: Modul fehlt
     from rl_auslastung import lizenzen as AL
     za = AL.Stelle(tmp / "ausl", SCHL, "RL-TEST", durchsetzung=True, kalkulation=P1).pruefen()
+    pruefe(any("Modul Auslastung" in z_ for z_ in lizenz.protokoll_lesen(tmp / "ausl" / AL.ORDNER)),
+           "M15b Auslastung schreibt den Wechsel ins eigene Lizenzprotokoll")
     pruefe(za.stufe == "lesemodus" and "Modul Auslastung" in za.grund,
            f"M15 Auslastung ohne Modul Auslastung: nur ansehen ({za.grund})")
 finally:

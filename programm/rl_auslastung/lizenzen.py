@@ -172,6 +172,7 @@ class Stelle(L.LizenzStelle):
             z.hinweis = "Nur ansehen: " + z.hinweis[len("Lesemodus: "):]
         if not L.uhr_zurueck(heute, spaet) and self.ordner.parent.is_dir():
             L.zeit_merken(self.ordner, heute, spaet)
+        self._protokoll_zustand(z)                   # Lizenzprotokoll wie in der Kalkulation (L2-4)
         self.zustand = z
         return z
 
