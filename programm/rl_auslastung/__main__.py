@@ -147,6 +147,8 @@ def main(argv=None):
     argv = sys.argv if argv is None else argv
     app = QApplication.instance() or QApplication(argv)
     app.setApplicationName(NAME)
+    from rohrlaser import marke
+    app.setWindowIcon(marke.icon())     # Marke NexTube
     mausrad.einrichten(app)        # das Mausrad rollt die Seite und ändert nie einen Wert (Patrick 11.11.2026)
     try:
         db = daten.Daten(ort.datenbank())

@@ -902,12 +902,16 @@ def kapitel_start(i):
             "Warnt Windows trotzdem, siehe [[windows_warnungen]]. Das Setup fragt nach der Desktop-Verknüpfung "
             "und installiert nur für den angemeldeten Benutzer. Vorher zeigt es die <b>Lizenzbedingungen</b>, die "
             "angenommen werden müssen ([[lizenz]]).",
-            "Das Programm aus dem Startmenü starten (<i>Rohrlaser Angebotskalkulation</i>; daneben liegt die "
-            "Bedienungsanleitung).",
+            "Das Programm aus dem Startmenü starten (<i>NexTube</i>; daneben liegt die Bedienungsanleitung).",
             "Eine neue Version des Setups lässt sich jederzeit über die alte installieren; die Daten bleiben. Meist "
             "reicht aber das Online-Update ([[updates]]).", nummeriert=True)
     i.genauer()
-    i.text("Deinstallieren: <i>Einstellungen → Apps → Rohrlaser Angebotskalkulation → Deinstallieren</i>. Entfernt "
+    i.text("<b>Neuer Name NexTube:</b> Das Programm heißt jetzt <b>NexTube</b> und hat ein eigenes Icon. Die "
+           "Programmdatei (<i>Rohrlaser-Angebotskalkulation.exe</i>), der Installationsordner, der Datenordner und "
+           "das Online-Update bleiben gleich, es geht also nichts verloren. Das nächste Setup ersetzt die alten "
+           "Startmenü- und Desktop-Verknüpfungen durch <i>NexTube</i>. Nach einem reinen Online-Update behält eine "
+           "alte Verknüpfung ihren bisherigen Namen und startet dasselbe Programm.")
+    i.text("Deinstallieren: <i>Einstellungen → Apps → NexTube → Deinstallieren</i>. Entfernt "
            "werden nur die Programmdateien. Datendatei, Sicherungen und PDF bleiben, eine spätere Installation findet "
            "sie wieder.")
     i.abschnitt("Portable Version entpacken")

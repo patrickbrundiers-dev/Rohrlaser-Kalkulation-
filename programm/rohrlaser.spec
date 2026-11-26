@@ -19,7 +19,8 @@ a = Analysis([os.path.join(SPECPATH, "start.py")], pathex=[SPECPATH],
              binaries=[], datas=[(os.path.join(SPECPATH, "rohrlaser", "rp_profile.json"), "rohrlaser"),
                                  (os.path.join(SPECPATH, "rohrlaser", "Lizenzbedingungen.txt"), "rohrlaser"),
                                  (os.path.join(SPECPATH, "rohrlaser", "plz_geo.json"), "rohrlaser"),
-                                 (os.path.join(SPECPATH, "rohrlaser", "schriften"), "rohrlaser/schriften")], hiddenimports=BARCODE + ["_rl_accel", "rohrlaser.ansicht3d_gl", "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "PySide6.QtSvg", "pypdfium2", "pypdfium2_raw", "olefile", "psycopg", "psycopg_binary"], excludes=["tkinter", "matplotlib", "numpy", "PySide6.QtWebEngineCore",
+                                 (os.path.join(SPECPATH, "rohrlaser", "schriften"), "rohrlaser/schriften"),
+                                 (os.path.join(SPECPATH, "rohrlaser", "bilder"), "rohrlaser/bilder")], hiddenimports=BARCODE + ["_rl_accel", "rohrlaser.ansicht3d_gl", "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "PySide6.QtSvg", "pypdfium2", "pypdfium2_raw", "olefile", "psycopg", "psycopg_binary"], excludes=["tkinter", "matplotlib", "numpy", "PySide6.QtWebEngineCore",
                                          "PySide6.QtQml", "PySide6.QtQuick", "PySide6.Qt3DCore"],
              noarchive=False)
 # Plan „Quellcode schützen“ Q3: eigene Module als übersetzte Erweiterungsmodule statt Bytecode (kompilieren.py)
@@ -28,5 +29,6 @@ if os.environ.get("RL_KOMPILIERT"):
     print("kompiliert:", kompiliert_tauschen(a, os.environ["RL_KOMPILIERT"]), "Module")
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Rohrlaser-Angebotskalkulation", console=False, upx=False,
-          version=versionsinfo("Rohrlaser-Angebotskalkulation", "Rohrlaser Angebotskalkulation", workpath))
+          icon=os.path.join(SPECPATH, "rohrlaser", "bilder", "nextube.ico"),     # Marke NexTube (marke.py)
+          version=versionsinfo("Rohrlaser-Angebotskalkulation", "NexTube Angebotskalkulation", workpath))
 coll = COLLECT(exe, a.binaries, a.datas, name="Rohrlaser-Angebotskalkulation", upx=False)

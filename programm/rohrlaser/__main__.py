@@ -483,6 +483,8 @@ def main(argv=None):
     QLocale.setDefault(QLocale(QLocale.German, QLocale.Germany))   # Komma als Dezimalzeichen
     app = QApplication(sys.argv[:1])
     app.setApplicationName(NAME)
+    from . import marke
+    app.setWindowIcon(marke.icon())     # Marke NexTube: Fenster und Taskleiste
     app.setStyle("Fusion")
     from .stil import ziffern_tabellarisch
     ziffern_tabellarisch(app)

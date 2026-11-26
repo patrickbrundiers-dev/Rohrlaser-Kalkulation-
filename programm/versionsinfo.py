@@ -7,7 +7,7 @@ import os
 import re
 
 HERSTELLER = "Patrick Brundiers"
-PRODUKT = "Rohrlaser Angebotskalkulation"
+PRODUKT = "NexTube"                 # Marke (programm/rohrlaser/marke.py), Dateinamen bleiben
 
 
 def version():

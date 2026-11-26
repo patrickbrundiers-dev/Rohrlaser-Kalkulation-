@@ -18,7 +18,7 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame,
                                 Image, NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 from reportlab.pdfgen import canvas as rl_canvas
 
-from . import ausgabe, design, leistung, masstext, querschnitt, rechnen, stangen_abwicklung
+from . import NAME, ausgabe, design, leistung, masstext, querschnitt, rechnen, stangen_abwicklung
 from .rechnen import kostenarten
 from .stammdaten import zahl_als_text
 
@@ -237,7 +237,7 @@ OHNE_RAND = dict(leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
 def _dokument(pfad, titel, fuss, quer=False, auch_quer=False, spalten=()):
     hoch = landscape(A4) if quer else A4
     unten = 22 * mm if spalten else 15 * mm
-    doc = BaseDocTemplate(str(pfad), pagesize=hoch, title=titel, author="Rohrlaser-Angebotskalkulation",
+    doc = BaseDocTemplate(str(pfad), pagesize=hoch, title=titel, author=NAME,
                           leftMargin=12 * mm, rightMargin=12 * mm, topMargin=12 * mm, bottomMargin=unten)
     vorlagen = [PageTemplate(id="hoch", pagesize=hoch,
                              frames=[Frame(12 * mm, unten, hoch[0] - 24 * mm, hoch[1] - 12 * mm - unten, id="f1",

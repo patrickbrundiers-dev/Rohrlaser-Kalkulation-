@@ -17,7 +17,11 @@
 #ifndef Ausgabe
   #define Ausgabe "..\..\dist"
 #endif
-#define Name "Rohrlaser Angebotskalkulation"
+; Marke NexTube (programm/rohrlaser/marke.py): Name in Startmenü, Apps und Setup. Der Installationsordner bleibt
+; „Rohrlaser Angebotskalkulation“, damit Updates, Daten und Verknüpfungen weiter passen.
+#define Name "NexTube"
+#define Ordner "Rohrlaser Angebotskalkulation"
+#define AlterName "Rohrlaser Angebotskalkulation"
 #define Exe "Rohrlaser-Angebotskalkulation.exe"
 
 [Setup]
@@ -32,7 +36,7 @@ VersionInfoCompany=Patrick Brundiers
 VersionInfoProductName={#Name}
 VersionInfoDescription={#Name} – Installation
 PrivilegesRequired=lowest
-DefaultDirName={autopf}\{#Name}
+DefaultDirName={autopf}\{#Ordner}
 DefaultGroupName={#Name}
 DisableProgramGroupPage=yes
 DisableDirPage=auto
@@ -66,6 +70,13 @@ Name: "desktop"; Description: "Verknüpfung auf dem Desktop anlegen"
 [Files]
 ; alles aus dem Programmordner außer Portabel.ini (nur im ZIP) und Ordnern mit Daten oder Update-Resten
 Source: "{#Quelle}\*"; DestDir: "{app}"; Excludes: "\Portabel.ini,\Daten,\Angebote,\_update"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+; Verknüpfungen mit dem alten Namen (vor NexTube) entfernen, sonst stehen beide im Startmenü
+Type: files; Name: "{autoprograms}\{#AlterName}.lnk"
+Type: files; Name: "{autoprograms}\{#AlterName} – Bedienungsanleitung.lnk"
+Type: files; Name: "{autoprograms}\{#AlterName} – Kurzanleitung.lnk"
+Type: files; Name: "{autodesktop}\{#AlterName}.lnk"
 
 [Icons]
 Name: "{autoprograms}\{#Name}"; Filename: "{app}\{#Exe}"
