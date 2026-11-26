@@ -168,6 +168,30 @@ except pa.Gesperrt:
     pass
 assert (ang4 / "STEP/Rahmen.stp").is_file()
 pa.entsperren(ziel4)
+# Vermerk in ablage.json lässt sich nicht schreiben (Freigabe nur lesbar): Original bleibt, nichts verloren
+ang5 = angebotsordner("2026-00046 Vogt")
+ziel5 = haupt / "2026-44331"
+ziel5.mkdir()
+echt_schreiben = pa._verzeichnis_schreiben
+zaehler5 = {"n": 0}
+
+
+def schreiben_kaputt(o, d):
+    if d.get("verschoben"):
+        raise PermissionError(13, "Zugriff verweigert")
+    return echt_schreiben(o, d)
+
+
+pa._verzeichnis_schreiben = schreiben_kaputt
+try:
+    b = pa.ablegen(v, ziel5, [d for d in pa.dokumente_sammeln(ang5) if not d.intern], "PB", verschieben=True)
+finally:
+    pa._verzeichnis_schreiben = echt_schreiben
+assert not b.verschoben and len(b.nicht_entfernt) == 8 and len(b.gespeichert) == 8, b
+assert (ang5 / "Anfrage/Anfrage.msg").is_file() and (ziel5 / "07_Kundenunterlagen/Anfrage.msg").is_file()
+assert not pa.verzeichnis(ziel5).get("verschoben")
+b = pa.ablegen(v, ziel5, [d for d in pa.dokumente_sammeln(ang5) if not d.intern], "PB", verschieben=True)
+assert len(b.verschoben) == 8 and not (ang5 / "Anfrage/Anfrage.msg").exists()             # nächstes Mal nachgeholt
 ok("V2 Original erst nach geprüfter Kopie weg; gesperrt/Netzwerkfehler/anderer Inhalt: Original bleibt; Sperre hält")
 
 # ------------------------------------------------------------------ V3 Anfrage-Akte und Fenster
@@ -228,5 +252,53 @@ assert not [x for x in d2.dokumente if not x.intern], [x.name for x in d2.dokume
 d2.verschieben.setChecked(False)
 assert db.einstellung("leiste_ppease_verschieben") is False
 assert not fenster.ppease_ablage(db.angebot(a)).verschieben.isChecked()
+db.einstellung_setzen("leiste_ppease_verschieben", True)
+# Vermerk in der Anfrage-Akte ging verloren (z. B. Akte nicht schreibbar): beim nächsten Öffnen nachgeholt
+a6 = db.angebot_neu(dict(nummer="2026-00051", kunde="Lang", maschine="T11"))
+(eingang / "Anfrage Lang 2.msg").write_bytes(b"msg lang 2")
+akte6, _ = abl.anlegen(dict(betreff="Rahmen", quelle="ordner"), [eingang / "Anfrage Lang 2.msg"], "test-lang-2")
+db.zusatz_setzen(a6, "anfrage_akte", akte6.nr)
+(haupt / "2026-44401").mkdir()
+d6 = fenster.ppease_ablage(db.angebot(a6))
+d6.melden = d6.fragen = lambda t, x: True
+d6.nummer.setText("2026-44401")
+d6.aktualisieren()
+d6.nach_verschieben = lambda paare: (_ for _ in ()).throw(OSError("Akte nicht schreibbar"))
+assert d6.speichern().verschoben
+assert not abl.neu_lesen(akte6).dateien()[0].get("abgelegt")                      # Vermerk fehlt
+fenster.ppease_ablage(db.angebot(a6))
+akte6 = abl.neu_lesen(akte6)
+assert akte6.dateien()[0]["abgelegt"] and akte6.dateien()[0]["pfad"].read_bytes() == b"msg lang 2"
+n_ereignisse = sum(e.get("aktion") == ak.ABGELEGT for e in akte6.verlauf)
+fenster.ppease_ablage(db.angebot(a6))
+assert sum(e.get("aktion") == ak.ABGELEGT for e in abl.neu_lesen(akte6).verlauf) == n_ereignisse   # nicht doppelt
+# Nummer lässt sich am Angebot nicht merken: nichts verschieben; Lesemodus: nur kopieren
+echt_merken = pa.merken
+pa.merken = lambda *x, **k: (_ for _ in ()).throw(OSError("Datenbank nur lesbar"))
+(eingang / "Anfrage Lang 3.msg").write_bytes(b"msg lang 3")
+akte7, _ = abl.anlegen(dict(betreff="Tisch", quelle="ordner"), [eingang / "Anfrage Lang 3.msg"], "test-lang-3")
+a7 = db.angebot_neu(dict(nummer="2026-00052", kunde="Lang", maschine="T11"))
+db.zusatz_setzen(a7, "anfrage_akte", akte7.nr)
+(haupt / "2026-44402").mkdir()
+d7 = fenster.ppease_ablage(db.angebot(a7))
+gemeldet = []
+d7.melden = lambda t, x: gemeldet.append(x)
+d7.fragen = lambda t, x: True
+d7.nummer.setText("2026-44402")
+d7.aktualisieren()
+try:
+    assert d7.speichern() is None and "nichts verschoben" in gemeldet[-1]
+finally:
+    pa.merken = echt_merken
+assert abl.neu_lesen(akte7).dateien()[0]["pfad"].read_bytes() == b"msg lang 3"
+assert not any((haupt / "2026-44402").rglob("*.msg"))
+db.nur_lesen = True
+try:
+    d8 = fenster.ppease_ablage(db.angebot(a7))
+    assert not d8.verschieben.isChecked() and not d8.verschieben.isEnabled()
+    assert d8.knopf_speichern.text() == "Dokumente speichern"
+finally:
+    db.nur_lesen = False
+ok("V5 Vermerke zuerst: Akte-Vermerk wird nachgeholt, ohne merkbare Nummer bzw. im Lesemodus wird nicht verschoben")
 ok("V3/V4 Fenster verschiebt nach Rückfrage, Anfrage-Akte zeigt den neuen Ort, Akte-Menü und wo() finden die Dateien")
 print("Alle Prüfungen bestanden.")

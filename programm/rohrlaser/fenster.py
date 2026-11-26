@@ -5768,6 +5768,11 @@ class Hauptfenster(QMainWindow):
         if kopf and kopf.get("id"):
             try:
                 if anfragen_akten.aktiv(self.db):
+                    if not getattr(self.db, "nur_lesen", False):
+                        # Vermerk „abgelegt“ nachholen, falls er beim letzten Verschieben nicht gespeichert wurde
+                        from . import ppease_ablage
+                        anfragen_akten.abgelegt_vermerken(self.db, kopf["id"],
+                                                          ppease_ablage.verschoben_paare(self.db, kopf["id"]))
                     abl = anfragen_akten.ablage(self.db)
                     for nr in anfragen_akten.akten_zum_angebot(self.db, kopf["id"]):
                         akte = abl.lesen(nr)

@@ -763,10 +763,11 @@ def _liegt_in(pfad, ordner):
         return False
 
 
-def _original_entfernen(b, verz, o, d, ziel):
+def _original_entfernen(b, verz, o, d, ziel, festhalten):
     """Verschieben (26.11.2026): das Original erst löschen, wenn die Datei im Angebotsordner vollständig ist (Größe
-    und SHA-256 gleich). Gesperrt oder nicht prüfbar: Original bleibt (b.nicht_entfernt), nie geht etwas verloren.
-    Ergebnis: True = verschoben."""
+    und SHA-256 gleich) UND der alte Pfad in ablage.json steht (festhalten() schreibt das Verzeichnis; ohne diesen
+    Vermerk fände wo() die Datei nicht wieder). Gesperrt, nicht prüfbar oder Vermerk nicht schreibbar: Original
+    bleibt (b.nicht_entfernt), nie geht etwas verloren. Ergebnis: True = verschoben."""
     if d.intern:
         return False
     ziel = Path(ziel)
@@ -778,16 +779,28 @@ def _original_entfernen(b, verz, o, d, ziel):
         if ziel.stat().st_size != d.pfad.stat().st_size or \
                 pruefsumme(ziel, merken=False) != pruefsumme(d.pfad, merken=False):
             raise OSError("die Datei im Angebotsordner weicht vom Original ab")
-        os.unlink(d.pfad)
-    except FileNotFoundError:
-        if d.pfad.exists():
-            b.nicht_entfernt.append((d.name, "nicht prüfbar"))
-            return False
     except OSError as e:
         b.nicht_entfernt.append((d.name, f"Original bleibt liegen ({getattr(e, 'strerror', None) or e}), wird "
                                          "beim nächsten Mal entfernt"))
         return False
-    verz.setdefault("verschoben", {})[str(d.pfad)] = ziel.relative_to(o).as_posix()
+    karte = verz.setdefault("verschoben", {})
+    karte[str(d.pfad)] = ziel.relative_to(o).as_posix()
+    try:
+        festhalten()                # erst der Vermerk alter Pfad -> neuer Ort, dann das Original weg
+    except OSError as e:
+        karte.pop(str(d.pfad), None)
+        b.nicht_entfernt.append((d.name, f"Original bleibt liegen (Vermerk in {VERZEICHNIS} nicht gespeichert: "
+                                         f"{getattr(e, 'strerror', None) or e})"))
+        return False
+    try:
+        os.unlink(d.pfad)
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        # Vermerk darf bleiben: wo() liefert die noch vorhandene Originaldatei zuerst
+        b.nicht_entfernt.append((d.name, f"Original bleibt liegen ({getattr(e, 'strerror', None) or e}), wird "
+                                         "beim nächsten Mal entfernt"))
+        return False
     b.verschoben.append((str(d.pfad), str(ziel)))
     return True
 
@@ -817,6 +830,9 @@ def ablegen(v, ordner, dokumente, kuerzel="ICH", aktionen=None, angebot="", numm
                                              dateien=[d.name for d in gewaehlt]))
         status = vergleichen(v, o, gewaehlt)
         verz = verzeichnis(o)
+
+        def festhalten():
+            _verzeichnis_schreiben(o, dict(verz, nummer=nummer))
         for i, d in enumerate(gewaehlt):
             if fortschritt and fortschritt(i, len(gewaehlt), d.name) is False:
                 b.abgebrochen = True
@@ -828,8 +844,8 @@ def ablegen(v, ordner, dokumente, kuerzel="ICH", aktionen=None, angebot="", numm
             rel = ziel_relativ(v, d)
             ziel = o / rel
             if st in (GLEICH, SCHON):
-                if verschieben and _original_entfernen(b, verz, o, d, ziel if st == GLEICH else o / hinweis):
-                    _verzeichnis_schreiben(o, dict(verz, nummer=nummer))
+                if verschieben and _original_entfernen(b, verz, o, d, ziel if st == GLEICH else o / hinweis,
+                                                       festhalten):
                     protokoll_schreiben(o, kuerzel, dict(aktion="verschoben", vorgang=vorgang, quelle=str(d.pfad),
                                                          datei=rel if st == GLEICH else hinweis))
                     continue
@@ -867,9 +883,10 @@ def ablegen(v, ordner, dokumente, kuerzel="ICH", aktionen=None, angebot="", numm
                     geaendert=datetime.datetime.fromtimestamp(d.pfad.stat().st_mtime).isoformat(timespec="seconds"),
                     angebot=angebot)
                 _verzeichnis_schreiben(o, dict(verz, nummer=nummer))       # erst Verzeichnis, dann Original weg
-                if verschieben and _original_entfernen(b, verz, o, d, o / neu_rel):
+                if verschieben:
                     verz["dateien"][neu_rel]["verschoben"] = True
-                    _verzeichnis_schreiben(o, dict(verz, nummer=nummer))
+                    if not _original_entfernen(b, verz, o, d, o / neu_rel, festhalten):
+                        verz["dateien"][neu_rel].pop("verschoben", None)
                 protokoll_schreiben(o, kuerzel, dict(aktion="gespeichert", vorgang=vorgang, datei=neu_rel,
                                                      version=neu_version, quelle=str(d.pfad),
                                                      art=st if st != GEAENDERT else aktionen.get(id(d)),
@@ -931,6 +948,20 @@ def wo(db, angebot_id, pfad, ordner=None):
     if rel and (o / rel).exists():
         return o / rel
     return None
+
+
+def verschoben_paare(db, angebot_id, ordner=None):
+    """[(alter Pfad, neuer Pfad)] aller in den gemerkten PPEASE-Ordner verschobenen Dateien, deren neue Datei da
+    ist und deren Original fehlt. Dient dem Nachholen von Vermerken (z. B. in der Anfrage-Akte), die beim
+    Verschieben nicht gespeichert werden konnten."""
+    o = Path(ordner) if ordner else Path(gemerkt(db, angebot_id).get("ordner") or "") if angebot_id else None
+    if not o or not str(o) or str(o) == "." or not o.is_dir():
+        return []
+    out = []
+    for alt, rel in (verzeichnis(o).get("verschoben") or {}).items():
+        if (o / rel).is_file() and not Path(alt).exists():
+            out.append((alt, str(o / rel)))
+    return out
 
 
 # ------------------------------------------------------------------ Für später: Schnittstelle und Suche

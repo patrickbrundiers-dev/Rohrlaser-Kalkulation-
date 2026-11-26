@@ -201,6 +201,11 @@ class PpeaseDialog(QDialog):
             self.verschieben.setChecked(self.db.einstellung(VERSCHIEBEN) is not False)
         except Exception:       # noqa: BLE001
             self.verschieben.setChecked(True)
+        if getattr(self.db, "nur_lesen", False):
+            # Lesemodus: der neue Ort ließe sich nicht am Angebot bzw. in der Anfrage merken -> nur kopieren
+            self.verschieben.setChecked(False)
+            self.verschieben.setEnabled(False)
+            self.verschieben.setToolTip("Im Lesemodus wird nur kopiert: der neue Ort ließe sich nicht merken.")
         self.verschieben.toggled.connect(self._verschieben_umgeschaltet)
         l4.addWidget(self.verschieben)
         if self.akte_erstellen:
@@ -535,7 +540,19 @@ class PpeaseDialog(QDialog):
                 + "\n".join("• " + n for n in ersetzen[:12]) + ("\n…" if len(ersetzen) > 12 else "")
                 + f"\n\nErsetzen? Die bisherige Fassung bleibt im Unterordner {pa.VERSIONEN}."):
             return None
-        verschieben = self.verschieben.isChecked()
+        verschieben = self.verschieben.isChecked() and self.verschieben.isEnabled()
+        if verschieben:
+            # erst den Ordner am Angebot merken: ohne diesen Vermerk fände das Programm verschobene Dateien nicht
+            try:
+                pa.merken(self.db, self.kopf.get("id"), nr, self.kunde.text().strip(),
+                          self.bezeichnung.text().strip(), self.ordner)
+            except Exception as e:      # noqa: BLE001 – dann lieber nichts verschieben
+                protokoll.warnung(f"PPEASE-Ablage: Nummer nicht gemerkt, Verschieben abgelehnt ({type(e).__name__}: {e})")
+                self.melden("Dokumente verschieben",
+                            "Die PPEASE-Nummer lässt sich am Angebot nicht speichern, deshalb fände das Programm "
+                            "verschobene Dateien nicht wieder.\n\nEs wurde nichts verschoben. Mit „Verschieben“ aus "
+                            f"lässt sich kopieren.\n\n{fehler_text(e) if isinstance(e, OSError) else e}")
+                return None
         bewegt = [d for d in gewaehlt if not d.intern]
         if verschieben and bewegt and not self.fragen(
                 "Dokumente verschieben",

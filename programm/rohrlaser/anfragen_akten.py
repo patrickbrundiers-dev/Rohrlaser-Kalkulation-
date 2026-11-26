@@ -1498,6 +1498,8 @@ def abgelegt_vermerken(db, angebot_id, paare, jetzt=None):
             continue
         dateien = {}
         for d in akte.dateien(mit_weg=True):
+            if d.get("abgelegt"):
+                continue                    # schon vermerkt (Nachholen ist dadurch wiederholbar)
             schl = d.get("datei", d["name"])
             ziel = neu_von.get(str(akte.pfad / DATEIEN / schl).lower())
             if ziel:
