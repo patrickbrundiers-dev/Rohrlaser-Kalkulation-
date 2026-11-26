@@ -222,24 +222,53 @@ def einheiten(stuecke, auswahl, p, stapel_max):
 class Reihe:
     """Eine Reihe: Teile einer Einheit hintereinander (Achse längs) bzw. nebeneinander quer; dazu Füllteile anderer
     Einheiten am Ende (gleiche oder kleinere Breite und Höhe)."""
-    __slots__ = ("teile", "b", "h")
+    __slots__ = ("teile", "b", "h", "_l", "_x")
 
     def __init__(self, b, h):
         self.teile, self.b, self.h = [], b, h      # teile: [(Einheit-Index, Stück, Länge, (b, h))]
+        self._l = self._x = None
 
+    # Merker (Supportpaket 26.11.2026: Packvorschlag 40.000 Teile 23 s, laenge 2,7 Mio. Aufrufe): teile wird nur
+    # angehängt, die Anzahl der Einträge erkennt also jede Änderung; gerechnet wird genau wie bisher (bitgleich)
     def laenge(self, a):
+        c, m = self._l, len(self.teile)
+        if c is not None and c[0] == m and c[1] == a:
+            return c[2]
         n = sum(t[1] for t in self.teile)
-        return sum(t[1] * t[2] for t in self.teile) + max(0, n - 1) * a
+        v = sum(t[1] * t[2] for t in self.teile) + max(0, n - 1) * a
+        self._l = (m, a, v)
+        return v
+
+    def xl_grenzen(self):
+        """(kürzestes, längstes) Teil der Reihe."""
+        c, m = self._x, len(self.teile)
+        if c is not None and c[0] == m:
+            return c[1]
+        v = (min(t[2] for t in self.teile), max(t[2] for t in self.teile))
+        self._x = (m, v)
+        return v
 
 
 class Lage:
-    __slots__ = ("achse", "reihen", "h", "versetzt", "dz")
+    __slots__ = ("achse", "reihen", "h", "versetzt", "dz", "_b", "_v")
 
     def __init__(self, achse):
         self.achse, self.reihen, self.h, self.versetzt, self.dz = achse, [], 0.0, False, None
+        self._b = self._v = None
 
     def breite(self, a):
-        return sum(r.b for r in self.reihen) + max(0, len(self.reihen) - 1) * a
+        # Merker wie Reihe.laenge: reihen wird nur angehängt, Reihe.b nie geändert (bitgleich)
+        c, m = self._b, len(self.reihen)
+        if c is not None and c[0] == m and c[1] == a:
+            return c[2]
+        v = sum(r.b for r in self.reihen) + max(0, len(self.reihen) - 1) * a
+        self._b = (m, a, v, min(r.b for r in self.reihen) if self.reihen else None)
+        return v
+
+    def b_min(self, a):
+        """Schmalste Reihe (nur mit Reihen)."""
+        self.breite(a)
+        return self._b[3]
 
     def stueck(self):
         out = {}
@@ -451,13 +480,22 @@ class Packer:
         daneben und keine Reihe hat Platz für ein weiteres ihrer Teile."""
         if not lg.reihen:
             return False
+        # Merker je Lage (Supportpaket 26.11.2026): gleich, solange Packer, Versatz und Reihen/Teile gleich sind
+        schl = (id(self), lg.versetzt, tuple(len(r.teile) for r in lg.reihen))
+        if lg._v is not None and lg._v[0] == schl:
+            return lg._v[1]
+        v = self._voll(lg)
+        lg._v = (schl, v)
+        return v
+
+    def _voll(self, lg):
         platz = self.reihen_platz(lg.achse) - (lg.reihen[0].b / 2 if lg.versetzt else 0.0)
-        if platz - lg.breite(self.a) >= min(r.b for r in lg.reihen) + self.a - EPS:
+        if platz - lg.breite(self.a) >= lg.b_min(self.a) + self.a - EPS:
             return False
         laenge = self.L if lg.achse == "l" else self.W
         for rh in lg.reihen:
-            kuerzest = min(t[2] for t in rh.teile)
-            if max(t[2] for t in rh.teile) <= laenge + EPS and laenge - rh.laenge(self.a) >= kuerzest + self.a - EPS:
+            kuerzest, laengst = rh.xl_grenzen()
+            if laengst <= laenge + EPS and laenge - rh.laenge(self.a) >= kuerzest + self.a - EPS:
                 return False
         return True
 
@@ -806,6 +844,8 @@ def pruefen(pk, pal, liste=None):
         if s["z1"] > pk.frei + 1e-3:
             fehler.append(f"Teil {i + 1}: höher als erlaubt ({_mm(s['z1'])} > {_mm(pk.frei)} mm)")
     aussen = sorted((s for s in t if s["innen_von"] is None), key=lambda s: s["y0"])
+    if not _beruehrt(aussen, pk.a):         # schneller Vorlauf: keine Überschneidung -> wie bisher keine Meldung
+        return fehler
     aktiv, a = [], pk.a
     for s in aussen:
         aktiv = [o for o in aktiv if o["y1"] + a > s["y0"] + 1e-3]
@@ -829,6 +869,41 @@ def pruefen(pk, pal, liste=None):
                 return fehler
         aktiv.append(s)
     return fehler
+
+
+def _beruehrt(aussen, a):
+    """Vorlauf für pruefen (Supportpaket 26.11.2026: Packvorschlag 40.000 Teile 23 s, fast alles im Abstandstest
+    jedes Teils gegen alle Teile darüber und darunter): True, sobald irgendein Paar den Test der Prüfung nicht
+    besteht. Dieselben Bedingungen wie dort, nur je Lage gebündelt: eine Lage, deren Höhenbereich das Teil nicht
+    trifft, enthält kein solches Paar und wird übersprungen. Findet der Vorlauf etwas, rechnet pruefen wie bisher
+    (gleiche Meldungen in gleicher Reihenfolge)."""
+    lagen = {}                      # Lage -> [z0 min, z1 max, [Teile]]
+    for s in aussen:
+        sy0, sz0, sz1 = s["y0"], s["z0"], s["z1"]
+        for lg_nr, (zmin, zmax, liste) in lagen.items():
+            if zmax <= sz0 + 1e-3 or sz1 <= zmin + 1e-3:
+                continue
+            liste[:] = [o for o in liste if o["y1"] + a > sy0 + 1e-3]
+            g = a if lg_nr == s["lage"] else 0.0
+            for o in liste:
+                if o["x1"] + g <= s["x0"] + 1e-3 or s["x1"] + g <= o["x0"] + 1e-3 or o["y1"] + g <= sy0 + 1e-3:
+                    continue
+                if o["z1"] <= sz0 + 1e-3 or sz1 <= o["z0"] + 1e-3:
+                    continue
+                if s["rund"] and o["rund"] and s["quer"] == o["quer"]:
+                    ds = (((s["y0"] + s["y1"]) - (o["y0"] + o["y1"])) / 2 if not s["quer"]
+                          else ((s["x0"] + s["x1"]) - (o["x0"] + o["x1"])) / 2)
+                    dz = ((sz0 + sz1) - (o["z0"] + o["z1"])) / 2
+                    if math.hypot(ds, dz) + 1e-3 >= (s["rund"] + o["rund"]) / 2 + (g if abs(dz) < 1e-3 else 0.0):
+                        continue
+                return True
+        x = lagen.get(s["lage"])
+        if x is None:
+            lagen[s["lage"]] = [sz0, sz1, [s]]
+        else:
+            x[0], x[1] = min(x[0], sz0), max(x[1], sz1)
+            x[2].append(s)
+    return False
 
 
 # ------------------------------------------------------------------ Kennzahlen

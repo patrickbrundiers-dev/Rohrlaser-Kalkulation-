@@ -8904,7 +8904,10 @@ def kapitel_fracht(i):
                                "Palettenschein ([[paletten_rechnung]]): Höhe, Gewicht und Teillänge je Palette; Teile "
                                "länger als die max. Teillänge des Ladungsträgers kommen auf Langgut; gewählt wird der "
                                "günstigste Ladungsträger ([[pack_rechner]]). Ohne Positionen (freier Rechner ohne "
-                               "<i>Aus Angebot laden</i>): Anzahl = Gewicht ÷ Nutzlast. Danach von Hand änderbar."],
+                               "<i>Aus Angebot laden</i>): Anzahl = Gewicht ÷ Nutzlast. Danach von Hand änderbar. "
+                               "Seit 0.9.516 rechnet der Packvorschlag großer Sendungen (z. B. 40.000 Teile) gut "
+                               "doppelt so schnell, und dieselbe Ware mit denselben Einstellungen wird nicht noch "
+                               "einmal gepackt (zweites Drücken sofort; jede Änderung rechnet neu)."],
         ["7", "Zusatzleistungen", "Zuschläge mit der Bedingung „nur wenn gewählt“ zum Ankreuzen (im Beispiel "
                                   "Avisierung, Hebebühne, Wartezeit mit Stunden). Ohne solche Zuschläge ist der Bereich "
                                   "ausgeblendet."],
@@ -14302,6 +14305,8 @@ def kapitel_stammdaten(i):
             "Gibt es die Kundennummer schon, aktualisiert der Import diesen Kunden: je nach Wahl in Schritt 1 nur "
             "leere Felder oder alle Werte aus der Datei; eine leere Zelle löscht nichts. Wer vorhandene Kunden gar "
             "nicht ändern will, wählt für diese Zeilen <i>Überspringen</i>.",
+            "Neue Kunden mit eigener Kundennummer in der Datei kommen in die Gruppe <i>neue Kunden</i> (seit 0.9.516 "
+            "auch ohne Fehlermeldung im Prüfschritt).",
             "Nicht übernommen werden Zeilen mit Fehler: Pflichtfeld leer, Kundennummer doppelt in der Datei, Zahl "
             "außerhalb des Bereichs (z. B. Skonto über 20 %), unbekannte Lieferbedingung, Land nicht als Ländercode.",
             "Excel entfernt führende Nullen. Eine deutsche PLZ mit vier Ziffern (z. B. 1067) ergänzt der Import "

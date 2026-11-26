@@ -712,7 +712,9 @@ def analysieren(db, daten, sp, modus=None, entscheidungen=None, kundennummern=No
             meld = kd.pruefen(db, dict(w, kundennr=""))
             e["fehler"] += [m for m in meld if "Kundennummer" not in m]
             if not e["fehler"] and kontext is not None:
-                m = pruefen(KUNDEN, dict({n_: None for n_ in SPALTEN}, **kunde, kundennr=nr), kontext)
+                # Kundennummer aus der Datei steckt schon in kunde (Supportpaket 26.11.2026: TypeError „multiple values
+                # for keyword argument kundennr“ bei jedem Neukunden mit Nummer): Nummer überschreibt, nie doppelt
+                m = pruefen(KUNDEN, dict({n_: None for n_ in SPALTEN}, **dict(kunde, kundennr=nr)), kontext)
                 if m.startswith("FEHLER"):
                     e["fehler"].append(m[len("FEHLER: "):])
             e["gruppe"] = G_FEHLER if e["fehler"] else G_NEU

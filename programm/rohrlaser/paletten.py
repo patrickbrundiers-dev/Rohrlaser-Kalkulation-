@@ -37,9 +37,12 @@ zusammen“):
 Eine angefangene Lage zählt immer mit ihrer vollen Höhe. 'Max. Stück je Palette' von Hand ersetzt die Lagenrechnung der
 Position (sie liegt dann allein auf der Palette). Ergebnis ist reproduzierbar (keine Zufallswahl).
 """
+import hashlib
 import json
 import math
+import pickle
 import re
+import threading
 
 from . import baugruppe, biegerohr, blech, knickrahmen
 from .angebot import BAUGRUPPE, ist_baugruppe
@@ -434,7 +437,50 @@ def _reste_zusammen(liste, frei, last, zl):
     return [p for p in liste if not p.get("weg")]
 
 
+MERKER_AB_STUECK = 1000         # Packkern 3.0: ab so vielen Teilen gleiche Rechnungen merken
+MERKER_MAX = 24
+_merker = {}                    # Schlüssel -> gepickeltes Ergebnis (jede Rückgabe eine eigene Kopie)
+_merker_sperre = threading.Lock()
+
+
+def _merker_schluessel(positionen, einst, args):
+    if vorgaben(einst).get("kern") != 3:
+        return None
+    try:
+        if sum(int(p.get("stueck") or 0) for p in positionen) < MERKER_AB_STUECK:
+            return None
+        return hashlib.sha256(pickle.dumps(args, protocol=4)).digest()
+    except Exception:           # noqa: BLE001  (nicht abbildbare Eingaben: einfach rechnen)
+        return None
+
+
 def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None):
+    """Packliste wie _packen, große Sendungen gemerkt (Supportpaket 26.11.2026: Angebot mit 40.000 Teilen, „Fracht
+    berechnen …“ und danach „Packvorschlag“ rechneten je 23 s dasselbe): gleiche Eingaben liefern eine Kopie des
+    gemerkten Ergebnisses, bitgleich (pickle), jede Änderung (Teile, Ladungsträger, Einstellungen, von Hand) rechnet
+    neu."""
+    schl = _merker_schluessel(positionen, einst, (positionen, werte, lht_zeilen, std_id, lg_id, einst, max_je))
+    if schl is not None:
+        with _merker_sperre:
+            daten = _merker.pop(schl, None)
+            if daten is not None:
+                _merker[schl] = daten           # zuletzt benutzt ans Ende
+        if daten is not None:
+            return pickle.loads(daten)
+    erg = _packen(positionen, werte, lht_zeilen, std_id, lg_id, einst, max_je)
+    if schl is not None:
+        try:
+            daten = pickle.dumps(erg, protocol=4)
+        except Exception:       # noqa: BLE001
+            return erg
+        with _merker_sperre:
+            _merker[schl] = daten
+            while len(_merker) > MERKER_MAX:
+                _merker.pop(next(iter(_merker)))
+    return erg
+
+
+def _packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None):
     """Packliste des Angebots. max_je = {Positions-ID: max. Stück je Palette von Hand}.
     Ergebnis: dict(paletten=[{nr, lht_id, bezeichnung, inhalt=[(Packstück-Index, Stück)], netto, brutto, hoehe
     (inkl. Ladungsträger), aufbau [Text je Position]}], anzahl, je_lht {lht_id: Anzahl}, stuecke (Packstücke mit
