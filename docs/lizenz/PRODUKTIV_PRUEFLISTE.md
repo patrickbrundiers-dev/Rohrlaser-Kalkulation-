@@ -41,3 +41,26 @@ Zu sehen unter Hilfe → Lizenz … → **Lizenzprotokoll …** und im Supportpa
 
 Basis (immer): Rohr-Kalkulation, Angebote, STEP-Import, PDF, Fracht, Schnellpreis. Module (`programm/rohrlaser/module.py`):
 Blech, Baugruppen, Auftrag, Vertrieb, Einkauf, Auslastung, KI. Bisherige Lizenzen haben „alle“.
+
+## Sicherheitstests (L2-5)
+
+`tests/test_lizenz_sicherheit.py` (S1–S16) läuft bei jedem PR mit. Geprüft werden:
+- Module oder Plätze in der gespeicherten Aktivierung erhöht.
+- Zertifikat oder ganze Aktivierung eines anderen Kunden eingeschmuggelt.
+- Antwort mit selbst erzeugtem Schlüssel gleicher ID signiert.
+- Alte Aktivierung nach Sperre der Verlängerung zurückgespielt.
+- Ältere oder gekürzte Sperrliste eingespielt.
+- Uhr zurückgestellt.
+- Werkzeug mit falschem Passwort.
+- Protokoll und Merker gefälscht oder gelöscht.
+- Kompletter Ablauf ohne Netzverbindung.
+- Hardwaretausch: Festplatte allein gültig, Mainboard und Windows neu bedeutet neu aktivieren.
+
+Dazu kommen aus `tests/test_aktivierung.py` diese Fälle:
+- Kopieren auf einen anderen Rechner.
+- Fremder Geräteschlüssel.
+- Mehrfachaktivierung über das Maximum.
+- Gefälschter Freigabebeleg.
+- Kulanz und Lesemodus.
+
+Den Ausfall des Lizenzdienstes deckt L2-3 ab, sobald der Dienst gebaut ist.
