@@ -370,11 +370,13 @@ def durchsetzung_aktiv(heute=None, spaetestes=None):
 
 
 def ermitteln(quelle, heute=None, rechner=None, schluessel=None, sperrliste=None, spaetestes=None,
-              durchsetzung=None, veraendert=""):
+              durchsetzung=None, veraendert="", geprueft=None, fehler2=""):
     """Lizenzzustand. quelle: Lizenzdatei (Pfad/Text/dict) oder None (keine Lizenz). heute: datetime.date.
     rechner: Rechner-ID dieses Rechners. sperrliste: geprüfte Sperrliste (dict) oder None. spaetestes: spätestes
     gesehenes Datum (Uhr-Prüfung). durchsetzung: Vorgabe durchsetzung_aktiv() (Stufe 2). veraendert: Befund der
-    Prüfung der eigenen Programmdateien (echtheit.pruefen), dann Lesemodus wie ohne Lizenz, auch für Admin."""
+    Prüfung der eigenen Programmdateien (echtheit.pruefen), dann Lesemodus wie ohne Lizenz, auch für Admin.
+    geprueft: Inhalt einer schon vollständig geprüften Aktivierung (Lizenz 2.0, aktivierung.pruefen), statt quelle.
+    fehler2: Grund, warum eine vorhandene Aktivierung nicht gilt (wenn auch keine alte Lizenzdatei gilt)."""
     heute = heute or datetime.date.today()
     rechner = rechner_id() if rechner is None else rechner
     durch = durchsetzung_aktiv(heute, spaetestes) if durchsetzung is None else durchsetzung
@@ -391,15 +393,23 @@ def ermitteln(quelle, heute=None, rechner=None, schluessel=None, sperrliste=None
 
     if veraendert:
         return lesemodus(f"Programmdateien verändert ({veraendert}) – bitte das Programm neu installieren")
-    if quelle is None:
+    if geprueft is not None:
+        inhalt = geprueft
+    elif quelle is None:
+        if fehler2:
+            return lesemodus(fehler2.rstrip("."))
         return lesemodus(f"keine Lizenz geladen, Rechner-ID {rechner or 'unbekannt'}")
-    try:
-        inhalt = pruefen(quelle, schluessel)
-    except LizenzFehler as e:
-        return lesemodus(str(e).rstrip("."))
+    else:
+        try:
+            inhalt = pruefen(quelle, schluessel)
+        except LizenzFehler as e:
+            return lesemodus(str(e).rstrip("."))
     lid = inhalt["lizenz_id"]
-    if sperrliste and lid in (sperrliste.get("gesperrt") or []):
+    gesperrt = set((sperrliste or {}).get("gesperrt") or [])
+    if lid in gesperrt:
         return lesemodus(f"Lizenz {lid} ist gesperrt", inhalt)
+    if inhalt.get("aktivierung_id") and inhalt["aktivierung_id"] in gesperrt:
+        return lesemodus(f"Dieser Platz ({inhalt['aktivierung_id']}) wurde deaktiviert", inhalt)
     ids = [id_normal(r) for r in inhalt["rechner"]]
     if ids and id_normal(rechner) not in ids:
         return lesemodus(f"Lizenz gilt für eine andere Rechner-ID (dieser Rechner: {rechner or 'unbekannt'})", inhalt)
@@ -411,6 +421,8 @@ def ermitteln(quelle, heute=None, rechner=None, schluessel=None, sperrliste=None
     ab = inhalt.get("gueltig_ab")
     if ab and heute < datetime.date.fromisoformat(ab):
         return lesemodus(f"Lizenz gilt erst ab {_datum_text(datetime.date.fromisoformat(ab))}", inhalt)
+    if not inhalt.get("gueltig_bis"):          # Lizenz 2.0 als Kauflizenz: unbefristet
+        return Zustand("gueltig", rechner, inhalt, durchsetzung=durch)
     bis = datetime.date.fromisoformat(inhalt["gueltig_bis"])
     rest = (bis - heute).days
     art = "Testlizenz" if ist_test(inhalt) else "Lizenz"
@@ -489,6 +501,29 @@ def lizenz_laden(ordner_, quelle, heute=None, rechner=None, schluessel=None):
     return inhalt
 
 
+def _zustand_mit_aktivierung(o, aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung, veraendert):
+    """Lizenz 2.0 (aktivierung.py) zuerst: gilt die Aktivierung dieses Rechners, zählt sie. Sonst die bisherige
+    Lizenzdatei (alte Lizenzen gelten weiter); gilt auch die nicht, nennt der Lesemodus den Grund der Aktivierung."""
+    from . import aktivierung
+    if not aktivierung.vorhanden(o):
+        return ermitteln(aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung, veraendert)
+    try:
+        inhalt = aktivierung.pruefen(o, schluessel)
+    except LizenzFehler as e:
+        z = ermitteln(aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung, veraendert,
+                      fehler2=f"Aktivierung ungültig: {e}")
+        if z.stufe == "lesemodus" and aktiv is not None:
+            z.grund = f"Aktivierung ungültig: {str(e).rstrip('.')}; {z.grund}"
+            z.hinweis = (f"Lesemodus: {z.grund}" if z.durchsetzung else z.hinweis)
+        return z
+    z = ermitteln(None, heute, rechner, schluessel, sperr, spaet, durchsetzung, veraendert, geprueft=inhalt)
+    if z.stufe == "lesemodus" and aktiv is not None:
+        alt = ermitteln(aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung, veraendert)
+        if alt.stufe != "lesemodus":
+            return alt
+    return z
+
+
 def zustand_im_ordner(ordner_, heute=None, rechner=None, schluessel=None, db_zuletzt=None, durchsetzung=None,
                       merken=True, veraendert=""):
     """Zustand für einen Datenordner: aktive Lizenz, gespeicherte Sperrliste, Uhr-Prüfung. merken: spätestes Datum
@@ -501,7 +536,7 @@ def zustand_im_ordner(ordner_, heute=None, rechner=None, schluessel=None, db_zul
     ers = ersetzte(o)
     if ers:                         # ersetzte Lizenzen (neues Admin-Passwort) gelten wie gesperrt
         sperr = dict(sperr or {}, gesperrt=sorted(set((sperr or {}).get("gesperrt") or []) | ers))
-    z = ermitteln(aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung, veraendert)
+    z = _zustand_mit_aktivierung(o, aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung, veraendert)
     neu = None
     if merken and not uhr_zurueck(heute, spaet):
         neu = zeit_merken(o, heute, spaet)
@@ -800,6 +835,33 @@ class LizenzStelle:
         lizenz_laden(self.ordner, quelle, heute, self.rechner, self.schluessel)
         return self.pruefen(heute)
 
+    # -------------------------------------------------------------- Lizenz 2.0 (aktivierung.py)
+    def aktivierung_anfragen(self, schluessel_text, name=""):
+        """Aktivierungsanfrage für diesen Rechner (Datei-Inhalt). LizenzFehler bei falschem Lizenzschlüssel."""
+        from . import aktivierung
+        return aktivierung.anfrage_erstellen(self.ordner, schluessel_text, name)
+
+    def aktivierung_laden(self, quelle, heute=None):
+        """Aktivierungsantwort (Datei, Code oder dict) übernehmen. LizenzFehler, wenn sie nicht passt; dann bleibt
+        alles, wie es war. Ergebnis: neuer Zustand."""
+        from . import aktivierung
+        if isinstance(quelle, str) and not quelle.lstrip().startswith(("{", "AKTIVIERUNG")):
+            quelle = Path(quelle)
+        aktivierung.antwort_laden(self.ordner, quelle, self.schluessel, heute=heute)
+        return self.pruefen(heute)
+
+    def aktiviert(self):
+        """True, wenn auf diesem Rechner eine Aktivierung (Lizenz 2.0) liegt."""
+        from . import aktivierung
+        return aktivierung.vorhanden(self.ordner)
+
+    def platz_freigeben(self):
+        """Platz freigeben: Freigabebeleg (für Patrick) erzeugen, Aktivierung entfernen. Ergebnis: Beleg (dict)."""
+        from . import aktivierung
+        beleg = aktivierung.freigabe_erstellen(self.ordner, self.schluessel)
+        self.pruefen()
+        return beleg
+
     def sperrliste(self, quelle):
         """Sperrliste vom Update-Check übernehmen (nur gültig signiert und neuer). Ergebnis: True = übernommen."""
         if sperrliste_uebernehmen(self.ordner, quelle, self.schluessel):
@@ -828,6 +890,13 @@ class LizenzStelle:
         if z.stufe == "admin":
             return (f"Admin-Lizenz {i.get('lizenz_id')} ({i.get('inhaber')}), unbefristet"
                     + (", ohne Admin-Rechte gestartet" if z.admin_aus else ""))
+        if i and z.stufe != "lesemodus" and i.get("version") == 2:
+            from .aktivierung import TYP_TEXT
+            bis = (f"gültig bis {_datum_text(datetime.date.fromisoformat(i['gueltig_bis']))}" if i.get("gueltig_bis")
+                   else "unbefristet")
+            wer = ", ".join(x for x in (i.get("inhaber"), i.get("firma")) if x)
+            return (f"{TYP_TEXT.get(i.get('typ'), i.get('typ'))}-Lizenz {i.get('lizenz_id')} ({wer}), {bis}, "
+                    f"Platz {i.get('aktivierung_id')}")
         if i and z.stufe != "lesemodus":
             art = "Testlizenz" if z.test else "Lizenz"
             wer = ", ".join(x for x in (i.get("inhaber"), i.get("firma")) if x)
