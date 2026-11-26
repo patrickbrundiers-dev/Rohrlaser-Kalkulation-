@@ -307,7 +307,7 @@ def _():
             return QDialog.Rejected
         assert not s.drehfraes_bearbeiten(zeilen[1], dialog=ansehen) and d_["roh"].startswith("Flachstahl")
         # Fräsen nach Bearbeitung an derselben Position (Schritt 4): Planfläche + 4 Gewinde, eigene Maschine
-        assert "Fräsen nach Bearbeitung …" in [x.text() for x in s.pos_menue.actions()]
+        assert "Fräsen nach Bearbeitung …" in s._pos_menue_anpassen()     # Untermenü „Teil ändern“
 
         def fraesen(d):
             d.eingabe.item(0, 2).setText("200")

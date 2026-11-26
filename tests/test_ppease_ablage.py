@@ -145,6 +145,9 @@ for n, k in erwartet.items():
     assert namen[n].kategorie == k, (n, namen[n].kategorie, k)
 assert namen["Angebot_2026-00042_Kunde.pdf"].quelle == pa.Q_AKTE and namen["Anfrage.msg"].quelle == pa.Q_ANFRAGE
 assert dok[0].quelle == pa.Q_AKTE                                 # Akte zuerst
+# 26.11.2026: Programmdateien (JSON der Akte) stehen in der Liste, sind aber nicht gewählt und werden nie verschoben
+assert namen["kalkulation_V1.json"].intern and not namen["kalkulation_V1.json"].gewaehlt
+assert not any(d.intern for d in dok if d.name != "kalkulation_V1.json")
 extra = tmp / "Extra"
 (extra / "Unter").mkdir(parents=True)
 (extra / "Foto.jpg").write_bytes(b"jpg")
@@ -161,7 +164,7 @@ b = pa.ablegen(v, ziel, dok, "PB", angebot="2026-00042", nummer="700001")
 assert not b.ok and not ziel.exists() and "PPEASE" in b.fehler[0][1]     # Angebotsordner nie anlegen (Patrick)
 ziel.mkdir(parents=True)                                            # legt PPEASE an
 b = pa.ablegen(v, ziel, dok, "PB", angebot="2026-00042", nummer="700001")
-assert b.ok and not b.angelegt and len(b.gespeichert) == 12, b
+assert b.ok and not b.angelegt and len(b.gespeichert) == 11, b       # ohne kalkulation_V1.json (Programmdatei)
 unter = sorted(p.name for p in ziel.iterdir())
 assert unter == ["01_Angebot", "02_Kalkulation", "03_Schnittschema", "04_Zeichnungen", "05_3D_Modelle",
                  "06_Materiallisten", "07_Kundenunterlagen", "_Protokoll"], unter
@@ -173,11 +176,11 @@ assert e["version"] == 1 and e["von"] == "PB" and len(e["sha256"]) == 64 and e["
 assert verz["nummer"] == "700001"
 pr = pa.protokoll(ziel)
 assert pr[0]["aktion"] == "begonnen" and pr[-1]["aktion"] == "fertig" and sum(
-    x["aktion"] == "gespeichert" for x in pr) == 12
+    x["aktion"] == "gespeichert" for x in pr) == 11
 b2 = pa.ablegen(v, ziel, dok_extra, "PB")
-assert b2.ok and b2.gespeichert == ["06_Materiallisten/Stueckliste.xlsx"] and len(b2.uebersprungen) == 12, b2
+assert b2.ok and b2.gespeichert == ["06_Materiallisten/Stueckliste.xlsx"] and len(b2.uebersprungen) == 11, b2
 assert not pa.sperre_lesen(ziel) and not list(ziel.rglob("*" + pa.TEIL))
-st = pa.vergleichen(v, ziel, dok_extra)
+st = pa.vergleichen(v, ziel, [d for d in dok_extra if not d.intern])
 assert {s for s, _ in st.values()} == {pa.GLEICH}
 ok("P5 Angebotsordner nie angelegt, Unterordner nur nach Bedarf, Verzeichnis+Protokoll, zweites Speichern legt nichts doppelt ab")
 
@@ -268,6 +271,9 @@ meldungen = []
 d = fenster.ppease_ablage()                                       # sichtbares Angebot
 d.melden = lambda t, x: meldungen.append(x)
 d.fragen = lambda t, x: meldungen.append(x) or True
+assert d.verschieben.isChecked() and d.knopf_speichern.text() == "Dokumente verschieben"     # Vorgabe 26.11.2026
+d.verschieben.setChecked(False)                 # hier: Kopieren (Verschieben prüft test_ppease_verschieben.py)
+assert d.knopf_speichern.text() == "Dokumente speichern"
 assert d.kopf["id"] == a and d.angebotsordner == fenster.angebot_ordner(db.angebot(a))
 assert {x.name for x in d.dokumente} >= {"Angebot_2026-00042_Kunde.pdf", "Rahmen.stp"}
 assert d.kunde.text() == "Müller" and d.bezeichnung.text() == "Gestell Linie 3"
@@ -284,9 +290,10 @@ assert not (haupt / "2026-88011").exists()                         # nie angeleg
 d.aktualisieren()
 assert "Vorhandener Ordner" in d.ordner_info.text()
 d.liste.topLevelItem(1).setCheckState(0, Qt.Unchecked)
-assert d.zahl.text().startswith(f"{len(d.dokumente) - 1} von")
+gewaehlt = sum(x.gewaehlt for x in d.dokumente)
+assert d.zahl.text().startswith(f"{gewaehlt} von") and gewaehlt == len([x for x in d.dokumente if not x.intern]) - 1
 b = d.speichern()
-assert b.ok and len(b.gespeichert) == len(d.dokumente) - 1 and d.fortschritt.format() == "fertig", b
+assert b.ok and len(b.gespeichert) == gewaehlt and d.fortschritt.format() == "fertig", b
 assert "Vorhandener Ordner" in d.ordner_info.text() and d.vorhanden_liste.count() == len(b.gespeichert)
 assert pa.gemerkt(db, a)["nummer"] == "2026-88011" and pa.gemerkt(db, a)["ordner"] == str(haupt / "2026-88011")
 assert "ppease_nummer" not in db.angebot(a)                       # keine neue Spalte
@@ -317,9 +324,9 @@ assert d.hinzufuegen([extra / "Foto.jpg"]) == 0                    # nicht doppe
 (d.ordner / "01_Angebot" / ("rest.pdf" + pa.TEIL)).write_bytes(b"x")
 text = d.ablage_pruefen()
 assert "Zwischendatei" in text and "Schreibrechte vorhanden" in text
-# nochmal öffnen: Nummer kommt aus dem Angebot
+# nochmal öffnen: Nummer kommt aus dem Angebot, Kopieren ist an diesem Platz gemerkt
 d2 = fenster.ppease_ablage(db.angebot(a))
-assert d2.nummer.text() == "2026-88011" and d2.vorhanden
+assert d2.nummer.text() == "2026-88011" and d2.vorhanden and not d2.verschieben.isChecked()
 # Übersicht: Kontextmenü, ohne Angebot
 d3 = fenster.ppease_ablage({})
 assert d3.angebotsordner is None and not d3.dokumente and "Kein Angebot" in d3.hinweis.text()

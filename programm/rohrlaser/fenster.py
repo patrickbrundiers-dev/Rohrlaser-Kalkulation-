@@ -1516,6 +1516,7 @@ class EinstellungenSeite(QScrollArea):
     admin = False           # Admin-Rechte: nur dann ist das Passwort der Einstellungen änderbar (admin_setzen)
     gesperrte = frozenset()     # Admin-Schutz: diese Einstellungen grau (schutz_setzen)
     schluessel = "vorgaben"     # Navigation der Einstellungen (einstellungen_nav.GRUPPEN)
+    ebene = "experte"           # angezeigte Ebene (einstellungen_ordnung.EBENEN); die Navigation setzt sie
 
     # Generalüberholung 24.11.2026 (Paket 2): mit spaet=True baut die Seite ihre Felder erst, wenn sie zum ersten Mal
     # gezeigt wird oder jemand ihre Felder braucht (felder, boxen …). Das Hauptfenster hat 29 Seiten mit über 400
@@ -1596,6 +1597,7 @@ class EinstellungenSeite(QScrollArea):
         self.boxen = []
         self.zeilen = []            # (Einstellung, Formular, Zeile, Karte) für die Suche (filtern)
         self._formulare = {}        # id(Karte) -> (Formular links, rechts, [(Einstellung, Titel, Eingabe)])
+        self._box_ebene = {}        # id(Karte) -> Ebene des Abschnitts (26.11.2026)
         lokal = ordnung.lokal() if seite is not None and seite.schluessel not in ("e_arbeitsplatz", "e_navigation",
                                                                                   "e_kanten3d") \
             else ()
@@ -1614,6 +1616,8 @@ class EinstellungenSeite(QScrollArea):
             hl.setSpacing(0)
             self._formulare[id(box)] = (form, form2, [])
             self.boxen.append(box)
+            self._box_ebene[id(box)] = ordnung.abschnitt_ebene(self.schluessel, titel_karte, experte) \
+                if seite is not None else ordnung.EXPERTE
             for e in liste:
                 w = feld = self._eingabe(e)
                 self.felder[e.name] = feld
@@ -1656,8 +1660,7 @@ class EinstellungenSeite(QScrollArea):
         self._anordnen(False)
         self.setWidget(innen)
         self.neu_laden()
-        if self._suche.strip():     # Suche lief schon, bevor die Seite gebaut war
-            self.filtern(self._suche)
+        self.filtern(self._suche)   # Suche bzw. Ebene galt schon, bevor die Seite gebaut war
 
     def _mit_knoepfen(self, e, w):
         """Rechts neben dem Wert: ☆/★ Favorit und ↺ Standard (nur sichtbar, wenn der Wert vom Standard abweicht).
@@ -1948,8 +1951,16 @@ class EinstellungenSeite(QScrollArea):
                 box.setChecked(True)
             form.setRowVisible(zeile, ja and (not box.isCheckable() or box.isChecked()))
             sichtbar[id(box)] = sichtbar.get(id(box), False) or ja
-        for box in self.boxen:
-            box.setVisible(sichtbar.get(id(box), True))
+        from .einstellungen_ordnung import zeigen
+        for box in self.boxen:      # Ebenen (26.11.2026): die Suche findet auch Abschnitte über der Ebene
+            box.setVisible(sichtbar.get(id(box), True) and (
+                bool(suche.strip()) or zeigen(self._box_ebene.get(id(box), "experte"), self.ebene)))
+
+    def ebene_setzen(self, ebene):
+        """Nur Abschnitte bis zu dieser Ebene zeigen (Navigation der Einstellungen, 26.11.2026)."""
+        self.ebene = ebene
+        if self._gebaut:
+            self.filtern(self._suche)
 
     def _anordnen(self, zwei):
         """Karten auf eine oder zwei Spalten verteilen (Reihenfolge bleibt, je Karte in die kürzere Spalte)."""
@@ -2549,6 +2560,14 @@ class EinstellungenBereich(QWidget):
         for s in seiten:
             self.unter.addTab(s, getattr(s, "titel", None) or s.t.titel)
         self.grundtitel = [self.unter.tabText(i) for i in range(self.unter.count())]
+        # Ebenen (Patrick 26.11.2026): Grundeinstellungen / Erweitert / Expertenbereich je Benutzer bzw. Arbeitsplatz
+        from . import bedienmodus
+        try:
+            ebene = bedienmodus.einstellungen_ebene(db)
+        except Exception:       # noqa: BLE001 – ohne lesbare Einstellung die Vorgabe
+            ebene = "grund"
+        self.unter.ebene_setzen(ebene, merken=False)
+        self.unter.ebene_merken = lambda e: bedienmodus.einstellungen_ebene_setzen(db, e)
         self.unter.currentChanged.connect(lambda _: self.neu_laden())
         self.sperren_knopf = self.leiste.sperren
         lay = QVBoxLayout(self)
@@ -4767,6 +4786,8 @@ class Hauptfenster(QMainWindow):
         """Seite der Einstellungen mit dieser Einstellung zeigen (Befehlspalette, Hinweise)."""
         seite = self.einstellungen.seite_von(name)
         if seite is not None:
+            from . import einstellungen_ordnung
+            self.bereich.unter.mindestens(einstellungen_ordnung.ebene_von(name))     # Ebene reicht (26.11.2026)
             self.zeigen(seite)
         return seite
 
@@ -5751,14 +5772,17 @@ class Hauptfenster(QMainWindow):
                     for nr in anfragen_akten.akten_zum_angebot(self.db, kopf["id"]):
                         akte = abl.lesen(nr)
                         if akte is not None:
-                            dateien += [d["pfad"] for d in akte.dateien() if not d.get("gesperrt")]
+                            dateien += [d["pfad"] for d in akte.dateien() if not d.get("gesperrt")
+                                        and not d.get("abgelegt")]      # schon im PPEASE-Ordner (26.11.2026)
             except (OSError, ValueError):
                 dateien = []
         erstellen = None
         if seite is not None and hasattr(seite, "angebotsdokument"):
             erstellen = lambda: seite.angebotsdokument(oeffnen=False)  # noqa: E731
         d = PpeaseDialog(self, self.db, kopf, ordner, dateien, oeffnen=self.datei_oeffnen,
-                         kuerzel=anfragen_akten.kuerzel(self.db), stumm=self.stumm, akte_erstellen=erstellen)
+                         kuerzel=anfragen_akten.kuerzel(self.db), stumm=self.stumm, akte_erstellen=erstellen,
+                         nach_verschieben=lambda paare, i=(kopf or {}).get("id"):
+                         anfragen_akten.abgelegt_vermerken(self.db, i, paare) if i else 0)
         if dialog:
             dialog(d)
         elif not self.stumm:

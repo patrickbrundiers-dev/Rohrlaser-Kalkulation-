@@ -74,6 +74,9 @@ PHASE = "phase"                         # 20.11.2026 (anfrage_phase): Phase von 
 # Dateien bleiben in der Akte, damit Outlook-Abgleich und Doppel-Erkennung sie nicht neu anlegen; wiederherstellbar
 GELOESCHT = "geloescht"
 WIEDERHERGESTELLT = "wiederhergestellt"
+# PPEASE-Ablage verschiebt (Patrick 26.11.2026 „keine doppelten Daten“): Dateien der Akte liegen danach im PPEASE-
+# Angebotsordner; die Akte merkt sich den neuen Ort, Kopf und Verlauf (JSON) bleiben hier
+ABGELEGT = "abgelegt"
 ZUORDNUNG_FELDER = {"automatisch": "Kunde automatisch", "kunde": "Kunde geändert", "bestaetigt": "Kunde bestätigt",
                     "ansprechpartner": "Ansprechpartner geändert", "absender": "Absender korrigiert",
                     "ohne_kunde": "Intern (ohne Kunde)", "zuruecksetzen": "Zuordnung zurückgesetzt"}
@@ -88,7 +91,8 @@ AKTION_TEXT = {EINGEGANGEN: "Eingegangen", DATEI_DAZU: "Datei dazu", ZUGEWIESEN:
                AUFGEGANGEN: "Zusammengeführt in", TRENNEN: "Zusammenführung rückgängig",
                GETRENNT: "Wieder eigenständig", ART_GEAENDERT: "Mail-Art geändert",
                NACHTRAG_GESEHEN: "Änderungen aus Nachträgen gesehen", PHASE: "Phase",
-               GELOESCHT: "Gelöscht", WIEDERHERGESTELLT: "Wiederhergestellt"}
+               GELOESCHT: "Gelöscht", WIEDERHERGESTELLT: "Wiederhergestellt",
+               ABGELEGT: "In den PPEASE-Angebotsordner verschoben"}
 AUSSORTIER_GRUENDE = ("Werbung", "Rechnung", "Lieferant / Einkauf", "Bewerbung", "Sonstiges")
 AUSSORTIER_VORSCHLAG = 2    # so oft vom selben Absender aussortiert: beim nächsten Mal „Keine Anfrage?“ vorschlagen
 AUTO = "Automatik"          # Kürzel-Zusatz im Verlauf für automatische Zuweisungen
@@ -216,7 +220,7 @@ def stand_aus_verlauf(ereignisse):
              absender_korr=None, internet_ids=[], zuordnung_von="", weg={}, kategorien={}, zusammen=[],
              zusammengefuehrt_in="", status_vor="", mids_weg=[], art_korr=None, nachtrag_gesehen=0, phase="",
              phase_von="", nachgefasst=0, rueckfrage_fehlt=[], geloescht="", geloescht_von="", geloescht_grund="",
-             status_vor_loeschen="", erledigt_vor_loeschen="")
+             status_vor_loeschen="", erledigt_vor_loeschen="", abgelegt={})
     for e in sorted(ereignisse, key=lambda e: (e.get("zeit", ""), e.get("kuerzel", ""), e.get("nr", 0))):
         a, k, z = e.get("aktion"), e.get("kuerzel", ""), e.get("zeit", "")
         e["ungueltig"] = False
@@ -240,6 +244,9 @@ def stand_aus_verlauf(ereignisse):
             s["art_korr"] = dict(art=e.get("neu") or "", sachgebiete=list(e.get("sachgebiete") or []), von=k, zeit=z)
         elif a == KATEGORIE:
             s["kategorien"][str(e.get("datei"))] = e.get("neu") or ""
+        elif a == ABGELEGT:
+            for datei, ziel in (e.get("dateien") or {}).items():
+                s["abgelegt"][str(datei)] = str(ziel)
         elif a == DATEI_WEG:
             for d in e.get("dateien") or ():
                 s["weg"][str(d)] = e.get("neu") or ""
@@ -468,6 +475,9 @@ class Akte:
             gesehen.add(d.get("datei", name) if isinstance(d, dict) else name)
             e = dict(d) if isinstance(d, dict) else dict(name=name)
             e["pfad"] = self.pfad / DATEIEN / e.get("datei", name)
+            ziel = (self.stand.get("abgelegt") or {}).get(e.get("datei", name))
+            if ziel and not e["pfad"].exists():        # in den PPEASE-Angebotsordner verschoben (26.11.2026)
+                e["pfad"], e["abgelegt"] = Path(ziel), True
             e.setdefault("art", art(name))
             e["warnung"] = warnung(name)
             e["viren"] = self.stand.get("viren", {}).get(e.get("datei", name))
@@ -1471,6 +1481,31 @@ def anfrage_mail(db, angebot_id):
         if mails:
             return mails[0]
     return None
+
+
+def abgelegt_vermerken(db, angebot_id, paare, jetzt=None):
+    """Nach dem Verschieben in den PPEASE-Angebotsordner (Patrick 26.11.2026): in jeder Akte des Angebots, deren
+    Dateien dabei waren, den neuen Ort vermerken (Ereignis ABGELEGT), damit Liste, Vorschau und Kalkulieren sie
+    weiter finden. paare = [(alter Pfad, neuer Pfad)]. Ergebnis: Anzahl vermerkter Dateien."""
+    if not paare or not aktiv(db):
+        return 0
+    abl = ablage(db)
+    neu_von = {str(Path(a)).lower(): str(b) for a, b in paare}
+    n = 0
+    for nr in akten_zum_angebot(db, angebot_id):
+        akte = abl.lesen(nr)
+        if akte is None:
+            continue
+        dateien = {}
+        for d in akte.dateien(mit_weg=True):
+            schl = d.get("datei", d["name"])
+            ziel = neu_von.get(str(akte.pfad / DATEIEN / schl).lower())
+            if ziel:
+                dateien[schl] = ziel
+        if dateien:
+            abl.ereignis(akte, ABGELEGT, jetzt=jetzt, dateien=dateien)
+            n += len(dateien)
+    return n
 
 
 def angebot_gemailt(db, angebot_id, nummer, an=""):

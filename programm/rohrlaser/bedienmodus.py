@@ -85,6 +85,26 @@ def _je_benutzer_setzen(db, name, wert):
     return True
 
 
+# Ebene der Einstellungen (Patrick 26.11.2026): Grundeinstellungen / Erweitert / Expertenbereich je Benutzer bzw.
+# Arbeitsplatz, wie der Bedienmodus (leiste_* wird nie abgeglichen). Vorgabe: Grundeinstellungen.
+EINSTELLUNGEN_EBENE = "leiste_einstellungen_ebene"
+
+
+def einstellungen_ebene(db):
+    from . import einstellungen_ordnung as o
+    e = _je_benutzer(db, EINSTELLUNGEN_EBENE, None)
+    if e not in o.EBENEN:
+        e = _alle(db, EINSTELLUNGEN_EBENE).get("", o.GRUND)
+    return e if e in o.EBENEN else o.GRUND
+
+
+def einstellungen_ebene_setzen(db, ebene):
+    from . import einstellungen_ordnung as o
+    if ebene not in o.EBENEN:
+        raise ValueError(f"Ebene {ebene!r} unbekannt")
+    return _je_benutzer_setzen(db, EINSTELLUNGEN_EBENE, ebene)
+
+
 def hilfe_an(db):
     return bool(_je_benutzer(db, HILFE_AN, True))
 

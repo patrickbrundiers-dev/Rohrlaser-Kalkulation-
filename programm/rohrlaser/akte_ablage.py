@@ -130,12 +130,18 @@ def ablegen(akte_ordner, nummer, dokumente, akte_json=None, bilder=None, schnitt
     return dict(version=version, dateien=dateien, gesichert=gesichert, ordner=o)
 
 
-def datei(akte_ordner, nummer, art):
-    """Pfad des neuesten Dokuments der Art (kunde/intern/gesamt) oder None."""
+def datei(akte_ordner, nummer, art, finden=None):
+    """Pfad des neuesten Dokuments der Art (kunde/intern/gesamt) oder None. finden(pfad) -> neuer Pfad oder None:
+    sucht ein in den PPEASE-Angebotsordner verschobenes Dokument (ppease_ablage.wo, 26.11.2026)."""
     from .angebotsakte import DATEI_ZUSATZ
     o = _akte(akte_ordner)
     p = o / PDF / dateiname(nummer, DATEI_ZUSATZ.get(art, art))
-    return p if p.exists() else None
+    if p.exists():
+        return p
+    try:
+        return finden(p) if finden else None
+    except OSError:
+        return None
 
 
 def versionen(akte_ordner):

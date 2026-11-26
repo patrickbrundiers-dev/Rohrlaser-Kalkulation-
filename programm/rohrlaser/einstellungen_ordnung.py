@@ -289,6 +289,96 @@ def lokal():
     return LOKAL
 
 
+# ------------------------------------------------------------------ Ebenen (Patrick 26.11.2026 „radikal vereinfachen“)
+# Jede Seite der Einstellungen (auch Stammdaten-Tabellen) und jeder Abschnitt gehört zu einer Ebene. Die Navigation
+# zeigt nur die Seiten bis zur gewählten Ebene (je Benutzer/Arbeitsplatz gemerkt, bedienmodus.einstellungen_ebene);
+# die Suche findet immer alles. Verborgen heißt nur: nicht angezeigt. Werte, Rechnung, Import und Abgleich bleiben
+# unverändert, jede verborgene Einstellung gilt weiter mit ihrem gespeicherten bzw. dem Standardwert.
+GRUND, ERWEITERT, EXPERTE = "grund", "erweitert", "experte"
+EBENEN = (GRUND, ERWEITERT, EXPERTE)
+EBENE_TITEL = {GRUND: "Grundeinstellungen", ERWEITERT: "Erweiterte Einstellungen", EXPERTE: "Expertenbereich"}
+EBENE_TEXT = {GRUND: "Die wichtigsten Einstellungen für den täglichen Betrieb",
+              ERWEITERT: "Dazu selten benötigte, aber sinnvolle Optionen",
+              EXPERTE: "Dazu technische Parameter, Sonderfunktionen und detaillierte Berechnungseinstellungen"}
+SEITEN_EBENE = {
+    # Grundeinstellungen: täglicher Betrieb
+    "e_favoriten": GRUND, "e_bedienmodus": GRUND, "e_firma": GRUND, "e_arbeitsplatz": GRUND, "e_ablage": GRUND,
+    "e_zuschlaege": GRUND, "e_neue_angebote": GRUND, "e_pdf_texte": GRUND, "e_angebot_mail": GRUND,
+    "e_materialanfrage": GRUND, "zeitvorgaben": GRUND, "zusatzarbeiten": GRUND, "profile": GRUND, "werkstoffe": GRUND,
+    "oberflaechen": GRUND, "preise": GRUND, "maschinen": GRUND, "kundenvorgaben": GRUND,
+    # Erweitert: selten, aber sinnvoll
+    "e_funktionen": ERWEITERT, "e_admin": ERWEITERT, "e_plaetze": ERWEITERT, "e_navigation": ERWEITERT,
+    "e_gewinn_gestaffelt": ERWEITERT, "e_kosten": ERWEITERT, "vorgaben": ERWEITERT, "e_automatik": ERWEITERT,
+    "e_mail_vorlagen": ERWEITERT, "material_lieferanten": ERWEITERT, "materialstamm": ERWEITERT,
+    "e_erp_preise": ERWEITERT, "lieferlaengen": ERWEITERT, "e_lieferlaengen": ERWEITERT, "e_listen": ERWEITERT,
+    "e_blech": ERWEITERT, "blech_werkstoffe": ERWEITERT, "blechlaser": ERWEITERT, "e_drehfraes": ERWEITERT,
+    "drehfraes_werkstoffe": ERWEITERT, "e_schweissen": ERWEITERT, "schweissverfahren": ERWEITERT,
+    "e_step": ERWEITERT, "e_step_ablauf": ERWEITERT, "e_dxf": ERWEITERT, "e_lager": ERWEITERT,
+    "e_fertigung": ERWEITERT, "e_auslastung": ERWEITERT, "e_versand": ERWEITERT, "fracht_zonen": ERWEITERT,
+    "fracht_tarife": ERWEITERT, "fracht_dienstleister": ERWEITERT,
+    # Expertenbereich: technische Parameter und detaillierte Rechnung
+    "e_kanten3d": EXPERTE, "arbeitsgang_regeln": EXPERTE, "material_index": EXPERTE, "e_verschachtelung": EXPERTE,
+    "schneiddaten": EXPERTE, "gewinde": EXPERTE, "pruefregeln": EXPERTE, "blech_kfaktoren": EXPERTE,
+    "e_drehfraes_grenzen": EXPERTE, "schweiss_kennwerte": EXPERTE, "schweiss_faktoren": EXPERTE,
+    "schweiss_regeln": EXPERTE, "e_knick_steck": EXPERTE, "e_step_messung": EXPERTE, "importprofile": EXPERTE,
+    "fracht_lht": EXPERTE, "fracht_zuschlaege": EXPERTE, "fracht_historie": EXPERTE,
+}
+# Abschnitte, die über der Ebene ihrer Seite stehen (Abschnitte mit experte=True gehören immer zum Expertenbereich)
+ABSCHNITT_EBENE = {
+    ("e_arbeitsplatz", "Gemeinsamer Ordner"): ERWEITERT, ("e_arbeitsplatz", "E-Mail-Signatur"): ERWEITERT,
+    ("e_arbeitsplatz", "Leistung STEP-Messung"): EXPERTE,
+    ("e_ablage", "CSV-Export"): ERWEITERT, ("e_ablage", "Datensicherung"): ERWEITERT, ("e_ablage", "Archiv"): ERWEITERT,
+    ("e_ablage", "Datenschutz"): ERWEITERT, ("e_ablage", "Gemeinsamer Ordner"): ERWEITERT,
+    ("e_ablage", "PPEASE-Ablage (Dokumente je PPEASE-Angebotsnummer)"): GRUND,
+    ("e_zuschlaege", "Rüsten und Programmieren"): ERWEITERT,
+    ("e_neue_angebote", "Nummern"): ERWEITERT, ("e_neue_angebote", "Abruf-/Rahmenangebot"): ERWEITERT,
+    ("e_neue_angebote", "Eilzuschlag"): ERWEITERT,
+    ("e_neue_angebote", "Vergleich Sägen statt Lasern (Angebots-Check)"): EXPERTE,
+    ("e_pdf_texte", "Abruf-/Rahmenangebot"): ERWEITERT, ("e_pdf_texte", "Teilbestellung"): ERWEITERT,
+    ("e_pdf_texte", "Angebot auf Englisch"): ERWEITERT,
+    ("e_materialanfrage", "Online-Preise der Lieferanten"): ERWEITERT,
+    ("e_kosten", "Schneidgas"): EXPERTE, ("e_kosten", "CO₂-Bilanz"): EXPERTE,
+    ("e_automatik", "Angebotsvergleich"): EXPERTE,
+    ("e_step", "Bohrungen"): EXPERTE, ("e_step", "TRUMPF-Programme (LST/TUBX)"): EXPERTE,
+    ("e_fertigung", "Laser: Anfahrweg und Abfall"): EXPERTE, ("e_fertigung", "Laser: Entladen"): EXPERTE,
+    ("e_versand", "Packkern 3.0"): EXPERTE,
+    ("e_lieferlaengen", "Mehrlänge des Händlers"): EXPERTE, ("e_lieferlaengen", "Schnittplan vereinfachen"): EXPERTE,
+}
+
+
+def seite_ebene(schluessel):
+    """Ebene einer Seite (unbekannte Seiten: Erweitert)."""
+    return SEITEN_EBENE.get(schluessel, ERWEITERT)
+
+
+def abschnitt_ebene(schluessel, titel, experte=False):
+    """Ebene eines Abschnitts: Expertenabschnitt immer Experte, sonst Eintrag in ABSCHNITT_EBENE, sonst die Seite."""
+    if experte:
+        return EXPERTE
+    e = ABSCHNITT_EBENE.get((schluessel, titel))
+    return e if e is not None else seite_ebene(schluessel)
+
+
+def zeigen(ebene, gewaehlt):
+    """Gehört etwas der Ebene ebene zur gewählten Anzeige?"""
+    rang = {e: i for i, e in enumerate(EBENEN)}
+    return rang.get(ebene, 1) <= rang.get(gewaehlt, len(EBENEN) - 1)
+
+
+def ebene_von(name):
+    """Niedrigste Ebene, auf der eine Einstellung zu sehen ist (für „Einstellung zeigen“), oder None."""
+    rang = {e: i for i, e in enumerate(EBENEN)}
+    ebenen = [abschnitt_ebene(s.schluessel, a.titel, a.experte) for s in SEITEN for a in s.abschnitte if name in a.namen]
+    return min(ebenen, key=rang.get) if ebenen else None
+
+
+def zaehlen(ebene):
+    """Anzahl Einstellungen, die bis zur Ebene zu sehen sind (Einstellungsseiten ohne Stammdaten-Tabellen)."""
+    namen = {n for s in SEITEN for a in s.abschnitte if zeigen(abschnitt_ebene(s.schluessel, a.titel, a.experte), ebene)
+             and zeigen(seite_ebene(s.schluessel), ebene) for n in a.namen}
+    return len(namen)
+
+
 def seiten_von(name):
     """Schlüssel der Seiten, auf denen eine Einstellung steht."""
     return [s.schluessel for s in SEITEN for a in s.abschnitte if name in a.namen]

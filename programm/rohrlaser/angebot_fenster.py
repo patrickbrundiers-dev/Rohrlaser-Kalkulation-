@@ -15,7 +15,7 @@ from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QKeySequence, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFrame,
     QFormLayout, QInputDialog, QMenu, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
-    QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSplitter, QTableView,
+    QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSplitter, QStyle, QTableView,
     QStyleOptionViewItem, QTabWidget, QTextBrowser, QToolButton, QToolTip,
     QVBoxLayout, QWidget)
 
@@ -58,7 +58,7 @@ from . import funktionen, geometrie, muster_haken, stangen_abwicklung, tempo, vo
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
-from . import position_kopie, satzgruppen, umwandeln, unterzeilen
+from . import position_kopie, positionsmenue, satzgruppen, umwandeln, unterzeilen
 from .unterzeilen import Unterzeilen, UnterzeilenDelegat, UnterzeilenMixin
 from .verlauf import Verlauf
 from .stammdaten import ZEITRAUM, ZEITRAUM_ALLE, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
@@ -2694,7 +2694,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.pos_ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
         self.pos_menue = QMenu(self.pos_ansicht)
         self.pos_aktionen = {}
-        for text, ziel, tasten in (
+        # Aufgeräumt (Patrick 26.11.2026, positionsmenue.py): oben die täglichen Aktionen, Seltenes in Untermenüs,
+        # Löschen abgesetzt unten. Die Ziele sind dieselben wie bisher.
+        ziele = {text: (ziel, tasten) for text, ziel, tasten in (
                 ("Schneidweg berechnen …", lambda: self.schneidweg_berechnen(), ""),
                 ("Blech-Editor …", lambda: self.blech_bearbeiten(), ""),
                 ("Richtpreis Dreh-/Frästeil …", lambda: self.drehfraes_bearbeiten(), ""),
@@ -2715,7 +2717,6 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
                 ("Satz per Text ändern …", lambda: self.bauteil_aus_text(satz=self._satz_der_zeile()), ""),
                 ("Satz bearbeiten (Anzahl Sätze) …", lambda: self.satz_bearbeiten(), ""),
-                ("Blech-EK je Satz/Baugruppe …", lambda: self.satz_bearbeiten(), ""),
                 ("Zusatzarbeit für ganzen Satz …", lambda: self.zusatz_satz(), ""),
                 # Einzelteile ↔ Satz ↔ Schweißbaugruppe umwandeln (umwandeln.py, Patrick 06.11.2026)
                 ("Als Satz zusammenfassen …", lambda: self.als_satz(), ""),
@@ -2743,19 +2744,32 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 ("An den Anfang", lambda: self.positionen_verschieben(reihenfolge.ANFANG), ""),
                 ("Ans Ende", lambda: self.positionen_verschieben(reihenfolge.ENDE), ""),
                 ("Positionsnummern neu vergeben (10, 20, 30 …)", lambda: self.positionsnummern_vergeben(), ""),
-                ("Positionen löschen", self.positionen_loeschen, "Entf")):
-            # Kürzel nur als Text rechts (Tabulator), die Kürzel selbst hängen am Menü Bearbeiten
-            a = self.pos_menue.addAction(text + (f"\t{tasten}" if tasten else ""), lambda ziel=ziel: ziel())
-            self.pos_aktionen[text] = a
-            if text == "Zusatzarbeiten …":        # Schnellmenü (Plan Zusatzarbeiten erkennen 03.11.2026, 6a)
-                self.zusatz_schnellmenue = QMenu("Zusatzarbeit hinzufügen", self.pos_menue)
-                self.zusatz_schnellmenue.aboutToShow.connect(self._zusatz_schnellmenue_fuellen)
-                self.pos_aktionen["Zusatzarbeit hinzufügen"] = self.pos_menue.addMenu(self.zusatz_schnellmenue)
-        self.pos_menue.insertSeparator(self.pos_aktionen["Als Satz zusammenfassen …"])
-        self.pos_menue.insertSeparator(self.pos_aktionen["Position duplizieren"])
-        self.pos_menue.insertSeparator(self.pos_aktionen["Für markierte setzen …"])
-        self.pos_menue.insertSeparator(self.pos_aktionen["Nach oben"])
-        self.pos_menue.insertSeparator(self.pos_aktionen["Positionen löschen"])
+                ("Positionen löschen", self.positionen_loeschen, "Entf"))}
+        self.pos_untermenues = {}
+        for teil in positionsmenue.STRUKTUR:
+            if teil == positionsmenue.TRENNER:
+                self.pos_menue.addSeparator()
+                continue
+            titel, texte = teil
+            menue = self.pos_menue
+            if titel:
+                menue = QMenu(titel, self.pos_menue)
+                self.pos_untermenues[titel] = menue
+                self.pos_menue.addMenu(menue)
+            for text in texte:
+                if text == "Zusatzarbeit hinzufügen":       # Schnellmenü (Plan Zusatzarbeiten erkennen 03.11.2026, 6a)
+                    self.zusatz_schnellmenue = QMenu("Zusatzarbeit hinzufügen", menue)
+                    self.zusatz_schnellmenue.aboutToShow.connect(self._zusatz_schnellmenue_fuellen)
+                    self.pos_aktionen[text] = menue.addMenu(self.zusatz_schnellmenue)
+                    continue
+                ziel, tasten = ziele[text]
+                # Kürzel nur als Text rechts (Tabulator), die Kürzel selbst hängen am Menü Bearbeiten
+                a = menue.addAction(text + (f"\t{tasten}" if tasten else ""), lambda ziel=ziel: ziel())
+                self.pos_aktionen[text] = a
+        self.pos_aktionen["Positionen löschen"].setIcon(self.style().standardIcon(QStyle.SP_TrashIcon))
+        self.pos_aktionen["Positionen löschen"].setToolTip("Markierte Positionen löschen (ab "
+                                                         f"{positionsmenue.LOESCHEN_FRAGEN_AB} Positionen mit Rückfrage, "
+                                                         "danach Rückgängig möglich)")
         self.pos_menue.aboutToShow.connect(self._pos_menue_anpassen)
         self.pos_ansicht.customContextMenuRequested.connect(
             lambda punkt: self.fremd() or self._menue_zeile(punkt) or
@@ -6505,7 +6519,17 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         for d in getattr(self, "step_dateien_zuletzt", None) or ():
             if Path(d).name in namen or Path(d).stem == stamm:
                 kandidaten.append(Path(d))
-        return next((k for k in kandidaten if k and k.is_file()), None)
+        gefunden = next((k for k in kandidaten if k and k.is_file()), None)
+        if gefunden is None:            # in den PPEASE-Angebotsordner verschoben (26.11.2026)
+            from . import ppease_ablage
+            for k in kandidaten:
+                try:
+                    neu = ppease_ablage.wo(self.db, self.id, k) if k else None
+                except OSError:
+                    neu = None
+                if neu is not None and neu.is_file():
+                    return neu
+        return gefunden
 
     def art_aendern(self, zeile=None, pfad=None, dialog=None, grund="Art geändert"):
         """Rechtsklick „Art ändern (Blech / Rohr / Dreh-/Frästeil) …“ (Patrick 04.11.2026): das Teil der Position aus
@@ -7399,14 +7423,14 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         for text, a in self.pos_aktionen.items():
             noetig = self.MENUE_ARTEN.get(text)
             sichtbar = not zeilen or noetig is None or bool(arten & noetig)
-            if text in ("Satz in 3D …", "Satz bearbeiten (Anzahl Sätze) …"):
+            if text == "Satz in 3D …":
                 sichtbar = mit_satz
+            elif text == "Satz bearbeiten (Anzahl Sätze) …":     # auch Blech-EK je Satz/Baugruppe (Patrick 07.11.2026)
+                sichtbar = mit_satz or mit_bg
             elif text == "Satz per Text ändern …":         # nur Sätze aus „Bauteil aus Text“
                 satz = self._satz_der_zeile() if zeilen else None
                 sichtbar = bool(satz) and not self.fremd() and not self.db.nur_lesen and bool(
                     (self.db.satz_daten(self.id).get(satz) or {}).get("generator"))
-            elif text == "Blech-EK je Satz/Baugruppe …":     # Patrick 07.11.2026: Einkauf je Satz leichter finden
-                sichtbar = mit_satz or mit_bg
             elif text == "Zusatzarbeit für ganzen Satz …":
                 sichtbar = mit_satz_zusatz and not self.fremd() and not self.db.nur_lesen
             elif text == "Baugruppe in anderes Angebot kopieren …":
@@ -7442,6 +7466,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             elif text == "Zusatzarbeit hinzufügen":
                 sichtbar = bool(zeilen) and arten != {"baugruppe"}
             a.setVisible(sichtbar)
+        for menue in self.pos_untermenues.values():        # Untermenü ohne passenden Eintrag: ganz weg (26.11.2026)
+            menue.menuAction().setVisible(any(a.isVisible() for a in menue.actions() if not a.isSeparator()))
         return [t for t, a in self.pos_aktionen.items() if a.isVisible()]
 
     def wand_aendern(self, zeilen=None, wand=None, alle=False, ids=None, dialog=None):
@@ -9731,7 +9757,20 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if not zeilen:
             self.f.meldung("Bitte zuerst die Positionen markieren, die gelöscht werden sollen.", fehler=True)
             return
-        # ohne Rückfrage, dafür „Rückgängig“ in der Einblendung (Plan Bedienung B2, Freigabe F1a)
+        # „Rückgängig“ in der Einblendung (Plan Bedienung B2, Freigabe F1a); ab mehreren Positionen bzw. bei ganzen
+        # Baugruppen/Sätzen zusätzlich eine Rückfrage (Patrick 26.11.2026, positionsmenue.loeschen_fragen)
+        zeilen = [r for r in zeilen if r < len(self.positionen)]
+        saetze = {satz_menge.name(self.positionen[r]) for r in zeilen} - {None, ""}
+        ganze = any(ist_baugruppe(self.positionen[r]) for r in zeilen) or any(
+            set(satz_menge.satz_positionen(self.positionen, n)) <= set(zeilen) for n in saetze
+            if len(satz_menge.satz_positionen(self.positionen, n)) > 1)
+        if positionsmenue.loeschen_fragen(len(zeilen), ganze) and not self.f.stumm:
+            if QMessageBox.question(self, "Positionen löschen",
+                                    f"{len(zeilen)} Position(en) löschen?" + ("\n\nDarunter eine ganze Baugruppe bzw. "
+                                                                         "ein ganzer Satz." if ganze else "")
+                                    + "\n\nDanach lässt sich das Löschen mit „Rückgängig“ (Strg+Z) zurücknehmen.",
+                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+                return
         self.db.positionen_loeschen([self.positionen[r]["id"] for r in zeilen])
         self.neu_laden()
         self.rueckgaengig_anbieten(f"{len(zeilen)} Position(en) gelöscht.")
