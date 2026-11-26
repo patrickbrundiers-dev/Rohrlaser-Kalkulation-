@@ -443,6 +443,14 @@ def _winkel_lauf(pk, mitte=(0.0, 0.0)):
 
 
 def kontur_aufbereiten(k):
+    """Kontur für das Werkzeug wie _aufbereiten; eine vorgegebene Werkzeugtiefe (k["tiefe"]) bleibt erhalten."""
+    out = _aufbereiten(k)
+    if k.get("tiefe") is not None and out["art"] == "kontur":
+        out["tiefe"] = k["tiefe"]
+    return out
+
+
+def _aufbereiten(k):
     """Kontur für das Werkzeug: dict(art 'ende' | 'bohrung' | 'kontur', ...). Ende: Ring um das Rohr; Bohrung: Kreis
     (Mitte, r, Achse); Kontur: geschlossener Zug (offene Teilstücke über die Schnittfuge geschlossen)."""
     pk, rk = list(k["punkte"]), list(k["richtung"])
@@ -517,7 +525,101 @@ def ende_dreiecke(pk, rk, tiefe, nach_minus):
 
 
 # ------------------------------------------------------------------ OpenCascade
+NETZ_RASTER = 1e6       # Punkte eines Werkzeugnetzes gelten auf 1e-6 mm gleich (wie gerechnet; Nähen bisher 1e-4)
+
+
 def _occ_dreiecke_koerper(tri):
+    """Volumenkörper aus geschlossenen Dreiecken (Werkzeug einer Kontur). Zuerst direkt mit gemeinsamen Ecken und
+    Kanten (_netz_direkt, Importengine 2.0, 26.11.2026); nur wenn das Netz nicht geschlossen ist wie bisher genäht."""
+    s = _netz_direkt(tri)
+    return s if s is not None else _occ_genaeht(tri)
+
+
+def _netz_direkt(tri):
+    """Geschlossenes Dreiecksnetz ohne Nähen zum Volumenkörper: gleiche Punkte (Raster NETZ_RASTER) werden eine Ecke,
+    jede Kante wird genau einmal gebaut und von beiden Dreiecken geteilt, die Umlaufrichtung der Dreiecke wird über
+    die Nachbarn angeglichen. None, wenn das Netz nicht geschlossen und mannigfaltig ist (jede Kante genau zwei
+    Dreiecke) oder eine Fläche nicht entsteht – dann näht _occ_genaeht.
+    Warum: BRepBuilderAPI_Sewing sucht jede Kante gegen alle anderen (FindCandidates); bei Werkzeugen mit Tausenden
+    Dreiecken dauerte das Minuten (LST 10186133 P10: über 20 min) und lieferte bei manchen Konturen einen ungültigen
+    Körper (LST P20: 718 mm³ zu wenig gegenüber der STEP-Datei, direkt gebaut 0,03 mm³ Abweichung)."""
+    from OCP.BRep import BRep_Builder
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace
+    from OCP.BRepLib import BRepLib
+    from OCP.gp import gp_Pnt
+    from OCP.TopoDS import TopoDS_Shell, TopoDS_Solid, TopoDS_Vertex, TopoDS_Wire
+    nr, punkte, dreiecke = {}, [], []
+    for t in tri:
+        ix = []
+        for p in t:
+            q = (round(p[0] * NETZ_RASTER), round(p[1] * NETZ_RASTER), round(p[2] * NETZ_RASTER))
+            i = nr.get(q)
+            if i is None:
+                i = nr[q] = len(punkte)
+                punkte.append(p)
+            ix.append(i)
+        if ix[0] != ix[1] and ix[1] != ix[2] and ix[0] != ix[2]:
+            dreiecke.append(ix)
+    if len(dreiecke) < 4:
+        return None
+    kanten = {}
+    for d, (i, j, k) in enumerate(dreiecke):
+        for a, b in ((i, j), (j, k), (k, i)):
+            kanten.setdefault((a, b) if a < b else (b, a), []).append(d)
+    if any(len(v) != 2 for v in kanten.values()):
+        return None
+    gesehen = [False] * len(dreiecke)
+    for start in range(len(dreiecke)):
+        if gesehen[start]:
+            continue
+        gesehen[start] = True
+        stapel = [start]
+        while stapel:
+            d = stapel.pop()
+            i, j, k = dreiecke[d]
+            for a, b in ((i, j), (j, k), (k, i)):
+                e = kanten[(a, b) if a < b else (b, a)]
+                o = e[0] if e[1] == d else e[1]
+                if gesehen[o]:
+                    continue
+                oi, oj, ok = dreiecke[o]
+                if (a, b) in ((oi, oj), (oj, ok), (ok, oi)):      # gleiche Laufrichtung: Nachbar umdrehen
+                    dreiecke[o] = [oi, ok, oj]
+                gesehen[o] = True
+                stapel.append(o)
+    bb = BRep_Builder()
+    ecken = []
+    for p in punkte:
+        v = TopoDS_Vertex()
+        bb.MakeVertex(v, gp_Pnt(*p), 1e-7)
+        ecken.append(v)
+    occ = {}
+    for a, b in kanten:
+        mk = BRepBuilderAPI_MakeEdge(ecken[a], ecken[b])
+        if not mk.IsDone():
+            return None
+        occ[(a, b)] = mk.Edge()
+    schale = TopoDS_Shell()
+    bb.MakeShell(schale)
+    for i, j, k in dreiecke:
+        w = TopoDS_Wire()
+        bb.MakeWire(w)
+        for a, b in ((i, j), (j, k), (k, i)):
+            bb.Add(w, occ[(a, b)] if a < b else occ[(b, a)].Reversed())
+        w.Closed(True)
+        f = BRepBuilderAPI_MakeFace(w, True)
+        if not f.IsDone():
+            return None
+        bb.Add(schale, f.Face())
+    schale.Closed(True)
+    s = TopoDS_Solid()
+    bb.MakeSolid(s)
+    bb.Add(s, schale)
+    BRepLib.OrientClosedSolid_s(s)
+    return s
+
+
+def _occ_genaeht(tri):
     from OCP.BRepBuilderAPI import (BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeSolid,
                                     BRepBuilderAPI_Sewing)
     from OCP.BRepLib import BRepLib
@@ -830,7 +932,8 @@ def bpf_koerper(teil):
                                                        wand * 3 + 2 * UEBER).Shape(), False))
             nb += 1
         elif k["art"] == "kontur":
-            s = _occ_dreiecke_koerper(werkzeug_dreiecke(k["punkte"], k["richtung"], max(wand, 1.0) * 1.5))
+            tiefe = k["tiefe"] if k.get("tiefe") is not None else max(wand, 1.0) * 1.5
+            s = _occ_dreiecke_koerper(werkzeug_dreiecke(k["punkte"], k["richtung"], tiefe))
             if s is None:
                 meld.append("eine Kontur des BPF ließ sich nicht als Werkzeug bauen (übersprungen)")
             else:
@@ -905,14 +1008,19 @@ def _bpf_daneben(pfad, programm=""):
     if programm:
         name = re.split(r"[\\/]", programm)[-1]
         kand.append(p.parent / name)
-    return next((k for k in kand if k.is_file()), None)
+    return next((k for k in kand if k.is_file() and k != p), None)    # ARTUBE unter .bpf: nicht sich selbst
 
 
 def lies_blm_info(pfad):
     """BPF oder ARTUBE lesen: (Körper, Info) wie step_geometrie.lies_step_info."""
     pfad = Path(str(pfad))
     koerper, meld = [], []
-    if pfad.suffix.lower() == ".bpf":
+    try:        # Format am Inhalt (Importengine 2.0): BPF unter .artube/.step und umgekehrt
+        from rohrlaser import dateiformat
+        art = dateiformat.erkennen(pfad).art
+    except Exception:  # noqa: BLE001 – dann wie bisher nach der Endung
+        art = ""
+    if art == "BPF" or (art != "ARTUBE" and pfad.suffix.lower() == ".bpf"):
         teil = bpf_teil(pfad.read_bytes(), pfad.stem)
         form, m = bpf_koerper(teil)
         koerper.append(("Volumenkörper", form))
@@ -949,7 +1057,8 @@ def lies_blm_info(pfad):
                            f"{_mm(qs.get('thickness'))}, R {_mm(qs.get('edgesRadius'))}" if qs.get("width") else ""))
         if not koerper:
             raise ValueError("ARTUBE-Datei ohne messbares Teil (kein 3D-Netz, kein BPF daneben)")
-    return koerper, dict(einheit="mm", meldungen=meld[:20], baugruppe=len(koerper) > 1, struktur=None, bauteile={})
+    return koerper, dict(einheit="mm", meldungen=meld[:20], baugruppe=len(koerper) > 1, struktur=None, bauteile={},
+                         aus_programm=True)
 
 
 def _mm(v):
