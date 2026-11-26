@@ -50,9 +50,15 @@ def einrichten(f):
         a.triggered.connect(ziel)
         m.addAction(a)
         f.hauptadmin_aktionen[text] = a
-    m.menuAction().setVisible(False)
+    _zeigen(f, m, False)
     f.hauptadmin_menue = m
     return m
+
+
+def _zeigen(f, m, an):
+    """Menü erlauben oder verbergen; mit der Kopfleiste (Knopf „Menü“) steht es dann dort, sonst in der Leiste."""
+    from . import kopfleiste
+    kopfleiste.menue_erlauben(f, m, an)
 
 
 def anwenden(f, z):
@@ -61,7 +67,7 @@ def anwenden(f, z):
     if m is None:
         return
     an = bool(z is not None and getattr(z, "hauptadmin", False))
-    m.menuAction().setVisible(an)
+    _zeigen(f, m, an)
     a = f.hauptadmin_aktionen.get("Passwort ändern …")
     if a is not None:
         a.setEnabled(an and not getattr(f.lizenz, "hauptadmin_notfall", False))
