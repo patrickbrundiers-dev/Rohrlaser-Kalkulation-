@@ -407,6 +407,10 @@ def _liste_neu(fenster):
     liste.neu_laden()
 
 
+def sm_eigene(db):
+    return _sm().eigene(db)
+
+
 def live(fenster):
     """Live-Meldungen anderer Arbeitsplätze verarbeiten: geänderte Angebote in der Liste und in hier nur angesehenen
     Angeboten neu laden, Reservierungswechsel sofort prüfen (statt erst beim nächsten Puls)."""
@@ -421,7 +425,11 @@ def live(fenster):
         return m
     belegt = fenster.__dict__.setdefault("_server_belegt", {})
     if m["sperren"] or m["neu"]:
-        _reservierungen_pruefen(fenster)
+        try:
+            halte = sm_eigene(fenster.db)
+        except db_verbindung.DbFehler:
+            halte = None
+        _reservierungen_pruefen(fenster, halte)     # auch eigene: übernommen → sofort nur Ansehen
     for aid in m["angebote"] | (set(fenster.offen) if m["neu"] else set()):
         seite = fenster.offen.get(aid)
         if seite is not None and aid in belegt and hasattr(seite, "neu_laden"):
@@ -444,7 +452,15 @@ def uebernehmen(fenster, angebot_id, fragen=True):
             f"übernehmen? {wer['kuerzel']} sieht es danach nur noch an; was dort schon eingegeben ist, bleibt "
             "gespeichert.") != QMessageBox.Yes:
         return False
-    sm.uebernehmen(fenster.db, sm.objekt_angebot(angebot_id), nr)
+    try:
+        sm.uebernehmen(fenster.db, sm.objekt_angebot(angebot_id), nr, erwartet=wer)
+    except sm.SchonUebernommen as e:
+        belegt[angebot_id] = e.inhaber
+        seite = fenster.offen.get(angebot_id)
+        if seite is not None and hasattr(seite, "neu_laden"):
+            seite.neu_laden()
+        fenster.meldung(f"Angebot {nr}: {e} Hier weiter nur zum Ansehen.", fehler=True)
+        return False
     belegt.pop(angebot_id, None)
     seite = fenster.offen.get(angebot_id)
     if seite is not None and hasattr(seite, "neu_laden"):

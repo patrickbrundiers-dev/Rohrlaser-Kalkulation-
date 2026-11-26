@@ -101,6 +101,7 @@ try:
     da = sm.anwesende(db2)
     assert da["PB"]["online"] and da["PB"]["rechner"] == "PC-EINS" and da["AB"]["online"], da
     assert teilen.lebenszeichen(db2)["PB"]["offen"] == {nr1: "2026-11-26T10:00"}
+    assert abs(teilen.uhr_versatz(db2)) < 5 and getattr(db2, "_server_uhr", None), "Uhr des Servers gemessen"
     assert teilen.mehrplatz(db2) and not teilen.aktiv(db2)
     sm.puls(db1, ende=True)
     assert not sm.anwesende(db2)["PB"]["online"]
@@ -128,6 +129,13 @@ try:
     vorher = sm.uebernehmen(db1, obj, nr1)
     assert vorher["kuerzel"] == "AB" and sm.puls(db2) == set() and sm.puls(db1) == {obj}
     assert any(p["art"] == sm.P_UEBERNOMMEN and "AB" in p["text"] for p in sm.protokoll(db1))
+    # Übernehmen nur vom Inhaber, den die Rückfrage gezeigt hat (zwei Kollegen übernehmen fast gleichzeitig)
+    try:
+        sm.uebernehmen(db2, obj, nr1, erwartet=dict(kuerzel="AB", platz="PC-ZWEI"))
+        raise AssertionError("Übernahme trotz inzwischen anderem Inhaber")
+    except sm.SchonUebernommen as e:
+        assert e.inhaber["kuerzel"] == "PB"
+    assert sm.inhaber(db2, obj)["kuerzel"] == "PB" and sm.eigene(db1) == {obj} and sm.eigene(db2) == set()
     sm.freigeben(db2, obj)                      # fremde Reservierung bleibt
     assert sm.inhaber(db2, obj)["kuerzel"] == "PB"
     sm.freigeben(db1, obj)
@@ -206,8 +214,37 @@ try:
     assert "Verwalter" in sm.benutzer_server(db2, "QQ", "Q", [rollen.KALKULATION], passwort="Geheim-QQ-123")
     assert {x["kuerzel"]: x for x in sm.benutzer_liste(db1)}["PB"]["recht"] == sb.RECHT_VERWALTER
     assert any(p["art"] == sm.P_BENUTZER and "XY" in p["text"] for p in sm.protokoll(db1))
+    # Verwalter aus Stufe 1 (CREATEROLE, Weitergaberecht) herabstufen: danach kein Anlegen mehr, seine Leser bleiben
+    import psycopg
+    with server.verwalter_verbinden(sb.DATENBANK) as con:
+        sb.benutzer_anlegen(con, "XV", "Geheim-XV-123", sb.RECHT_VERWALTER)
+    xv = dict(host="127.0.0.1", port=server.port, dbname=sb.DATENBANK, user="rl_xv", password="Geheim-XV-123",
+              sslmode="require", autocommit=True)
+    with psycopg.connect(**xv) as con:
+        sb.benutzer_anlegen(con, "LL", "Geheim-LL-123", sb.RECHT_LESEN)
+    sm._pflegen(db1, "XV", None, sb.RECHT_LESEN)
+    with server.verwalter_verbinden(sb.DATENBANK) as con:
+        assert not con.execute("SELECT rolcreaterole FROM pg_roles WHERE rolname = 'rl_xv'").fetchone()[0]
+        assert not con.execute("SELECT 1 FROM pg_auth_members m JOIN pg_roles u ON u.oid = m.member "
+                               "WHERE u.rolname = 'rl_xv' AND m.admin_option").fetchone()
+        assert con.execute("SELECT 1 FROM pg_auth_members m JOIN pg_roles u ON u.oid = m.member JOIN pg_roles r "
+                           "ON r.oid = m.roleid WHERE u.rolname = 'rl_ll' AND r.rolname = %s",
+                           (sb.ROLLE_LESEN,)).fetchone(), "Leser des herabgestuften Verwalters bleibt Leser"
+    with psycopg.connect(**xv) as con:
+        try:
+            con.execute("CREATE ROLE rl_boese LOGIN PASSWORD 'Geheim-boese-1'")
+            raise AssertionError("herabgestufter Verwalter legt noch Zugänge an")
+        except psycopg.errors.InsufficientPrivilege:
+            pass
+        try:
+            con.execute(f"GRANT {sb.ROLLE_LESEN} TO rl_ll")
+            raise AssertionError("herabgestufter Verwalter gibt Rollen noch weiter")
+        except psycopg.errors.InsufficientPrivilege:
+            pass
+    sm._pflegen(db1, "XV", entfernen=True)
+    sm._pflegen(db1, "LL", entfernen=True)
     ok("Benutzer über die Programmrollen: Login mit Passwort, Admin = Verwalter, Leserecht, sperren, entfernen; "
-       "eigener Zugang und Verwalterrecht geschützt; Protokoll")
+       "eigener Zugang und Verwalterrecht geschützt; Herabstufen nimmt CREATEROLE und Weitergaberecht; Protokoll")
 
     # ------------------------------------------------------------------ Oberfläche: zwei Hauptfenster
     from PySide6.QtWidgets import QApplication
@@ -248,9 +285,8 @@ try:
     s1 = f1.angebot_oeffnen(a2)
     assert s1.fremd() == "AB"
     assert s1._server_uebernehmen(fragen=False) and s1.fremd() is None
-    f2._server_puls_merk["zeit"] = -1e9
-    server_dialog.puls(f2)
-    assert s2.fremd() == "PB", "Übernahme bemerkt"
+    assert warten(lambda: (server_dialog.live(f2), s2.fremd() == "PB")[1]), "Übernahme sofort per Live-Meldung bemerkt"
+    assert not s2.kopf_bereich.isEnabled()
     # Programmende: abgemeldet, frei
     server_dialog.mehrplatz_beenden(f1)
     assert not sm.anwesende(db2)["PB"]["online"] and sm.inhaber(db2, sm.objekt_angebot(a2)) is None

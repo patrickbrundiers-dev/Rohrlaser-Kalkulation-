@@ -71,6 +71,7 @@ RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_
 DECLARE
   login text := '{sb.LOGIN_PRAEFIX}' || lower(p_kuerzel);
   verwalter_rest integer;
+  d record;
 BEGIN
   IF NOT pg_has_role(session_user, '{sb.ROLLE_VERWALTER}', 'MEMBER') THEN
     RAISE EXCEPTION 'Nur ein Verwalter darf Benutzer am Server anlegen oder ändern.' USING ERRCODE = '42501';
@@ -91,6 +92,17 @@ BEGIN
     IF verwalter_rest = 0 AND pg_has_role(login, '{sb.ROLLE_VERWALTER}', 'MEMBER') THEN
       RAISE EXCEPTION 'Es muss mindestens ein aktiver Verwalter bleiben.' USING ERRCODE = '22023';
     END IF;
+  END IF;
+  -- Wird ein Zugang entfernt oder herabgestuft: Rollen, die er (als Verwalter aus Stufe 1) selbst an andere vergeben
+  -- hat, vergibt jetzt der Server; sonst hingen sie an ihm und ließen sich nicht sauber entziehen.
+  IF p_entfernen OR p_recht <> '{sb.RECHT_VERWALTER}' THEN
+    FOR d IN SELECT r.rolname AS rolle, u.rolname AS mitglied, m.admin_option, m.inherit_option, m.set_option
+        FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
+        JOIN pg_roles g ON g.oid = m.grantor WHERE g.rolname = login LOOP
+      EXECUTE format('GRANT %I TO %I WITH ADMIN %s, INHERIT %s, SET %s', d.rolle, d.mitglied, d.admin_option::text,
+                     d.inherit_option::text, d.set_option::text);
+      EXECUTE format('REVOKE %I FROM %I GRANTED BY %I', d.rolle, d.mitglied, login);
+    END LOOP;
   END IF;
   IF p_entfernen THEN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = login) THEN
@@ -113,15 +125,33 @@ BEGIN
   EXECUTE format('ALTER ROLE %I %s', login, CASE WHEN p_aktiv THEN 'LOGIN' ELSE 'NOLOGIN' END);
   IF p_recht IN ('{sb.RECHT_BEARBEITEN}', '{sb.RECHT_VERWALTER}') THEN
     EXECUTE format('GRANT %I TO %I', '{sb.ROLLE_APP}', login);
-    EXECUTE format('REVOKE %I FROM %I', '{sb.ROLLE_LESEN}', login);
   ELSE
     EXECUTE format('GRANT %I TO %I', '{sb.ROLLE_LESEN}', login);
-    EXECUTE format('REVOKE %I FROM %I', '{sb.ROLLE_APP}', login);
   END IF;
   IF p_recht = '{sb.RECHT_VERWALTER}' THEN
     EXECUTE format('GRANT %I TO %I', '{sb.ROLLE_VERWALTER}', login);
-  ELSE
-    EXECUTE format('REVOKE %I FROM %I', '{sb.ROLLE_VERWALTER}', login);
+  END IF;
+  -- Nicht mehr passende Rollen entziehen, gleich von wem vergeben; ohne Verwalterrecht auch kein Weitergeben
+  -- (ADMIN OPTION) und kein CREATEROLE mehr (Stufe 1 hatte Verwaltern beides gegeben).
+  FOR d IN SELECT r.rolname AS rolle, g.rolname AS geber, m.admin_option FROM pg_auth_members m
+      JOIN pg_roles r ON r.oid = m.roleid JOIN pg_roles u ON u.oid = m.member JOIN pg_roles g ON g.oid = m.grantor
+      WHERE u.rolname = login AND r.rolname IN ('{sb.ROLLE_APP}', '{sb.ROLLE_LESEN}', '{sb.ROLLE_VERWALTER}') LOOP
+    IF (d.rolle = '{sb.ROLLE_APP}' AND p_recht = '{sb.RECHT_LESEN}')
+       OR (d.rolle = '{sb.ROLLE_LESEN}' AND p_recht = '{sb.RECHT_BEARBEITEN}')
+       OR (d.rolle = '{sb.ROLLE_VERWALTER}' AND p_recht <> '{sb.RECHT_VERWALTER}') THEN
+      EXECUTE format('REVOKE %I FROM %I GRANTED BY %I', d.rolle, login, d.geber);
+    ELSIF d.admin_option AND p_recht <> '{sb.RECHT_VERWALTER}' THEN
+      EXECUTE format('REVOKE ADMIN OPTION FOR %I FROM %I GRANTED BY %I', d.rolle, login, d.geber);
+    END IF;
+  END LOOP;
+  IF p_recht <> '{sb.RECHT_VERWALTER}' THEN
+    EXECUTE format('ALTER ROLE %I NOCREATEROLE', login);
+    -- Verwaltungsrecht über Zugänge, die er mit CREATEROLE selbst angelegt hat, gibt es danach auch nicht mehr
+    FOR d IN SELECT r.rolname AS rolle, g.rolname AS geber FROM pg_auth_members m
+        JOIN pg_roles r ON r.oid = m.roleid JOIN pg_roles u ON u.oid = m.member JOIN pg_roles g ON g.oid = m.grantor
+        WHERE u.rolname = login AND left(r.rolname, {len(sb.LOGIN_PRAEFIX)}) = '{sb.LOGIN_PRAEFIX}' LOOP
+      EXECUTE format('REVOKE %I FROM %I GRANTED BY %I', d.rolle, login, d.geber);
+    END LOOP;
   END IF;
   IF p_name IS NOT NULL THEN
     EXECUTE format('COMMENT ON ROLE %I IS %L', login, p_name);
@@ -297,22 +327,50 @@ def freigeben(db, objekt):
         db.con.execute(f"DELETE FROM {SPERREN} WHERE objekt=? AND kuerzel=? AND platz=?", (objekt, s.kuerzel, s.platz))
 
 
-def uebernehmen(db, objekt, titel=""):
+class SchonUebernommen(Exception):
+    """Ein anderer Kollege hat die Reservierung inzwischen selbst übernommen (Inhaber in .inhaber)."""
+
+    def __init__(self, inhaber_):
+        super().__init__(f"{inhaber_['kuerzel']} ({inhaber_['platz']}) hat das Angebot inzwischen übernommen.")
+        self.inhaber = inhaber_
+
+
+def uebernehmen(db, objekt, titel="", erwartet=None):
     """Reservierung eines Kollegen übernehmen (nach Rückfrage in der Oberfläche). Ergebnis: bisheriger Inhaber oder
-    None. Der bisherige Platz verliert sie mit seinem nächsten Puls und zeigt das Angebot dann nur noch an."""
+    None. erwartet: der Inhaber, den die Rückfrage gezeigt hat (dict mit kuerzel, platz); hat inzwischen ein anderer
+    übernommen, gilt die Übernahme nicht (SchonUebernommen). Der bisherige Platz bekommt die Live-Meldung und zeigt
+    das Angebot dann nur noch an."""
     s = _s(db)
     if s.nur_lesen:
         raise db_verbindung.NurLesen("Lesemodus – Übernehmen ist gesperrt.")
     vorher = inhaber(db, objekt)
+    if erwartet is None:
+        erwartet = vorher
+    bedingung, werte = "", ()
+    if erwartet:
+        bedingung = f" WHERE {SPERREN}.kuerzel = ? AND {SPERREN}.platz = ?"
+        werte = (erwartet["kuerzel"], erwartet["platz"])
     with db.con:
-        db.con.execute(
+        r = db.con.execute(
             f"INSERT INTO {SPERREN} (objekt, kuerzel, platz, titel, seit, zeit) VALUES (?, ?, ?, ?, now(), now()) "
             "ON CONFLICT (objekt) DO UPDATE SET kuerzel = excluded.kuerzel, platz = excluded.platz, "
-            "titel = excluded.titel, seit = now(), zeit = now()", (objekt, s.kuerzel, s.platz, str(titel or "")))
+            "titel = excluded.titel, seit = now(), zeit = now()" + bedingung + " RETURNING objekt",
+            (objekt, s.kuerzel, s.platz, str(titel or "")) + werte).fetchone()
+    if r is None:               # inzwischen anders belegt: nur noch frei Gewordenes nehmen
+        jetzt_ = reservieren(db, objekt, titel)
+        if jetzt_:
+            raise SchonUebernommen(jetzt_)
     if vorher and not vorher["ich"]:
         protokollieren(db, P_UEBERNOMMEN, f"{titel or objekt} von {vorher['kuerzel']} ({vorher['platz']}) übernommen",
                        objekt)
     return vorher if vorher and not vorher["ich"] else None
+
+
+def eigene(db):
+    """Objekte, die dieser Platz laut Server gerade reserviert hält."""
+    s = _s(db)
+    return {r[0] for r in db.con.execute(f"SELECT objekt FROM {SPERREN} WHERE kuerzel = ? AND platz = ?",
+                                         (s.kuerzel, s.platz))}
 
 
 def reservierungen(db, ohne_eigene=True):

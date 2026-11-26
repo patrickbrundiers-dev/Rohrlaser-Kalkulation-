@@ -449,12 +449,31 @@ def uhr_abweichung(db):
 def uhr_versatz(db):
     """Sekunden, um die der Abgleich die Zeitpunkte der eigenen Änderungen verschiebt, damit eine falsch gehende
     PC-Uhr keinen Konflikt falsch entscheidet: Mittel der letzten beiden Messungen, wenn sie übereinstimmen und die
-    Abweichung mindestens UHR_KORREKTUR_AB und höchstens UHR_HOECHSTENS ist; sonst 0."""
+    Abweichung mindestens UHR_KORREKTUR_AB und höchstens UHR_HOECHSTENS ist; sonst 0.
+    Serverbetrieb: Abstand zur Uhr des Servers (gemessen, höchstens einmal je Minute), damit Zeitstempel in den
+    gemeinsamen Daten bei allen Plätzen mit derselben Uhr verglichen werden."""
+    if server(db):
+        return _server_versatz(db)
     m = (db.einstellung(UHR) or {}).get("messungen") or []
     if len(m) < 2 or abs(m[-1] - m[-2]) > UHR_EINIG:
         return 0
     v = (m[-1] + m[-2]) / 2
     return round(v, 1) if UHR_KORREKTUR_AB <= abs(v) <= UHR_HOECHSTENS else 0
+
+
+def _server_versatz(db):
+    import time
+    merk = getattr(db, "_server_uhr", None)
+    if merk and time.monotonic() - merk[0] < 60:
+        return merk[1]
+    try:
+        vorher = time.time()
+        server_s = float(db.con.execute("SELECT extract(epoch FROM clock_timestamp())").fetchone()[0])
+        v = round(server_s - (vorher + time.time()) / 2, 1)
+    except (db_verbindung.DbFehler, TypeError, ValueError):
+        return merk[1] if merk else 0
+    db._server_uhr = (time.monotonic(), v)
+    return v
 
 
 def uhr_text(sekunden):
