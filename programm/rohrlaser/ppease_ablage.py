@@ -19,6 +19,15 @@ Bestätigung: gleiche Dateien (gleicher Inhalt) werden übersprungen, geänderte
 nach _Versionen) oder als NEUE_VERSION daneben (Name_V2.pdf). Keine Datenbankeinträge außer der Einstellung und der
 Nummer am Angebot (Zusatzdaten 'ppease', keine neue Spalte).
 
+Verschieben statt kopieren (Patrick 26.11.2026 „ich möchte keine doppelten Daten“, vorerst nur von Hand): mit
+verschieben=True werden die Kundendateien (Mail mit allen Anhängen, STEP, DXF, PDF …) und die Dokumente der
+Angebotsakte in den PPEASE-Angebotsordner verschoben. Jede Datei wird erst sicher kopiert und geprüft (Größe,
+SHA-256), erst danach wird das Original entfernt. Programminterne Dateien (JSON der Kalkulation und Akte, Zwischen-
+speicher, Messungen, Sperren, Protokolle, Zwischendateien) werden nie verschoben (intern()). ablage.json merkt sich
+unter „verschoben“ den alten Pfad jeder verschobenen Datei; wo() findet sie darüber wieder (Angebotsakte öffnen,
+STEP der Position, Dateien der Anfrage). Ein gesperrtes Original bleibt liegen und wird beim nächsten Mal entfernt
+(Inhalt gleich), ein abgebrochener Vorgang lässt höchstens eine Kopie zu viel zurück, nie eine fehlende Datei.
+
 Für später vorbereitet: Quelle (PPEASE-Schnittstelle: Kunde und Bezeichnung zur Nummer), ablegen() ohne Fenster
 (automatische Ablage bei Freigabe, Outlook-Zuordnung), suchen() (zentrale Suche). Ohne Qt."""
 import datetime
@@ -282,6 +291,23 @@ def ordner_status(v, nummer, kunde="", bezeichnung="", jahr=None):
 
 
 # ------------------------------------------------------------------ Dokumente
+# Programminterne Dateien und Ordner: werden nie verschoben (und standardmäßig nicht abgelegt), 26.11.2026
+INTERN_ENDUNGEN = {".json", ".jsonl", ".db", ".sqlite", ".tmp", ".neu", ".lock", ".sperre", ".marke", ".rlteil", TEIL,
+                   ".ini", ".lnk", ".bak", ".pyc", ".log"}
+INTERN_ORDNER = {"kalkulationsdaten", "_messung", "_protokoll", "_plattform", "_outlook", "_schluessel", "_journal",
+                 "__pycache__", "cache", "step-cache", "zwischenspeicher"}
+
+
+def intern(pfad):
+    """Vom Programm erzeugte Verwaltungs-, Cache- und Hilfsdatei? (JSON der Akte/Kalkulation, Zwischenspeicher,
+    Sperren, Protokolle, Zwischendateien, Office-Sperrdateien)"""
+    p = Path(pfad)
+    n = p.name.lower()
+    if n.startswith(("~$", ".")) or any(n.endswith(e) for e in INTERN_ENDUNGEN):
+        return True
+    return any(t.lower() in INTERN_ORDNER or t.lower().startswith("_arbeit_") for t in p.parts[:-1])
+
+
 @dataclass
 class Dokument:
     pfad: Path
@@ -289,10 +315,15 @@ class Dokument:
     kategorie: str = SONSTIGE           # Art (feste) oder Name einer eigenen Kategorie
     gewaehlt: bool = True
     name: str = ""                      # Name im Zielordner (Vorgabe: Dateiname)
+    intern: bool = None                 # Programmdatei: nie verschieben, Vorgabe nicht gewählt (26.11.2026)
 
     def __post_init__(self):
         self.pfad = Path(self.pfad)
         self.name = self.name or self.pfad.name
+        if self.intern is None:
+            self.intern = intern(self.pfad)
+        if self.intern:
+            self.gewaehlt = False
 
     @property
     def typ(self):
@@ -366,7 +397,7 @@ def dokumente_sammeln(angebotsordner=None, anfrage_dateien=(), hoechstens=2000):
             dateien = [p for p in w.rglob("*") if p.is_file() and not _ueberspringen(p, w)]
         except OSError:
             dateien = []
-        dateien.sort(key=lambda p: (0 if "Angebotsakte" in p.parts else 1, str(p.relative_to(w)).lower()))
+        dateien.sort(key=lambda p: (intern(p), 0 if "Angebotsakte" in p.parts else 1, str(p.relative_to(w)).lower()))
         for p in dateien[:hoechstens]:
             q = Q_AKTE if "Angebotsakte" in p.relative_to(w).parts else Q_ANGEBOT
             out.append(Dokument(p, q, kategorie(p, q)))
@@ -376,6 +407,7 @@ def dokumente_sammeln(angebotsordner=None, anfrage_dateien=(), hoechstens=2000):
         if p.is_file() and str(p.resolve()).lower() not in gesehen:
             out.append(Dokument(p, Q_ANFRAGE, kategorie(p, Q_ANFRAGE)))
             gesehen.add(str(p.resolve()).lower())
+    out.sort(key=lambda d: d.intern)            # Programmdateien (bleiben liegen) ganz unten, sonst Reihenfolge wie oben
     return out
 
 
@@ -693,6 +725,8 @@ class Bericht:
     fehler: list = field(default_factory=list)          # [(Name, Fehlertext)]
     abgebrochen: bool = False
     angelegt: bool = False
+    verschoben: list = field(default_factory=list)      # [(alter Pfad, neuer Pfad)] Original entfernt (26.11.2026)
+    nicht_entfernt: list = field(default_factory=list)  # [(Name, Grund)] Kopie geprüft, Original bleibt (gesperrt)
 
     @property
     def ok(self):
@@ -700,6 +734,10 @@ class Bericht:
 
     def text(self):
         t = [f"{len(self.gespeichert)} Datei(en) gespeichert"]
+        if self.verschoben:
+            t.append(f"{len(self.verschoben)} verschoben (Original entfernt)")
+        if self.nicht_entfernt:
+            t.append(f"{len(self.nicht_entfernt)} Original(e) noch nicht entfernt")
         if self.ersetzt:
             t.append(f"{len(self.ersetzt)} ersetzt (alte Fassung in {VERSIONEN})")
         if self.versionen:
@@ -711,9 +749,66 @@ class Bericht:
         return ", ".join(t) + "."
 
 
+def _gleicher_pfad(a, b):
+    try:
+        return os.path.normcase(str(Path(a).resolve())) == os.path.normcase(str(Path(b).resolve()))
+    except OSError:
+        return str(a).lower() == str(b).lower()
+
+
+def _liegt_in(pfad, ordner):
+    try:
+        return Path(pfad).resolve().is_relative_to(Path(ordner).resolve())
+    except (OSError, ValueError):
+        return False
+
+
+def _original_entfernen(b, verz, o, d, ziel, festhalten):
+    """Verschieben (26.11.2026): das Original erst löschen, wenn die Datei im Angebotsordner vollständig ist (Größe
+    und SHA-256 gleich) UND der alte Pfad in ablage.json steht (festhalten() schreibt das Verzeichnis; ohne diesen
+    Vermerk fände wo() die Datei nicht wieder). Gesperrt, nicht prüfbar oder Vermerk nicht schreibbar: Original
+    bleibt (b.nicht_entfernt), nie geht etwas verloren. Ergebnis: True = verschoben."""
+    if d.intern:
+        return False
+    ziel = Path(ziel)
+    if _gleicher_pfad(d.pfad, ziel):
+        return False                # nie die abgelegte Datei selbst löschen
+    try:
+        if not ziel.is_file():
+            raise OSError("die Datei fehlt im Angebotsordner")
+        if ziel.stat().st_size != d.pfad.stat().st_size or \
+                pruefsumme(ziel, merken=False) != pruefsumme(d.pfad, merken=False):
+            raise OSError("die Datei im Angebotsordner weicht vom Original ab")
+    except OSError as e:
+        b.nicht_entfernt.append((d.name, f"Original bleibt liegen ({getattr(e, 'strerror', None) or e}), wird "
+                                         "beim nächsten Mal entfernt"))
+        return False
+    karte = verz.setdefault("verschoben", {})
+    karte[str(d.pfad)] = ziel.relative_to(o).as_posix()
+    try:
+        festhalten()                # erst der Vermerk alter Pfad -> neuer Ort, dann das Original weg
+    except OSError as e:
+        karte.pop(str(d.pfad), None)
+        b.nicht_entfernt.append((d.name, f"Original bleibt liegen (Vermerk in {VERZEICHNIS} nicht gespeichert: "
+                                         f"{getattr(e, 'strerror', None) or e})"))
+        return False
+    try:
+        os.unlink(d.pfad)
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        # Vermerk darf bleiben: wo() liefert die noch vorhandene Originaldatei zuerst
+        b.nicht_entfernt.append((d.name, f"Original bleibt liegen ({getattr(e, 'strerror', None) or e}), wird "
+                                         "beim nächsten Mal entfernt"))
+        return False
+    b.verschoben.append((str(d.pfad), str(ziel)))
+    return True
+
+
 def ablegen(v, ordner, dokumente, kuerzel="ICH", aktionen=None, angebot="", nummer="", fortschritt=None,
-            anlegen=False):
-    """Gewählte Dokumente in den Angebotsordner kopieren. aktionen = {id(dok): ERSETZEN | NEUE_VERSION |
+            anlegen=False, verschieben=False):
+    """Gewählte Dokumente in den Angebotsordner kopieren; verschieben=True (Patrick 26.11.2026): danach das Original
+    entfernen (nur Kundendateien und Dokumente, nie programminterne Dateien, siehe _original_entfernen). aktionen = {id(dok): ERSETZEN | NEUE_VERSION |
     UEBERSPRINGEN} für geänderte Dateien (fehlt: UEBERSPRINGEN – nie ungefragt überschreiben). fortschritt(i, n,
     Name) -> False bricht ab. Der Angebotsordner muss vorhanden sein (legt PPEASE an, Patrick 19.11.); nur
     anlegen=True legt ihn an (für später/Tests). Unterordner der Kategorien entstehen bei Bedarf. Ein Netzwerkfehler bricht den Rest ab (schon kopierte bleiben vollständig).
@@ -735,14 +830,25 @@ def ablegen(v, ordner, dokumente, kuerzel="ICH", aktionen=None, angebot="", numm
                                              dateien=[d.name for d in gewaehlt]))
         status = vergleichen(v, o, gewaehlt)
         verz = verzeichnis(o)
+
+        def festhalten():
+            _verzeichnis_schreiben(o, dict(verz, nummer=nummer))
         for i, d in enumerate(gewaehlt):
             if fortschritt and fortschritt(i, len(gewaehlt), d.name) is False:
                 b.abgebrochen = True
                 break
+            if _liegt_in(d.pfad, o):        # liegt schon im PPEASE-Angebotsordner (z. B. verschobene Anfrage)
+                b.uebersprungen.append((d.name, "liegt schon im Angebotsordner"))
+                continue
             st, hinweis = status[id(d)]
             rel = ziel_relativ(v, d)
             ziel = o / rel
             if st in (GLEICH, SCHON):
+                if verschieben and _original_entfernen(b, verz, o, d, ziel if st == GLEICH else o / hinweis,
+                                                       festhalten):
+                    protokoll_schreiben(o, kuerzel, dict(aktion="verschoben", vorgang=vorgang, quelle=str(d.pfad),
+                                                         datei=rel if st == GLEICH else hinweis))
+                    continue
                 b.uebersprungen.append((d.name, "schon abgelegt" + (f" als {hinweis}" if st == SCHON else "")))
                 continue
             try:
@@ -776,7 +882,11 @@ def ablegen(v, ordner, dokumente, kuerzel="ICH", aktionen=None, angebot="", numm
                     gespeichert=datetime.datetime.now().isoformat(timespec="seconds"), von=kuerzel,
                     geaendert=datetime.datetime.fromtimestamp(d.pfad.stat().st_mtime).isoformat(timespec="seconds"),
                     angebot=angebot)
-                _verzeichnis_schreiben(o, dict(verz, nummer=nummer))
+                _verzeichnis_schreiben(o, dict(verz, nummer=nummer))       # erst Verzeichnis, dann Original weg
+                if verschieben:
+                    verz["dateien"][neu_rel]["verschoben"] = True
+                    if not _original_entfernen(b, verz, o, d, o / neu_rel, festhalten):
+                        verz["dateien"][neu_rel].pop("verschoben", None)
                 protokoll_schreiben(o, kuerzel, dict(aktion="gespeichert", vorgang=vorgang, datei=neu_rel,
                                                      version=neu_version, quelle=str(d.pfad),
                                                      art=st if st != GEAENDERT else aktionen.get(id(d)),
@@ -818,6 +928,40 @@ def gemerkt(db, angebot_id):
     except Exception:       # noqa: BLE001
         return {}
     return w if isinstance(w, dict) else {}
+
+
+def wo(db, angebot_id, pfad, ordner=None):
+    """Wo liegt eine Datei jetzt? Gibt es pfad noch, pfad selbst; sonst die Stelle im PPEASE-Angebotsordner, wenn sie
+    dorthin verschoben wurde (ablage.json „verschoben“, auch über den Dateinamen); sonst None."""
+    p = Path(pfad)
+    if p.exists():
+        return p
+    o = Path(ordner) if ordner else Path(gemerkt(db, angebot_id).get("ordner") or "") if angebot_id else None
+    if not o or not str(o) or str(o) == "." or not o.is_dir():
+        return None
+    verschoben = verzeichnis(o).get("verschoben") or {}
+    schluessel = {str(k).replace("\\", "/").lower(): r for k, r in verschoben.items()}
+    rel = schluessel.get(str(p).replace("\\", "/").lower())
+    if rel is None:         # Angebotsordner inzwischen woanders (gemeinsamer Ordner umgezogen): über den Namen
+        rel = next((r for k, r in verschoben.items() if Path(str(k).replace("\\", "/")).name.lower() == p.name.lower()),
+                   None)
+    if rel and (o / rel).exists():
+        return o / rel
+    return None
+
+
+def verschoben_paare(db, angebot_id, ordner=None):
+    """[(alter Pfad, neuer Pfad)] aller in den gemerkten PPEASE-Ordner verschobenen Dateien, deren neue Datei da
+    ist und deren Original fehlt. Dient dem Nachholen von Vermerken (z. B. in der Anfrage-Akte), die beim
+    Verschieben nicht gespeichert werden konnten."""
+    o = Path(ordner) if ordner else Path(gemerkt(db, angebot_id).get("ordner") or "") if angebot_id else None
+    if not o or not str(o) or str(o) == "." or not o.is_dir():
+        return []
+    out = []
+    for alt, rel in (verzeichnis(o).get("verschoben") or {}).items():
+        if (o / rel).is_file() and not Path(alt).exists():
+            out.append((alt, str(o / rel)))
+    return out
 
 
 # ------------------------------------------------------------------ Für später: Schnittstelle und Suche

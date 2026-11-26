@@ -29,6 +29,26 @@ NEUERUNGEN = [
                 "nicht nur an der Endung (STEP als .txt, ZIP als .step, IGES als .stp, Fertigungsauftrag ohne "
                 "Schneidweg), mit Hersteller und Softwareversion im Hinweis ([[trumpf_programm]]).",
      "Importengine 2.0: LST/BPF/ArTube genauer und schneller, Format am Inhalt"],
+    ["0.9.522", "<b>Windows-Updates und Neustarts</b>: Startet Windows für Updates neu, während das Programm offen ist, "
+                "schließt es jetzt Datenbank, PostgreSQL und Datensperre selbst sauber. Endete der letzte Lauf "
+                "trotzdem unerwartet (Stromausfall, Absturz), meldet das Programm das beim nächsten Start und legt "
+                "halb geschriebene Dateien nach <i>Sicherung\\Unvollstaendig</i> (nichts wird gelöscht); eine "
+                "halbe Sicherung verhindert die Tagessicherung nicht mehr. PostgreSQL startet auch mit einer "
+                "liegengebliebenen Sperrdatei, mit zurückgesetzten Ordnerrechten und mit einer nicht mehr lesbaren "
+                "Zugangsdatei (Datenordner von einem anderen PC, Windows neu aufgesetzt). Hat ein Grafiktreiber das "
+                "Programm beim 3D beendet, zeichnet 3D bis zur nächsten Version mit Software. Ein nach dem Neustart "
+                "noch getrenntes Netzlaufwerk (z. B. Z:) wird für den gemeinsamen Ordner über den Netzwerkpfad "
+                "erreicht. Das Paket bringt die Laufzeit für PostgreSQL selbst mit.",
+     "Windows-Updates und Neustarts: sauberes Beenden, Selbstheilung beim Start"],
+    ["0.9.519", "<b>Einfacher bedienen</b>: Der Rechtsklick auf Positionen ist aufgeräumt (oben die täglichen Aktionen, "
+                "Seltenes in den Untermenüs <i>Prüfen und anzeigen</i>, <i>Teil ändern</i>, <i>Kennzeichnen</i>, "
+                "<i>Satz und Baugruppe</i>, <i>Reihenfolge</i>; Löschen abgesetzt unten, ab drei Positionen bzw. bei "
+                "einem ganzen Satz mit Rückfrage). Die Einstellungen zeigen zuerst nur die "
+                "<i>Grundeinstellungen</i>; <i>Erweitert</i> und <i>Expertenbereich</i> über das Feld über der Suche "
+                "(je Arbeitsplatz gemerkt, die Suche findet immer alles, alle Werte gelten weiter). PPEASE-Ablage "
+                "<i>verschiebt</i> jetzt Mail, Anhänge, Kundendateien und Angebotsakte in den PPEASE-Angebotsordner "
+                "(keine doppelten Daten, Original erst nach geprüfter Kopie gelöscht, Programmdateien bleiben); das "
+                "Programm findet die Dateien über die PPEASE-Nummer wieder.", "Einfacher bedienen"],
     ["0.9.516", "<b>Supportpaket 26.11.</b>: Der Kundenimport stürzte im Prüfschritt ab, sobald ein neuer Kunde mit "
                 "Kundennummer in der Datei stand (Fehlermeldung „multiple values for keyword argument kundennr“); "
                 "behoben. <i>Fracht berechnen …</i> und <i>Packvorschlag</i> hingen bei sehr großen Angeboten "

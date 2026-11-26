@@ -142,6 +142,11 @@ def server(pfad, bin_ordner=None, unterordner=None):
             from . import protokoll
             protokoll.warnung(f"PostgreSQL in {ordner}: Rechte des Programmkontos nicht umgestellt")
     s.starten()
+    if s.reparaturen:           # Windows-Update-Sicherheit 26.11.2026: Selbstheilung beim Start ins Protokoll
+        from . import protokoll
+        for r in s.reparaturen:
+            protokoll.info(f"PostgreSQL in {ordner}: {r}")
+        s.reparaturen.clear()
     return s
 
 
