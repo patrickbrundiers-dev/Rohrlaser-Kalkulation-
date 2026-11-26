@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.527", "<b>Lizenz 2.0: Aktivierung mit Lizenzschlüssel</b>: Unter <i>Hilfe → Lizenz …</i> lässt sich das "
+                "Programm jetzt mit einem Lizenzschlüssel (<i>LZ-…</i>) aktivieren, ganz ohne Internet. Das Programm "
+                "erstellt eine Aktivierungsanfrage als Datei oder Code, Patricks Antwort kommt über <b>Aktivierung "
+                "einfügen …</b> oder <b>Lizenzdatei laden …</b> zurück. Lizenzen gibt es als Einzelplatz, Mehrplatz "
+                "und Server mit Zahl der Plätze. Jeder Rechner hat einen eigenen, mit Windows geschützten "
+                "Geräteschlüssel, deshalb läuft ein kopierter Lizenzordner auf einem anderen Rechner nicht. Eine neue "
+                "Festplatte oder Windows neu installiert schließt niemanden aus; <b>Platz freigeben …</b> meldet einen "
+                "Rechner vor einem PC-Wechsel ab. Bisherige Lizenzdateien gelten weiter ([[lizenz_aktivieren]]).",
+     "Lizenz 2.0: Aktivierung mit Lizenzschlüssel ohne Internet, Plätze freigeben"],
     ["0.9.522", "<b>Windows-Updates und Neustarts</b>: Startet Windows für Updates neu, während das Programm offen ist, "
                 "schließt es jetzt Datenbank, PostgreSQL und Datensperre selbst sauber. Endete der letzte Lauf "
                 "trotzdem unerwartet (Stromausfall, Absturz), meldet das Programm das beim nächsten Start und legt "

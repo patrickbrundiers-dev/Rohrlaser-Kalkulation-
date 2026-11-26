@@ -163,6 +163,7 @@ class Stelle(L.LizenzStelle):
         sperr = L.sperrliste_pruefen(self.ordner / L.SPERRLISTE, self.schluessel)
         aktiv = L.aktive_lizenz(o)
         z = ermitteln(aktiv, heute, self.rechner, self.schluessel, sperr, spaet, self.durchsetzung)
+        z = self._aktivierung(z, heute, sperr, spaet)
         z = self._hauptadmin_zustand(z)              # Hauptadmin (Passwort beim Start): gilt hier genauso
         if z.stufe == "admin" and not z.hauptadmin:                       # hier ohne Admin-Passwort: wie eine Benutzerlizenz, unbefristet
             z.admin_aus = False
@@ -171,6 +172,20 @@ class Stelle(L.LizenzStelle):
         if not L.uhr_zurueck(heute, spaet) and self.ordner.parent.is_dir():
             L.zeit_merken(self.ordner, heute, spaet)
         self.zustand = z
+        return z
+
+    def _aktivierung(self, z, heute, sperr, spaet):
+        """Lizenz 2.0: eine gültige Aktivierung (eigene oder die der Kalkulation auf diesem Rechner) gilt auch hier.
+        Ist sie ungültig, bleibt es beim Ergebnis der Lizenzdatei."""
+        from rohrlaser import aktivierung
+        for o in (self.ordner, Path(self.kalkulation) if self.kalkulation else None):
+            if o is not None and aktivierung.vorhanden(o):
+                z2 = L._zustand_mit_aktivierung(o, None, heute, self.rechner, self.schluessel, sperr, spaet,
+                                                self.durchsetzung, "")
+                if z2.stufe != "lesemodus" or z.stufe == "lesemodus" and not z.inhalt:
+                    if z2.stufe != "lesemodus":
+                        self.quelle = "eigene" if o == self.ordner else "kalkulation"
+                    return z2
         return z
 
     def admin_passwort(self, z=None):

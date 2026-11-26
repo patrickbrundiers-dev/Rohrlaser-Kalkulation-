@@ -17201,6 +17201,36 @@ def kapitel_lizenz(i):
             "Die Lizenz liegt im Datenordner im Unterordner <i>Lizenz</i>, nicht in der Datendatei. Sicherung, "
             "Wiederherstellen und Daten exportieren nehmen sie deshalb nicht mit auf einen anderen Rechner.",
             "<i>Hilfe → Über …</i> zeigt die Lizenz und die Rechner-ID ebenfalls.")
+    i.abschnitt("Mit Lizenzschlüssel aktivieren (Lizenz 2.0)", marke="lizenz_aktivieren")
+    i.text("Neue Lizenzen gibt Patrick als <b>Lizenzschlüssel</b> aus, zum Beispiel <i>LZ-7H3MQ-9X2KD-…</i>. Er gehört "
+           "zu einem Lizenzzertifikat mit Lizenzart (<b>Einzelplatz</b>, <b>Mehrplatz</b> oder <b>Server</b>), Zahl "
+           "der Plätze, Laufzeit und Modulen. Die Aktivierung läuft ganz ohne Internet:")
+    i.liste("<i>Hilfe → Lizenz …</i>, <b>Mit Lizenzschlüssel aktivieren …</b>, Schlüssel eingeben. Ein Tippfehler "
+            "fällt sofort auf (Prüfzeichen).",
+            "Das Programm speichert eine <b>Aktivierungsanfrage</b> als Datei und legt sie als Code in die "
+            "Zwischenablage. Datei oder Code per E-Mail an Patrick senden.",
+            "Patrick schickt eine <b>Aktivierung</b> zurück: als Datei (über <b>Lizenzdatei laden …</b> oder auf das "
+            "Fenster ziehen) oder als Code <i>AKTIVIERUNG-…</i> (über <b>Aktivierung einfügen …</b>).",
+            nummeriert=True, kurz=True)
+    i.genauer()
+    i.liste("Bei der Anfrage legt das Programm einen eigenen <b>Geräteschlüssel</b> an. Er ist mit Windows für diesen "
+            "Rechner verschlüsselt und verlässt ihn nie. Die Aktivierung gilt nur zusammen mit diesem Schlüssel: ein "
+            "kopierter Lizenzordner läuft auf einem anderen Rechner nicht.",
+            "Die Aktivierung prüft drei Merkmale des Rechners (Windows-Kennung, Systemplatte, Hauptplatine). Zwei "
+            "von drei genügen; eine neue Festplatte oder ein Windows-Update stören also nicht.",
+            "<b>Windows neu installiert</b>: einfach neu aktivieren. Erkennt Patricks Werkzeug denselben Rechner, wird "
+            "der alte Platz automatisch frei. Jede Lizenz hat außerdem eine Reserve-Aktivierung für einen "
+            "Hardwaretausch.",
+            "<b>Platz freigeben …</b> (vor einem PC-Wechsel): Das Programm meldet diesen Rechner ab und erzeugt einen "
+            "<b>Freigabebeleg</b> (Datei und Code). Sobald Patrick ihn hat, ist der Platz für einen anderen Rechner "
+            "frei.",
+            "Läuft die Laufzeit ab, gilt wie bisher erst die Kulanzzeit, danach der Lesemodus. Die Daten bleiben "
+            "immer erhalten. Eine neue Anfrage (zum Beispiel zur Verlängerung) lässt die laufende Aktivierung bis zur "
+            "Antwort gültig.",
+            "Bisherige Lizenzdateien (<i>.lizenz</i> mit Rechner-ID) gelten unverändert weiter. Ist eine "
+            "Aktivierung ungültig, aber eine alte Lizenzdatei gültig, gilt die alte.",
+            "Ein deaktivierter Platz oder eine gesperrte Lizenz kommt wie bisher mit der Sperrliste beim Update-Check.",
+            "Die Rohrlaser Auslastung nutzt eine Aktivierung der Kalkulation auf demselben Rechner mit.")
     i.abschnitt("Hauptadmin-Lizenz (ohne Rechner-ID)", marke="hauptadmin")
     i.text("Die <b>Hauptadmin-Lizenz</b> ist Patricks persönliche Lizenz. Sie ist an keinen Rechner gebunden, gilt "
            "auf beliebig vielen eigenen Rechnern und ist unbefristet, bis sie im Lizenz-Werkzeug gesperrt wird. "
