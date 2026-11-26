@@ -2193,10 +2193,10 @@ def kapitel_angebot(i):
         (1, "<b>Angebotskopf</b> (aufgeklappt): Angebotsnummer, Kunde und Maschine fett in der ersten Zeile, "
             "darunter Datum, Kundenname und Standard-Stangenlänge; dann paarweise Anfrage und Bemerkung, Lieferzeit "
             "und Material neuer Positionen, darunter der Bearbeiter. Ganz unten die aufklappbaren Maschinenparameter."),
-        (2, "<b>Übersicht</b> rechts über die ganze Höhe: Stand der Optimierung, Herstellkosten und Verkaufspreis "
-            "groß, Meldungen, Kennzahlen, Preisaufbau und Zeiten. <b>»</b> im Titel blendet sie aus: rechts bleibt "
-            "ein schmaler Streifen mit Farbpunkt (grün = optimiert, gelb = noch nicht optimiert, rot = veraltet) und "
-            "Verkaufspreis; <b>«</b> oder ein Klick auf den Streifen blendet sie wieder ein ([[mehr_platz]])."),
+        (2, "<b>Übersicht</b> rechts über die ganze Höhe (ab Werk aus, Knopf <b>Übersicht</b> im Kopfband): Stand "
+            "der Optimierung, Herstellkosten und Verkaufspreis groß, Meldungen, Kennzahlen, Preisaufbau und Zeiten. "
+            "<b>»</b> im Titel oder der Knopf <b>Übersicht</b> blendet sie wieder aus; Verkaufspreis und Stand "
+            "stehen dann im Kopfband ([[mehr_platz]])."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status direkt nach der Positionsnummer. "
             "Der Status hat zusätzlich zur Farbe ein Symbol: grüner Haken = OK, blaues i = Hinweis, gelbes Dreieck = "
             "Warnung oder veraltet, rotes Kreuz = Fehler. Eingabefelder sind hell gelb, berechnete Werte grau."),
@@ -2219,7 +2219,21 @@ def kapitel_angebot(i):
     i.text("Die Knöpfe stehen in drei Gruppen: <i>Erfassen</i> (Neue Position, Ablagefeld für STEP und DXF), "
            "<i>Rechnen</i> (<b>Optimieren</b> dunkelblau, Zusatzarbeiten, Zukaufteile, Material, 3D-Ansicht) und rechts "
            "<i>Ausgeben</i> (<b>Angebot (PDF)</b> dunkelblau, alles Weitere im Menü <b>Ausgaben</b>, [[ausgabe]]). "
-           "Die Übersicht rechts bleibt in jedem Reiter sichtbar.", kurz=True)
+           "Ist die Übersicht rechts eingeschaltet, bleibt sie in jedem Reiter sichtbar.", kurz=True)
+    i.text("<b>Kopfband</b> (neues Designsystem, Schritt 3): Ganz oben im Angebot steht eine Zeile mit allem, was man "
+           "beim Bearbeiten sehen will. Links die Angebotsnummer, der Vorgang (Entwurf, Verschickt, Beauftragt …) und "
+           "der Stand der Optimierung als farbiges Kennzeichen (grün <i>Optimiert</i>, gelb <i>Nicht optimiert</i>, rot "
+           "<i>Veraltet</i>), darunter Kunde, Kundennummer, Maschine und Gültigkeit. Rechts der Verkaufspreis groß, die "
+           "Marge mit der Ampel der Preisleiter (grün gut, gelb knapp, rot kritisch, [[preisleiter]]) und der "
+           "Deckungsbeitrag, daneben <b>Angebot (PDF)</b> und der Knopf <b>Übersicht</b>. Das Band rechnet nichts "
+           "selbst: es zeigt dieselben Zahlen wie die Übersicht. Die rechte Übersicht ist ab Werk aus, damit die "
+           "Positionsliste fast die ganze Breite hat; der Knopf <b>Übersicht</b> holt sie zurück, die Wahl gilt für "
+           "alle Angebote.")
+    i.text("Im Reiter <b>Kalkulation</b> stehen über der Tabelle sechs Kennzahlen: <i>Material</i>, <i>Laser und "
+           "Rüsten</i>, <i>Herstellkosten</i>, <i>Selbstkosten</i>, <i>Gewinn</i> und <i>Verkaufspreis netto</i> (mit "
+           "Anteil am Verkaufspreis bzw. der Marge). Darunter zeigt der Balken <b>Woraus sich der Preis "
+           "zusammensetzt</b> die Kostengruppen in ihrer Größe, mit Legende und Beträgen. Alle Beträge kommen "
+           "unverändert aus dem Preisaufbau.")
     i.genauer("Karten auf- und zuklappen, Spaltenbreiten")
     i.text("Links oben stehen die Karten <b>Angebotskopf</b>, <b>Kalkulation dieses Angebots</b> und <b>Fracht</b>. "
            "Der Angebotskopf ist bei einem neuen Angebot aufgeklappt; sobald Kunde und Positionen eingetragen sind, "
@@ -2317,10 +2331,9 @@ def kapitel_angebot(i):
             "<b>Eine Knopfleiste</b>: das Ablagefeld heißt nur noch <b>STEP / DXF</b> (Ziehen oder Klicken wie "
             "bisher), die Knöpfe sind etwas schmaler; der Knopf <i>Übersicht</i> ist aus der Leiste in die Übersicht "
             "gewandert.",
-            "<b>Übersicht einklappen</b>: <b>»</b> im Titel der Übersicht blendet sie aus. Rechts bleibt ein 30 Punkte "
-            "schmaler Streifen mit Farbpunkt (grün = optimiert, gelb = noch nicht optimiert, rot = veraltet) und "
-            "senkrecht „Übersicht · VK …“. <b>«</b> oder ein Klick auf den Streifen holt die Übersicht zurück. Die "
-            "Wahl gilt für alle Angebote und bleibt nach dem Neustart.",
+            "<b>Übersicht ein- und ausblenden</b>: Die Übersicht rechts ist ab Werk aus. Der Knopf <b>Übersicht</b> "
+            "im Kopfband blendet sie ein, <b>»</b> im Titel der Übersicht oder derselbe Knopf wieder aus. Verkaufspreis, "
+            "Marge und Stand stehen immer im Kopfband. Die Wahl gilt für alle Angebote und bleibt nach dem Neustart.",
             "<b>Spalten-Ansichten</b> über der Liste ([[spalten_ansichten]]) zeigen nur die Spalten für den "
             "jeweiligen Arbeitsschritt.",
             "<b>Nichts doppelt</b>: Meldungen stehen nur in der Einblendung (und unter <i>Meldungen</i>), nicht "
@@ -2803,9 +2816,9 @@ def kapitel_angebot(i):
             "Der Zeilenkopf links zeigt nur noch die Klammer (▾ ▸ │ └), keine zweite Nummer neben <i>Pos.</i>; er "
             "bleibt der Griff zum Verschieben ([[reihenfolge]]). Die Spalte <i>Stück je Satz</i> erscheint nur, wenn "
             "das Angebot Sätze hat.",
-            "<b>»</b> im Titel der Übersicht blendet sie rechts aus, <b>«</b> im schmalen Streifen (oder ein Klick "
-            "auf den Streifen) wieder ein; ausgeblendet hat die Liste fast die ganze Breite und der Streifen zeigt "
-            "Verkaufspreis und Stand. Die Wahl merkt sich das Programm ([[mehr_platz]]).",
+            "<b>»</b> im Titel der Übersicht blendet sie rechts aus, der Knopf <b>Übersicht</b> im Kopfband wieder "
+            "ein; ausgeblendet hat die Liste fast die ganze Breite, Verkaufspreis und Stand zeigt das Kopfband. Die "
+            "Wahl merkt sich das Programm ([[mehr_platz]]).",
             "Das Angebots-PDF zeigt einen Satz wie bisher als eine Position mit seinen Teilen darunter.")
     i.abschnitt("Anzahl Sätze und Stück je Satz ändern", marke="satz_bearbeiten")
     i.text("<b>Doppelklick</b> auf die Spalte Satz oder <i>Rechtsklick → Satz bearbeiten (Anzahl Sätze) …</i>: oben "
@@ -3664,13 +3677,20 @@ def kapitel_angebot(i):
             "Fehler, bei denen Daten verloren gehen könnten, und echte Entscheidungen bleiben Fenster.")
     i.abschnitt("Das Programm merkt sich Fenster und Auswahl", marke="fenster_merken")
     i.text("Jedes Fenster öffnet in der Größe und an der Stelle, wo man es zuletzt geschlossen hat, Teiler "
-           "eingeschlossen. Angebote, die beim Beenden offen waren, sind beim nächsten Start wieder offen, mit dem "
-           "zuletzt gewählten Unterreiter.", kurz=True)
+           "eingeschlossen, und wieder maximiert, wenn es maximiert geschlossen wurde. Angebote, die beim Beenden "
+           "offen waren, sind beim nächsten Start wieder offen, mit dem zuletzt gewählten Unterreiter.", kurz=True)
+    i.text("<b>Fenster mit Inhalt öffnen maximiert</b>: Ein Fenster mit Tabellen, Listen, Reitern, Texten oder "
+           "Zeichnungen öffnet beim ersten Mal maximiert und nutzt den ganzen Bildschirm. Kurze Rückfragen, Eingaben "
+           "und Meldungen bleiben klein. Jedes Fenster hat oben rechts Minimieren, Maximieren bzw. Wiederherstellen "
+           "und Schließen und lässt sich am Rand größer und kleiner ziehen und verschieben (außer Fenstern mit fester "
+           "Größe). Was man selbst einstellt, merkt sich das Programm <b>je Benutzer und Arbeitsplatz</b>. Unter "
+           "<i>Ansicht</i> schaltet <b>Fenster mit Inhalt maximiert öffnen</b> die Vorgabe ab, <b>Fenstergrößen "
+           "zurücksetzen</b> vergisst alle gemerkten Größen des angemeldeten Benutzers.")
     i.liste("Auswahllisten für Profil, Werkstoff und Oberfläche zeigen oben unter <i>Zuletzt benutzt</i> die "
             "Werte der letzten Positionen, darunter die ganze Liste. Tippen findet auch Teilwörter, z. B. "
             "<i>4301</i> oder <i>40x3</i>.",
             "Gemerkt wird in der eigenen Datendatei, nicht im gemeinsamen Ordner; jeder Arbeitsplatz hat seine "
-            "eigenen Fenstergrößen. Lag ein Fenster auf einem Bildschirm, den es nicht mehr gibt, öffnet es in der "
+            "eigenen Fenstergrößen, und jeder Benutzer dort seine eigenen. Lag ein Fenster auf einem Bildschirm, den es nicht mehr gibt, öffnet es in der "
             "Mitte. Die Teile-Editoren öffnen weiter maximiert.",
             "Jedes Fenster passt auf den Bildschirm: Ist es (oder die gemerkte Größe vom großen Monitor) größer als "
             "der freie Platz, z. B. am Laptop mit 1366 Punkten Breite, wird es beim Öffnen gekürzt und ganz auf den "

@@ -3603,7 +3603,8 @@ class Hauptfenster(QMainWindow):
             self.admin_uhr.start()
             from .fenster_merken import FensterMerker     # Größe, Lage, Teiler der Dialoge (Plan Bedienung B4)
             self.fenster_merker = FensterMerker(db, self)
-            ereignis_verteiler.anmelden(self.fenster_merker, (QEvent.Show, QEvent.Hide, QEvent.Close))
+            from .fenster_merken import ARTEN as FENSTER_ARTEN     # zentrale Fensterverwaltung (26.11.2026)
+            ereignis_verteiler.anmelden(self.fenster_merker, FENSTER_ARTEN)
 
     def starten(self):
         """Programmstart: Fenster maximiert (mit Taskleiste) und gleich im Reiter Angebote; danach Benutzer (beim
@@ -4016,6 +4017,8 @@ class Hauptfenster(QMainWindow):
         from . import hauptadmin_menue      # Menü Hauptadmin (nur nach der Hauptadmin-Anmeldung sichtbar)
         hauptadmin_menue.einrichten(self)
         from . import kopfleiste            # Knopf „Menü“ statt aller Menüs nebeneinander (UI Next Level Phase 2)
+        from . import fenster_merken                  # Ansicht: Fenster mit Inhalt maximiert, Größen zurücksetzen
+        fenster_merken.menue_eintraege(self, ansicht)
         kopfleiste.einrichten(self)
 
     def update_center_zeigen(self):

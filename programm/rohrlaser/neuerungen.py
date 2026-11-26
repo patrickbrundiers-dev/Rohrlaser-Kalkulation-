@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.540", "<b>Neues Designsystem, Schritt 3</b> (Angebot): Oben im Angebot steht ein Kopfband mit Nummer, Vorgang, "
+                "Stand, Kunde, Verkaufspreis, Marge mit Ampel und Deckungsbeitrag, dazu <i>Angebot (PDF)</i> und der "
+                "Knopf <i>Übersicht</i>. Die Übersicht rechts ist ab Werk aus und lässt sich damit zurückholen. Im "
+                "Reiter Kalkulation zeigen sechs Kennzahlen und ein Balken, woraus sich der Preis zusammensetzt. "
+                "<b>Fenster:</b> Fenster mit Inhalt öffnen maximiert, kurze Rückfragen bleiben klein; jedes Fenster "
+                "hat Minimieren, Maximieren und Schließen und merkt sich Größe, Lage und „maximiert“ je Benutzer und "
+                "Arbeitsplatz (Ansicht → <i>Fenster mit Inhalt maximiert öffnen</i>, <i>Fenstergrößen "
+                "zurücksetzen</i>, [[fenster_merken]]).",
+     "Neues Designsystem, Schritt 3: Kopfband im Angebot; Fenster mit Inhalt maximiert"],
     ["0.9.536", "<b>Neues Designsystem, Schritt 2</b> (Hauptfenster): Oben links steht statt fünf Menüs ein Knopf "
                 "<i>☰ Menü</i> mit allen Menüs, das lange Menü Datei nach Themen geteilt (Datei, Daten und Abgleich, "
                 "Auswertung und Prüfung, KI). Tastenkürzel und Alt+Buchstabe gelten weiter; die alte Leiste gibt es "

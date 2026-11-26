@@ -18,7 +18,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from PySide6.QtCore import QPoint, Qt  # noqa: E402
+from PySide6.QtCore import QPoint  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -58,6 +58,8 @@ angebot_fenster.AngebotSeite.CHECK_SOFORT = False
 stil.anwenden(app, "hell")
 db = Datenbank(Path(tempfile.mkdtemp()) / "x.db")
 a = anlegen(db, 50)
+# rechte Übersicht ist seit UI Next Level Phase 3 ab Werk aus (F4); hier geprüft wird das Layout mit offener Übersicht
+db.einstellung_setzen("ansicht_uebersicht", True)
 f = Hauptfenster(db, stumm=True)
 f.resize(1366, 728)
 f.show()
@@ -103,35 +105,35 @@ assert any(a.text() == "Arbeitsgänge vorschlagen …" for a in s.weitere.menu()
 ok("B4 Arbeitsgänge vorschlagen nur noch im Menü Ausgaben, nicht im Rechtsklick")
 
 # ------------------------------------------------------------------ B2 Übersicht ausblenden
+# seit UI Next Level Phase 3 zeigt das Kopfband oben Verkaufspreis und Stand; der schmale Streifen rechts entfällt
 breit = v.width()
 assert s.uebersicht_rahmen.isVisible() and not s.uebersicht_streifen.isVisible()
+assert s.kopfband.uebersicht.isChecked()
 s.uebersicht_bereich.ausblenden_knopf.click()
 QTest.qWait(100)
-assert not s.uebersicht_rahmen.isVisible() and s.uebersicht_streifen.isVisible()
-assert s.uebersicht_streifen.width() <= 40 and v.width() > breit + 250, (s.uebersicht_streifen.width(), breit, v.width())
+assert not s.uebersicht_rahmen.isVisible() and not s.uebersicht_streifen.isVisible()
+assert not s.kopfband.uebersicht.isChecked()
+assert v.width() > breit + 250, (breit, v.width())
 assert not s.leiste.zweizeilig, (s.leiste.width(), s.leiste._bedarf())         # eingeklappt: immer eine Zeile
 vk = s.uebersicht_bereich.preis["verkauf"].text()
-assert vk.endswith("€") and vk in s.uebersicht_streifen.text(), (vk, s.uebersicht_streifen.text())
-assert s.uebersicht_streifen.farbe() == stil.GRUEN, s.uebersicht_streifen.farbe()       # optimiert: grün
+assert vk.endswith("€") and vk == s.kopfband.vk.text(), (vk, s.kopfband.vk.text())
 assert db.einstellung(angebot_fenster.UEBERSICHT_EINSTELLUNG) is False
-s.uebersicht_streifen.grab()            # Zeichnen (senkrechter Text) ohne Fehler
-ok(f"B2 Übersicht aus: Streifen {s.uebersicht_streifen.width()} px mit „{s.uebersicht_streifen.text()}“, "
-   f"Liste {breit} → {v.width()} px, gemerkt")
+ok(f"B2 Übersicht aus: Kopfband zeigt „{s.kopfband.vk.text()}“, Liste {breit} → {v.width()} px, gemerkt")
 s.uebersicht_bereich.stand_setzen("veraltet")
-assert s.uebersicht_streifen.farbe() == stil.ROT
 assert not s.stand.isHidden()
 s.weitere.menu().aboutToShow.emit()
 assert s.check_aktion.isVisible()
-ok("B2 Streifen zeigt veralteten Stand rot; Stand-Kasten wieder da; Angebots-Check im Menü Ausgaben")
-QTest.mouseClick(s.uebersicht_streifen, Qt.LeftButton, pos=QPoint(15, 200))
+ok("B2 veralteter Stand: Stand-Kasten wieder da; Angebots-Check im Menü Ausgaben")
+s.kopfband.uebersicht.click()
 QTest.qWait(50)
 assert s.uebersicht_rahmen.isVisible() and not s.uebersicht_streifen.isVisible() and s.uebersicht_knopf.isChecked()
 assert db.einstellung(angebot_fenster.UEBERSICHT_EINSTELLUNG) is True
-ok("B2 Klick auf den Streifen blendet die Übersicht wieder ein")
+ok("B2 Knopf Übersicht im Kopfband blendet die Übersicht wieder ein")
 s.uebersicht_bereich.ausblenden_knopf.click()
 s2 = f.angebot_oeffnen(anlegen(db, 5))
 QTest.qWait(100)
-assert not s2.uebersicht_rahmen.isVisible() and s2.uebersicht_streifen.isVisible()
+assert not s2.uebersicht_rahmen.isVisible() and not s2.uebersicht_streifen.isVisible()
+assert not s2.kopfband.uebersicht.isChecked()
 ok("B2 nächstes Angebot öffnet mit ausgeblendeter Übersicht (gemerkt)")
 
 # ------------------------------------------------------------------ B3 Spalten-Ansichten
