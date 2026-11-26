@@ -33,7 +33,7 @@ TASTE = "Ctrl+Alt+M"        # Moduswechsel (Strg+Umschalt+M ist die Materialanfr
 
 # Farben nur aus der Hell-Palette mit Dunkel-Entsprechung (stil.UMSETZUNG): setStyleSheet setzt sie um
 STIL = """
-QWidget#einfach { background: #F5F7FA; }
+QWidget#einfach { background: #F2F4F7; }
 QFrame#e_kopf, QFrame#e_fuss { background: #FFFFFF; border: none; }
 QFrame#e_kopf { border-bottom: 1px solid #D5DBE3; }
 QFrame#e_fuss { border-top: 1px solid #D5DBE3; }
@@ -44,6 +44,7 @@ QPushButton#e_schritt { border: 1px solid transparent; border-radius: 15px; padd
                         background: transparent; font-weight: 600; }
 QPushButton#e_schritt:hover { background: #EEF4FB; }
 QPushButton#e_schritt:checked { background: #1F4E78; color: #FFFFFF; }
+QPushButton#e_schritt[erledigt="true"] { background: #EAF1F8; color: #1F4E78; }
 QPushButton#e_schritt:disabled { color: #9AA3AF; }
 QFrame#e_karte { background: #FFFFFF; border: 1px solid #E3E7EC; border-radius: 10px; }
 QFrame#e_karte_akzent { background: #DDEBF7; border: 1px solid #C9DAEE; border-radius: 10px; }
@@ -443,12 +444,23 @@ class EinfachBereich(QWidget):
         for n, b in enumerate(self.schritt_knoepfe):
             b.setChecked(n == i)
             b.setEnabled(n == bm.START or self.seite is not None)
+            self._schritt_kennzeichnen(b, n, erledigt=n < i and b.isEnabled())
         self.stapel.setCurrentIndex(i)
         if i in (bm.BEARBEITUNG, bm.ERGEBNIS, bm.ANGEBOT):
             self.automatisch_rechnen()
         self.aktualisieren(nur_seite=True)
         self._hilfe_setzen()
         return i
+
+    @staticmethod
+    def _schritt_kennzeichnen(b, n, erledigt):
+        """Schritte vor dem aktuellen als erledigt zeigen (✓ und helles Blau, Designsystem „Klar“ Phase 5)."""
+        titel = bm.SCHRITTE[n][1]
+        b.setText(f"✓  {titel}" if erledigt else f"{n + 1}  {titel}")
+        if b.property("erledigt") != erledigt:
+            b.setProperty("erledigt", erledigt)
+            b.style().unpolish(b)
+            b.style().polish(b)
 
     def _seite_weg(self):
         """Die bearbeitete Angebotsseite wurde (im Expertenmodus) geschlossen: zurück zum Start."""

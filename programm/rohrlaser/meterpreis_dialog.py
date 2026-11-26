@@ -15,9 +15,10 @@ import datetime
 from PySide6.QtCore import QPointF, QSize, Qt
 from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame,
-                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
+                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QPushButton, QSplitter, QTableWidget, QTableWidgetItem,
+                               QVBoxLayout)
 
-from . import erp_preise, hilfe, naht, querschnitt, rechnen, stil, wand_dialog
+from . import bausteine, design, erp_preise, hilfe, naht, querschnitt, rechnen, stil, wand_dialog
 from .stammdaten import (EIGENMATERIAL, KUNDENMATERIAL, MATERIAL_HERKUNFT, ROH, ROHR_FORMEN, ROHRARTEN, zahl_als_text,
                          zahl_aus_text)
 
@@ -120,13 +121,18 @@ class MeterpreisDialog(QDialog):
         self.resize(1500, 360 + 52 * min(len(gruppen), 8))
         lay = QVBoxLayout(self)
         # Kopf wie die Materialdatenbank (Patrick 23.11.2026): Titel, Kennzahlen als Kacheln, Aktionen
+        # UI Next Level Phase 4: Kopf wie die übrigen Seiten (Angebot und Kunde klein darüber, Titel groß)
         kopfzeile = QHBoxLayout()
+        kopf_links = QVBoxLayout()
+        kopf_links.setSpacing(0)
+        self.kontext = QLabel(" · ".join(x for x in (kopf.get("nummer"), kopf.get("kunde")) if x))
+        self.kontext.setObjectName("nebentext")
+        self.kontext.setVisible(bool(self.kontext.text()))
         titel = QLabel("Material je Abmessung")
-        tf = titel.font()
-        tf.setPointSizeF(tf.pointSizeF() * 1.4)
-        tf.setBold(True)
-        titel.setFont(tf)
-        kopfzeile.addWidget(titel)
+        titel.setObjectName("seitentitel")
+        kopf_links.addWidget(self.kontext)
+        kopf_links.addWidget(titel)
+        kopfzeile.addLayout(kopf_links)
         kopfzeile.addStretch(1)
         self.aktionen = {}
         if seite is not None:
@@ -152,36 +158,25 @@ class MeterpreisDialog(QDialog):
             self.aktionen["Materialdatenbank"] = db_knopf
             kopfzeile.addWidget(db_knopf)
         lay.addLayout(kopfzeile)
-        self.kacheln = {}
-        kz = QHBoxLayout()
+        # Kennzahlen als schmale Leiste statt großer Kacheln (Phase 4), rechts ein Chip „alle mit Preis“
         geplant = [g for g in gruppen if g["stangen"]]
-        for key, text, wert in (
-                ("abmessungen", "Abmessungen", str(len(gruppen))),
-                ("stangen", "Stangen", _z(sum(g["stangen"] for g in geplant), 0) if geplant else "–"),
-                ("meter", "Meter Einkauf", _z(sum(g["meter"] for g in geplant), 1) if geplant else "–"),
-                ("kg", "Gewicht [kg]", _z(sum(g["kg"] for g in geplant), 1) if geplant else "–"),
-                ("kosten", "Material [€]", _z(sum(g["kosten"] for g in geplant)) if geplant else "–"),
-                ("kunde", "davon Kundenmaterial", str(sum(1 for g in gruppen if g["kunde"]))),
-                ("ohne_preis", "ohne Preis", str(sum(1 for g in gruppen if g["berechnet"] is None
-                                                     and g["manuell"] is None and not g["kunde"])))):
-            fr = QFrame()
-            fr.setObjectName("karte")
-            fl = QVBoxLayout(fr)
-            fl.setContentsMargins(12, 8, 12, 8)
-            w = QLabel(wert)
-            wf = w.font()
-            wf.setPointSizeF(wf.pointSizeF() * 1.5)
-            wf.setBold(True)
-            w.setFont(wf)
-            if key == "ohne_preis" and wert != "0":
-                w.setStyleSheet("color: #B42318;")
-            t = QLabel(text)
-            t.setStyleSheet(f"color: {GRAU};")
-            fl.addWidget(w)
-            fl.addWidget(t)
-            self.kacheln[key] = w
-            kz.addWidget(fr, 1)
-        lay.addLayout(kz)
+        ohne_preis = sum(1 for g in gruppen if g["berechnet"] is None and g["manuell"] is None and not g["kunde"])
+        kunde = sum(1 for g in gruppen if g["kunde"])
+        self.preis_chip = bausteine.chip("Alle Abmessungen mit Preis" if not ohne_preis else
+                                         f"{ohne_preis} Abmessung{'en' if ohne_preis != 1 else ''} ohne Preis",
+                                         "ok" if not ohne_preis else "fehler")
+        leiste = bausteine.kennzahlleiste((
+            ("abmessungen", "Abmessungen", str(len(gruppen))),
+            ("stangen", "Stangen", _z(sum(g["stangen"] for g in geplant), 0) if geplant else "–"),
+            ("meter", "Meter Einkauf", _z(sum(g["meter"] for g in geplant), 1) + " m" if geplant else "–"),
+            ("kg", "Gewicht", _z(sum(g["kg"] for g in geplant), 1) + " kg" if geplant else "–"),
+            ("kosten", "Material", _z(sum(g["kosten"] for g in geplant)) + " €" if geplant else "–"),
+            ("kunde", "Kundenmaterial", str(kunde) if kunde else "–"),
+            ("ohne_preis", "Ohne Preis", str(ohne_preis) if ohne_preis else "–")), rechts=(self.preis_chip,))
+        self.kacheln = leiste.werte
+        if ohne_preis:
+            self.kacheln["ohne_preis"].setStyleSheet(f"color: {stil.umsetzen(stil.ROT)};")
+        lay.addWidget(leiste)
         lay.addWidget(hilfe.Hinweis(
             "Alles zum Material dieses Angebots je Abmessung: Werkstoff, Oberfläche, Lieferlänge, Eigen- oder Kundenmaterial und "
             "Meterpreis gelten für alle Positionen der Abmessung und gehen nach 'Übernehmen' in die Kalkulation ein. "
@@ -311,9 +306,24 @@ class MeterpreisDialog(QDialog):
             self.tabelle.customContextMenuRequested.connect(
                 lambda punkt: self.kontextmenue(self.tabelle.indexAt(punkt).row(),
                                                 self.tabelle.viewport().mapToGlobal(punkt)))
-        lay.addWidget(self.tabelle, 1)
+        from .material_detail import AbmessungDetail
+        aktionen = {}
+        if seite is not None:
+            aktionen = {"Abmessung mit Schnittplan …": lambda r: self.abmessung(r),
+                        "Preise der Abmessung …": lambda r: self.preis(r),
+                        "Lieferantenvergleich …": lambda r: self.lieferantenvergleich(r)}
+        self.detail = AbmessungDetail(aktionen)
+        self.tabelle.itemSelectionChanged.connect(self._detail_neu)
+        mitte = QSplitter(Qt.Horizontal)
+        mitte.setChildrenCollapsible(False)
+        mitte.addWidget(self.tabelle)
+        mitte.addWidget(self.detail)
+        mitte.setStretchFactor(0, 1)
+        mitte.setStretchFactor(1, 0)
+        lay.addWidget(mitte, 1)
         if gruppen:
             self.tabelle.selectRow(0)
+        self._detail_neu()
         summe = sum(g["kosten"] for g in gruppen)
         self.summe = QLabel(f"Material gesamt laut Schnittplan: {_z(summe)} €  ·  "
                             f"{_z(sum(g['meter'] for g in gruppen), 1)} m  ·  {_z(sum(g['kg'] for g in gruppen), 1)} kg")
@@ -321,6 +331,7 @@ class MeterpreisDialog(QDialog):
         lay.addWidget(self.summe)
         self.summe.setVisible(False)        # steht oben in den Kacheln
         unten = QFormLayout()
+        unten.setContentsMargins(0, 0, 0, 0)
         self.handling = QLineEdit(_z(kopf.get("handling_beistellung"), 3) if kopf.get("handling_beistellung") else "")
         self.handling.setPlaceholderText("0")
         self.handling.setMaximumWidth(120)
@@ -335,17 +346,29 @@ class MeterpreisDialog(QDialog):
         info.setStyleSheet(f"color: {GRAU};")
         info.setToolTip("Gilt für alle Angebote; änderbar unter Einstellungen")
         unten.addRow("", info)
-        lay.addLayout(unten)
+        # Fußleiste (Phase 4): Handling und Hinweis links, Abbrechen und Übernehmen rechts in einer Zeile
+        fuss = QFrame()
+        fuss.setObjectName("fussleiste")
+        fz = QHBoxLayout(fuss)
+        fz.setContentsMargins(0, design.ABSTAND, 0, 0)
+        fz.addLayout(unten, 1)
         self.fehler = QLabel()
         self.fehler.setStyleSheet("color: #C00000;")
         lay.addWidget(self.fehler)
+        lay.addWidget(fuss)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.button(QDialogButtonBox.Ok).setText("Übernehmen")
         knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
         knoepfe.button(QDialogButtonBox.Ok).setObjectName("primaer")
         knoepfe.accepted.connect(self.annehmen)
         knoepfe.rejected.connect(self.reject)
-        lay.addWidget(knoepfe)
+        fz.addWidget(knoepfe, 0, Qt.AlignBottom)
+
+    def _detail_neu(self):
+        """Detailbereich rechts auf die markierte Abmessung stellen."""
+        r = self.zeile()
+        g = self.gruppen[r] if 0 <= r < len(self.gruppen) else None
+        self.detail.setzen(g, r, laengen_text(g) if g and g.get("laengen") else "")
 
     def _rohrart_feld(self, r, g, k):
         """Auswahl der Rohrart dieser Abmessung (Spalte ROHRART): „wie Werkstoff (…)“ oder eine Rohrart für dieses

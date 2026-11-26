@@ -121,6 +121,14 @@ QFrame#hinweis_fehler QLabel { color: #B42318; }
 QFrame#hinweis_info QLabel { color: #1F4E78; }
 QFrame#hinweis_ok QLabel { color: #1E6B34; }
 QFrame#seitenkopf { background: transparent; }
+QLabel#abschnitt_gross { font-size: 13pt; font-weight: bold; color: #1F2937; padding: 2px 0px 4px 2px; }
+QTreeWidget#einstnav { border: 1px solid #E3E7EC; border-radius: 8px; background: #FFFFFF; padding: 4px; }
+QTreeWidget#einstnav::item { padding: 3px 4px; border-radius: 4px; }
+QTreeWidget#einstnav::item:selected { background: #E8EEF5; color: #1F4E78; font-weight: bold; }
+QFrame#kennzahlleiste { background: #FFFFFF; border: 1px solid #E3E7EC; border-radius: 8px; }
+QLabel#kennzahlwert_leiste { font-size: 12pt; font-weight: bold; color: #1F2937; }
+QFrame#detailbereich { background: #FFFFFF; border: 1px solid #E3E7EC; border-radius: 8px; }
+QFrame#fussleiste { border-top: 1px solid #E3E7EC; }
 QFrame#kopfband { background: #FFFFFF; border: 1px solid #E3E7EC; border-radius: 8px; }
 QFrame#kopfband QLabel { border: none; }
 QPushButton#suchknopf { text-align: left; padding: 3px 12px; min-width: 300px; color: #5F6B7A; background: #FFFFFF;

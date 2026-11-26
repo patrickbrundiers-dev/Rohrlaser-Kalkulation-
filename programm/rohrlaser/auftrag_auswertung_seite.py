@@ -59,7 +59,9 @@ class AuswertungSeite(QWidget):
         self.werte = {}
         lay = QVBoxLayout(self)
         oben = QHBoxLayout()
-        oben.addWidget(QLabel("<b>Auswertung der Aufträge</b>"))
+        titel = QLabel("Auswertung der Aufträge")
+        titel.setObjectName("seitentitel")          # Seitenkopf wie die übrigen Bereiche (UI/UX Next Level Phase 5)
+        oben.addWidget(titel)
         oben.addSpacing(16)
         oben.addWidget(QLabel("Zeitraum"))
         self.zeitraum = QComboBox()

@@ -28,6 +28,14 @@ NEUERUNGEN = [
                 "Rechner oder wenn er ausgelastet ist, misst der Arbeitsplatz selbst. Einstellung <i>Serverbetrieb: "
                 "lange Rechnungen</i> (automatisch, am Server, an diesem Arbeitsplatz) ([[admin_server]]).",
      "Serverversion Stufe 4: lange STEP-Messungen am Server, gemeinsamer Mess-Zwischenspeicher"],
+    ["0.9.542", "<b>Neues Designsystem, Schritt 4 und 5</b>: Das Fenster <i>Material je Abmessung</i> zeigt oben eine "
+                "Kennzahlleiste und rechts zur markierten Abmessung Meterpreis mit Herkunft, Gewicht, Einkauf, "
+                "Verschnitt, Stangen und die Ausnutzung als Balken mit Ampel, dazu Schnittplan, Preise und "
+                "Lieferantenvergleich. <b>Einstellungen</b>: Kopf mit Erklärung, <i>Grund · Erweitert · Experte</i> als "
+                "Knopfreihe, Seitentitel groß. Jeder Bereich (Angebote, Aufträge, Versand …) beginnt mit einer "
+                "Kopfzeile mit Name und kurzer Erklärung ([[seitenkopf_bereiche]]). Im <b>Einfachen Modus</b> zeigen "
+                "erledigte Schritte ein ✓. Alle Zahlen bleiben gleich.",
+     "Neues Designsystem, Schritt 4 und 5: Materialfenster, Einstellungen, Kopf je Bereich"],
     ["0.9.541", "<b>Serverversion (Stufe 3): Dateiablage am Server</b>: Angebotsordner (PDF, CSV, STEP), Anfragen, "
                 "Anfrage-Akten, die Seite <i>Austausch</i>, Updates und Vorgaben liegen im Serverbetrieb in einer "
                 "Freigabe am Server (<i>Ablage am Server</i>, der Verwalter trägt sie unter <i>Datei → Datenbank …"
