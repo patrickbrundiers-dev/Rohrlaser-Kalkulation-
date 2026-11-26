@@ -2580,11 +2580,14 @@ class EinstellungenBereich(QWidget):
         self.unter.ebene_merken = lambda e: bedienmodus.einstellungen_ebene_setzen(db, e)
         self.unter.currentChanged.connect(lambda _: self.neu_laden())
         self.sperren_knopf = self.leiste.sperren
-        # Seitenkopf (UI Next Level Phase 4): Titel, Untertitel und rechts die Ebene Grund · Erweitert · Experte
-        from . import bausteine, design
-        self.kopf = bausteine.seitenkopf("Einstellungen", "Gelten für alle Arbeitsplätze, Abgleich über den "
-                                         "gemeinsamen Ordner. Seiten mit Schloss ändert nur der Admin.",
-                                         [self.unter.ebene_segment])
+        # Seitenkopf (UI Next Level Phase 4), einzeilig wie die übrigen Bereiche: Titel, gewählte Seite, Erklärung
+        # und rechts die Ebene Grund · Erweitert · Experte
+        from . import design, seitenkoepfe
+        self.kopf = seitenkoepfe.kopf("Einstellungen", "Gelten für alle Arbeitsplätze, Abgleich über den "
+                                      "gemeinsamen Ordner. Seiten mit Schloss ändert nur der Admin.")
+        zeile = self.kopf.layout()
+        zeile.insertWidget(1, self.unter.titel_herausnehmen())
+        zeile.addWidget(self.unter.ebene_segment)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(design.ABSTAND_GROSS, design.ABSTAND, design.ABSTAND_GROSS, 0)
         lay.setSpacing(design.ABSTAND_KLEIN)

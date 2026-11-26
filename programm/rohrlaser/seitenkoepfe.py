@@ -5,7 +5,7 @@ Start und Einstellungen haben seit Phase 2 und 4 einen Seitenkopf mit Titel und 
 Der Kopf wird oben in das vorhandene Layout der Seite gesetzt: dieselben Seitenobjekte, dieselben Knöpfe, nichts an
 den Funktionen ändert sich. Bereiche mit eigenem Kopf (Start, Kunden, Einstellungen, Austausch, Auswertung) bleiben, wie sie sind.
 """
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 from . import design
 
@@ -35,11 +35,12 @@ def kopf(titel, erklaerung=""):
     zeile.setSpacing(design.ABSTAND_GROSS)
     rahmen.titel = QLabel(titel)
     rahmen.titel.setObjectName("seitentitel")
-    rahmen.untertitel = QLabel(erklaerung)
+    from .angebot_oben import KurzZeile       # endet mit „…“, wenn der Platz fehlt; Tooltip zeigt den ganzen Satz
+    rahmen.untertitel = KurzZeile()
     rahmen.untertitel.setObjectName("nebentext")
-    rahmen.untertitel.setVisible(bool(erklaerung))
-    rahmen.untertitel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)   # kürzt statt zu verbreitern
+    rahmen.untertitel.setText(erklaerung)
     rahmen.untertitel.setToolTip(erklaerung)
+    rahmen.untertitel.setVisible(bool(erklaerung))
     zeile.addWidget(rahmen.titel)
     zeile.addWidget(rahmen.untertitel, 1)
     return rahmen

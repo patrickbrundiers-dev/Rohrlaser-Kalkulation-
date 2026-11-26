@@ -186,7 +186,7 @@ class NavigationsReiter(QWidget):
         # Titel der gewählten Seite über dem Inhalt (Phase 4)
         self.seiten_titel = QLabel()
         self.seiten_titel.setObjectName("abschnitt_gross")
-        rechts = QVBoxLayout()
+        rechts = self.rechts = QVBoxLayout()
         rechts.setContentsMargins(0, 0, 0, 0)
         rechts.setSpacing(4)
         rechts.addWidget(self.seiten_titel)
@@ -331,6 +331,12 @@ class NavigationsReiter(QWidget):
         """(Widget, Rechteck) des Eintrags in der Navigation (für die Bilder der Anleitung)."""
         i = next(j for j, t in enumerate(self.titel) if t == titel or t.removesuffix(" 🔒") == titel)
         return self.baum.viewport(), self.baum.visualItemRect(self.items[i])
+
+    def titel_herausnehmen(self):
+        """Seitentitel aus der rechten Spalte nehmen (der Bereich zeigt ihn im Seitenkopf, spart eine Zeile Höhe:
+        das maximierte Fenster passt so auch auf 1280 × 680, test_fenster_maximiert)."""
+        self.rechts.removeWidget(self.seiten_titel)
+        return self.seiten_titel
 
     # -------------------------------------------------- Auswahl und Suche
     def _gewaehlt(self, item, _alt=None):
