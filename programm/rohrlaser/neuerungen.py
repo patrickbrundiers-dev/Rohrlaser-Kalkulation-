@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.531", "<b>Neues Designsystem, Schritt 2</b> (Hauptfenster): Oben links steht statt fünf Menüs ein Knopf "
+    ["0.9.536", "<b>Neues Designsystem, Schritt 2</b> (Hauptfenster): Oben links steht statt fünf Menüs ein Knopf "
                 "<i>☰ Menü</i> mit allen Menüs, das lange Menü Datei nach Themen geteilt (Datei, Daten und Abgleich, "
                 "Auswertung und Prüfung, KI). Tastenkürzel und Alt+Buchstabe gelten weiter; die alte Leiste gibt es "
                 "unter <i>Ansicht → Klassische Menüleiste</i>. Rechts oben eine breitere Suche (Strg+K). Die "
@@ -29,6 +29,12 @@ NEUERUNGEN = [
                 "Die Startseite begrüßt mit Datum; Beispiel-Stammdaten meldet ein Hinweisband. <i>Meine "
                 "Werkzeugleiste</i> ist ab Werk aus (wer sie angepasst hat, behält sie).",
      "Neues Designsystem, Schritt 2: Knopf Menü, Suche, Zähler, Startseite"],
+    ["0.9.532", "<b>Lizenz-Werkzeug: Lizenzen 2.0 verwalten</b> (nur für Patrick): Der neue Knopf <b>Lizenzen 2.0 "
+                "(Lizenzschlüssel) …</b> öffnet eine Übersicht aller Lizenzen mit belegten Plätzen, Ablauf und Status "
+                "(gelb: läuft bald ab, rot: abgelaufen) und darunter die Plätze der markierten Lizenz. Knöpfe für neue "
+                "Lizenz, Anfrage beantworten, Freigabe verbuchen, Platz deaktivieren, Verlängern, Ändern/Übertragen und "
+                "Sperren. Beim Verlängern bleibt der Lizenzschlüssel gleich, die Plätze ziehen mit.",
+     "Lizenz-Werkzeug: Übersicht Lizenzen 2.0 mit allen Aktionen"],
     ["0.9.527", "<b>Lizenz 2.0: Aktivierung mit Lizenzschlüssel</b>: Unter <i>Hilfe → Lizenz …</i> lässt sich das "
                 "Programm jetzt mit einem Lizenzschlüssel (<i>LZ-…</i>) aktivieren, ganz ohne Internet. Das Programm "
                 "erstellt eine Aktivierungsanfrage als Datei oder Code, Patricks Antwort kommt über <b>Aktivierung "

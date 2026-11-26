@@ -638,7 +638,7 @@ def kapitel_ueberblick(i):
            "Was gespeichert oder gerechnet wurde, meldet eine "
            "Einblendung unten (Fehler in Rot); alle Meldungen stehen unter <i>Meldungen (n)</i> rechts in der "
            "Statusleiste. Wo die Anleitung „die Statuszeile meldet“ schreibt, ist diese Einblendung gemeint.", kurz=True)
-    i.text("<b>Knopf ☰ Menü</b> (seit 0.9.531): Oben links steht statt fünf Menüs nebeneinander ein Knopf <i>Menü</i>. "
+    i.text("<b>Knopf ☰ Menü</b> (seit 0.9.536): Oben links steht statt fünf Menüs nebeneinander ein Knopf <i>Menü</i>. "
            "Darin stehen alle Menüs; das lange Menü Datei ist nach Themen geteilt: <i>Datei</i> (neues Angebot, "
            "STEP-Viewer, Schnellpreis, Ablage, Beenden), <i>Bearbeiten</i>, <i>Kunden</i>, <i>Daten und Abgleich</i> "
            "(Benutzer, gemeinsamer Ordner, Sicherung, Datenbank, Archiv, Export und Import), <i>Auswertung und "
@@ -646,7 +646,7 @@ def kapitel_ueberblick(i):
            "<i>Ansicht</i> und <i>Hilfe</i>. Alle Tastenkürzel gelten weiter, Alt+D, Alt+B, Alt+K, Alt+A und Alt+H "
            "öffnen die Menüs wie bisher. Schneller geht es mit der Suche rechts oben (Strg+K): sie findet jeden "
            "Menüpunkt. Wer die alte Leiste lieber hat: <i>Ansicht → Klassische Menüleiste</i> (gilt nur an diesem "
-           "Arbeitsplatz). <i>Meine Werkzeugleiste</i> ist ab 0.9.531 zuerst ausgeschaltet; wer sie angepasst hat, "
+           "Arbeitsplatz). <i>Meine Werkzeugleiste</i> ist ab 0.9.536 zuerst ausgeschaltet; wer sie angepasst hat, "
            "behält sie, einschalten unter <i>Ansicht → Meine Werkzeugleiste</i>. In der Seitenleiste zeigen kleine "
            "<b>Zähler</b> neben <i>Anfragen</i> (neue Anfragen), <i>Angebote</i> (Wiedervorlage fällig) und "
            "<i>Materialanfragen</i> (Lieferantenangebot erhalten), was zu tun ist; hell hervorgehoben, wenn etwas "
@@ -1018,7 +1018,7 @@ def kapitel_start(i):
             "falls eingestellt, in den zweiten Sicherungsordner."),
         (2, "<b>Sicherung wiederherstellen …</b>: einen früheren Stand zurückholen ([[datensicherung]])."),
         (3, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
-    i.text("Oben begrüßt die Startseite den angemeldeten Benutzer mit Datum und Version (seit 0.9.531). Sind die "
+    i.text("Oben begrüßt die Startseite den angemeldeten Benutzer mit Datum und Version (seit 0.9.536). Sind die "
            "Stammdaten noch Beispielwerte, steht darunter ein gelbes <b>Hinweisband</b> mit <i>Einstellungen "
            "öffnen</i>; <i>Später</i> blendet es bis zum nächsten Start aus.", kurz=True)
     i.text("Darunter stehen fünf <b>Kennzahl-Kacheln</b> (seit 0.9.309, für alle Benutzer): <b>Entwürfe</b>, "
@@ -1065,7 +1065,7 @@ def kapitel_start(i):
            "ihrem Tastenkürzel. Tippen filtert (alle Wörter müssen vorkommen, z. B. „40x3 re“), <b>↑/↓</b> wählt, "
            "<b>Enter</b> öffnet das Angebot, zeigt Kunde oder Profil, springt zur Einstellung (Einstellungen mit "
            "gefilterter Suche) oder führt den Befehl aus; <b>Esc</b> schließt.", kurz=True)
-    i.text("Seit 0.9.269 steht dafür oben rechts in der Menüleiste ein Suchfeld, seit 0.9.531 breiter: "
+    i.text("Seit 0.9.269 steht dafür oben rechts in der Menüleiste ein Suchfeld, seit 0.9.536 breiter: "
            "<b>⌕ Befehl, Angebot oder Kunde suchen Strg+K</b>. Mit "
            "durchsucht werden auch die <b>Knöpfe der offenen Seite</b>, im Angebot z. B. <i>Optimieren</i>, "
            "<i>Zusatzarbeiten …</i>, <i>Material …</i> oder <i>Angebot (PDF)</i>.")
@@ -17291,6 +17291,25 @@ def kapitel_lizenz(i):
             "Aktivierung ungültig, aber eine alte Lizenzdatei gültig, gilt die alte.",
             "Ein deaktivierter Platz oder eine gesperrte Lizenz kommt wie bisher mit der Sperrliste beim Update-Check.",
             "Die Rohrlaser Auslastung nutzt eine Aktivierung der Kalkulation auf demselben Rechner mit.")
+    i.text("<b>Verlängerung oder mehr Plätze:</b> Patrick stellt ein neues Zertifikat mit <b>demselben "
+           "Lizenzschlüssel</b> aus. Jeder Rechner holt es sich mit <b>Mit Lizenzschlüssel aktivieren …</b> (gleicher "
+           "Schlüssel, Anfrage an Patrick); es wird dabei kein zusätzlicher Platz belegt.")
+    i.abschnitt("Lizenz-Werkzeug: Lizenzen 2.0 verwalten (nur Patrick)", marke="lizenzen2_werkzeug")
+    i.text("Im Lizenz-Werkzeug öffnet <b>Lizenzen 2.0 (Lizenzschlüssel) …</b> die Übersicht aller Lizenzen: oben "
+           "Lizenznehmer, Firma, Art, belegte Plätze, Ablauf und Status (gelb: läuft bald ab, rot: abgelaufen, grau: "
+           "gesperrt), unten die Plätze der markierten Lizenz mit Rechnername und Datum. Die Suche findet auch "
+           "Rechnernamen.")
+    i.liste("<b>Neue Lizenz …</b>: Lizenznehmer, Art, Plätze, Reserve, Laufzeit (oder unbefristet), Module und "
+            "Kunden-Admins. Der Lizenzschlüssel landet in der Zwischenablage.",
+            "<b>Anfrage beantworten …</b>: Code einfügen oder Datei wählen. Die Antwort (Code und Datei) geht an den "
+            "Kunden.",
+            "<b>Freigabe verbuchen …</b>: Freigabebeleg eines Rechners, der Platz wird frei.",
+            "<b>Platz deaktivieren …</b>: für einen defekten oder verlorenen Rechner. Der Platz wird frei und kommt "
+            "auf die Sperrliste (danach Sperrliste hochladen).",
+            "<b>Verlängern …</b> und <b>Ändern / übertragen …</b>: neues Zertifikat mit gleichem Schlüssel, die "
+            "Plätze ziehen mit. Weniger Plätze als belegt lehnt das Werkzeug ab. Ersetzte Lizenzen zeigt der Haken "
+            "<i>ersetzte Lizenzen zeigen</i>.",
+            "<b>Sperren …</b>: ganze Lizenz mit allen Plätzen auf die Sperrliste.")
     i.abschnitt("Hauptadmin-Lizenz (ohne Rechner-ID)", marke="hauptadmin")
     i.text("Die <b>Hauptadmin-Lizenz</b> ist Patricks persönliche Lizenz. Sie ist an keinen Rechner gebunden, gilt "
            "auf beliebig vielen eigenen Rechnern und ist unbefristet, bis sie im Lizenz-Werkzeug gesperrt wird. "
