@@ -152,6 +152,8 @@ def anwenden(kopf, positionen, zeilen, summen, k, tabellen, einst):
             info["verpackung_anzahl"] = len(pm["zeilen"])
         if not (pm and pm.get("neu") and not pm["mit_preis"]):    # neu ohne Packmittelpreise: Tabelle Verpackung
             verpackung = ()
+        if pm and pm.get("fehlt"):       # Wiederbeschaffungswert fehlt: nie still 0 €, Hinweis in der Kalkulation
+            info["verpackung_hinweise"] = [h for h in pm["hinweise"] if "fehlt" in h]
     if verpackung and kopf.get("verpackung") != "nein":
         werte = {id(z): rechnen.position_werte(p, kopf, k, tabellen) for p, z in zip(positionen, zeilen)
                  if z and z.get("stueck")}

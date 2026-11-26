@@ -472,7 +472,7 @@ class RechnerSeite(QWidget):
                      gewicht=_zahl(self.lht_tabelle.cellWidget(r, 2).text()))
             x = cb.property("extra")
             if isinstance(x, dict) and x.get("lht_id") == e["lht_id"] and x.get("anzahl") == e["anzahl"]:
-                e.update({k: v for k, v in x.items() if k in ("rahmen", "brutto_je", "masse") and v})
+                e.update({k: v for k, v in x.items() if k in ("rahmen", "brutto_je", "masse", "ladung", "kg_max") and v})
             out.append(e)
         return out
 
@@ -566,7 +566,7 @@ class RechnerSeite(QWidget):
                 [(self.netto.value(), _zahl(self.max_laenge.text()) or 0)], self.daten.get("lht", []), std, lg)
         self.lht_tabelle.setRowCount(0)
         for e in vorschlag:
-            self.lht_neu(e["lht_id"], e["anzahl"], extra={k: e[k] for k in ("rahmen", "brutto_je", "masse") if e.get(k)})
+            self.lht_neu(e["lht_id"], e["anzahl"], extra={k: e[k] for k in ("rahmen", "brutto_je", "masse", "ladung", "kg_max") if e.get(k)})
         if hinweise:
             self.f.meldung("; ".join(hinweise), fehler=not vorschlag)
         self.geaendert()
@@ -612,7 +612,7 @@ class RechnerSeite(QWidget):
         self.lht_tabelle.setRowCount(0)
         for e in s.get("lht") or ():
             self.lht_neu(e.get("lht_id"), e.get("anzahl"), e.get("gewicht"),
-                         extra={k: e[k] for k in ("rahmen", "brutto_je", "masse") if e.get(k)})
+                         extra={k: e[k] for k in ("rahmen", "brutto_je", "masse", "ladung", "kg_max") if e.get(k)})
         self._laden = False
         self.rechnen()
 
@@ -797,7 +797,7 @@ class RechnerSeite(QWidget):
             if pk and self.versandart.currentText() != PAKET:
                 self.lht_tabelle.setRowCount(0)
                 for e in pk["lht"]:
-                    self.lht_neu(e["lht_id"], e["anzahl"], extra={k: e[k] for k in ("rahmen", "brutto_je", "masse") if e.get(k)})
+                    self.lht_neu(e["lht_id"], e["anzahl"], extra={k: e[k] for k in ("rahmen", "brutto_je", "masse", "ladung", "kg_max") if e.get(k)})
         self.versandart.setCurrentText(z["versandart"] if z["versandart"] in VERSANDARTEN else "")
         self.dienstleister.setCurrentText("")
         self.tarif.setCurrentText(tarif_id)

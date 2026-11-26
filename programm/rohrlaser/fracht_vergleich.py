@@ -52,10 +52,14 @@ def bedingungen(dl, e, s, zuschlaege=()):
     out = []
     lw = e.get("lht") or {}
     je = lw.get("je") or []
-    laenge = max([fracht._n(s.get("max_laenge"))] + [fracht._n((x.get("aussen") or (0,))[0]) for x in je])
-    hoehe = max([fracht._n((x.get("aussen") or (0, 0, 0))[2]) for x in je] or [0.0])
+    # je Packstück das größte Maß (beladen, aus der Packliste) und das schwerste Packstück, nie der Durchschnitt
+    masse = [m for x in je for m in (x.get("aussen"), x.get("ladung")) if m]
+    laenge = max([fracht._n(s.get("max_laenge"))] + [fracht._n(m[0]) for m in masse])
+    hoehe = max([fracht._n(m[2]) for m in masse if len(m) > 2] or [0.0])
     n = lw.get("anzahl") or 0
-    kg = fracht._n((e.get("gewicht") or {}).get("brutto")) / n if n else 0.0
+    einzeln = [fracht._n(x["kg_max"]) for x in je if fracht._zahl(x.get("kg_max"))]
+    einzeln += [fracht._n(b) for x in je for b in (x.get("brutto_je") or ())]
+    kg = max(einzeln) if einzeln else fracht._n((e.get("gewicht") or {}).get("brutto")) / n if n else 0.0
     name = dl.get("name") or dl.get("dienstleister_id")
     if fracht._n(dl.get("max_laenge")) and laenge > dl["max_laenge"] + 1e-6:
         out.append(f"{name}: Packstück {laenge:.0f} mm lang, erlaubt {dl['max_laenge']:.0f} mm")

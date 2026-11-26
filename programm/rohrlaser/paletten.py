@@ -656,6 +656,11 @@ def lht_liste(e):
                 x["ldm"] = round(sum(m[0] * m[1] for m in a) / 1e6 / 2.4, 4)
         if any(p.get("rahmen") for p in pals):
             x["rahmen"] = sum(p.get("rahmen") or 0 for p in pals)
+        if pals:                 # Transportbedingungen (26.11.2026): größtes beladenes Packstück, schwerstes Packstück
+            a = [p.get("aussen") for p in pals]
+            if all(m and len(m) == 3 for m in a):
+                x["ladung"] = [max(_n(m[i]) for m in a) for i in range(3)]
+            x["kg_max"] = round(max(_n(p.get("brutto")) for p in pals), 3)
         out.append(x)
     return out
 

@@ -79,6 +79,7 @@ def kosten(eintraege, lht_zeilen, regeln, dienstleister=None, kundennr=None, dat
     lht = {z["lht_id"]: z for z in lht_zeilen or () if z.get("lht_id")}
     zeilen, hinweise, stuecke, fehlt = [], [], [], False
     lieferung = {}                      # Zuschlag je Lieferung: einmal je Regel
+    frei_rest = {}                      # Freimenge je Regel: einmal je Sendung, über alle Packmittel der Regel
     name_dl = dienstleister or "ohne Dienstleister"
     for e in eintraege or ():
         z, n = lht.get(e.get("lht_id")), int(_n(e.get("anzahl")))
@@ -109,8 +110,12 @@ def kosten(eintraege, lht_zeilen, regeln, dienstleister=None, kundennr=None, dat
         if getauscht:
             satz = _n((r or {}).get("zuschlag_stueck")) if _zahl((r or {}).get("zuschlag_stueck")) else (
                 _n(z.get("tauschzuschlag")) if art == ZUSCHLAG else 0.0)
-            frei = int(_n((r or {}).get("frei")))
-            m = max(0, getauscht - frei)
+            frei = 0
+            if r and _n(r.get("frei")):
+                rest = frei_rest.setdefault(r["regel_id"], int(_n(r["frei"])))
+                frei = min(rest, getauscht)
+                frei_rest[r["regel_id"]] = rest - frei
+            m = getauscht - frei
             if satz and m:
                 zeilen.append((f"Tauschzuschlag {m} × {name} × {_euro(satz)}"
                                + (f" ({frei} frei)" if frei else "") + f" – {grund}", m * satz, TAUSCHZUSCHLAG))

@@ -6152,7 +6152,9 @@ def kostenarten(summen, einst):
                     if summen.get("mannlos") else ""),
         "neuteil": f" ({z(summen.get('neuteil_satz', 0))} % auf Material und Laser)" if summen.get("neuteil") else "",
         "regel": f" ({', '.join(summen.get('regel_namen') or ())})" if summen.get("regel") else "",
-        "verpackung": f" ({summen.get('verpackung_text')})" if summen.get("verpackung") else "",
+        "verpackung": (f" ({summen.get('verpackung_text')})" if summen.get("verpackung") else "")
+                      + (" – Achtung: " + "; ".join(summen["verpackung_hinweise"])
+                         if summen.get("verpackung_hinweise") else ""),
         "finanzierung": (f" ({z(summen.get('finanzierung_satz', 0))} % p. a. für "
                          f"{z(summen.get('finanzierung_tage', 0), 0)} Tage)" if summen.get("finanzierung") else ""),
         "frachtfrei": (f" (frei ab {z(summen.get('frachtfrei_ab', 0), 2)} € Warenwert)" if summen.get("frachtfrei")

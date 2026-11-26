@@ -135,6 +135,26 @@ assert k["gesamt"] == 44.0 and "erst ab 5" in k["zeilen"][0][0]
 ok("Regelwahl: Kunde vor Dienstleister vor Packmittel vor allgemein, befristete Regel nur im Zeitraum; Tausch erst ab "
    "5 Stück: 2 Stück kosten die Wiederbeschaffung")
 
+# Freimenge einmal je Regel über alle Packmittel der Sendung (Codex #681)
+k = kosten([dict(lht_id="EUR", anzahl=1), dict(lht_id="GB", anzahl=1)], [r("FR", pt.ZUSCHLAG, zuschlag_stueck=2.0,
+                                                                         frei=1)])
+assert k["posten"] == {pt.TAUSCHZUSCHLAG: 2.0}, k
+ok("Freimenge 1 gilt einmal je Sendung: Europalette frei, Gitterbox 2 € Zuschlag")
+
+# Transportbedingungen: schwerstes und größtes beladenes Packstück, nicht der Durchschnitt (Codex #681)
+dl = dict(dienstleister_id="SPED-A", name="Spedition A", max_kg=150.0, max_hoehe=1500.0)
+lw = fracht.lht_werte([dict(lht_id="EUR", anzahl=2, kg_max=200.0, ladung=[1200, 800, 1800])], LHT)
+e9 = dict(lht=lw, gewicht=dict(brutto=210.0))
+b = fracht_vergleich.bedingungen(dl, e9, {})
+assert any("200,0 kg" in t for t in b) and any("1800 mm hoch" in t for t in b), b
+assert fracht_vergleich.bedingungen(dl, dict(lht=fracht.lht_werte([dict(lht_id="EUR", anzahl=2)], LHT),
+                                             gewicht=dict(brutto=210.0)), {}) == []
+pk = paletten.lht_liste(dict(je_lht={"EUR": 2}, paletten=[
+    dict(lht_id="EUR", art="Europalette", brutto=200.0, aussen=(1200, 800, 1800)),
+    dict(lht_id="EUR", art="Europalette", brutto=10.0, aussen=(1200, 800, 300))]))
+assert pk[0]["kg_max"] == 200.0 and pk[0]["ladung"] == [1200, 800, 1800], pk
+ok("Transportbedingungen: Packstück 200 kg (Durchschnitt 105 kg) und Ladehöhe 1.800 mm verletzen 150 kg/1.500 mm")
+
 # Wert fehlt, Bestand
 k = paletten.packmittel_kosten(drei, [dict(EUR, wiederbeschaffung=None, tauschwert=None, preis=None, bestand=2)], 0.0,
                                tausch=[], dienstleister="SPED-A")
@@ -205,6 +225,18 @@ db.angebot_aendern(aid, "fracht_sendung", json.dumps(dict(d, snapshot=e3["snapsh
 _, _, (_, s4) = rechnung(aid)
 assert abs(s4["verpackung"] - 75.0) < 0.01, s4["verpackung"]
 ok("8. Wiederbeschaffungswert 22 → 25 €: gespeicherte Frachtberechnung rechnet weiter 66 €, neu berechnet 75 €")
+
+# Wiederbeschaffungswert fehlt im Angebot: nie still 0 €, Hinweis in der Kalkulation (Codex #681)
+setzen("fracht_lht", "lht_id", "EUR", wiederbeschaffung=None, tauschwert=None, preis=None)
+e5 = fracht.rechnen(db.fracht_daten(), s_pal)
+db.angebot_aendern(aid, "fracht_sendung", json.dumps(dict(d, snapshot=e5["snapshot"])))
+_, _, (_, s5) = rechnung(aid)
+assert any("Wiederbeschaffungswert fehlt" in h for h in s5.get("verpackung_hinweise") or ()), s5.get(
+    "verpackung_hinweise")
+assert any("Achtung" in t and "Wiederbeschaffungswert fehlt" in t
+           for t, _, _ in rechnen.kostenarten(s5, rechnen.einstellungen_angebot(db.angebot(aid), db.einstellungen())))
+setzen("fracht_lht", "lht_id", "EUR", wiederbeschaffung=25.0)
+ok("Angebot: fehlt der Wiederbeschaffungswert, steht „Achtung: … fehlt“ bei der Verpackung in der Kalkulation")
 
 # Korrektur von Hand mit Begründung (je Sendung, auch je Staffelstufe)
 db.angebot_aendern(aid, "fracht_sendung", json.dumps(dict(d, snapshot=e3["snapshot"],

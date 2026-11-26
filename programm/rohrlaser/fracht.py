@@ -296,6 +296,7 @@ def lht_werte(eintraege, lht_zeilen):
                        eigengewicht=_n(z.get("eigengewicht")) * n + rahmen * _n(z.get("rahmen_gewicht")),
                        rahmen=rahmen, brutto_je=list(e.get("brutto_je") or ()) or None,
                        aussen=_aussen(z, e),
+                       ladung=list(e.get("ladung") or ()) or None, kg_max=e.get("kg_max"),
                        brutto=_n(e["gewicht"]) * n if _zahl(e.get("gewicht")) else None,
                        nutzlast=_n(z.get("nutzlast")) * n if z.get("nutzlast") else None, stapel=stapel))
     vol = [x["volumen"] for x in je]
