@@ -243,10 +243,7 @@ class LizenzDialog(QDialog):
         if ziel:
             import json
             Path(ziel).write_text(json.dumps(anfrage, indent=1, ensure_ascii=False), encoding="utf-8")
-        try:
-            QGuiApplication.clipboard().setText(code)
-        except Exception:        # noqa: BLE001 – ohne Zwischenablage bleibt die Datei
-            pass
+        QGuiApplication.clipboard().setText(code)
         if not self.stumm:
             QMessageBox.information(
                 self, "Aktivierung",
@@ -304,10 +301,7 @@ class LizenzDialog(QDialog):
         if ziel:
             import json
             Path(ziel).write_text(json.dumps(beleg, indent=1), encoding="utf-8")
-        try:
-            QGuiApplication.clipboard().setText(code)
-        except Exception:        # noqa: BLE001
-            pass
+        QGuiApplication.clipboard().setText(code)
         self.anzeigen()
         if hasattr(self.f, "lizenz_anwenden"):
             self.f.lizenz_anwenden()
