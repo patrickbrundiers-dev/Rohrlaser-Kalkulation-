@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.527", "<b>Neues Designsystem, Schritt 2</b> (Hauptfenster): Oben links steht statt fünf Menüs ein Knopf "
+                "<i>☰ Menü</i> mit allen Menüs, das lange Menü Datei nach Themen geteilt (Datei, Daten und Abgleich, "
+                "Auswertung und Prüfung, KI). Tastenkürzel und Alt+Buchstabe gelten weiter; die alte Leiste gibt es "
+                "unter <i>Ansicht → Klassische Menüleiste</i>. Rechts oben eine breitere Suche (Strg+K). Die "
+                "Seitenleiste zeigt Zähler für neue Anfragen, fällige Wiedervorlagen und erhaltene Lieferantenangebote. "
+                "Die Startseite begrüßt mit Datum; Beispiel-Stammdaten meldet ein Hinweisband. <i>Meine "
+                "Werkzeugleiste</i> ist ab Werk aus (wer sie angepasst hat, behält sie).",
+     "Neues Designsystem, Schritt 2: Knopf Menü, Suche, Zähler, Startseite"],
     ["0.9.526", "<b>Neues Designsystem, Schritt 1</b> (Oberfläche „Klar“): Farben, Rahmen und Abstände kommen aus einer "
                 "Stelle. Ruhigere Arbeitsfläche, weiße Eingabefelder mit feinem, rundem Rahmen, schlichtere "
                 "Tabellenköpfe, modernere Menüs, Hinweise und Bildlaufleisten. Funktionen und Berechnungen sind "
