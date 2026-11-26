@@ -321,6 +321,17 @@ def aktiv(db):
     return bool(kuerzel(db) and ordner(db))
 
 
+def server(db):
+    """Serverbetrieb (zentrale Datenbank): Anwesenheit und Reservierungen am Server statt im Ordner."""
+    return getattr(db, "server", None) is not None
+
+
+def mehrplatz(db):
+    """Mehrere Arbeitsplätze arbeiten zusammen (gemeinsamer Ordner oder zentraler Server): wer ist da, wer
+    bearbeitet was, weiche Sperre für Stammdaten."""
+    return aktiv(db) or server(db)
+
+
 # ------------------------------------------------------------------ Ordner umziehen (Paket F2, 01.11.2026)
 def umzug(db):
     """Hinweis UMGEZOGEN.json im eingetragenen gemeinsamen Ordner (dict: neu, von, zeit, fertig) oder None."""
@@ -1728,6 +1739,13 @@ def offen_bei(db, nummer, jetzt_=None):
 def kollegen_offen(db, jetzt_=None):
     """{Nummer: (Kürzel, seit)} der Angebote, die Kollegen gerade geöffnet haben. Mit Lebenszeichen (ab 0.9.219)
     gilt nur dessen Stand (höchstens ONLINE_S alt), sonst die Hauptdatei (FRISCH_MIN nach dem letzten Schreiben)."""
+    if server(db):          # Serverbetrieb: Reservierungen der Kollegen (wer bearbeitet welches Angebot)
+        from . import server_mehrplatz
+        out = {}
+        for d in server_mehrplatz.angebote_in_bearbeitung(db).values():
+            if d.get("titel"):
+                out.setdefault(d["titel"], (d["kuerzel"], d["seit"]))
+        return out
     jetzt_ = jetzt_ or datetime.datetime.now()
     ich = kuerzel(db)
     out = {}
@@ -1838,11 +1856,18 @@ def _zeilen_frisch(db, jetzt_):
 def zeile_merken(db, tabelle, uid):
     """Diese Stammdaten-Zeile wurde hier gerade geändert: gleich ins Lebenszeichen, damit ein Kollege, der dieselbe
     Zeile ändern will, gefragt wird (weiche Sperre, Frage 2a). Ergebnis: True = Lebenszeichen geschrieben."""
-    if not uid or not aktiv(db) or not kuerzel(db):
+    if not uid or not mehrplatz(db) or not kuerzel(db):
         return False
     m = dict(getattr(db, ZEILEN, None) or {})
     m[f"{tabelle}|{uid}"] = _utc(uhr_versatz(db)).isoformat(timespec="seconds")
     setattr(db, ZEILEN, m)
+    if server(db):
+        from . import server_mehrplatz
+        try:
+            return server_mehrplatz.puls(db, getattr(db, OFFEN_ZULETZT, None),
+                                         _zeilen_frisch(db, _utc(uhr_versatz(db)))) is not None
+        except (db_verbindung.DbFehler, OSError):
+            return False
     try:
         return lebenszeichen_schreiben(db, getattr(db, OFFEN_ZULETZT, None))
     except (TeilenFehler, OSError):
@@ -1852,7 +1877,7 @@ def zeile_merken(db, tabelle, uid):
 def zeile_bei_kollegen(db, tabelle, uid, jetzt_=None):
     """(Kürzel, Sekunden) wenn ein Kollege diese Stammdaten-Zeile in den letzten ZEILE_S Sekunden geändert hat und
     noch da ist, sonst None. Liest die Lebenszeichen neu, wenn sie älter als FRISCH_LESEN_S sind."""
-    if not uid or not aktiv(db):
+    if not uid or not mehrplatz(db):
         return None
     if jetzt_ is None and datetime.datetime.now().timestamp() - (getattr(db, ONLINE_GELESEN, 0) or 0) > FRISCH_LESEN_S:
         try:
@@ -1861,7 +1886,7 @@ def zeile_bei_kollegen(db, tabelle, uid, jetzt_=None):
             pass
     jetzt_ = jetzt_ or _utc(uhr_versatz(db))
     treffer = None
-    for k2, d in lebenszeichen(db, jetzt_).items():
+    for k2, d in (lebenszeichen(db) if server(db) else lebenszeichen(db, jetzt_)).items():
         if not d.get("online"):
             continue
         t = _zeit_utc((d.get("zeilen") or {}).get(f"{tabelle}|{uid}"))
@@ -1875,7 +1900,16 @@ def zeile_bei_kollegen(db, tabelle, uid, jetzt_=None):
 
 def lebenszeichen(db, jetzt_=None):
     """{Kürzel: {name, rechner, version, zeit, offen, online, vor_s}} aus den zuletzt gelesenen Lebenszeichen.
-    online: höchstens ONLINE_S alt (gegen die Ordner-Uhr) und nicht beendet; vor_s: Alter in Sekunden."""
+    online: höchstens ONLINE_S alt (gegen die Ordner-Uhr) und nicht beendet; vor_s: Alter in Sekunden.
+    Serverbetrieb: die Anwesenheit am Server (ohne den eigenen Platz), mit der Serveruhr gerechnet."""
+    if server(db) and jetzt_ is None:
+        from . import server_mehrplatz
+        try:
+            alle = server_mehrplatz.anwesende(db)
+        except (db_verbindung.DbFehler, OSError):
+            return {}
+        setattr(db, ONLINE_GELESEN, datetime.datetime.now().timestamp())
+        return {k: d for k, d in alle.items() if not (k == db.server.kuerzel and d["plaetze"] == [db.server.platz])}
     jetzt_ = jetzt_ or _utc(uhr_versatz(db))
     out = {}
     for k2, d in (getattr(db, ONLINE, None) or {}).items():

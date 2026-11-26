@@ -160,6 +160,11 @@ def erfassen(con, wer, lokal, angebot_ids, versatz=0):
         _eintrag(con, zeit, wer, t, u, _bezug_stamm(t, alt), "", "", GELOESCHT)
         _stand_setzen(con, t, u, None)
         n += 1
+    return n + _angebote_erfassen(con, zeit, wer, start, angebot_ids)
+
+
+def _angebote_erfassen(con, zeit, wer, start, angebot_ids):
+    n = 0
     for u, (nummer, flach) in _angebote(con, angebot_ids).items():
         alt = _stand(con, ANGEBOT, u)
         if alt is None:
@@ -171,6 +176,23 @@ def erfassen(con, wer, lokal, angebot_ids, versatz=0):
             n += _angebot_vergleichen(con, zeit, wer, u, nummer, alt, flach)
         _stand_setzen(con, ANGEBOT, u, flach)
     return n
+
+
+def erfassen_angebote(con, wer, angebot_ids, versatz=0):
+    """Nur Angebote eintragen (Serverbetrieb: der Arbeitsplatz, der ein Angebot reserviert hat, trägt dessen
+    Änderungen mit seinem Kürzel ein, beim Puls und beim Schließen). Beim ersten Mal beginnt der Verlauf.
+    Ergebnis: Anzahl neuer Einträge."""
+    zeit = _zeit(versatz)
+    start = _start(con)
+    if start is None:
+        _stand_setzen(con, *START, zeit)
+        start = zeit
+    return _angebote_erfassen(con, zeit, wer, start, angebot_ids)
+
+
+def eintrag_stamm(con, wer, tabelle, uid, bezug, feld, alt, neu, versatz=0):
+    """Eine Stammdaten-Änderung direkt eintragen (Serverbetrieb: beim Speichern in der Tabelle, mit Kürzel)."""
+    _eintrag(con, _zeit(versatz), wer, tabelle, uid, bezug, "", feld, GEAENDERT, alt, neu)
 
 
 def _einst():

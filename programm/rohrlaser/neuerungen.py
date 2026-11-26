@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.528", "<b>Serverversion (Stufe 2): Zusammenarbeiten am Server</b>: Wer ein Angebot öffnet, reserviert es; "
+                "Kollegen sehen in der Angebotsliste „● XY bearbeitet“ und öffnen es nur zum Ansehen. Änderungen "
+                "erscheinen bei allen innerhalb von etwa einer Sekunde. Bricht ein PC ab (Absturz, Netz weg), wird "
+                "die Reservierung nach 90 s frei; mit <i>Übernehmen …</i> geht es sofort (wird protokolliert). "
+                "<i>Kollegen am Server</i> zeigt, wer angemeldet ist und woran gearbeitet wird. Benutzer und Rechte "
+                "aus der Benutzerverwaltung gelten direkt als Zugänge am Server (Passwort statt PIN), der "
+                "Änderungsverlauf nennt das Kürzel. Die lokale Betriebsart bleibt unverändert.",
+     "Serverversion Stufe 2: Mehrbenutzer mit Reservierung und Live-Anzeige"],
     ["0.9.523", "<b>Serverversion (Stufe 1)</b>: Neben der lokalen Datenbank je PC gibt es die Betriebsart "
                 "<i>Zentraler Server</i>: alle Arbeitsplätze arbeiten mit einer PostgreSQL-Datenbank auf einem Rechner im "
                 "Firmennetz (verschlüsselt, eigenes Kürzel und Passwort je Mitarbeiter, Nummern zentral ohne Doppelte, "

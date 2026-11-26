@@ -881,7 +881,10 @@ class Datenbank:
         self.con.execute(f"CREATE {temp}TABLE IF NOT EXISTS {VERSIONEN} (tabelle TEXT NOT NULL, zeilen_id INTEGER "
                          "NOT NULL, version INTEGER NOT NULL, PRIMARY KEY (tabelle, zeilen_id))")
         eigene = {"stammdaten_stand", "angebot_aenderungen", VERSIONEN}
-        tabellen = [t for t in db_verbindung.tabellen(self.con) if t not in self.ANGEBOTS_TABELLEN and t not in eigene]
+        # server_…: Anwesenheit, Reservierungen, Nummern, Protokoll des Serverbetriebs sind keine Stammdaten (sonst
+        # zählte jeder Puls eines Arbeitsplatzes als Stammdaten-Änderung für alle)
+        tabellen = [t for t in db_verbindung.tabellen(self.con) if t not in self.ANGEBOTS_TABELLEN and t not in eigene
+                    and not t.startswith("server_")]
         for t in tabellen:
             for art in ("INSERT", "UPDATE", "DELETE"):
                 db_trigger.trigger(self.con, f"stand_{t}_{art.lower()}", t, art,

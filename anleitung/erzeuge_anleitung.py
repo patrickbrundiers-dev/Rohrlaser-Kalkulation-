@@ -17123,9 +17123,32 @@ def kapitel_admin_datenbank(i):
          "Geräte und Fensteransicht gelten je Arbeitsplatz; Name, Signatur und Darstellung je Mitarbeiter."],
         ["Abgleich, Sicherung je PC", "Entfallen: alle arbeiten in derselben Datenbank."],
     ], [38 * mm, 132 * mm])
-    i.hinweis("Ausbaustand: Datenbank, Anmeldung, Rechte, Nummern und Einstellungen arbeiten zentral. Die zentrale "
-              "Dateiablage, Hintergrundberechnungen am Server und die automatische Serversicherung folgen in den "
-              "nächsten Ausbaustufen. Bis dahin den Serverbetrieb nur zum Erproben nutzen.")
+    i.text("<b>Zusammenarbeiten am Server</b>")
+    i.tabelle(["Thema", "So läuft es"], [
+        ["Angebot bearbeiten", "Wer ein Angebot öffnet, bearbeitet es; öffnet es ein Kollege zur selben Zeit, sieht "
+         "er es nur an. Die gelbe Leiste nennt, wer es gerade bearbeitet (Arbeitsplatz, seit wann). Sobald es dort "
+         "geschlossen wird, lässt es sich sofort bearbeiten, ohne neu zu öffnen. <i>Übernehmen …</i> holt es mit "
+         "Rückfrage gleich her (der Kollege sieht es dann nur noch an; seine Eingaben bleiben gespeichert)."],
+        ["Absturz, Netz weg", "Meldet sich ein Arbeitsplatz 90 Sekunden nicht (Absturz, Netzwerk), werden seine "
+         "Angebote wieder frei. Beim Beenden gibt das Programm alles sofort frei."],
+        ["Live", "Ändert ein Kollege ein Angebot, aktualisieren sich die Angebotsliste und ein hier nur angesehenes "
+         "Angebot innerhalb von Sekunden. In der Liste steht beim Bearbeiter <i>● geöffnet</i> bzw. "
+         "<i>● XY bearbeitet</i>."],
+        ["Kollegen", "<i>Datei → Kollegen im gemeinsamen Ordner …</i> zeigt im Serverbetrieb alle Mitarbeiter: wer "
+         "gerade da ist, an welchem Arbeitsplatz, mit welcher Version und welche Angebote er bearbeitet."],
+        ["Benutzer", "Die Benutzer unter <i>Einstellungen → Benutzer und Rollen</i> sind zugleich die Zugänge am "
+         "Server (nur ein Administrator ändert sie): Ein neuer Benutzer braucht gleich ein Passwort (mindestens 8 "
+         "Zeichen; eine PIN gibt es am Server nicht). Rolle <i>Administrator</i> = Verwalter am Server; eine Rolle "
+         "mit <i>bearbeiten</i> in irgendeinem Bereich = bearbeiten; sonst nur lesen. <i>Sperren</i> sperrt auch "
+         "die Anmeldung am Server. Der eigene Zugang und der letzte Verwalter sind geschützt."],
+        ["Verlauf", "Änderungen an Angeboten (beim Schließen und alle 15 Sekunden) und in den Stammdaten-Tabellen "
+         "kommen mit dem Kürzel in den Änderungsverlauf. Anmelden, Abmelden, Übernahmen und Benutzeränderungen "
+         "stehen im Serverprotokoll."],
+    ], [38 * mm, 132 * mm])
+    i.hinweis("Ausbaustand: Datenbank, Anmeldung, Rechte, Nummern, Einstellungen und die Zusammenarbeit "
+              "(Reservierung, Live, Benutzer) arbeiten zentral. Die zentrale Dateiablage, Hintergrundberechnungen am "
+              "Server und die automatische Serversicherung folgen in den nächsten Ausbaustufen. Bis dahin den "
+              "Serverbetrieb nur zum Erproben nutzen.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",

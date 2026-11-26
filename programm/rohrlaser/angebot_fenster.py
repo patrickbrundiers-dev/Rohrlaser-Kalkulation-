@@ -368,6 +368,15 @@ class AngeboteListe(Liste):
 FREMD_FARBE = "#6B7280"
 
 
+def _offen_text(z):
+    """„ ● geöffnet“ (Kollege hat sein Angebot offen) bzw. im Serverbetrieb „ ● XY“, wenn ein anderer als der
+    Bearbeiter es gerade bearbeitet."""
+    if not z.get("_offen"):
+        return ""
+    k = z.get("_offen_server")
+    return f" ● {k} bearbeitet" if k and k != bearbeiter(z) else " ● geöffnet"
+
+
 def bearbeiter(z):
     """Kürzel des Bearbeiters; Angebote eines Kollegen ohne Kürzel (vor 0.8.30 angelegt): das Kürzel seiner Datei."""
     return z.get("bearbeiter") or z.get("fremd") or ""
@@ -469,7 +478,7 @@ class AngeboteSeite(QWidget):
     KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
 
     SPALTEN = [("Angebotsnummer", "nummer", None, 120),
-               ("Bearbeiter", lambda z: bearbeiter(z) + (" ● geöffnet" if z.get("_offen") else ""), None, 70),
+               ("Bearbeiter", lambda z: bearbeiter(z) + _offen_text(z), None, 70),
                ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Anfrage-Nr.", "kundenreferenz", None, 110),       # Anfrage des Kunden (Patrick 08.11.2026)
                ("Datum", lambda z: _datum(z.get("datum")), None, 85),
@@ -654,8 +663,18 @@ class AngeboteSeite(QWidget):
         self._zeitraum_hinweis_setzen(self.db.angebote_anzahl() - len(alle) if seit and not such else 0)
         zeilen = []
         geteilt = teilen.aktiv(self.db)
+        in_arbeit = {}
+        if teilen.server(self.db):     # Serverbetrieb (S2): Angebote, die Kollegen gerade bearbeiten
+            from . import server_mehrplatz
+            try:
+                in_arbeit = server_mehrplatz.angebote_in_bearbeitung(self.db)
+            except Exception:       # noqa: BLE001 - nur Anzeige
+                in_arbeit = {}
         for z in alle:
             z["_offen"] = teilen.offen_bei(self.db, z.get("nummer")) if geteilt and z.get("fremd") else None
+            if z["id"] in in_arbeit:
+                z["_offen"] = (in_arbeit[z["id"]]["kuerzel"], in_arbeit[z["id"]]["seit"])
+                z["_offen_server"] = in_arbeit[z["id"]]["kuerzel"]
             z["_gueltig"], z["_abgelaufen"] = gueltig_bis(z, tage), abgelaufen(z, tage)
             if not passt(vorgang(z), z["_abgelaufen"], z):
                 continue
@@ -3110,6 +3129,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                                       "übernommen hat)")
         self.zurueck_knopf.clicked.connect(lambda: self._zuruecknehmen())
         fl.addWidget(self.zurueck_knopf)
+        # Serverbetrieb (S2): Bearbeitung von einem anderen Arbeitsplatz übernehmen
+        self.server_knopf = QPushButton("Übernehmen …")
+        self.server_knopf.setToolTip("Das Angebot hier bearbeiten; der Kollege sieht es danach nur noch an")
+        self.server_knopf.clicked.connect(lambda: self._server_uebernehmen())
+        self.server_knopf.hide()
+        fl.addWidget(self.server_knopf)
         self.fremd_leiste.hide()
         # Nachtrag des Kunden (Automationen 03.11.2026, 5a): Änderungen aus der Mail übernehmen oder ablehnen
         self.nachtrag_leiste = QFrame()
@@ -3211,8 +3236,18 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         return True
 
     def fremd(self):
-        """Kürzel des Kollegen, wenn das Angebot einem anderen Mitarbeiter gehört (nur ansehen), sonst None."""
-        return (self.kopf or {}).get("fremd") or None
+        """Kürzel des Kollegen, wenn das Angebot einem anderen Mitarbeiter gehört (nur ansehen), sonst None.
+        Serverbetrieb (S2): auch, solange ein anderer Arbeitsplatz das Angebot bearbeitet (Reservierung)."""
+        k = (self.kopf or {}).get("fremd") or None
+        if k:
+            return k
+        b = self.server_inhaber()
+        return b["kuerzel"] if b else None
+
+    def server_inhaber(self):
+        """Serverbetrieb: wer das Angebot gerade an einem anderen Arbeitsplatz bearbeitet (dict kuerzel, platz,
+        seit), sonst None."""
+        return (getattr(self.f, "_server_belegt", None) or {}).get(self.id)
 
     def _fremd_anzeigen(self):
         k = self.fremd()
@@ -3240,6 +3275,16 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.anfrage_knopf.setVisible(bool(k) and not uebergabe and not lesen and teilen.aktiv(self.db))
         self.anfrage_knopf.setEnabled(not anfrage)
         self.anfrage_knopf.setText("Übernahme angefragt" if anfrage else "Übernahme anfragen …")
+        b = self.server_inhaber() if not (self.kopf or {}).get("fremd") else None
+        self.server_knopf.setVisible(bool(b) and not lesen)
+        if b:           # Serverbetrieb (S2): ein Kollege bearbeitet das Angebot gerade
+            name = (teilen.lebenszeichen(self.db).get(b["kuerzel"]) or {}).get("name") or ""
+            wer = f"{name} ({b['kuerzel']})" if name else b["kuerzel"]
+            self.fremd_text.setText(
+                f"<b>{wer} bearbeitet dieses Angebot gerade</b> (Arbeitsplatz {b['platz']}, seit "
+                f"{str(b.get('seit') or '')[11:16]}). Hier nur zum Ansehen; sobald es dort geschlossen ist, lässt es "
+                "sich hier bearbeiten. Sofort weiterarbeiten: „Übernehmen …“ (dort dann nur noch Ansehen).")
+            return
         if k:
             m = teilen.mitarbeiter(self.db, k)
             wer = f"{m.get('name')} ({k})" if m.get("name") else k
@@ -3261,6 +3306,10 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
     def _zuruecknehmen(self):
         from . import teilen_fenster
         return teilen_fenster.zuruecknehmen(self.f, self.id)
+
+    def _server_uebernehmen(self, fragen=True):
+        from . import server_dialog
+        return server_dialog.uebernehmen(self.f, self.id, fragen)
 
     def als_kopie(self):
         """Fremdes (oder eigenes) Angebot kopieren: eigene Nummer, öffnet die Kopie."""
@@ -3399,13 +3448,13 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         a = self.db.angebot(self.id)
         if a is None:
             return None
-        if not self.db.nur_lesen and self.db.fracht_auto_nachfuehren(self.id, a):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
+        if not self.db.nur_lesen and not self.server_inhaber() and self.db.fracht_auto_nachfuehren(self.id, a):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
             a = self.db.angebot(self.id)
         self.kopf = a
         self._fremd_anzeigen()
         self.ergebnis = a["ergebnis"]
         self.positionen = self.db.positionen(self.id)
-        if not self.db.nur_lesen:
+        if not self.db.nur_lesen and not self.server_inhaber():
             self._baugruppen_abgleichen()
         # festgeschriebene Materialpreise und Schneiddaten gehen den aktuellen Stammdaten vor
         self.k_aktuell, self.tabellen_aktuell = self.db.kontext(), self.db.tabellen()

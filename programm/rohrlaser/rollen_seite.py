@@ -239,9 +239,10 @@ class RollenTeil(QWidget):
         return False
 
     def _speichern(self, w, alt=None):
+        server = getattr(self.db, "server", None) is not None   # Serverbetrieb: Login braucht gleich ein Passwort
         fehler = rollen.benutzer_setzen(self.db, w["kuerzel"], w["name"], w["rollen"],
-                                        (alt or {}).get("aktiv", True))
-        if not fehler and (w.get("passwort") or w.get("pin")):
+                                        (alt or {}).get("aktiv", True), passwort=w.get("passwort") if server else None)
+        if not fehler and not server and (w.get("passwort") or w.get("pin")):
             fehler = rollen.zugang_setzen(self.db, self._kuerzel(w["kuerzel"]), w.get("passwort"), w.get("pin"))
         return self._fertig(fehler, f"Benutzer {w['name'] or w['kuerzel']} gespeichert.")
 

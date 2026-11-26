@@ -213,3 +213,262 @@ def zurueck(fenster, merk_pfad):
         return False
     QMessageBox.information(fenster, NAME, "Umgestellt. Bitte das Programm neu starten.")
     return True
+
+
+# ------------------------------------------------------------------------------------------------ Mehrbenutzer (S2)
+# Anbindung an das Hauptfenster: Anwesenheit (Puls), Reservierung je geöffnetem Angebot, Live-Meldungen anderer
+# Arbeitsplätze, Übernehmen mit Rückfrage, Abmelden beim Beenden. Regeln in server_mehrplatz.py.
+LIVE_MS = 1000              # so oft holt das Fenster die Live-Meldungen ab
+LISTE_RUHE_MS = 1500        # Angebotsliste höchstens so oft neu laden (viele Meldungen hintereinander)
+
+
+def _sm():
+    from . import server_mehrplatz
+    return server_mehrplatz
+
+
+def aktiv(fenster):
+    return getattr(fenster.db, "server", None) is not None
+
+
+def mehrplatz_starten(fenster):
+    """Beim Öffnen des Hauptfensters im Serverbetrieb: Anmeldung protokollieren, ersten Puls senden, Zuhörer für
+    Live-Meldungen starten."""
+    if not aktiv(fenster):
+        return None
+    from PySide6.QtCore import QTimer
+    sm = _sm()
+    db = fenster.db
+    fenster.__dict__.setdefault("_server_belegt", {})
+    sm.protokollieren(db, sm.P_ANMELDEN, db.server.text())
+    try:
+        sm.puls(db, {})
+    except db_verbindung.DbFehler:
+        pass
+    z = None
+    if not fenster.stumm:           # Tests starten den Zuhörer selbst
+        z = sm.Zuhoerer(db)
+        z.eigene_pid_lesen()
+        z.start()
+    fenster._server_zuhoerer = z
+    fenster._server_live = QTimer(fenster)
+    fenster._server_live.timeout.connect(lambda: live(fenster))
+    fenster._server_live.start(LIVE_MS)
+    return z
+
+
+def reservieren(fenster, angebot_id):
+    """Vor dem Öffnen eines Angebots: für diesen Platz reservieren. Hält es ein Kollege, öffnet es nur zum Ansehen
+    (fenster._server_belegt[id] = Inhaber)."""
+    if not aktiv(fenster):
+        return None
+    belegt = fenster.__dict__.setdefault("_server_belegt", {})
+    db = fenster.db
+    if db.nur_lesen:
+        belegt.pop(angebot_id, None)
+        return None
+    sm = _sm()
+    nummer = (db.angebot(angebot_id) or {}).get("nummer") or ""
+    try:
+        wer = sm.reservieren(db, sm.objekt_angebot(angebot_id), nummer)
+    except db_verbindung.DbFehler:
+        wer = None
+    if wer:
+        belegt[angebot_id] = wer
+    else:
+        if belegt.pop(angebot_id, None) is not None or angebot_id not in fenster.offen:
+            # ab hier bearbeitet dieser Platz: Stand für den Änderungsverlauf merken
+            verlauf_erfassen(db, [angebot_id], fenster.__dict__.setdefault("_server_verlauf_merk", {}))
+    return wer
+
+
+def freigeben(fenster, angebot_id):
+    """Angebot geschlossen: Änderungen mit Kürzel in den Verlauf, Reservierung frei."""
+    if not aktiv(fenster):
+        return
+    belegt = fenster.__dict__.setdefault("_server_belegt", {})
+    if belegt.pop(angebot_id, None) is None and not fenster.db.nur_lesen:
+        verlauf_erfassen(fenster.db, [angebot_id])
+        _sm().freigeben(fenster.db, _sm().objekt_angebot(angebot_id))
+
+
+def verlauf_erfassen(db, angebot_ids, merk=None):
+    """Änderungen an den hier bearbeiteten Angeboten mit dem eigenen Kürzel in den Änderungsverlauf. merk:
+    {Angebots-ID: Änderungszähler} beim letzten Mal – dann nur Angebote, die sich seitdem geändert haben."""
+    from . import aenderungsverlauf
+    if not angebot_ids or db.nur_lesen or db.con.in_transaction:
+        return 0
+    try:
+        if merk is not None:
+            platz = ", ".join("?" * len(angebot_ids))
+            zaehler = dict(db.con.execute(f"SELECT angebot_id, n FROM angebot_aenderungen WHERE angebot_id IN "
+                                          f"({platz})", tuple(angebot_ids)).fetchall())
+            angebot_ids = [i for i in angebot_ids if merk.get(i, -1) != zaehler.get(i)]
+            merk.update({i: zaehler.get(i) for i in angebot_ids})
+            if not angebot_ids:
+                return 0
+        with db.con:
+            return aenderungsverlauf.erfassen_angebote(db.con, db.server.kuerzel, angebot_ids)
+    except db_verbindung.DbFehler:
+        return 0
+
+
+def _offen_eigene(fenster):
+    belegt = fenster.__dict__.setdefault("_server_belegt", {})
+    merk = fenster.__dict__.setdefault("_server_offen_seit", {})
+    jetzt = __import__("datetime").datetime.now().isoformat(timespec="minutes")
+    out = {}
+    for aid, seite in list(fenster.offen.items()):
+        if aid in belegt:
+            continue
+        nr = (getattr(seite, "kopf", None) or {}).get("nummer")
+        if nr:
+            out[nr] = merk.get(nr) or jetzt
+    merk.clear()
+    merk.update(out)
+    return out
+
+
+def puls(fenster):
+    """Alle 15 s: Anwesenheit melden, eigene Reservierungen verlängern; verlorene (übernommen) → nur Ansehen;
+    Angebote, die ein Kollege freigegeben hat → hier bearbeiten; Liste neu, wenn sich Bearbeiter geändert haben."""
+    if not aktiv(fenster):
+        return None
+    from . import teilen
+    sm = _sm()
+    db = fenster.db
+    merk = fenster.__dict__.setdefault("_server_puls_merk", {})
+    import time
+    jetzt_ = time.monotonic()
+    if jetzt_ - merk.get("zeit", -1e9) < sm.PULS_S - 1:
+        return None
+    merk["zeit"] = jetzt_
+    offen = _offen_eigene(fenster)
+    try:
+        halte = sm.puls(db, offen, teilen._zeilen_frisch(db, teilen._utc(teilen.uhr_versatz(db))))
+    except db_verbindung.DbFehler:
+        return None
+    if halte is None:
+        return None
+    setattr(db, teilen.OFFEN_ZULETZT, offen)
+    eigene = [aid for aid in fenster.offen if aid not in fenster._server_belegt]
+    verlauf_erfassen(db, eigene, fenster.__dict__.setdefault("_server_verlauf_merk", {}))
+    _reservierungen_pruefen(fenster, halte)
+    try:
+        stand = repr(sorted(sm.angebote_in_bearbeitung(db).items()))
+    except db_verbindung.DbFehler:
+        stand = merk.get("stand")
+    if stand != merk.get("stand"):
+        merk["stand"] = stand
+        _liste_neu(fenster)
+    return halte
+
+
+def _reservierungen_pruefen(fenster, halte=None):
+    """Offene Angebote mit der Lage am Server abgleichen. halte: Objekte, die dieser Platz noch hält (None: nur die
+    Angebote prüfen, die ein Kollege bearbeitet)."""
+    sm = _sm()
+    db = fenster.db
+    if db.nur_lesen:
+        return
+    belegt = fenster._server_belegt
+    for aid, seite in list(fenster.offen.items()):
+        obj = sm.objekt_angebot(aid)
+        vorher = belegt.get(aid)
+        if vorher is None and halte is not None and obj in halte:
+            continue
+        if vorher is None and halte is None:
+            continue
+        wer = reservieren(fenster, aid)
+        nr = (getattr(seite, "kopf", None) or {}).get("nummer") or ""
+        if vorher is None and wer is None:          # kurz abgelaufen (Netz), wieder hier reserviert
+            continue
+        if vorher is None and wer:
+            fenster.meldung(f"{wer['kuerzel']} hat Angebot {nr} übernommen – hier jetzt nur zum Ansehen.", fehler=True)
+        elif vorher is not None and wer is None:
+            fenster.meldung(f"Angebot {nr} ist frei – Sie können es jetzt bearbeiten.")
+        elif vorher is not None and wer and wer["kuerzel"] == vorher["kuerzel"] and wer["platz"] == vorher["platz"]:
+            continue
+        if hasattr(seite, "neu_laden"):
+            seite.neu_laden()
+
+
+def _liste_neu(fenster):
+    liste = getattr(fenster, "angebote", None)
+    if liste is None or not hasattr(liste, "neu_laden"):
+        return
+    import time
+    merk = fenster.__dict__.setdefault("_server_puls_merk", {})
+    if time.monotonic() - merk.get("liste", -1e9) < LISTE_RUHE_MS / 1000:
+        merk["liste_offen"] = True
+        return
+    merk["liste"] = time.monotonic()
+    merk["liste_offen"] = False
+    liste.neu_laden()
+
+
+def live(fenster):
+    """Live-Meldungen anderer Arbeitsplätze verarbeiten: geänderte Angebote in der Liste und in hier nur angesehenen
+    Angeboten neu laden, Reservierungswechsel sofort prüfen (statt erst beim nächsten Puls)."""
+    z = getattr(fenster, "_server_zuhoerer", None)
+    merk = fenster.__dict__.setdefault("_server_puls_merk", {})
+    if z is None:
+        return None
+    m = z.abholen()
+    if not (m["angebote"] or m["sperren"] or m["neu"]):
+        if merk.get("liste_offen"):
+            _liste_neu(fenster)
+        return m
+    belegt = fenster.__dict__.setdefault("_server_belegt", {})
+    if m["sperren"] or m["neu"]:
+        _reservierungen_pruefen(fenster)
+    for aid in m["angebote"] | (set(fenster.offen) if m["neu"] else set()):
+        seite = fenster.offen.get(aid)
+        if seite is not None and aid in belegt and hasattr(seite, "neu_laden"):
+            seite.neu_laden()       # nur angesehen: Stand des Kollegen zeigen
+    _liste_neu(fenster)
+    return m
+
+
+def uebernehmen(fenster, angebot_id, fragen=True):
+    """Bearbeitung eines Angebots vom Kollegen übernehmen (Rückfrage). Ergebnis: True = übernommen."""
+    if not aktiv(fenster) or fenster.db.nur_lesen:
+        return False
+    sm = _sm()
+    belegt = fenster.__dict__.setdefault("_server_belegt", {})
+    wer = belegt.get(angebot_id)
+    nr = (fenster.db.angebot(angebot_id) or {}).get("nummer") or ""
+    if fragen and wer and not fenster.stumm and QMessageBox.question(
+            fenster, "Angebot übernehmen",
+            f"{wer['kuerzel']} bearbeitet Angebot {nr} gerade am Arbeitsplatz {wer['platz']}.\n\nJetzt hier "
+            f"übernehmen? {wer['kuerzel']} sieht es danach nur noch an; was dort schon eingegeben ist, bleibt "
+            "gespeichert.") != QMessageBox.Yes:
+        return False
+    sm.uebernehmen(fenster.db, sm.objekt_angebot(angebot_id), nr)
+    belegt.pop(angebot_id, None)
+    seite = fenster.offen.get(angebot_id)
+    if seite is not None and hasattr(seite, "neu_laden"):
+        seite.neu_laden()
+    fenster.meldung(f"Angebot {nr} übernommen – Sie bearbeiten es jetzt.")
+    return True
+
+
+def mehrplatz_beenden(fenster):
+    """Programmende: Verlauf der offenen Angebote, Abmelden (alle Reservierungen frei), Zuhörer anhalten."""
+    if not aktiv(fenster):
+        return
+    sm = _sm()
+    db = fenster.db
+    t = getattr(fenster, "_server_live", None)
+    if t is not None:
+        t.stop()
+    z = getattr(fenster, "_server_zuhoerer", None)
+    if z is not None:
+        z.stoppen()
+    belegt = fenster.__dict__.setdefault("_server_belegt", {})
+    verlauf_erfassen(db, [aid for aid in fenster.offen if aid not in belegt])
+    try:
+        sm.puls(db, ende=True)
+    except db_verbindung.DbFehler:
+        pass
+    sm.protokollieren(db, sm.P_ABMELDEN, "")
