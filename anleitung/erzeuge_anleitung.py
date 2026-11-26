@@ -17136,8 +17136,8 @@ def kapitel_admin_datenbank(i):
         ["Live", "Ändert ein Kollege ein Angebot, aktualisieren sich die Angebotsliste und ein hier nur angesehenes "
          "Angebot innerhalb von Sekunden. In der Liste steht beim Bearbeiter <i>● geöffnet</i> bzw. "
          "<i>● XY bearbeitet</i>."],
-        ["Kollegen", "<i>Datei → Kollegen im gemeinsamen Ordner …</i> zeigt im Serverbetrieb alle Mitarbeiter: wer "
-         "gerade da ist, an welchem Arbeitsplatz, mit welcher Version und welche Angebote er bearbeitet."],
+        ["Kollegen", "<i>Datei → Kollegen im gemeinsamen Ordner …</i> öffnet im Serverbetrieb das Fenster <i>Kollegen am "
+         "Server</i> mit allen Mitarbeitern: wer gerade da ist, an welchem Arbeitsplatz, mit welcher Version und welche Angebote er bearbeitet."],
         ["Benutzer", "Die Benutzer unter <i>Einstellungen → Benutzer und Rollen</i> sind zugleich die Zugänge am "
          "Server (nur ein Administrator ändert sie): Ein neuer Benutzer braucht gleich ein Passwort (mindestens 8 "
          "Zeichen; eine PIN gibt es am Server nicht). Rolle <i>Administrator</i> = Verwalter am Server; eine Rolle "
