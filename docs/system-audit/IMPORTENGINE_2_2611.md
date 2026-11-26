@@ -10,7 +10,15 @@ auf demselben Rechner (4 Kerne, Linux), alter Stand = main dfd043eb (0.9.522), n
 
 ## 1. Ergebnis in Kürze
 
-<!--ERGEBNIS-->
+- **Hänger behoben:** LST/TUBX 10186133 P10 und der Fertigungsauftrag 2026-44094_1 lieferten im alten Stand nach
+  20 bzw. 55 min kein Ergebnis; jetzt 2,6 min bzw. 3,6 min, gültige Körper.
+- **Genauer:** P20 jetzt gültig und 0,025 mm³ an der STEP (vorher ungültig, 718 mm³ zu wenig); P30 1,0 mm³ an der STEP
+  (vorher 24.114 mm³ zu viel, Fenster fehlte); BPF/ARTUBE unverändert.
+- **Schneller:** P20 41 → 24 s (−41 %), P30 29 → 27 s, ARTUBE/BPF gleich schnell wie vorher (±3 %);
+  **144 Prüf-STEPs 400,8 → 351,5 s (−12 %), alle 144 bitgleich.** Das Ziel 20–30 % ist bei den Maschinendateien
+  erreicht und übertroffen, bei STEP nicht ganz (der STEP-Kern war schon in #643/#651/#652 optimiert).
+- **Format am Inhalt** statt nur an der Endung, mit Hersteller, Software und Version.
+- **Kalkulation unverändert** (20 Angebote bitgleich), kein Schema-Sprung.
 
 ## 2. Analyse je Format
 
@@ -87,11 +95,44 @@ falscher Endung wird entpackt, eine SolidWorks-Datei mit Endung .step wird abgew
 
 Bezug: STEP ZNG_10186133 (dieselben drei Teile wie die TRUMPF-Programme 10186133 P10/P20/P30).
 
-<!--GENAUIGKEIT-->
+| Teil | STEP (Bezug) | alt | neu | Abweichung neu |
+|---|---:|---:|---:|---:|
+| P20 aus LST/TUBX | 392.821,148 mm³ | 392.102,597 mm³, **ungültig** | 392.821,123 mm³, gültig | −0,025 mm³ |
+| P30 aus LST/TUBX | 396.392,331 mm³ | 420.506,519 mm³ (Fenster fehlt) | 396.393,338 mm³ | +1,0 mm³ (Haltestege) |
+| P10 aus LST | 1.277.319,648 mm³ | kein Ergebnis (> 20 min) | 1.295.016,285 mm³ | +1,4 % (zwei Kerben über 305°, gemeldet) |
+| P10 aus TUBX | 1.277.319,648 mm³ | kein Ergebnis | 1.277.393,474 mm³ (TUBX-Netz) | +0,006 % |
+| 35565 BPF/ARTUBE | – | 70.601,868 mm³ | 70.601,868 mm³ | gleich |
+| XW1006934 BPF/ARTUBE | 307.800,123 mm³ | 307.773,892 mm³ | 307.773,892 mm³ | gleich |
+
+Schnittlänge, Einstiche und Konturklassen für die Kalkulation kommen bei LST weiter aus dem NC-Weg und sind
+unverändert (Test N4). Die aus dem Körper gemessene Konturzahl sinkt bei P20 von 193 auf 14: die 193 waren Splitter des
+ungültigen Körpers.
 
 ## 6. Zeiten und Speicher vorher/nachher
 
-<!--ZEITEN-->
+Je Datei ein Messprozess (`--prozesse 1`), Lesen und Messen zusammen, Zeit = Wanduhr.
+
+| Datei | alt | neu | RAM alt → neu |
+|---|---:|---:|---:|
+| 10186133 P10 .lst | kein Ergebnis nach > 20 min | 157,7 s | – → 873 MB |
+| 10186133 P10 .tubx | (LST daneben, wie oben) | 347,9 s | – → 914 MB |
+| 10186133 P20 .lst | 41,1 s | 24,2 s | 417 → 382 MB |
+| 10186133 P20 .tubx | 39,9 s | 23,7 s | 418 → 381 MB |
+| 10186133 P30 .lst | 29,2 s | 26,6 s | 443 → 498 MB |
+| 10186133 P30 .tubx | 28,9 s | 26,8 s | 444 → 498 MB |
+| 2026-44094_1 .lst (Auftrag, 2 Rohre) | kein Ergebnis nach 55 min | 213,3 s | – → 878 MB |
+| 2026-44094_2 .lst | kein Ergebnis (erster Lauf hing, zweiter Lauf abgebrochen) | 23,8 s | – → 381 MB |
+| 35565 .artube / .bpf | 6,3 / 6,5 s | 6,2 / 6,1 s | 299 → 300 MB |
+| XW1006934 .artube / .bpf | 32,6 / 32,6 s | 32,7 / 31,8 s | 298 → 300 MB |
+| XW1006934 .step | 4,9 s | 5,0 s | 300 MB |
+| **144 Prüf-STEPs** (tests/step*) | **400,8 s** | **351,5 s** | gleich |
+
+Nur Lesen (ohne Messen, `lies_*_info`): XW1006934.bpf 12,5 → 10,9 s, 35565.artube 2,1 → 1,5 s, LST P20 → 17 s,
+P10 → 52 s. P30 braucht etwas mehr Speicher (+55 MB), weil die Öffnung als zusätzlicher Werkzeugkörper abgezogen wird.
+
+Wo die Zeit bei P10 jetzt liegt: Messung des fertigen Körpers mit 72 Konturen und tausenden Dreiecksflächen der
+Kerben (Konturen, Abstände, Flächeneigenschaften). Die Dreh-/Frästeilprüfung darin brauchte 30 Mio.
+Richtungsvergleiche und ist jetzt über ein Raster gelöst (gleiches Ergebnis, Test N6).
 
 ## 7. Behobene Fehler
 
@@ -108,7 +149,9 @@ Bezug: STEP ZNG_10186133 (dieselben drei Teile wie die TRUMPF-Programme 10186133
 6. Dreh-/Frästeil-Prüfung verglich jede Flächenrichtung mit allen bisherigen (P10: 30 Mio. Vergleiche) → Raster mit
    exakt derselben Prüfung (`step_drehfraes._Richtungen`).
 7. Umbenannte Dateien und Fertigungsaufträge → Erkennung am Inhalt mit klarer Meldung.
-8. Zwischenspeicher übersah eine geänderte LST neben der TUBX → Begleitdateien im Schlüssel.
+8. Fertigungsauftrag mit mehreren Programmen: alle Rohre liegen im Nullpunkt übereinander und wurden als Baugruppe
+   ausgewertet (2026-44094_1: P30 als „Verbundkern“ in P10) → Körper aus Maschinenprogrammen ohne Baugruppen-Auswertung.
+9. Zwischenspeicher übersah eine geänderte LST neben der TUBX → Begleitdateien im Schlüssel.
 
 ## 8. Plausibilitätsprüfungen
 
@@ -137,7 +180,15 @@ wickelt ihn mit lst_bahn auf das Profil. Eine zweite Abwicklung des daraus gebau
 
 ## 11. Empfehlungen
 
-<!--EMPFEHLUNGEN-->
+1. **Kerben über 180° des Umfangs** (P10): Abfall genau entfernen, wenn die Kette aus offenen Schnitten um die
+   Rohrecke läuft; braucht ein eigenes Abwicklungs-Werkzeug statt eines Deckels. Bis dahin misst die TUBX aus ihrem Netz
+   (0,006 % an der STEP).
+2. **ZNG_10186133 als STEP** dauert über 20 min: eigener Auftrag „Kerbbiegen-Gestell schneller“ mit Profil des
+   Kerbbiege-Pfads.
+3. **Messung großer Dreiecksnetze** (P10, P10.tubx): Flächen gleicher Ebene vor der Messung zusammenfassen
+   (UnifySameDomain nur am Werkzeug, nicht am Teil), dann erneut bitgleich gegen diesen Stand prüfen.
+4. **Serverversion**: dateiformat.py und die Leser sind ohne Qt; der Server kann sie unverändert nutzen
+   (gleicher Kern, gleicher Zwischenspeicher-Schlüssel).
 
 ## 12. Tests
 
