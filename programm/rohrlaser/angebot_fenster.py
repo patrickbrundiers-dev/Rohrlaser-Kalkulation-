@@ -10249,7 +10249,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 self.uebersicht_bereich.preis["verkauf"].text() == "wird berechnet …":
             vk = "wird berechnet …"
         return band.setzen(self.kopf, vk, stand or self.stand_optimierung(), getattr(self, "_wirtschaft", None),
-                           deckung, gueltig_bis(self.kopf, self.db.einstellung("gueltigkeit")), vorgang(self.kopf))
+                           deckung, gueltig_bis(self.kopf, ausgabe.gueltigkeit_tage(
+                               dict(self.einst, gueltigkeit=self.db.einstellung("gueltigkeit")), self.positionen,
+                               self.k)), vorgang(self.kopf))
 
     def _wirtschaft_setzen(self, summen):
         """Kacheln „Gewinn und Marge“ und „Wirtschaftlichkeit“ (Master-Prompt 21.11.2026, preisleiter.py)."""
