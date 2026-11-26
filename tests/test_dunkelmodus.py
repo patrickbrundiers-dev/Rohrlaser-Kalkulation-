@@ -64,7 +64,9 @@ ERLAUBT = {"#D0021B", "#E00000",                      # kräftige Rotlinien: auf
            # Normteile/Zukaufteile in der Baugruppen-Ansicht (21.11.2026): Körperfarbe, dunkelgrau auf dem Verlauf
            "#3F4650",
            # STEP-Viewer 24.11.2026: Hintergrund „Dunkel (CAD)“ ist selbst dunkel (gilt in beiden Themes)
-           "#2E353D", "#15191E"}
+           "#2E353D", "#15191E",
+           # Marke NexTube 26.11.2026 (marke.py): Logofarben Stahl und Schwarz, keine Fläche oder Schrift der Oberfläche
+           "#C4CAD2", "#0E0E10"}
 offen, fest = [], []
 for datei in sorted((WURZEL / "programm" / "rohrlaser").glob("*.py")):
     if datei.name in NUR_DRUCK:
