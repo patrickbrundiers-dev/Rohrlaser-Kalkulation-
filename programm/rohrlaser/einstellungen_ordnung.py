@@ -61,7 +61,7 @@ SEITEN = (
                         "ansicht3d_kantenstaerke ansicht3d_kantenwinkel"),
            _a("Durchsicht", "ansicht3d_deckkraft"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
-          (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung austausch_aktiv server_ablage_hier"),
+          (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung austausch_aktiv server_ablage_hier rechnen_ort"),
            _a("Anfragen", "anfragen_ohne_step anfragen_nachfassen_tage"),
            _a("PPEASE-Ablage (Dokumente je PPEASE-Angebotsnummer)", "ppease_ordner ppease_jahresordner ppease_ordnername "
                                                                     "ppease_praefix ppease_nummer_muster ppease_kategorien"),

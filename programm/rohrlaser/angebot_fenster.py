@@ -10783,9 +10783,14 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             liste.write_text("\n".join(str(d) for d in dateien), encoding="utf-8")
             netze, ergebnis = Path(tmp) / "netze", Path(tmp) / "messung.json"
             nach = {} if zwischen and not self.f.stumm else None
+            rechnung = (["--flachstahl-bis", str(self.flach_bis())] + step_einstellungen.mess_argumente(self.db)
+                        + schnellimport.mess_argumente(modus))
+            if getattr(self.db, "server", None) is not None:      # S4: lange Messung am Server vorrechnen lassen
+                from . import server_dialog
+                if server_dialog.vorrechnen(self.f, self, dateien, rechnung, netze=True) is False:
+                    return None
             if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze),
-                                          "--json", str(ergebnis), "--flachstahl-bis", str(self.flach_bis())]
-                                + step_einstellungen.mess_argumente(self.db) + schnellimport.mess_argumente(modus)
+                                          "--json", str(ergebnis)] + rechnung
                                 + (["--zwischenstand", f"{nachmessung.ZWISCHENSTAND_S:g}"] if nach is not None else []),
                                 len(dateien), ausgabe, zwischen=nach, hinweis=gross):
                 return None

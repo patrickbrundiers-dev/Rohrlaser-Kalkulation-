@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.543", "<b>Serverversion (Stufe 4): Rechnen am Server</b>: Große STEP-Importe und die Vormessung neuer "
+                "Anfragen rechnet im Serverbetrieb der Rechner am Server (am Server-Rechner mit <i>--server rechnen"
+                "</i> starten). Das Ergebnis liegt im gemeinsamen Zwischenspeicher der Messung in der Ablage am "
+                "Server: einmal gemessen, an jedem Platz sofort da, mit demselben Ergebnis wie am Platz. Ohne "
+                "Rechner oder wenn er ausgelastet ist, misst der Arbeitsplatz selbst. Einstellung <i>Serverbetrieb: "
+                "lange Rechnungen</i> (automatisch, am Server, an diesem Arbeitsplatz) ([[admin_server]]).",
+     "Serverversion Stufe 4: lange STEP-Messungen am Server, gemeinsamer Mess-Zwischenspeicher"],
     ["0.9.541", "<b>Serverversion (Stufe 3): Dateiablage am Server</b>: Angebotsordner (PDF, CSV, STEP), Anfragen, "
                 "Anfrage-Akten, die Seite <i>Austausch</i>, Updates und Vorgaben liegen im Serverbetrieb in einer "
                 "Freigabe am Server (<i>Ablage am Server</i>, der Verwalter trägt sie unter <i>Datei → Datenbank …"

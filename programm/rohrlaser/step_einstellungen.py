@@ -31,7 +31,11 @@ def anwenden(db):
 
 
 def cache_ordner(db):
-    return Path(db.pfad).parent / CACHE_ORDNER
+    """Zwischenspeicher der Messung: neben der Datenbank; im Serverbetrieb mit erreichbarer Ablage gemeinsam für
+    alle Plätze und den Rechner am Server in <Ablage>/STEP-Cache (S4: einmal gemessen, überall sofort da)."""
+    from . import server_rechnen
+    gemeinsam = server_rechnen.cache_ordner(db)
+    return gemeinsam if gemeinsam is not None else Path(db.pfad).parent / CACHE_ORDNER
 
 
 def flach_bis(db, kundennr=None):
@@ -61,10 +65,15 @@ def mess_argumente(db):
     modus = db.einstellung("step_abwicklungskern") or "an"   # Vorgabe an (Patrick 24.11.2026)
     if modus in ("vergleich", "an"):
         args += ["--abwicklungskern", modus]
+    from . import server_rechnen
     from .stammdaten import STEP_CACHE_WAHL
     cache = db.einstellung("step_cache") or STEP_CACHE_WAHL[1]
     if cache in STEP_CACHE_WAHL[:2]:
-        args += ["--cache", str(cache_ordner(db)), "--cache-mb", f"{_zahl(db, 'step_cache_mb', 500):g}",
+        mb = _zahl(db, 'step_cache_mb', 500)
+        ordner = cache_ordner(db)
+        if ordner.name == server_rechnen.CACHE and ordner != Path(db.pfad).parent / CACHE_ORDNER:
+            mb = max(mb, server_rechnen.CACHE_MB_MIN)     # gemeinsam: ein Platz mit wenig MB räumt nicht für alle auf
+        args += ["--cache", str(ordner), "--cache-mb", f"{mb:g}",
                  "--kennung", VERSION]
         if cache == STEP_CACHE_WAHL[1]:     # CAD-Kern 3.0: auch gelesene Körper merken (step_lesecache.py)
             args.append("--lesecache")
