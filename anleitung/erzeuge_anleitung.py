@@ -4553,7 +4553,9 @@ def kapitel_step(i):
             "Die Ansicht zeichnet mit der Grafikkarte (OpenGL), wenn der Rechner das kann; dann bleiben auch große "
             "Baugruppen beim Drehen fein, Rundungen sind glatt und das Licht fällt wie auf blankes Metall "
             "(Glanzlicht, Fülllicht, Hintergrund mit Verlauf). Sonst und über Remote-Desktop zeichnet sie ohne "
-            "Grafikkarte, mit demselben Licht je Dreieck. "
+            "Grafikkarte, mit demselben Licht je Dreieck. Seit 0.9.515 dreht sie dabei auch große Baugruppen flüssig "
+            "(bis zu zehnmal schneller je Bild); während der Bewegung kann an Kreuzungen kurz eine Kante durchscheinen, "
+            "im Stillstand ist das Bild wie bisher. "
             "Einstellen unter <i>Mein Arbeitsplatz</i>, Abschnitt Ansicht, <i>3D-Ansicht: Darstellung</i> ([[einstellungen]]).")
     i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
               "Prozessorkernen gleichzeitig. Seit 0.9.284 schneidet die Profilsuche jede Lage nur einmal und die "
