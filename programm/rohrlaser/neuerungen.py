@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.524", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
+    ["0.9.529", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
                 "steht jetzt, ob er tauscht (vollständig, teilweise, gar nicht, gegen Zuschlag, gegen Pfand, nur bei "
                 "Rücklieferung), mit Zuschlag je Stück oder Lieferung, Freimenge, Mindestmenge, Kunde und Gültigkeit. "
                 "Ohne Regel tauscht er nicht: nicht getauschte Europaletten und Gitterboxen kosten ihren neuen "
@@ -33,6 +33,12 @@ NEUERUNGEN = [
                 "der Packliste sind jetzt Vorgabe (ohne Packmittelpreise gilt die Tabelle Verpackung). Neue Paletten: "
                 "Europalette, Halbpalette, Einweg- und Industriepalette. Ältere Angebote rechnen unverändert.",
      "Palettentausch je Dienstleister, Wiederbeschaffung nicht getauschter Packmittel"],
+    ["0.9.526", "<b>Neues Designsystem, Schritt 1</b> (Oberfläche „Klar“): Farben, Rahmen und Abstände kommen aus einer "
+                "Stelle. Ruhigere Arbeitsfläche, weiße Eingabefelder mit feinem, rundem Rahmen, schlichtere "
+                "Tabellenköpfe, modernere Menüs, Hinweise und Bildlaufleisten. Funktionen und Berechnungen sind "
+                "unverändert; die weiteren Schritte (Kopfleiste mit Befehlssuche, Angebot mit Kopfband, "
+                "Materialfenster, Einstellungen) folgen.",
+     "Neues Designsystem „Klar“, Schritt 1: ruhigere Flächen, moderne Eingabefelder"],
     ["0.9.523", "<b>Serverversion (Stufe 1)</b>: Neben der lokalen Datenbank je PC gibt es die Betriebsart "
                 "<i>Zentraler Server</i>: alle Arbeitsplätze arbeiten mit einer PostgreSQL-Datenbank auf einem Rechner im "
                 "Firmennetz (verschlüsselt, eigenes Kürzel und Passwort je Mitarbeiter, Nummern zentral ohne Doppelte, "
