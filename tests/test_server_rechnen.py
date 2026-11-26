@@ -189,8 +189,32 @@ try:
     erg = sr.am_server_rechnen(z_belegt, [teil], ["--cache", "y"], False, warten_start_s=1.0)
     assert erg == (False, "Server ausgelastet"), erg
     r2.abmelden()
-    ok("Laufender Auftrag: Fortschritt in der Tabelle, Abbruch beendet das Programm; Server ausgelastet: der Platz "
-       "rechnet selbst")
+    # Rechner stürzt mitten im Auftrag ab (Datenbank bleibt erreichbar): der Platz wartet nicht bis zum Zeitlimit
+    r3 = sr.Rechner(r.verbinden, ablage, [sys.executable, str(langsam)], "0.0.0-tot", name="TOT")
+    r3.lebenszeichen(sofort=True)
+    ergebnis = []
+    t3 = threading.Thread(target=lambda: ergebnis.append(sr.am_server_rechnen(
+        dict(z, version="0.0.0-tot"), [teil], ["--cache", "z"], False, warten_start_s=60, zeitlimit_s=120)),
+        daemon=True)
+    t3.start()
+    assert warten(lambda: r3.holen() is not None, 20), "Auftrag übernommen"
+    r3._verbindung().execute(f"UPDATE {sr.RECHNER} SET zeit = now() - interval '5 minutes' WHERE name = 'TOT'")
+    t3.join(20)
+    assert ergebnis == [(False, "Rechner am Server antwortet nicht mehr")], ergebnis
+    r3.abmelden()
+    ok("Laufender Auftrag: Fortschritt in der Tabelle, Abbruch beendet das Programm; Server ausgelastet oder Rechner "
+       "abgestürzt: der Platz rechnet selbst")
+
+    # ------------------------------------------------------------------ Rechte und Einstellung je Arbeitsplatz
+    with server.verwalter_verbinden(sb.DATENBANK) as con:
+        sb.benutzer_anlegen(con, "LE", PW_AB, sb.RECHT_LESEN, name="Nur Lesen")
+    db3 = platz("PC-DREI", "LE", PW_AB)
+    assert sr.rechner_da(sr.verbindung(db3).con, VERSION) == 1, "wer nur ansehen darf, sieht die Rechner"
+    assert sr.ort(db2) == "am Server" and sr.ort(db1) == "automatisch" and sr.ort(db3) == "automatisch", \
+        "Rechenort gilt je Arbeitsplatz"
+    from rohrlaser import teilen
+    assert {"rechnen_ort", "server_ablage_hier"} <= teilen.LOKAL and sb.bereich("rechnen_ort") == "platz"
+    ok("Nur-Lesen-Platz sieht die Rechner am Server; Rechenort und Ablagepfad gelten je Arbeitsplatz")
 
     # ------------------------------------------------------------------ Vormessung, Oberfläche, Status
     from rohrlaser import anfrage_vorab

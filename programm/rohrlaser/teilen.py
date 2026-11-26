@@ -97,7 +97,8 @@ LOKAL = {"benutzer_name", "material_favoriten", "benutzer_kuerzel", "benutzer_em
          "fang_kantenmitte", "fang_ecke", "fang_punkt", "fang_flaeche", "ansicht3d_material", "ansicht3d_licht",
          "ansicht3d_hintergrund", "ansicht3d_schatten", "nav_maus", "nav_zoom_umkehren", "nav_nachlauf",
          "ansicht3d_kanten", "ansicht3d_verdeckt", "ansicht3d_innenkanten", "ansicht3d_kantenfarbe",
-         "ansicht3d_kantenstaerke", "ansicht3d_kantenwinkel", "ansicht3d_deckkraft"}
+         "ansicht3d_kantenstaerke", "ansicht3d_kantenwinkel", "ansicht3d_deckkraft", "server_ablage_hier",
+         "rechnen_ort"}
 # dazu Gelerntes (Lernzentrale, Patrick 08.11.2026 F1a): beim Lesen je Eintrag gemischt (lernen.mischen)
 EINSTELLUNGEN_GETEILT = tuple(e.name for e in EINSTELLUNGEN if e.name not in LOKAL) + lernen.EINSTELLUNGEN_GETEILT
 EINST = "einstellungen"         # Tabellenname in teilen_basis für die gemeinsamen Einstellungen (uid = Name)

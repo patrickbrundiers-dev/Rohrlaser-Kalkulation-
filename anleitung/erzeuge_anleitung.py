@@ -17234,7 +17234,7 @@ def kapitel_admin_datenbank(i):
             "Freigabe eintragen: am Server <i>… --server ablage --ordner D:\\RohrlaserServer --pfad "
             "\\\\SERVERNAME\\Rohrlaser-Ablage</i> oder im Programm als Verwalter unter <i>Datei → Datenbank … → "
             "Ablage am Server …</i>. Ein Arbeitsplatz, der die Freigabe unter einem anderen Pfad erreicht "
-            "(Laufwerksbuchstabe), trägt ihn unter <i>Einstellungen → Benutzer → Serverbetrieb: Ablage am Server von "
+            "(Laufwerksbuchstabe), trägt ihn unter <i>Einstellungen → Mein Arbeitsplatz am Server → Serverbetrieb: Ablage am Server von "
             "diesem Arbeitsplatz aus</i> ein.",
             "<b>Rechner am Server</b> (lange Rechnungen): <i>… --server rechnen --ordner D:\\RohrlaserServer</i> "
             "startet den Rechner für große STEP-Importe und die Vormessung neuer Anfragen. Am besten wie den Server "
@@ -17266,7 +17266,7 @@ def kapitel_admin_datenbank(i):
          "einmal gemessen ist, ist an jedem Platz sofort da. Gerechnet wird mit demselben Messprogramm und denselben "
          "Einstellungen, das Ergebnis ist also gleich. Ist kein Rechner da, ist er ausgelastet (Auftrag startet "
          "nicht innerhalb von 30 Sekunden) oder schlägt etwas fehl, misst der Arbeitsplatz selbst. Einstellung "
-         "<i>Einstellungen → Benutzer → Serverbetrieb: lange Rechnungen</i>: automatisch, am Server (jeder STEP-"
+         "<i>Einstellungen → Mein Arbeitsplatz am Server → Serverbetrieb: lange Rechnungen</i> (gilt nur für diesen Platz): automatisch, am Server (jeder STEP-"
          "Import) oder an diesem Arbeitsplatz. <i>Datei → Datenbank …</i> zeigt, ob ein Rechner bereit ist."],
         ["Abgleich, Sicherung je PC", "Entfallen: alle arbeiten in derselben Datenbank."],
     ], [38 * mm, 132 * mm])

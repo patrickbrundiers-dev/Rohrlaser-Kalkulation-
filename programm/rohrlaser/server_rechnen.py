@@ -73,6 +73,7 @@ def einrichten(con):
     # auch wer nur ansehen darf, misst für die 3D-Vorschau und Vormessung (schreibt nur Aufträge, keine Daten)
     con.execute(f'GRANT SELECT, INSERT, UPDATE ON {AUFTRAEGE} TO "{sb.ROLLE_LESEN}"')
     con.execute(f'GRANT USAGE ON SEQUENCE {AUFTRAEGE}_id_seq TO "{sb.ROLLE_LESEN}"')
+    con.execute(f'GRANT SELECT ON {RECHNER} TO "{sb.ROLLE_LESEN}"')
 
 
 # ------------------------------------------------------------------------------------------------ Arbeitsplatz
@@ -205,11 +206,14 @@ def einreichen(con, dateien_rel, args, netze, version, kuerzel="", platz="", art
 
 
 def zustand(con, auftrag):
-    r = con.con.execute(f"SELECT zustand, fortschritt, gesamt, text, meldung, rechner FROM {AUFTRAEGE} WHERE id = %s",
+    """Stand eines Auftrags; „verwaist“ = laufend, aber der Rechner meldet sich seit DA_S nicht mehr (abgestürzt)."""
+    r = con.con.execute(f"SELECT a.zustand, a.fortschritt, a.gesamt, a.text, a.meldung, a.rechner, "
+                        f"a.zustand = '{LAEUFT}' AND NOT EXISTS (SELECT 1 FROM {RECHNER} r WHERE r.name = a.rechner "
+                        f"AND r.zeit > now() - interval '{DA_S} seconds') FROM {AUFTRAEGE} a WHERE a.id = %s",
                         (auftrag,)).fetchone()
     if r is None:
         return None
-    return dict(zip(("zustand", "fortschritt", "gesamt", "text", "meldung", "rechner"), r))
+    return dict(zip(("zustand", "fortschritt", "gesamt", "text", "meldung", "rechner", "verwaist"), r))
 
 
 def abbrechen(con, auftrag):
@@ -266,6 +270,9 @@ def am_server_rechnen(z, dateien, args, netze, melden=None, abbruch=None, warten
                 return True, f"am Server gerechnet ({d.get('rechner') or ''})"
             if d["zustand"] in (FEHLER, ABGEBROCHEN):
                 return False, f"am Server: {d.get('meldung') or d['zustand']}"
+            if d.get("verwaist"):
+                abbrechen(con, auftrag)
+                return False, "Rechner am Server antwortet nicht mehr"
             if melden is not None:
                 melden(int(d["fortschritt"] or 0), int(d["gesamt"] or len(rel)),
                        d.get("text") or ("wartet auf den Rechner am Server …" if d["zustand"] == NEU else ""))
