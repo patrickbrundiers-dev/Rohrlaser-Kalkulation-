@@ -229,11 +229,14 @@ class ZentralerServer(pg_lokal.LokalerServer):
         d = self._zugang_lesen() or {}
         return d.get("admin_benutzer", pg_lokal.VERWALTER), d.get("admin_passwort")
 
-    def einrichten(self, name, admin_kuerzel, admin_passwort):
+    def einrichten(self, name, admin_kuerzel, admin_passwort, ablage_=None):
         """Neuen Server anlegen und starten, Rollen und Servertabellen einrichten, ersten Administrator anlegen.
-        Ein schon eingerichteter Server bleibt unverändert (nur gestartet). Ergebnis: Pfad der Zugangsdatei."""
+        Ein schon eingerichteter Server bleibt unverändert (nur gestartet). Der Ordner <Server-Ordner>/Ablage für
+        die gemeinsamen Dateien wird angelegt (S3); ablage_: Pfad, unter dem die Arbeitsplätze ihn erreichen
+        (Freigabe, z. B. \\\\SERVER\\Rohrlaser-Ablage). Ergebnis: Pfad der Zugangsdatei."""
         neu = not self.angelegt
         self.starten()
+        self.ablage_ordner().mkdir(parents=True, exist_ok=True)
         with self.verwalter_verbinden(DATENBANK) as con:
             rollen_einrichten(con)
             con.execute(f'SET ROLE "{ROLLE_APP}"')
@@ -241,9 +244,15 @@ class ZentralerServer(pg_lokal.LokalerServer):
             con.execute("RESET ROLE")
             if neu or not info_lesen(con).get("name"):
                 info_setzen(con, name=str(name or "Rohrlaser-Server"), eingerichtet=_jetzt(), port=str(self.port))
+            if ablage_:
+                ablage_setzen(con, ablage_)
             if admin_kuerzel:
                 benutzer_anlegen(con, admin_kuerzel, admin_passwort, RECHT_VERWALTER, name=admin_kuerzel)
         return self.zugang_schreiben()
+
+    def ablage_ordner(self):
+        """Ordner der gemeinsamen Dateien auf dem Server-Rechner selbst (für die Freigabe im Netz)."""
+        return self.daten / ABLAGE_ORDNER
 
     def zugang_schreiben(self, adressen=None, ziel=None):
         """Zugangsdatei für die Arbeitsplätze (Adressen, Port, Zertifikat der Zertifizierungsstelle; kein Passwort)."""
@@ -296,6 +305,36 @@ def info_setzen(con, **werte):
     for k, w in werte.items():
         con.execute(f"INSERT INTO {INFO} (schluessel, wert) VALUES ({platzhalter}, {platzhalter}) "
                     "ON CONFLICT (schluessel) DO UPDATE SET wert = excluded.wert", (k, None if w is None else str(w)))
+
+
+# ------------------------------------------------------------------------------------------------ Ablage (S3)
+ABLAGE_ORDNER = "Ablage"        # im Server-Ordner; im Netz freigegeben, Pfad steht in der Serverinfo „ablage“
+_ABLAGE_MERK = 60.0             # [s] so lange gilt der gelesene Pfad (ändert sich selten, wird oft gefragt)
+
+
+def ablage(db):
+    """Pfad der Ablage am Server, wie der Verwalter ihn eingetragen hat (Text, leer = keine), höchstens 60 s alt."""
+    import time
+    s = getattr(db, "server", None)
+    if s is None:
+        return ""
+    merk = getattr(s, "_ablage", None)
+    if merk is not None and time.monotonic() - merk[1] < _ABLAGE_MERK:
+        return merk[0]
+    try:
+        o = str(info_lesen(db.con).get("ablage") or "").strip()
+    except Exception:       # noqa: BLE001 - Verbindung weg: zuletzt gelesener Pfad gilt weiter
+        return merk[0] if merk else ""
+    s._ablage = (o, time.monotonic())
+    return o
+
+
+def ablage_setzen(con, pfad, db=None):
+    """Pfad der Ablage am Server eintragen (Verwalter; Befehl „ablage“ oder Fenster Server). db: Sitzung, deren
+    Merker sofort den neuen Pfad sieht."""
+    info_setzen(con, ablage=str(pfad or "").strip())
+    if db is not None and getattr(db, "server", None) is not None:
+        db.server._ablage = None
 
 
 def _ist_psycopg(con):
@@ -745,6 +784,9 @@ HILFE = """Rohrlaser-Server (Serverversion) – Befehle auf dem Server-Rechner:
   benutzer --ordner ORDNER --kuerzel KÜRZEL [--recht bearbeiten|lesen|verwalter] [--name NAME] [--sperren]
       Mitarbeiter anlegen oder ändern (Passwort wird abgefragt, außer bei --sperren)
   zugang --ordner ORDNER [--adresse NAME_ODER_IP ...]   Zugangsdatei neu schreiben
+  ablage --ordner ORDNER [--pfad \\\\SERVER\\FREIGABE]
+      Ablage für die gemeinsamen Dateien (Angebotsordner, Anfrage-Akten, Austausch, Updates): ohne --pfad
+      anzeigen, mit --pfad eintragen (so, wie die Arbeitsplätze den Ordner <ORDNER>\\Ablage im Netz erreichen)
 """
 
 
@@ -754,7 +796,7 @@ def main(argv=None, eingabe=None, ausgabe=print):
     import getpass
     p = argparse.ArgumentParser(prog="rohrlaser-server", description=HILFE,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("befehl", choices=("einrichten", "starten", "stoppen", "status", "benutzer", "zugang"))
+    p.add_argument("befehl", choices=("einrichten", "starten", "stoppen", "status", "benutzer", "zugang", "ablage"))
     p.add_argument("--ordner", required=True)
     p.add_argument("--admin")
     p.add_argument("--name", default="")
@@ -764,6 +806,7 @@ def main(argv=None, eingabe=None, ausgabe=print):
     p.add_argument("--recht", choices=RECHTE, default=RECHT_BEARBEITEN)
     p.add_argument("--sperren", action="store_true")
     p.add_argument("--bin")
+    p.add_argument("--pfad")
     a = p.parse_args(argv)
     lies = eingabe or (lambda frage: getpass.getpass(frage))
 
@@ -777,9 +820,11 @@ def main(argv=None, eingabe=None, ausgabe=print):
         if not a.admin:
             raise ServerFehler("Bitte --admin KÜRZEL angeben (erster Administrator).")
         pw = passwort_fragen(a.admin)
-        datei = s.einrichten(a.name, a.admin, pw)
+        datei = s.einrichten(a.name, a.admin, pw, a.pfad)
         ausgabe(f"Server eingerichtet in {s.daten}, Port {s.port}.\nZugangsdatei für die Arbeitsplätze: {datei}\n"
-                f"Fingerabdruck des Zertifikats: {fingerabdruck(s.ca_pem())}")
+                f"Fingerabdruck des Zertifikats: {fingerabdruck(s.ca_pem())}\n"
+                f"Ablage für die gemeinsamen Dateien: {s.ablage_ordner()}"
+                + ("" if a.pfad else " (im Netz freigeben, dann: ablage --pfad \\\\SERVER\\FREIGABE)"))
     elif a.befehl == "starten":
         s.starten()
         with s.verwalter_verbinden(DATENBANK) as con:      # Rollen und Serverfunktionen auf diesen Stand
@@ -811,6 +856,15 @@ def main(argv=None, eingabe=None, ausgabe=print):
                 ausgabe(f"{a.kuerzel} angelegt bzw. geändert ({a.recht}).")
     elif a.befehl == "zugang":
         ausgabe(f"Zugangsdatei: {s.zugang_schreiben(a.adresse or None)}")
+    elif a.befehl == "ablage":
+        s.ablage_ordner().mkdir(parents=True, exist_ok=True)
+        with s.verwalter_verbinden(DATENBANK) as con:
+            con.execute(f'SET ROLE "{ROLLE_APP}"')
+            if a.pfad is not None:
+                ablage_setzen(con, a.pfad)
+            p_ = info_lesen(con).get("ablage") or ""
+            con.execute("RESET ROLE")
+        ausgabe(f"Ablage am Server: {p_ or '(keine eingetragen)'}\nOrdner auf diesem Rechner: {s.ablage_ordner()}")
     return 0
 
 

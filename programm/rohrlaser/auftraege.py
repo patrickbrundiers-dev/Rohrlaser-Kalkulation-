@@ -343,6 +343,12 @@ def neue_nummer(db, datum=None):
     from . import teilen
     jahr = str(datum or datetime.date.today().isoformat())[:4]
     n = _hoechster_lokal(db)
+    if teilen.server(db):       # Serverbetrieb (S3): Nummer in einer Transaktion am Server, nie zweimal
+        from . import server_betrieb
+        vergeben = {r[0] for r in db.con.execute("SELECT nummer FROM auftrag_kopf")}
+        nr = server_betrieb.nummer_vergeben(db, NUMMERN_ORDNER, n, lambda j, z: f"AU-{j}-{z:05d}", jahr,
+                                            vergeben.__contains__)
+        return nr                   # Zähler steht am Server (server_nummern), kein Merker in den Einstellungen
     if teilen.aktiv(db):
         w = teilen.weg(db)
         try:

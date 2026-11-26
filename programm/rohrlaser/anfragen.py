@@ -46,8 +46,8 @@ ZIEL_FORMULAR = "Anfrage"   # Unterordner im Angebotsordner für Formulare (STEP
 
 
 def ordner(db):
-    """Anfrage-Ordner: eingetragener Ordner, sonst „Anfragen“ im gemeinsamen Ordner (Einstellung teilen_anfragen),
-    sonst None (aus)."""
+    """Anfrage-Ordner: eingetragener Ordner, sonst „Anfragen“ im gemeinsamen Ordner (Einstellung teilen_anfragen;
+    Serverbetrieb: immer in der Ablage am Server), sonst None (aus)."""
     from . import teilen
     eigen = str(db.einstellung(EINSTELLUNG) or "").strip()
     if eigen:

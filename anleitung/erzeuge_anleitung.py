@@ -17229,6 +17229,13 @@ def kapitel_admin_datenbank(i):
             "nicht erreichbar, bietet das Programm <i>Noch einmal</i>, <i>Lokal arbeiten (eigene Daten dieses "
             "PCs)</i> (die Daten von vor dem Umstellen) oder <i>Beenden</i>. Startet ein Verwalter eine neuere "
             "Version, fragt es <i>Server umstellen</i> oder <i>Nur ansehen</i>.",
+            "<b>Ablage am Server</b> (gemeinsame Dateien): Beim Einrichten entsteht im Server-Ordner der Ordner "
+            "<i>Ablage</i>. Ihn im Netz freigeben (Lesen und Schreiben für alle Mitarbeiter) und den Pfad der "
+            "Freigabe eintragen: am Server <i>… --server ablage --ordner D:\\RohrlaserServer --pfad "
+            "\\\\SERVERNAME\\Rohrlaser-Ablage</i> oder im Programm als Verwalter unter <i>Datei → Datenbank … → "
+            "Ablage am Server …</i>. Ein Arbeitsplatz, der die Freigabe unter einem anderen Pfad erreicht "
+            "(Laufwerksbuchstabe), trägt ihn unter <i>Einstellungen → Benutzer → Serverbetrieb: Ablage am Server von "
+            "diesem Arbeitsplatz aus</i> ein.",
             nummeriert=True)
     i.tabelle(["Thema", "Im Serverbetrieb"], [
         ["Sicherheit", "Verbindung nur verschlüsselt (TLS) mit dem eigenen Zertifikat des Servers; ein anderer "
@@ -17238,8 +17245,15 @@ def kapitel_admin_datenbank(i):
         ["Programmversion", "Alle Arbeitsplätze rechnen mit derselben Version. Eine abweichende Version öffnet nur "
          "zum Ansehen (oder gar nicht, wenn sich der Aufbau der Datenbank geändert hat). Startet ein Verwalter eine "
          "neuere Version, fragt das Programm, ob der Server umgestellt wird; danach müssen alle aktualisieren."],
-        ["Angebotsnummern", "Vergibt der Server in einer Transaktion: eindeutig, auch wenn mehrere gleichzeitig "
-         "anlegen, nie zweimal."],
+        ["Nummern", "Angebots-, AB-, Auftrags- und Rahmenauftragsnummern vergibt der Server in einer Transaktion: "
+         "eindeutig, auch wenn mehrere gleichzeitig anlegen, nie zweimal."],
+        ["Dateien", "Angebotsordner (PDF, CSV, STEP), Anfragen und Anfrage-Akten, die Seite <i>Austausch</i> "
+         "(Dateien, persönliche Ordner, Versionen, Papierkorb), Updates, Admin- und Oberflächen-Vorgaben sowie "
+         "fertige Rechenergebnisse liegen in der Ablage am Server: Was ein Kollege ablegt, ist sofort bei allen da. "
+         "Ohne eingetragene Ablage bleiben die Dateien auf dem jeweiligen Arbeitsplatz. <i>Datei → Datenbank …</i> "
+         "zeigt, ob die Ablage erreichbar ist; ist sie es nicht, meldet das Programm das beim Speichern, statt "
+         "Dateien woanders abzulegen. Rechte: wer am Server nur <i>lesen</i> darf, sieht die Dateien auf der Seite "
+         "<i>Austausch</i> nur an."],
         ["Einstellungen", "Firmenwerte (Preise, Zuschläge, Regeln, Admin-Vorgaben) gelten für alle. Ordner, "
          "Geräte und Fensteransicht gelten je Arbeitsplatz; Name, Signatur und Darstellung je Mitarbeiter."],
         ["Abgleich, Sicherung je PC", "Entfallen: alle arbeiten in derselben Datenbank."],
@@ -17266,8 +17280,8 @@ def kapitel_admin_datenbank(i):
          "kommen mit dem Kürzel in den Änderungsverlauf. Anmelden, Abmelden, Übernahmen und Benutzeränderungen "
          "stehen im Serverprotokoll."],
     ], [38 * mm, 132 * mm])
-    i.hinweis("Ausbaustand: Datenbank, Anmeldung, Rechte, Nummern, Einstellungen und die Zusammenarbeit "
-              "(Reservierung, Live, Benutzer) arbeiten zentral. Die zentrale Dateiablage, Hintergrundberechnungen am "
+    i.hinweis("Ausbaustand: Datenbank, Anmeldung, Rechte, Nummern, Einstellungen, die Zusammenarbeit "
+              "(Reservierung, Live, Benutzer) und die Dateiablage arbeiten zentral. Hintergrundberechnungen am "
               "Server und die automatische Serversicherung folgen in den nächsten Ausbaustufen. Bis dahin den "
               "Serverbetrieb nur zum Erproben nutzen.")
     i.abschnitt("Mehrere PCs: Abgleich")

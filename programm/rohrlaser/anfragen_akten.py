@@ -1418,9 +1418,9 @@ def verlauf_text(e):
 
 # ------------------------------------------------------------------ Programm: wo liegen die Akten?
 def wurzel(db):
-    """Ordner der Akten: im gemeinsamen Ordner, sonst neben der Datendatei."""
+    """Ordner der Akten: im gemeinsamen Ordner (Serverbetrieb: in der Ablage am Server), sonst neben der Datendatei."""
     from . import teilen
-    o = teilen.ordner(db) if teilen.aktiv(db) else None
+    o = teilen.dateiordner(db) if teilen.dateien_geteilt(db) else None
     if o is not None:
         return Path(o) / ORDNER
     return Path(db.pfad).parent / ORDNER

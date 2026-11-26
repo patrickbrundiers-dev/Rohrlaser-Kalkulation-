@@ -396,9 +396,9 @@ class OrdnerAblage:
 
 
 def ablage(db):
-    """Ablage der Admin-Vorgaben oder None (kein gemeinsamer Ordner)."""
+    """Ablage der Admin-Vorgaben oder None (kein gemeinsamer Ordner, im Serverbetrieb keine Ablage am Server)."""
     from . import teilen
-    w = teilen.weg(db)
+    w = teilen.dateiweg(db)
     return OrdnerAblage(w) if w is not None else None
 
 

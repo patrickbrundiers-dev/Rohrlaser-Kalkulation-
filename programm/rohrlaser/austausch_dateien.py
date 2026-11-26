@@ -257,9 +257,10 @@ def intern(name):
 
 # ------------------------------------------------------------------ Bereiche
 def gemeinsam(db):
-    """Ordner der gemeinsamen Dateien: <gemeinsamer Ordner>/Austausch, ohne gemeinsamen Ordner neben der Datendatei."""
+    """Ordner der gemeinsamen Dateien: <gemeinsamer Ordner>/Austausch (Serverbetrieb: <Ablage am Server>/Austausch),
+    ohne beides neben der Datendatei."""
     from . import teilen
-    o = teilen.ordner(db) if teilen.aktiv(db) else None
+    o = teilen.dateiordner(db) if teilen.dateien_geteilt(db) else None
     if o is not None:
         return Path(o) / ORDNER
     return Path(getattr(db, "pfad", ".")).parent / ORDNER
@@ -460,8 +461,10 @@ def rechte_vorgabe(db):
 
 def darf(db, aktion):
     """Darf der angemeldete Benutzer diese Aktion im Austauschordner? Ohne Benutzerverwaltung alles außer
-    endgültig löschen (nur Admin, siehe darf_endgueltig)."""
+    endgültig löschen (nur Admin, siehe darf_endgueltig). Nur-Lesen (Serverrecht lesen, Lesemodus): nur ansehen."""
     from . import rollen
+    if getattr(db, "nur_lesen", False):
+        return aktion == LESEN
     try:
         if not rollen.aktiv(db) or rollen._admin_frei(db):
             return True
