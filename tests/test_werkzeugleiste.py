@@ -70,7 +70,11 @@ f.resize(1400, 860)
 f.show()
 app.processEvents()
 leiste = f.meine_leiste
-assert f.toolBarArea(leiste) == Qt.TopToolBarArea and leiste.isVisible()
+# ab Werk aus (UI Next Level, Patrick 26.11.2026, F3); Ansicht → Meine Werkzeugleiste schaltet sie ein
+assert f.toolBarArea(leiste) == Qt.TopToolBarArea and not leiste.isVisible()
+f.leiste_sichtbar_aktion.setChecked(True)
+app.processEvents()
+assert leiste.isVisible()
 f.reiter.setCurrentWidget(f.start)
 app.processEvents()
 assert aktionen.kontext(f) == "start"

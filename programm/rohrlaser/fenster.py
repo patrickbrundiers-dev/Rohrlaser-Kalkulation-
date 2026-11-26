@@ -2715,9 +2715,8 @@ class StartSeite(QWidget):
         from .angebot_oben import Aufklapper, karte
         super().__init__()
         self.f = fenster
-        titel = QLabel(f"<h2 style='color:{AKZENT}'>{NAME}</h2>")
-        version = QLabel(f"Version {update.stand_text(fenster.updater.lokal)}")
-        version.setStyleSheet("color: #5F6B7A;")
+        from . import bausteine
+        self.version_text = f"{NAME} · Version {update.stand_text(fenster.updater.lokal)}"
 
         # Angebote: neu anlegen, Liste öffnen, zuletzt bearbeitete mit Doppelklick öffnen
         angebote, al = karte("Angebote")
@@ -2898,16 +2897,19 @@ class StartSeite(QWidget):
         from .startseite_karten import SchnellKarte
         self.schnell = SchnellKarte(fenster)
         lay = QVBoxLayout(self)
-        kopf = QHBoxLayout()
-        kopf.addWidget(titel)
-        kopf.addSpacing(12)
-        kopf.addWidget(version, 0, Qt.AlignBottom)
-        kopf.addStretch(1)
+        # Seitenkopf (UI Next Level Phase 2): Begrüßung, Datum und Version, „Dashboard anpassen“ rechts
         anpassen = QPushButton("Dashboard anpassen …")
         anpassen.setToolTip("Karten ein- und ausblenden und per Drag & Drop anordnen")
         anpassen.clicked.connect(lambda: fenster.startseite_anpassen())
-        kopf.addWidget(anpassen, 0, Qt.AlignBottom)
-        lay.addLayout(kopf)
+        self.kopf = bausteine.seitenkopf(self.begruessung(), self._untertitel(), [anpassen])
+        lay.addWidget(self.kopf)
+        # Hinweisband über die volle Breite, solange die Stammdaten Beispielwerte sind (vorher roter Text in der Karte)
+        self.beispiel_band = bausteine.hinweisband(
+            "<b>Die Stammdaten sind Beispielwerte.</b> Bitte unter Einstellungen durch die eigenen Werte ersetzen "
+            "(Stundensätze, Maschinen, Material).", "warnung", "Einstellungen öffnen",
+            lambda: fenster.reiter.setCurrentWidget(fenster.bereich), schliessen=True)
+        self.beispiel_band.setVisible(False)
+        lay.addWidget(self.beispiel_band)
         from .kacheln import KachelZeile         # U5: Kennzahlen als Kacheln für alle (Marge nur Admin, unten)
         self.kacheln = KachelZeile()
         self.kacheln.geklickt.connect(self._kachel_geklickt)
@@ -2962,6 +2964,24 @@ class StartSeite(QWidget):
         self.karten_anordnen()
         self.setAcceptDrops(True)
         self.neu_laden()
+
+    def begruessung(self, jetzt=None):
+        """„Guten Morgen, Name“ (bis 11 Uhr), „Guten Tag“, ab 18 Uhr „Guten Abend“; Name des angemeldeten Benutzers."""
+        jetzt = jetzt or datetime.datetime.now()
+        gruss = "Guten Morgen" if jetzt.hour < 11 else "Guten Abend" if jetzt.hour >= 18 else "Guten Tag"
+        try:
+            from . import rollen
+            name = rollen.name(self.f.db)
+        except Exception:           # noqa: BLE001
+            name = ""
+        return f"{gruss}, {name}" if name else gruss
+
+    def _untertitel(self, heute=None):
+        heute = heute or datetime.date.today()
+        tage = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
+        monate = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober",
+                  "November", "Dezember")
+        return f"{tage[heute.weekday()]}, {heute.day}. {monate[heute.month - 1]} {heute.year} · {self.version_text}"
 
     def karten_anordnen(self):
         """Karten nach der Anordnung des Benutzers (Dashboard anpassen) in die Bereiche setzen; nicht gewählte
@@ -3055,9 +3075,14 @@ class StartSeite(QWidget):
         if stand:
             stand = datetime.datetime.fromisoformat(stand).strftime("%d.%m.%Y %H:%M")
         warnung = ""
-        if herkunft == "Beispieldaten":
-            warnung = ("<p style='color:#B42318'><b>Die Stammdaten sind Beispielwerte.</b> Bitte im Reiter "
-                       "Einstellungen durch die eigenen Werte ersetzen.</p>")
+        beispiel = herkunft == "Beispieldaten"
+        if beispiel:                # Hinweis steht groß im Band oben; in der Karte nur kurz
+            warnung = "<p><b>Beispielwerte</b>, bitte durch die eigenen ersetzen.</p>"
+        if getattr(self, "_band_zustand", None) != beispiel:    # „Später“ blendet bis zur nächsten Änderung aus
+            self._band_zustand = beispiel
+            self.beispiel_band.setVisible(beispiel)
+        self.kopf.titel.setText(self.begruessung())
+        self.kopf.untertitel.setText(self._untertitel())
         tabellen = [(t.titel, db.anzahl(t.name)) for t in TABELLEN]
         haelfte = (len(tabellen) + 1) // 2           # zwei Spalten: kurze Liste statt einer langen
         zeilen = "".join(
@@ -3431,6 +3456,7 @@ class Hauptfenster(QMainWindow):
         from .materialanfragen_seite import MaterialanfragenSeite
         self.materialanfragen = MaterialanfragenSeite(self)
         self.reiter.addTab(self.materialanfragen, self.materialanfragen.titel)
+        self.materialanfragen.zahl_melden()      # Zähler in der Seitenleiste gleich beim Start (Codex #686)
         self.angebote = AngeboteSeite(self)
         self.angebote.oeffnen.connect(self.angebot_oeffnen)
         self.reiter.addTab(self.angebote, "Angebote")
@@ -3932,14 +3958,11 @@ class Hauptfenster(QMainWindow):
         a.triggered.connect(lambda: self.befehlspalette())
         ansicht.addAction(a)
         # B1 (Verbesserungsplan 06.11.2026): die Suche sichtbar oben rechts, nicht nur über Strg+K
-        self.suchknopf = QPushButton("Suchen …   (Strg+K)")
-        self.suchknopf.setObjectName("suchknopf")
+        self.suchknopf = QPushButton("⌕  Befehl, Angebot oder Kunde suchen    Strg+K")
+        self.suchknopf.setObjectName("suchknopf")       # Aussehen im Stylesheet (stil.py, Designsystem „Klar“)
         self.suchknopf.setCursor(Qt.PointingHandCursor)
         self.suchknopf.setToolTip("Angebote, Kunden, Profile, Einstellungen, Menübefehle und Knöpfe der offenen Seite "
                                   "suchen und ausführen (Strg+K)")
-        self.suchknopf.setStyleSheet("QPushButton#suchknopf { text-align: left; padding: 2px 10px; min-width: 190px; "
-                                     "color: #5F6B7A; border: 1px solid #C9D0D8; border-radius: 4px; "
-                                     "background: palette(base); }")
         self.suchknopf.clicked.connect(lambda: self.befehlspalette())
         # U2 (UI-Modernisierung 12.11.2026): offene Angebote und Suche in der Menüzeile, rechts neben den Menüs
         from .navigation import MenueEcke
@@ -3992,6 +4015,8 @@ class Hauptfenster(QMainWindow):
         hilfe.addAction(a)
         from . import hauptadmin_menue      # Menü Hauptadmin (nur nach der Hauptadmin-Anmeldung sichtbar)
         hauptadmin_menue.einrichten(self)
+        from . import kopfleiste            # Knopf „Menü“ statt aller Menüs nebeneinander (UI Next Level Phase 2)
+        kopfleiste.einrichten(self)
 
     def update_center_zeigen(self):
         from . import update_center

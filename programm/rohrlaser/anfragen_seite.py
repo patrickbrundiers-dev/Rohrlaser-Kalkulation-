@@ -2437,6 +2437,14 @@ class AnfragenSeite(QWidget):
         self.liste_fuellen()
 
     def _kacheln_melden(self):
+        from .navigation import zahl_melden      # Zähler „neue Anfragen“ in der Seitenleiste (UI Next Level)
+        neu = sum(1 for a in self.akten if a.status == ak.NEU)
+        try:
+            spaet = self.kachel_zahlen().get("ueberfaellig", 0)
+        except Exception:           # noqa: BLE001
+            spaet = 0
+        zahl_melden(self.f, "Anfragen", neu, hervor=bool(spaet),
+                    tipp=f"{neu} neue Anfragen" + (f", {spaet} überfällig" if spaet else ""))
         start = getattr(self.f, "start", None)
         if start is not None and hasattr(start, "anfragen_kacheln_setzen"):
             try:

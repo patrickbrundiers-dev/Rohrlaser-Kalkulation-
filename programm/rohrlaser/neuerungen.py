@@ -31,6 +31,14 @@ NEUERUNGEN = [
                 "nicht nur an der Endung (STEP als .txt, ZIP als .step, IGES als .stp, Fertigungsauftrag ohne "
                 "Schneidweg), mit Hersteller und Softwareversion im Hinweis ([[trumpf_programm]]).",
      "Importengine 2.0: LST/BPF/ArTube genauer und schneller, Format am Inhalt"],
+    ["0.9.536", "<b>Neues Designsystem, Schritt 2</b> (Hauptfenster): Oben links steht statt fünf Menüs ein Knopf "
+                "<i>☰ Menü</i> mit allen Menüs, das lange Menü Datei nach Themen geteilt (Datei, Daten und Abgleich, "
+                "Auswertung und Prüfung, KI). Tastenkürzel und Alt+Buchstabe gelten weiter; die alte Leiste gibt es "
+                "unter <i>Ansicht → Klassische Menüleiste</i>. Rechts oben eine breitere Suche (Strg+K). Die "
+                "Seitenleiste zeigt Zähler für neue Anfragen, fällige Wiedervorlagen und erhaltene Lieferantenangebote. "
+                "Die Startseite begrüßt mit Datum; Beispiel-Stammdaten meldet ein Hinweisband. <i>Meine "
+                "Werkzeugleiste</i> ist ab Werk aus (wer sie angepasst hat, behält sie).",
+     "Neues Designsystem, Schritt 2: Knopf Menü, Suche, Zähler, Startseite"],
     ["0.9.534", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
                 "steht jetzt, ob er tauscht (vollständig, teilweise, gar nicht, gegen Zuschlag, gegen Pfand, nur bei "
                 "Rücklieferung), mit Zuschlag je Stück oder Lieferung, Freimenge, Mindestmenge, Kunde und Gültigkeit. "

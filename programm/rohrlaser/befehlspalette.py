@@ -24,6 +24,7 @@ class Eintrag:
 
 def _menue_befehle(f):
     """Alle Menüpunkte des Hauptfensters (Menü → Punkt), nur freigegebene."""
+    from .kopfleiste import thema
     aus = []
     for a in f.menuBar().actions():
         m = a.menu()
@@ -33,7 +34,7 @@ def _menue_befehle(f):
         for b in m.actions():
             if b.isSeparator() or not b.text() or b.menu() is not None:
                 continue
-            aus.append((name, b))
+            aus.append((thema(b.text()) if name == "Datei" else name, b))   # Datei nach Themen wie im Knopf „Menü“
     return aus
 
 
