@@ -87,8 +87,14 @@ def pflicht(db):
         u.get("hash") or u.get("pin") for u in benutzer(db).values())
 
 
-def benutzer_setzen(db, kuerzel, name="", rollen=(), aktiv_=True):
-    """Benutzer anlegen oder ändern (Kürzel, Name, Rollen, aktiv). Ergebnis: Fehlertext oder ''."""
+def _server(db):
+    return getattr(db, "server", None) is not None
+
+
+def benutzer_setzen(db, kuerzel, name="", rollen=(), aktiv_=True, passwort=None):
+    """Benutzer anlegen oder ändern (Kürzel, Name, Rollen, aktiv). Im Serverbetrieb zugleich der Login am Server
+    (Recht aus den Rollen, gesperrt, Name; ein neuer Benutzer braucht dort gleich ein Passwort). Ergebnis: Fehlertext
+    oder ''."""
     from .teilen import kuerzel_sauber
     k = kuerzel_sauber(kuerzel)
     if not k:
@@ -100,6 +106,11 @@ def benutzer_setzen(db, kuerzel, name="", rollen=(), aktiv_=True):
     e = dict(liste.get(k) or {})
     e.update(name=str(name or e.get("name") or "").strip(), rollen=[r for r, _ in ROLLEN if r in rollen],
              aktiv=bool(aktiv_), stand=_jetzt())
+    if _server(db):                     # Serverversion S2: erst der Login am Server, dann die Programmliste
+        from . import server_mehrplatz
+        fehler = server_mehrplatz.benutzer_server(db, k, e["name"], e["rollen"], bool(aktiv_), passwort or None)
+        if fehler:
+            return fehler
     liste[k] = e
     db.einstellung_setzen(BENUTZER, liste)
     return ""
@@ -109,6 +120,11 @@ def entfernen(db, kuerzel):
     liste = benutzer(db)
     if liste.pop(kuerzel, None) is None:
         return "Den Benutzer gibt es nicht."
+    if _server(db):
+        from . import server_mehrplatz
+        fehler = server_mehrplatz.benutzer_entfernen(db, kuerzel)
+        if fehler:
+            return fehler
     db.einstellung_setzen(BENUTZER, liste)
     return ""
 
@@ -119,6 +135,14 @@ def zugang_setzen(db, kuerzel, passwort=None, pin=None):
     if kuerzel not in liste:
         return "Den Benutzer gibt es nicht."
     e = liste[kuerzel]
+    if _server(db):                     # Serverbetrieb: angemeldet wird am Server (Passwort dort, keine PIN)
+        if pin:
+            return "Im Serverbetrieb meldet sich jeder mit Passwort am Server an; eine PIN gibt es dort nicht."
+        if not passwort:
+            return "" if passwort is None else "Am Server braucht jeder Benutzer ein Passwort."
+        from . import server_mehrplatz
+        return server_mehrplatz.benutzer_server(db, kuerzel, e.get("name"), e.get("rollen") or [],
+                                                e.get("aktiv", True), passwort)
     if passwort is not None:
         if passwort and len(passwort) < PASSWORT_MIN:
             return f"Das Passwort braucht mindestens {PASSWORT_MIN} Zeichen."
@@ -140,11 +164,26 @@ def recht_setzen(db, rolle, bereich, stufe):
     gespeichert = dict(db.einstellung(RECHTE) or {})
     gespeichert[rolle] = dict(gespeichert.get(rolle) or {}, **{bereich: stufe})
     db.einstellung_setzen(RECHTE, gespeichert)
-    return ""
+    return _server_abgleichen(db, rolle)
+
+
+def _server_abgleichen(db, rolle=None):
+    """Serverbetrieb: geänderte Rechtetabelle → Recht am Server (bearbeiten/lesen) der Benutzer mit dieser Rolle."""
+    if not _server(db) or not getattr(db.server, "verwalter", False):
+        return ""
+    from . import server_mehrplatz
+    fehler = []
+    for k, e in benutzer(db).items():
+        if rolle is None or rolle in (e.get("rollen") or ()):
+            f = server_mehrplatz.benutzer_server(db, k, e.get("name"), e.get("rollen") or [], e.get("aktiv", True))
+            if f and "Passwort" not in f:       # Benutzer ohne Login am Server: bleibt, bis er ein Passwort bekommt
+                fehler.append(f"{k}: {f}")
+    return "; ".join(fehler)
 
 
 def vorgabe_wiederherstellen(db):
     db.einstellung_setzen(RECHTE, {})
+    _server_abgleichen(db)
 
 
 # ------------------------------------------------------------------ Anmeldung

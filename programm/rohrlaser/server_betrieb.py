@@ -273,6 +273,8 @@ def rollen_einrichten(con):
                 f'TO "{ROLLE_LESEN}"')
     con.execute(f'ALTER DEFAULT PRIVILEGES FOR ROLE "{ROLLE_APP}" IN SCHEMA public GRANT SELECT ON SEQUENCES '
                 f'TO "{ROLLE_LESEN}"')
+    from . import server_mehrplatz          # Benutzer pflegen nur über die Serverfunktion (S2)
+    server_mehrplatz.verwalter_einrichten(con)
 
 
 def info_einrichten(con):
@@ -635,6 +637,8 @@ heben_fragen = None     # Oberfläche: Funktion(meldung) -> True/False, bevor ei
 def pflege_fertig(con, programm, schema):
     """Nach erfolgreicher Datenpflege (Administrator): Server auf diese Version setzen."""
     info_einrichten(con)
+    from . import server_mehrplatz
+    server_mehrplatz.einrichten(con)        # Anwesenheit, Reservierungen, Live-Meldungen, Protokoll (S2)
     info_setzen(con, programm=programm, schema=schema, pflege=programm, gehoben=_jetzt(),
                 gehoben_von=angemeldet())
 
@@ -778,6 +782,8 @@ def main(argv=None, eingabe=None, ausgabe=print):
                 f"Fingerabdruck des Zertifikats: {fingerabdruck(s.ca_pem())}")
     elif a.befehl == "starten":
         s.starten()
+        with s.verwalter_verbinden(DATENBANK) as con:      # Rollen und Serverfunktionen auf diesen Stand
+            rollen_einrichten(con)
         ausgabe(f"Server läuft (Port {s.port}).")
     elif a.befehl == "stoppen":
         s.stoppen()

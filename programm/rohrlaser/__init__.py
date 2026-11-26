@@ -3,7 +3,7 @@ import importlib.machinery
 import importlib.util
 from pathlib import Path
 
-VERSION = "0.9.538"
+VERSION = "0.9.539"
 from .marke import NAME, PROGRAMM_ID_KALKULATION as PROGRAMM_ID  # noqa: E402,F401  (Marke NexTube, B-1)
 URHEBER = "© 2026 Patrick Brundiers. Alle Rechte vorbehalten."
 _HIER = Path(__file__).resolve().parent

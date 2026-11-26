@@ -321,6 +321,17 @@ def aktiv(db):
     return bool(kuerzel(db) and ordner(db))
 
 
+def server(db):
+    """Serverbetrieb (zentrale Datenbank): Anwesenheit und Reservierungen am Server statt im Ordner."""
+    return getattr(db, "server", None) is not None
+
+
+def mehrplatz(db):
+    """Mehrere Arbeitsplätze arbeiten zusammen (gemeinsamer Ordner oder zentraler Server): wer ist da, wer
+    bearbeitet was, weiche Sperre für Stammdaten."""
+    return aktiv(db) or server(db)
+
+
 # ------------------------------------------------------------------ Ordner umziehen (Paket F2, 01.11.2026)
 def umzug(db):
     """Hinweis UMGEZOGEN.json im eingetragenen gemeinsamen Ordner (dict: neu, von, zeit, fertig) oder None."""
@@ -438,12 +449,31 @@ def uhr_abweichung(db):
 def uhr_versatz(db):
     """Sekunden, um die der Abgleich die Zeitpunkte der eigenen Änderungen verschiebt, damit eine falsch gehende
     PC-Uhr keinen Konflikt falsch entscheidet: Mittel der letzten beiden Messungen, wenn sie übereinstimmen und die
-    Abweichung mindestens UHR_KORREKTUR_AB und höchstens UHR_HOECHSTENS ist; sonst 0."""
+    Abweichung mindestens UHR_KORREKTUR_AB und höchstens UHR_HOECHSTENS ist; sonst 0.
+    Serverbetrieb: Abstand zur Uhr des Servers (gemessen, höchstens einmal je Minute), damit Zeitstempel in den
+    gemeinsamen Daten bei allen Plätzen mit derselben Uhr verglichen werden."""
+    if server(db):
+        return _server_versatz(db)
     m = (db.einstellung(UHR) or {}).get("messungen") or []
     if len(m) < 2 or abs(m[-1] - m[-2]) > UHR_EINIG:
         return 0
     v = (m[-1] + m[-2]) / 2
     return round(v, 1) if UHR_KORREKTUR_AB <= abs(v) <= UHR_HOECHSTENS else 0
+
+
+def _server_versatz(db):
+    import time
+    merk = getattr(db, "_server_uhr", None)
+    if merk and time.monotonic() - merk[0] < 60:
+        return merk[1]
+    try:
+        vorher = time.time()
+        server_s = float(db.con.execute("SELECT extract(epoch FROM clock_timestamp())").fetchone()[0])
+        v = round(server_s - (vorher + time.time()) / 2, 1)
+    except (db_verbindung.DbFehler, TypeError, ValueError):
+        return merk[1] if merk else 0
+    db._server_uhr = (time.monotonic(), v)
+    return v
 
 
 def uhr_text(sekunden):
@@ -1728,6 +1758,13 @@ def offen_bei(db, nummer, jetzt_=None):
 def kollegen_offen(db, jetzt_=None):
     """{Nummer: (Kürzel, seit)} der Angebote, die Kollegen gerade geöffnet haben. Mit Lebenszeichen (ab 0.9.219)
     gilt nur dessen Stand (höchstens ONLINE_S alt), sonst die Hauptdatei (FRISCH_MIN nach dem letzten Schreiben)."""
+    if server(db):          # Serverbetrieb: Reservierungen der Kollegen (wer bearbeitet welches Angebot)
+        from . import server_mehrplatz
+        out = {}
+        for d in server_mehrplatz.angebote_in_bearbeitung(db).values():
+            if d.get("titel"):
+                out.setdefault(d["titel"], (d["kuerzel"], d["seit"]))
+        return out
     jetzt_ = jetzt_ or datetime.datetime.now()
     ich = kuerzel(db)
     out = {}
@@ -1838,11 +1875,18 @@ def _zeilen_frisch(db, jetzt_):
 def zeile_merken(db, tabelle, uid):
     """Diese Stammdaten-Zeile wurde hier gerade geändert: gleich ins Lebenszeichen, damit ein Kollege, der dieselbe
     Zeile ändern will, gefragt wird (weiche Sperre, Frage 2a). Ergebnis: True = Lebenszeichen geschrieben."""
-    if not uid or not aktiv(db) or not kuerzel(db):
+    if not uid or not mehrplatz(db) or not kuerzel(db):
         return False
     m = dict(getattr(db, ZEILEN, None) or {})
     m[f"{tabelle}|{uid}"] = _utc(uhr_versatz(db)).isoformat(timespec="seconds")
     setattr(db, ZEILEN, m)
+    if server(db):
+        from . import server_mehrplatz
+        try:
+            return server_mehrplatz.puls(db, getattr(db, OFFEN_ZULETZT, None),
+                                         _zeilen_frisch(db, _utc(uhr_versatz(db)))) is not None
+        except (db_verbindung.DbFehler, OSError):
+            return False
     try:
         return lebenszeichen_schreiben(db, getattr(db, OFFEN_ZULETZT, None))
     except (TeilenFehler, OSError):
@@ -1852,7 +1896,7 @@ def zeile_merken(db, tabelle, uid):
 def zeile_bei_kollegen(db, tabelle, uid, jetzt_=None):
     """(Kürzel, Sekunden) wenn ein Kollege diese Stammdaten-Zeile in den letzten ZEILE_S Sekunden geändert hat und
     noch da ist, sonst None. Liest die Lebenszeichen neu, wenn sie älter als FRISCH_LESEN_S sind."""
-    if not uid or not aktiv(db):
+    if not uid or not mehrplatz(db):
         return None
     if jetzt_ is None and datetime.datetime.now().timestamp() - (getattr(db, ONLINE_GELESEN, 0) or 0) > FRISCH_LESEN_S:
         try:
@@ -1861,7 +1905,7 @@ def zeile_bei_kollegen(db, tabelle, uid, jetzt_=None):
             pass
     jetzt_ = jetzt_ or _utc(uhr_versatz(db))
     treffer = None
-    for k2, d in lebenszeichen(db, jetzt_).items():
+    for k2, d in (lebenszeichen(db) if server(db) else lebenszeichen(db, jetzt_)).items():
         if not d.get("online"):
             continue
         t = _zeit_utc((d.get("zeilen") or {}).get(f"{tabelle}|{uid}"))
@@ -1875,7 +1919,16 @@ def zeile_bei_kollegen(db, tabelle, uid, jetzt_=None):
 
 def lebenszeichen(db, jetzt_=None):
     """{Kürzel: {name, rechner, version, zeit, offen, online, vor_s}} aus den zuletzt gelesenen Lebenszeichen.
-    online: höchstens ONLINE_S alt (gegen die Ordner-Uhr) und nicht beendet; vor_s: Alter in Sekunden."""
+    online: höchstens ONLINE_S alt (gegen die Ordner-Uhr) und nicht beendet; vor_s: Alter in Sekunden.
+    Serverbetrieb: die Anwesenheit am Server (ohne den eigenen Platz), mit der Serveruhr gerechnet."""
+    if server(db) and jetzt_ is None:
+        from . import server_mehrplatz
+        try:
+            alle = server_mehrplatz.anwesende(db)
+        except (db_verbindung.DbFehler, OSError):
+            return {}
+        setattr(db, ONLINE_GELESEN, datetime.datetime.now().timestamp())
+        return {k: d for k, d in alle.items() if not (k == db.server.kuerzel and d["plaetze"] == [db.server.platz])}
     jetzt_ = jetzt_ or _utc(uhr_versatz(db))
     out = {}
     for k2, d in (getattr(db, ONLINE, None) or {}).items():

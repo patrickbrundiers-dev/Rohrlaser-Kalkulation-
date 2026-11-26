@@ -29,6 +29,8 @@ def _datum(iso):
 
 def zeilen(db):
     """Zeilen der Übersicht: [dict(kuerzel, werte (Texte je Spalte), online, ich)], der eigene Platz zuerst."""
+    if teilen.server(db):
+        return _zeilen_server(db)
     ich = teilen.kuerzel(db)
     puls = teilen.lebenszeichen(db)
     vorgaenge = teilen.offene_vorgaenge(db)
@@ -65,6 +67,31 @@ def zeilen(db):
                  f"{stand:%d.%m.%Y %H:%M}" if stand else "", "" if anzahl is None else str(anzahl),
                  ", ".join(sorted(offen.get(k, []))), str(vorgaenge.get(k) or ""), uhr_text]
         out.append(dict(kuerzel=k, werte=werte, online=online, ich=k == ich))
+    return out
+
+
+def _zeilen_server(db):
+    """Serverbetrieb (S2): alle Benutzer mit Anwesenheit am Server, Arbeitsplätzen, Version, Zahl ihrer Angebote und
+    den Angeboten, die sie gerade bearbeiten (Reservierungen)."""
+    from . import rollen, server_mehrplatz
+    ich = db.server.kuerzel
+    da = server_mehrplatz.anwesende(db)
+    bearbeitet = {}
+    for d in server_mehrplatz.reservierungen(db, ohne_eigene=False).values():
+        if d.get("titel"):
+            bearbeitet.setdefault(d["kuerzel"], []).append(d["titel"])
+    anzahl = dict(db.con.execute("SELECT bearbeiter, COUNT(*) FROM angebote GROUP BY bearbeiter").fetchall())
+    namen = {k: e.get("name") or "" for k, e in rollen.benutzer(db).items()}
+    out = []
+    for k in sorted(set(namen) | set(da) | {ich}, key=lambda x: (x != ich, x)):
+        p = da.get(k) or {}
+        online = bool(p.get("online"))
+        status = "● hier" if k == ich else "● da" if online else (
+            "zuletzt " + teilen.zuletzt_text(p["vor_s"]) if p else "–")
+        werte = [k + (" (ich)" if k == ich else ""), p.get("name") or namen.get(k) or "", status,
+                 ", ".join(p.get("plaetze") or ([p["rechner"]] if p.get("rechner") else [])), p.get("version") or "",
+                 "–", str(anzahl.get(k) or 0), ", ".join(sorted(bearbeitet.get(k, []))), "", ""]
+        out.append(dict(kuerzel=k, werte=werte, online=online or k == ich, ich=k == ich))
     return out
 
 
@@ -139,6 +166,14 @@ class KollegenDialog(QDialog):
                 self.liste.setItem(z, sp, it)
         da = sum(1 for d in self.daten if d["online"] and not d["ich"])
         andere = sum(1 for d in self.daten if not d["ich"])
+        if teilen.server(self.db):
+            self.setWindowTitle("Kollegen am Server")
+            self.kopf.setText(f"{andere} Kollegen am Server, {da} gerade da (Programm läuft und hat sich in der "
+                              f"letzten Minute gemeldet). „Gerade geöffnet“: Angebote, die dort bearbeitet werden.")
+            self._knoepfe()
+            self.weg.setVisible(False)
+            self.notiz.setVisible(False)
+            return
         self.kopf.setText(f"{andere} Kollegen im gemeinsamen Ordner, {da} gerade da. „Da“ heißt: das Programm läuft "
                           f"dort und hat sich in den letzten {teilen.ONLINE_S // 60} Minuten gemeldet."
                           if andere else "Noch keine Kollegen im gemeinsamen Ordner.")
