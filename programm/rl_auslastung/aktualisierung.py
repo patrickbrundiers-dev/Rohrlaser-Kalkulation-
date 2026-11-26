@@ -23,7 +23,7 @@ from pathlib import Path
 
 from rohrlaser import update
 
-from . import NAME, VERSION
+from . import NAME, PROGRAMM_ID, VERSION
 
 TAG = "auslastung-dateien"
 ADRESSE = f"https://github.com/{update.UPDATE_REPO}/releases/download/{TAG}/{update.DATEILISTE}"
@@ -87,7 +87,7 @@ def online_liste(adresse=None, timeout=15, schluessel=None):
     except (ValueError, TypeError) as e:
         raise UpdateFehler(f"Die Dateiliste {adresse} ist beschädigt: {e}") from e
     update.liste_pruefen(liste, adresse)
-    if liste.get("programm") != NAME:
+    if liste.get("programm") != PROGRAMM_ID:
         raise UpdateFehler(f"Die Dateiliste {adresse} gehört nicht zu {NAME}.")
     liste.roh, liste.signatur = bytes(daten), bytes(signatur)
     return liste
@@ -101,7 +101,7 @@ def erstellen(programm, ziel, stand, aenderung="", adresse=""):
     """Bau: Dateiliste und Pakete für den Programmordner schreiben (wie die Kalkulation), mit Namen und Version
     dieses Programms. Ergebnis: Dateiliste (dict)."""
     liste = update.erstellen(programm, ziel, stand, "", aenderung, adresse)
-    liste.update(programm=NAME, version=VERSION)
+    liste.update(programm=PROGRAMM_ID, version=VERSION)
     (Path(ziel) / update.DATEILISTE).write_text(json.dumps(liste, indent=1, ensure_ascii=False), encoding="utf-8")
     return liste
 

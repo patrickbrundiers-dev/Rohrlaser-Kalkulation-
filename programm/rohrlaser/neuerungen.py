@@ -30,6 +30,16 @@ NEUERUNGEN = [
                 "Arbeitsplatz (Ansicht → <i>Fenster mit Inhalt maximiert öffnen</i>, <i>Fenstergrößen "
                 "zurücksetzen</i>, [[fenster_merken]]).",
      "Neues Designsystem, Schritt 3: Kopfband im Angebot; Fenster mit Inhalt maximiert"],
+    ["0.9.538", "<b>Neuer Name: NexTube</b>. Das Programm heißt jetzt NexTube und hat ein eigenes Icon (Fenster, "
+                "Taskleiste, Programmdatei, Hilfe → Über, Anleitung). Daten, Ordner, Programmdatei und Online-Update "
+                "bleiben unverändert; das nächste Setup benennt die Verknüpfungen um. Die Auslastung heißt NexTube "
+                "Auslastung. <b>Lizenz 2.0: Module und Lizenzprotokoll</b>: Jede Lizenz enthält die Basis (Rohr-Kalkulation, "
+                "Angebote, STEP-Import, PDF, Fracht). Dazu kommen je nach Lizenz die Module Blech, Baugruppen, Auftrag, "
+                "Vertrieb, Einkauf, Auslastung und KI. Funktionen eines nicht enthaltenen Moduls sind ausgeblendet, "
+                "Daten bleiben. Bisherige Lizenzen enthalten alle Module. Neu unter <i>Hilfe → Lizenz …</i> ist "
+                "<b>Lizenzprotokoll …</b>: Es zeigt Aktivierung, Freigabe, Sperrliste und jeden Lizenzwechsel an diesem "
+                "Rechner (auch im Supportpaket). Im Lizenz-Werkzeug werden die Module per Haken gewählt.",
+     "Neuer Name NexTube mit Icon; Lizenz 2.0: Module je Lizenz und Lizenzprotokoll"],
     ["0.9.537", "<b>Importengine 2.0</b>: TRUMPF-LST, BPF und ARTUBE werden genauer und schneller zum 3D-Teil. "
                 "Werkzeuge der Konturen entstehen direkt mit gemeinsamen Kanten statt genäht (LST 10186133 P10 hing "
                 "über 20 min, jetzt 2,6 min; P20 jetzt wie die STEP statt 718 mm³ zu wenig). Fenster und Kerben "

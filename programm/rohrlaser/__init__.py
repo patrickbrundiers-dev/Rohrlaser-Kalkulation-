@@ -4,7 +4,7 @@ import importlib.util
 from pathlib import Path
 
 VERSION = "0.9.540"
-NAME = "Rohrlaser Angebotskalkulation"
+from .marke import NAME, PROGRAMM_ID_KALKULATION as PROGRAMM_ID  # noqa: E402,F401  (Marke NexTube, B-1)
 URHEBER = "© 2026 Patrick Brundiers. Alle Rechte vorbehalten."
 _HIER = Path(__file__).resolve().parent
 # übersetzt ausgeliefert (programm/kompilieren.py): Qt-Slots brauchen dann eine Python-Hülle (qt_slots.py)

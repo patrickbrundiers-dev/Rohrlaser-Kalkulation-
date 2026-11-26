@@ -20,7 +20,7 @@ import re
 
 from reportlab.lib.units import mm
 
-from . import fertigung
+from . import NAME, fertigung
 from .angebot import aktiv as position_aktiv
 from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
@@ -285,7 +285,7 @@ def etiketten_pdf(pfad, liste, format_name=FORMAT_VORGABE, rahmen=False, start=0
     groesse = (seite[0] * mm, seite[1] * mm) if seite else (eb, eh)
     c = rl_canvas.Canvas(str(pfad), pagesize=groesse)
     c.setTitle("Etiketten")
-    c.setAuthor("Rohrlaser-Angebotskalkulation")
+    c.setAuthor(NAME)
     je_seite = spalten * zeilen
     felder = [None] * (start % je_seite if seite else 0) + list(liste)
     for i, e in enumerate(felder):

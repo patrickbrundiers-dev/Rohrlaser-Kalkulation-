@@ -140,6 +140,9 @@ def db_setzen(db):
 
 def an(name, db=None):
     """Funktion eingeschaltet? Ohne Datenbank (Tests, Dialoge allein) immer ja."""
+    from . import module
+    if not module.erlaubt(name):     # Lizenz-Modul nicht lizenziert (Lizenz 2.0, L2-4): aus wie „nein“
+        return False
     d = db if db is not None else _db
     if d is None:
         return True

@@ -915,12 +915,16 @@ def kapitel_start(i):
             "Warnt Windows trotzdem, siehe [[windows_warnungen]]. Das Setup fragt nach der Desktop-Verknüpfung "
             "und installiert nur für den angemeldeten Benutzer. Vorher zeigt es die <b>Lizenzbedingungen</b>, die "
             "angenommen werden müssen ([[lizenz]]).",
-            "Das Programm aus dem Startmenü starten (<i>Rohrlaser Angebotskalkulation</i>; daneben liegt die "
-            "Bedienungsanleitung).",
+            "Das Programm aus dem Startmenü starten (<i>NexTube</i>; daneben liegt die Bedienungsanleitung).",
             "Eine neue Version des Setups lässt sich jederzeit über die alte installieren; die Daten bleiben. Meist "
             "reicht aber das Online-Update ([[updates]]).", nummeriert=True)
     i.genauer()
-    i.text("Deinstallieren: <i>Einstellungen → Apps → Rohrlaser Angebotskalkulation → Deinstallieren</i>. Entfernt "
+    i.text("<b>Neuer Name NexTube:</b> Das Programm heißt jetzt <b>NexTube</b> und hat ein eigenes Icon. Die "
+           "Programmdatei (<i>Rohrlaser-Angebotskalkulation.exe</i>), der Installationsordner, der Datenordner und "
+           "das Online-Update bleiben gleich, es geht also nichts verloren. Das nächste Setup ersetzt die alten "
+           "Startmenü- und Desktop-Verknüpfungen durch <i>NexTube</i>. Nach einem reinen Online-Update behält eine "
+           "alte Verknüpfung ihren bisherigen Namen und startet dasselbe Programm.")
+    i.text("Deinstallieren: <i>Einstellungen → Apps → NexTube → Deinstallieren</i>. Entfernt "
            "werden nur die Programmdateien. Datendatei, Sicherungen und PDF bleiben, eine spätere Installation findet "
            "sie wieder.")
     i.abschnitt("Portable Version entpacken")
@@ -17389,6 +17393,18 @@ def kapitel_lizenz(i):
             "Aktivierung ungültig, aber eine alte Lizenzdatei gültig, gilt die alte.",
             "Ein deaktivierter Platz oder eine gesperrte Lizenz kommt wie bisher mit der Sperrliste beim Update-Check.",
             "Die Rohrlaser Auslastung nutzt eine Aktivierung der Kalkulation auf demselben Rechner mit.")
+    i.text("<b>Module:</b> Zu jeder Lizenz gehört die <b>Basis</b> (Rohr-Kalkulation, Angebote, STEP-Import, PDF, "
+           "Fracht, Schnellpreis). Dazu kommen je nach Lizenz die Module <b>Blech</b>, <b>Baugruppen</b> "
+           "(Schweißbaugruppen, Knickrahmen, Steckverbindung), <b>Auftrag</b> (Auftragsbestätigung, Nachkalkulation, "
+           "Reklamationen, Etiketten, Musterteile, Abrufe), <b>Vertrieb</b> (Angebot per E-Mail, Nachfassen, "
+           "Simulator, Vergleich, Auftragschance, Hinweise), <b>Einkauf</b> (Zukaufteile, Materialanfrage, "
+           "Online-Preise, Teuerung, ERP-Preise), <b>Auslastung</b> und <b>KI</b> (Lernen, Vorschläge). Funktionen "
+           "eines nicht enthaltenen Moduls sind ausgeblendet wie unter Einstellungen → Funktionen ausgeschaltet; "
+           "gespeicherte Daten bleiben. Welche Module gelten, steht unter Hilfe → Lizenz … bei <i>Module</i>. "
+           "Bisherige Lizenzen enthalten alle Module.")
+    i.text("<b>Lizenzprotokoll …</b> (Hilfe → Lizenz …) zeigt, was an diesem Rechner mit der Lizenz passiert ist: "
+           "Anfrage erstellt, Aktivierung übernommen, Platz freigegeben, Sperrliste übernommen und jeder Wechsel "
+           "des Zustands (gültig, Lesemodus mit Grund, Module). Das Protokoll liegt auch im Supportpaket.")
     i.text("<b>Verlängerung oder mehr Plätze:</b> Patrick stellt ein neues Zertifikat mit <b>demselben "
            "Lizenzschlüssel</b> aus. Jeder Rechner holt es sich mit <b>Mit Lizenzschlüssel aktivieren …</b> (gleicher "
            "Schlüssel, Anfrage an Patrick); es wird dabei kein zusätzlicher Platz belegt.")
@@ -17397,8 +17413,8 @@ def kapitel_lizenz(i):
            "Lizenznehmer, Firma, Art, belegte Plätze, Ablauf und Status (gelb: läuft bald ab, rot: abgelaufen, grau: "
            "gesperrt), unten die Plätze der markierten Lizenz mit Rechnername und Datum. Die Suche findet auch "
            "Rechnernamen.")
-    i.liste("<b>Neue Lizenz …</b>: Lizenznehmer, Art, Plätze, Reserve, Laufzeit (oder unbefristet), Module und "
-            "Kunden-Admins. Der Lizenzschlüssel landet in der Zwischenablage.",
+    i.liste("<b>Neue Lizenz …</b>: Lizenznehmer, Art, Plätze, Reserve, Laufzeit (oder unbefristet), Module (Haken je "
+            "Modul oder <i>Alle Module</i>; ohne Haken nur die Basis) und Kunden-Admins. Der Lizenzschlüssel landet in der Zwischenablage.",
             "<b>Anfrage beantworten …</b>: Code einfügen oder Datei wählen. Die Antwort (Code und Datei) geht an den "
             "Kunden.",
             "<b>Freigabe verbuchen …</b>: Freigabebeleg eines Rechners, der Platz wird frei.",

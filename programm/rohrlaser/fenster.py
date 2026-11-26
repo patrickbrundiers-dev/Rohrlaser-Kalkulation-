@@ -4008,11 +4008,7 @@ class Hauptfenster(QMainWindow):
         a.triggered.connect(self.update_center_zeigen)
         hilfe.addAction(a)
         a = QAction("Über …", self)
-        a.triggered.connect(lambda: QMessageBox.about(
-            self, NAME, f"<b>{NAME}</b> {update.stand_text(self.updater.lokal)}<br>Angebotskalkulation und Materialoptimierung für Rohrlaserteile.<br>"
-                        f"{URHEBER}<br>"
-                        f"Daten: {self.db.pfad}{self.datenort_text()}"
-                        + (f"<br>{self.lizenz.text()}<br>Rechner-ID: {self.lizenz.rechner}" if self.lizenz else "")))
+        a.triggered.connect(lambda: self.ueber_zeigen())
         hilfe.addAction(a)
         from . import hauptadmin_menue      # Menü Hauptadmin (nur nach der Hauptadmin-Anmeldung sichtbar)
         hauptadmin_menue.einrichten(self)
@@ -4819,6 +4815,18 @@ class Hauptfenster(QMainWindow):
             self.zeigen(seite)
         return seite
 
+
+    def ueber_zeigen(self, zeigen=True):
+        """Hilfe → Über: Marke NexTube mit Icon, Version, Daten, Lizenz. Ergebnis: Text (Tests)."""
+        from . import marke
+        text = (f"<b style='font-size:16pt'>{NAME}</b> {update.stand_text(self.updater.lokal)}<br>{marke.UNTERTITEL}."
+                f"<br>{URHEBER}<br>Daten: {self.db.pfad}{self.datenort_text()}"
+                + (f"<br>{self.lizenz.text()}<br>Rechner-ID: {self.lizenz.rechner}" if self.lizenz else ""))
+        if zeigen:
+            box = QMessageBox(QMessageBox.NoIcon, f"Über {NAME}", text, QMessageBox.Ok, self)
+            box.setIconPixmap(marke.pixmap(96))
+            box.exec()
+        return text
 
     def funktionen_anwenden(self):
         """Funktionen ein/aus (funktionen.py) sofort anwenden: Hauptreiter, Menü Datei, Seiten der Einstellungen,

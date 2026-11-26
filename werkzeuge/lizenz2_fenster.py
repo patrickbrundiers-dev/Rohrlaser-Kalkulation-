@@ -18,9 +18,10 @@ import lizenz2_werkzeug as L2
 import lizenz_werkzeug as wz
 from rohrlaser import aktivierung as A
 from rohrlaser import lizenz
+from rohrlaser import module as M
 
 SPALTEN = (("lizenz_nr", "Lizenznummer"), ("lizenznehmer", "Lizenznehmer"), ("firma", "Firma"), ("typ", "Art"),
-           ("plaetze_text", "Plätze belegt"), ("benutzer", "Benutzer"), ("gueltig_bis", "Gültig bis"),
+           ("plaetze_text", "Plätze belegt"), ("benutzer", "Benutzer"), ("module_text", "Module"), ("gueltig_bis", "Gültig bis"),
            ("status_text", "Status"), ("lizenzschluessel", "Lizenzschlüssel"))
 PLATZ_SPALTEN = (("aktivierung_id", "Platz"), ("name", "Rechnername"), ("rechner_id", "Rechner-ID"),
                  ("aktiviert_am", "Aktiviert am"), ("status_text", "Status"))
@@ -69,7 +70,21 @@ class LizenzDialog2(QDialog):
         self.bis.setDate(_qdate(bis or wz.monate_spaeter(datetime.date.today(), 12)))
         self.unbefristet.toggled.connect(lambda an: self.bis.setEnabled(not an))
         self.bis.setEnabled(bis is not None)
-        self.module = QLineEdit(", ".join(w.get("module") or ["alle"]))
+        self.module = QWidget()
+        ml = QVBoxLayout(self.module)
+        ml.setContentsMargins(0, 0, 0, 0)
+        self.modul_alle = QCheckBox("Alle Module (Basis ist immer dabei)")
+        ml.addWidget(self.modul_alle)
+        gewaehlt = M.normal(w.get("module"))
+        self.modul_haken = {}
+        for m in M.MODULE:
+            h = QCheckBox(f"{m.titel}: {m.text}")
+            h.setChecked(gewaehlt == [M.ALLE] or m.name in gewaehlt)
+            self.modul_haken[m.name] = h
+            ml.addWidget(h)
+        self.modul_alle.setChecked(gewaehlt == [M.ALLE])
+        self.modul_alle.toggled.connect(self._alle_module)
+        self._alle_module(self.modul_alle.isChecked())
         self.admins = QLineEdit(", ".join(w.get("admins") or []))
         self.admins.setPlaceholderText("Namen der Kunden-Admins, durch Komma getrennt")
         self.hinweis = QLineEdit(w.get("hinweis", ""))
@@ -93,12 +108,23 @@ class LizenzDialog2(QDialog):
         self.plaetze.setEnabled(not einzel)
         self.benutzer.setEnabled(self.typ.currentData() == "server")
 
+    def _alle_module(self, an):
+        for h in self.modul_haken.values():
+            if an:
+                h.setChecked(True)
+            h.setEnabled(not an)
+
+    def module_liste(self):
+        if self.modul_alle.isChecked():
+            return [M.ALLE]
+        return M.normal([n for n, h in self.modul_haken.items() if h.isChecked()] or [M.BASIS])
+
     def werte(self):
         return dict(lizenznehmer=self.lizenznehmer.text().strip(), firma=self.firma.text().strip(),
                     kundennr=self.kundennr.text().strip(), typ=self.typ.currentData(), plaetze=self.plaetze.value(),
                     benutzer=self.benutzer.value(), reserve=self.reserve.value(),
                     bis=None if self.unbefristet.isChecked() else _datum(self.bis.date()),
-                    module=[m.strip() for m in self.module.text().split(",") if m.strip()] or ["alle"],
+                    module=self.module_liste(),
                     admins=[a.strip() for a in self.admins.text().split(",") if a.strip()],
                     hinweis=self.hinweis.text().strip())
 

@@ -7,7 +7,8 @@ wochen, feiertage, stil (mit design), auslastung_grafik und mausrad gebraucht, f
 zusätzlich update und update_schluessel, für den Datenspeicher je PC (speicher.py: SQLite-Datei oder PostgreSQL auf
 diesem PC) db_verbindung, datenspeicher, pg_lokal und db_kopie."""
 VERSION = "3.13.0"
-NAME = "Rohrlaser Auslastung"
+from rohrlaser.marke import NAME_AUSLASTUNG as NAME  # noqa: E402,F401  (Marke NexTube, B-1)
+from rohrlaser.marke import PROGRAMM_ID_AUSLASTUNG as PROGRAMM_ID  # noqa: E402,F401  Update.json, nie ändern
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
 NEU = ("Datenspeicher je PC: der Hauptadmin stellt unter Einstellungen → Datenspeicher … die Datenbank dieses PCs "
        "auf PostgreSQL um (vorher gesichert, danach jede Tabelle verglichen) und auch wieder zurück; im gemeinsamen "
