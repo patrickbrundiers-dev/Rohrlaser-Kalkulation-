@@ -34,6 +34,8 @@ PROGRAMM_RECHTE = "LOGIN NOSUPERUSER CREATEDB NOCREATEROLE NOREPLICATION NOBYPAS
 # während des Kopierens mit session_replication_role ab (ab PostgreSQL 15 einzeln vergebbar)
 EINZELRECHTE = ('GRANT SET ON PARAMETER session_replication_role TO "{neu}"',)
 # Verbindungsprotokoll im Server-Log (Daten/pg_server.log): wer, von wo, mit welchem Programm
+# Kennzeichen der befristeten trust-Zeile in pg_hba.conf (zugang_erneuern); jeder Start entfernt solche Reste
+HBA_MARKE = "# Rohrlaser: Zugang erneuern"
 PROTOKOLL = dict(log_connections="on", log_disconnections="on", log_line_prefix="'%m [%p] %u@%d %a %h '")
 
 
@@ -264,10 +266,30 @@ class LokalerServer:
         r = _lauf([str(self.bin / _exe("pg_ctl")), "status", "-D", str(self.pg)])
         return r.returncode == 0
 
+    def _hba_bereinigen(self):
+        """trust-Zeilen eines abgebrochenen zugang_erneuern (Programm beim Erneuern beendet) entfernen. Ergebnis:
+        True, wenn pg_hba.conf geändert wurde."""
+        hba = self.pg / "pg_hba.conf"
+        try:
+            text = hba.read_text(encoding="utf-8")
+        except OSError:
+            return False
+        if HBA_MARKE not in text:
+            return False
+        sauber = "".join(z for z in text.splitlines(keepends=True) if HBA_MARKE not in z)
+        tmp = hba.with_name(hba.name + ".neu")
+        tmp.write_text(sauber, encoding="utf-8")
+        os.replace(tmp, hba)
+        return True
+
     def starten(self, warten_s=30):
         if not self.angelegt:
             self.anlegen()
             return
+        if self._hba_bereinigen():
+            self.reparaturen.append("Rest eines abgebrochenen Zugang-Erneuerns aus pg_hba.conf entfernt")
+            if self.laeuft():
+                _lauf([str(self.bin / _exe("pg_ctl")), "reload", "-D", str(self.pg)])
         if not self.laeuft():
             self._starten(warten_s)
         if self.zugang_unlesbar is None:
@@ -360,10 +382,10 @@ class LokalerServer:
         benutzer = roh.get("benutzer") or d.get("benutzer") or ALT_BENUTZER
         verwalter_kandidaten = [n for n in dict.fromkeys((roh.get("admin_benutzer"), VERWALTER, ALT_BENUTZER)) if n]
         hba = self.pg / "pg_hba.conf"
+        self._hba_bereinigen()          # Rest eines abgebrochenen Versuchs nie als „Original“ übernehmen
         original = hba.read_text(encoding="utf-8")
         namen = ",".join(f'"{n}"' for n in verwalter_kandidaten)
-        hba.write_text(f"host all {namen} 127.0.0.1/32 trust   # Rohrlaser: Zugang erneuern\n" + original,
-                       encoding="utf-8")
+        hba.write_text(f"host all {namen} 127.0.0.1/32 trust   {HBA_MARKE}\n" + original, encoding="utf-8")
         try:
             if self.laeuft():
                 _lauf([str(self.bin / _exe("pg_ctl")), "reload", "-D", str(self.pg)])

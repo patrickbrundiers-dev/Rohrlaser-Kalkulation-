@@ -304,6 +304,22 @@ else:
     srv3.stoppen()
     ok("echter Server: unlesbare Zugangsdatei erneuert, Daten erhalten, pg_hba.conf wieder ohne trust")
 
+    # Abbruch mitten im Erneuern (Programm beendet): trust-Zeile blieb in pg_hba.conf → nächster Start entfernt sie
+    hba_datei = srv3.pg / "pg_hba.conf"
+    hba_datei.write_text(f'host all "{pg_lokal.VERWALTER}" 127.0.0.1/32 trust   {pg_lokal.HBA_MARKE}\n' + hba,
+                         encoding="utf-8")
+    srv4 = pg_lokal.LokalerServer(d5)
+    srv4.starten()
+    assert pg_lokal.HBA_MARKE not in hba_datei.read_text(encoding="utf-8") and srv4.reparaturen, srv4.reparaturen
+    try:
+        psycopg.connect(host="127.0.0.1", port=srv4.zugang()["port"], user=pg_lokal.VERWALTER, dbname="postgres",
+                        connect_timeout=5).close()
+        raise AssertionError("Verwalter ohne Passwort angenommen")
+    except psycopg.OperationalError:
+        pass
+    srv4.stoppen()
+    ok("echter Server: trust-Rest eines abgebrochenen Erneuerns wird beim Start entfernt")
+
 # ------------------------------------------------------------------------------------------------ 2. Tagessicherung
 if os.environ.get("ROHRLASER_PG_TEST") or not grund:
     sys.path.insert(0, str(HIER))
