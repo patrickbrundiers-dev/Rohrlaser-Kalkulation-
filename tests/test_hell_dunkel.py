@@ -2,7 +2,7 @@
 
 H1 Dunkel: Hauptknopf weiße Schrift auf kräftigem Blau (mindestens 4,5 : 1), nicht mehr auf Hellblau;
 H2 Dunkel: Eingabefelder, Häkchenkästchen und Optionsfelder mit sichtbarem Rahmen, Häkchen als Bild vorhanden;
-H3 Hell: Fensterfläche im kühlen Grau der Karten (FLAECHE) statt Fusion-Grau;
+H3 Hell: Fensterfläche = ARBEITSFLAECHE (Designsystem „Klar“ 26.11.2026) statt Fusion-Grau;
 H4 Schrift auf farbigen Flächen (Stangenbild): dunkel auf Orange/Gelb/Grün, weiß auf Dunkelblau, immer ≥ 3 : 1;
 H5 Themefarben im Programmtext laufen über stil.farbe (Herkunft im Editor im Dunkelmodus lesbar).
 Aufruf: python tests/test_hell_dunkel.py
@@ -43,11 +43,12 @@ pruefe("QCheckBox::indicator" in dunkel and "QRadioButton::indicator" in dunkel 
 bilder = re.findall(r"url\(([^)]*)\)", dunkel)
 pruefe(bilder and all(b and Path(b).is_file() for b in bilder), f"H2 Häkchen und Pfeile als Bild vorhanden {bilder}")
 pruefe("{HAKEN}" not in dunkel and "{PFEIL}" not in dunkel, "H2 keine Platzhalter im Stylesheet")
-pruefe(stil.stylesheet("Hell") == stil.STIL, "H2 Hell bleibt beim bisherigen Stylesheet")
+pruefe(stil.stylesheet("Hell").startswith(stil.STIL) and "{PFEIL" not in stil.stylesheet("Hell"),
+       "H2 Hell: Stylesheet plus Eingabefelder, keine Platzhalter")
 
 # H3
 hell = stil.palette("Hell")
-pruefe(hell.color(QPalette.Window).name().upper() == stil.FLAECHE, "H3 Hell: Fensterfläche = FLAECHE")
+pruefe(hell.color(QPalette.Window).name().upper() == stil.ARBEITSFLAECHE, "H3 Hell: Fensterfläche = ARBEITSFLAECHE")
 pruefe(stil.palette("Dunkel").color(QPalette.Window).name().upper() == stil.UMSETZUNG["Dunkel"][stil.FLAECHE],
        "H3 Dunkel: Fensterfläche unverändert")
 

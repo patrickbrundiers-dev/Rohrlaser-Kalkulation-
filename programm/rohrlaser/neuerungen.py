@@ -30,6 +30,12 @@ NEUERUNGEN = [
                 "Festplatte oder Windows neu installiert schließt niemanden aus; <b>Platz freigeben …</b> meldet einen "
                 "Rechner vor einem PC-Wechsel ab. Bisherige Lizenzdateien gelten weiter ([[lizenz_aktivieren]]).",
      "Lizenz 2.0: Aktivierung mit Lizenzschlüssel ohne Internet, Plätze freigeben"],
+    ["0.9.526", "<b>Neues Designsystem, Schritt 1</b> (Oberfläche „Klar“): Farben, Rahmen und Abstände kommen aus einer "
+                "Stelle. Ruhigere Arbeitsfläche, weiße Eingabefelder mit feinem, rundem Rahmen, schlichtere "
+                "Tabellenköpfe, modernere Menüs, Hinweise und Bildlaufleisten. Funktionen und Berechnungen sind "
+                "unverändert; die weiteren Schritte (Kopfleiste mit Befehlssuche, Angebot mit Kopfband, "
+                "Materialfenster, Einstellungen) folgen.",
+     "Neues Designsystem „Klar“, Schritt 1: ruhigere Flächen, moderne Eingabefelder"],
     ["0.9.523", "<b>Serverversion (Stufe 1)</b>: Neben der lokalen Datenbank je PC gibt es die Betriebsart "
                 "<i>Zentraler Server</i>: alle Arbeitsplätze arbeiten mit einer PostgreSQL-Datenbank auf einem Rechner im "
                 "Firmennetz (verschlüsselt, eigenes Kürzel und Passwort je Mitarbeiter, Nummern zentral ohne Doppelte, "
