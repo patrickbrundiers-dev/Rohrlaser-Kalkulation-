@@ -31,6 +31,7 @@ GRUPPEN = (
                 "fracht_historie")),
 )
 WEITERE = "Weitere"
+EBENE_KURZ = {"grund": "Grund", "erweitert": "Erweitert", "experte": "Experte"}     # Knopfreihe im Seitenkopf
 SEITE = Qt.UserRole
 
 
@@ -149,6 +150,15 @@ class NavigationsReiter(QWidget):
         self.ebene_wahl.setToolTip("Welche Einstellungen zu sehen sind. Ausgeblendete Einstellungen gelten weiter mit "
                                    "ihrem Wert; die Suche findet immer alle.")
         self.ebene_wahl.currentIndexChanged.connect(lambda _: self.ebene_setzen(self.ebene_wahl.currentData()))
+        # UI Next Level Phase 4: Ebene als Knopfreihe Grund · Erweitert · Experte im Seitenkopf (EinstellungenBereich);
+        # das Wahlfeld bleibt verborgen als Schnittstelle (Tests, ältere Aufrufer)
+        from .eingabe import Segment
+        self.ebene_segment = Segment([EBENE_KURZ[e] for e in ordnung.EBENEN])
+        self.ebene_segment.setToolTip("\n".join(f"{EBENE_KURZ[e]}: {ordnung.EBENE_TEXT[e]}" for e in ordnung.EBENEN)
+                                      + "\nAusgeblendete Einstellungen gelten weiter; die Suche findet immer alle.")
+        self.ebene_segment.setCurrentText(EBENE_KURZ[self.ebene])
+        self.ebene_segment.activated.connect(lambda i: self.ebene_setzen(ordnung.EBENEN[i]))
+        self.ebene_wahl.setVisible(False)
         self.ebene_info = QLabel()
         self.ebene_info.setWordWrap(True)
         self.ebene_info.setStyleSheet("color: #5F6B7A; font-size: 11px;")
@@ -159,6 +169,7 @@ class NavigationsReiter(QWidget):
         self.suche.textChanged.connect(self.filtern)
         self.suche.returnPressed.connect(self._ersten_treffer)
         self.baum = QTreeWidget()
+        self.baum.setObjectName("einstnav")
         self.baum.setHeaderHidden(True)
         self.baum.setRootIsDecorated(False)
         self.baum.setIndentation(14)
@@ -172,14 +183,29 @@ class NavigationsReiter(QWidget):
         links.addWidget(self.suche)
         links.addWidget(self.baum, 1)
         links.addWidget(self.ebene_info)
+        # Spalte so breit wie der Baum (früher begrenzte das sichtbare Wahlfeld die Breite; ohne es wuchs die Spalte
+        # und nahm den Seiten rechts Platz, z. B. für zwei Kartenspalten, test_ansicht)
+        for w in (self.suche, self.ebene_info):
+            w.setMaximumWidth(self.baum.maximumWidth())
+        # Titel der gewählten Seite über dem Inhalt (Phase 4)
+        self.seiten_titel = QLabel()
+        self.seiten_titel.setObjectName("abschnitt_gross")
+        rechts = self.rechts = QVBoxLayout()
+        rechts.setContentsMargins(0, 0, 0, 0)
+        rechts.setSpacing(4)
+        rechts.addWidget(self.seiten_titel)
+        rechts.addWidget(self.stapel, 1)
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addLayout(links)
-        lay.addWidget(self.stapel, 1)
+        lay.addLayout(rechts, 1)
         self.gruppen = {}
         self.verborgen = set()      # Indizes ausgeschalteter Seiten (Funktionen ein/aus): nie in Navigation/Suche
         fett = QFont()
         fett.setBold(True)
+        fett.setCapitalization(QFont.AllUppercase)      # Gruppen klein in Großbuchstaben (Anzeige), Text bleibt
+        fett.setPointSizeF(max(7.0, (fett.pointSizeF() if fett.pointSizeF() > 0 else 9.0) * 0.85))
+        fett.setLetterSpacing(QFont.PercentageSpacing, 106)
         for name, _ in GRUPPEN + ((WEITERE, ()),):
             g = QTreeWidgetItem([name])
             g.setFlags(Qt.ItemIsEnabled)
@@ -267,6 +293,10 @@ class NavigationsReiter(QWidget):
             return
         neu = ebene != self.ebene
         self.ebene = ebene
+        if self.ebene_segment.currentText() != EBENE_KURZ[ebene]:
+            self.ebene_segment.blockSignals(True)
+            self.ebene_segment.setCurrentText(EBENE_KURZ[ebene])
+            self.ebene_segment.blockSignals(False)
         if self.ebene_wahl.currentData() != ebene:
             self.ebene_wahl.blockSignals(True)
             self.ebene_wahl.setCurrentIndex(self.ebene_wahl.findData(ebene))
@@ -277,7 +307,7 @@ class NavigationsReiter(QWidget):
         self.filtern(self.suche.text())
         mehr = sum(1 for i in range(len(self.seiten)) if i not in self.verborgen and not self.ebene_zeigt(i))
         self.ebene_info.setText(f"{mehr} weitere Seite{'n' if mehr != 1 else ''} unter „Erweitert“ bzw. "
-                                "„Expertenbereich“; die Suche findet sie." if mehr else "")
+                                "„Experte“; die Suche findet sie." if mehr else "")
         if neu:
             if merken and self.ebene_merken:
                 self.ebene_merken(ebene)
@@ -306,11 +336,18 @@ class NavigationsReiter(QWidget):
         i = next(j for j, t in enumerate(self.titel) if t == titel or t.removesuffix(" 🔒") == titel)
         return self.baum.viewport(), self.baum.visualItemRect(self.items[i])
 
+    def titel_herausnehmen(self):
+        """Seitentitel aus der rechten Spalte nehmen (der Bereich zeigt ihn im Seitenkopf, spart eine Zeile Höhe:
+        das maximierte Fenster passt so auch auf 1280 × 680, test_fenster_maximiert)."""
+        self.rechts.removeWidget(self.seiten_titel)
+        return self.seiten_titel
+
     # -------------------------------------------------- Auswahl und Suche
     def _gewaehlt(self, item, _alt=None):
         if item is None or item.data(0, SEITE) is None:
             return
         i = item.data(0, SEITE)
+        self.seiten_titel.setText(self.titel[i].removesuffix(" 🔒"))
         if self.stapel.currentIndex() != i:
             self.stapel.setCurrentIndex(i)
             self.currentChanged.emit(i)
