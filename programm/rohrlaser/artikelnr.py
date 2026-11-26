@@ -115,11 +115,6 @@ def schluessel(name, bekannte=()):
     return ohne_zeichen(zerlegen(name, bekannte).grund)
 
 
-def hat_anhang(name, bekannte=()):
-    t = zerlegen(name, bekannte)
-    return ohne_zeichen(t.grund) != ohne_zeichen(t.roh)
-
-
 def rev_schluessel(r):
     """Sortierschlüssel einer Revision: ohne zuerst, dann Zahlen nach Wert, dann Buchstaben."""
     r = str(r or "").upper()

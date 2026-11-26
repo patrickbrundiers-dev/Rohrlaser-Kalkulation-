@@ -9,6 +9,7 @@ Schweißen, Übriges). Jeder Baustein trägt eine Quelle und eine Sicherheit:
 Zuschläge, Gewinn, Fracht und Skonto verteilen sich im Verhältnis der Kosten auf die Bausteine; so ist die Summe der
 Anteile genau der Preis der Position. Nur Anzeige: keine Zahl der Kalkulation ändert sich. Ohne Qt."""
 from . import rechnen
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 STEP, STAMMDATEN, RICHTWERT, GELERNT, HAND, GESCHAETZT = (
     "STEP gemessen", "Stammdaten", "Richtwert", "gelernt und freigegeben", "von Hand", "geschätzt")
@@ -17,10 +18,6 @@ SICHER, PRUEFEN, UNSICHER = "sicher", "prüfen", "unsicher"
 SICHERHEITEN = (SICHER, PRUEFEN, UNSICHER)
 SD_STUFE = {"hoch": SICHER, "mittel": PRUEFEN, "niedrig": UNSICHER}
 HINWEIS_AB = 0.05           # Angebots-Check: Hinweis ab 5 % unsicherem Anteil am Preis
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _b(baustein, kosten, quelle, sicherheit, grund=""):
@@ -173,5 +170,5 @@ def position_stufe(bs):
 def merkmal_sicherheit(herkunft):
     """A3: Sicherheit eines Merkmals im Teile-Editor aus seiner Herkunft: STEP gemessen und von Hand = sicher,
     von Hand geänderter STEP-Wert und Grundwert (Vorgabe) = prüfen. Unbekannt = prüfen."""
-    from .teile_editor import GEAENDERT, MANUELL, STEP as STEP_TE, VORGABE
+    from .teile_status import GEAENDERT, MANUELL, STEP as STEP_TE, VORGABE
     return {STEP_TE: SICHER, MANUELL: SICHER, GEAENDERT: PRUEFEN, VORGABE: PRUEFEN}.get(herkunft, PRUEFEN)

@@ -15,7 +15,7 @@ HERKUNFT = "Näherung aus der 3D-Oberfläche und den Teilgewichten"
 def _flaechenmitte(netz):
     """(Fläche, (x, y, z)) der Oberfläche eines Netzes in seinen eigenen Koordinaten, None ohne Dreiecke."""
     if isinstance(netz, (bytes, bytearray, memoryview)):
-        from .ansicht3d import entpacken
+        from .netz_daten import entpacken
         netz = entpacken(bytes(netz))
     p = (netz or {}).get("p") or ()
     a_sum, sx, sy, sz = 0.0, 0.0, 0.0, 0.0

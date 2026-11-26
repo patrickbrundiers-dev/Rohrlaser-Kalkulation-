@@ -17,6 +17,7 @@ Festschreiben galten (rechnen.preisbasis_aus), Angebote von vorher ganz ohne Reg
 import json
 
 from .angebot import ist_baugruppe, ist_zukaufteil, kein_laserteil
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 VORSCHLAG, AUTOMATISCH, NUR_PREIS = "Vorschlag", "automatisch", "nur Preis"
 ZUORDNUNGEN = (VORSCHLAG, AUTOMATISCH, NUR_PREIS)
@@ -33,10 +34,6 @@ def nur_stueck(name):
 
 def _leer(w):
     return w in (None, "")
-
-
-def _n(w):
-    return float(w) if isinstance(w, (int, float)) and not isinstance(w, bool) else 0.0
 
 
 def zuordnung(regel):

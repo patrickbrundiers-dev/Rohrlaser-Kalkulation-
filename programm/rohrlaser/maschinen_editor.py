@@ -10,6 +10,7 @@ import re
 
 from . import stammdaten, zeit_zusatz
 from .stammdaten import MASCHINEN, wert_als_text
+from .zahlen import ist_zahl as _zahl  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 # (Schlüssel, Titel, Erklärung, Felder): jedes Maschinenfeld steht in genau einer Gruppe (tests/test_maschinen_editor)
 GRUPPEN = (
@@ -116,10 +117,6 @@ def richtwert(feld, maschinen_id):
             reihe = werte.get(maschinen_id) or werte.get("T11")
             return reihe[felder.index(feld)] if reihe else None
     return None
-
-
-def _zahl(w):
-    return isinstance(w, (int, float)) and not isinstance(w, bool)
 
 
 def _leer(w):

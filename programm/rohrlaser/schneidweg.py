@@ -43,6 +43,7 @@ import math
 
 from . import dreid, naht, optimierung as opt, rp_profile
 from .stammdaten import flaeche_wirksam
+from .zahlen import float_oder_0 as _z  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 QUELLE = "Schneidweg-Rechner"
 QUELLE_STEP = "STEP-Import"         # Konturen aus der STEP-Messung (Lage, gemessene Schnittlängen)
@@ -101,10 +102,6 @@ RICHTUNGEN = {AUTOMATISCH: None, "länger oben (0°)": 0, "länger rechts (90°)
               "länger unten (180°)": 180, "länger links (270°)": 270}
 MIT_RICHTUNG = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
 OHNE_HUELLE = 9999.0        # sonstige Kontur ohne Hüllmaß: in der Konturliste als groß
-
-
-def _z(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def lesen(text):

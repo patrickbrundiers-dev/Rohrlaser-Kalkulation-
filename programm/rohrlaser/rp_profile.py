@@ -29,6 +29,7 @@ import json
 import math
 import os
 import struct
+from .zahlen import float_oder_0 as _z  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 FORM = "RP-Profil"
 PRAEFIX = "RP "
@@ -454,7 +455,6 @@ def eintrag(pfad_oder_daten, name):
     return dict(profil_id=profil_id(name), **q, elemente=verschoben)
 
 
-
 def bibliothek():
     """Mitgelieferte RP-Profile: {Profil-ID: Eintrag}."""
     global _BIBLIOTHEK
@@ -510,15 +510,6 @@ def erkennen(breite, hoehe, flaeche, umfang, kammern=1, wand=None, eintraege=Non
     return [pid for _, pid in sorted(treffer)]
 
 
-def schnitt_aus_messung(e, gemessen, gerade):
-    """Schnittlänge eines Endes für ein RP-Profil aus der STEP-Messung: die Messung zählt die Doppellage als zwei
-    Wände (Außenkontur + Kammer), der Laser trennt sie mit einem Schnitt. Gerades Ende: Schnittlänge der Kontur,
-    sonst die gemessene Länge im Verhältnis Schnittlänge / Konturlänge."""
-    if gerade or not gemessen:
-        return e["schnitt"]
-    return gemessen * e["schnitt"] / e["umfang"] if e.get("umfang") else gemessen
-
-
 def ausduennen(pts, tol=0.005):
     """Geschlossenen Zug vereinfachen (Douglas-Peucker): Punkte, die weniger als tol von der Sehne abweichen, fallen
     weg."""
@@ -537,10 +528,6 @@ def ausduennen(pts, tol=0.005):
 
 
 _UMRISS = {}
-
-
-def _z(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _verschoben(elemente, d):

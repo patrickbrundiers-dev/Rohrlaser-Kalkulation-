@@ -16,6 +16,7 @@ erscheint nicht. „Als neue Fassung übernehmen“ legt eine Fassung an (aktuel
 stellt dort Lieferlänge bzw. Maschine um; den Unterschied zeigt der Fassungsvergleich. Geometrie wird nie verändert
 (Konturen wie STEP). Ohne Qt."""
 from . import rechnen
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 LIEFERLAENGE, LAGER, MASCHINE, SCHNEIDDATEN = "Lieferlänge", "Lager", "Maschine", "Schneiddaten prüfen"
 VERSCHACHTELUNG = "Verschachtelung"
@@ -23,10 +24,6 @@ NESTING_MIN_EUR = 1.0      # Verschachtelungs-Vorschlag ab 1 € weniger Einkauf
 SD_MINDESTENS = 3          # so viele Aufträge mit Ist-Laufzeit je Schneiddaten-Zeile, bevor ein Vorschlag erscheint
 SD_GRENZE = 0.10           # ab 10 % mittlerer Abweichung Ist gegen Soll
 EPS = 0.005
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _v(art, titel, ist, vorschlag, zeit_s=None, material=None, kosten=None, voraussetzung="", nachweis="",

@@ -44,6 +44,8 @@ import re
 from . import baugruppe, biegerohr, blech, knickrahmen
 from .angebot import BAUGRUPPE, ist_baugruppe
 from .stammdaten import zahl_als_text
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
+from .zahlen import ist_zahl as _zahl  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 EPS = 1e-9
 HOEHE_GESAMT = 1200         # Vorgabe max. Höhe der beladenen Palette inkl. Ladungsträger [mm]
@@ -57,14 +59,6 @@ SONDERBEHAELTER = "Sonderbehälter"
 RAHMEN = "Palette mit Aufsetzrahmen"   # Fracht 2.0: so viele Rahmen, wie die Ladung hoch ist (rahmen_hoehe/_max)
 INNEN = (GITTERBOX, KARTON, SONDERBEHAELTER)  # Maße sind Innenmaße: die Ladung steht im Ladungsträger
 WURZEL3_2 = math.sqrt(3) / 2
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
-
-
-def _zahl(v):
-    return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
 def vorgaben(einst):
@@ -280,8 +274,6 @@ def traeger_waehlen(masse, std, lg):
     if lg:
         return lg, "länger als der Langgut-Ladungsträger: Sonderladung prüfen"
     return std, "länger als der Ladungsträger erlaubt (kein Langgut eingestellt): Sonderladung prüfen"
-
-
 
 
 def gesamthoehe(z, v):

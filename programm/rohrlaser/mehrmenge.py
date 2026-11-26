@@ -7,13 +7,10 @@ Maschine auf dem freien Rest jeder Stange (Stange − Endbeschnitt − Teile −
 Probe-Optimierung mit der neuen Menge muss dieselbe Zahl Stangen ergeben, sonst wird die Menge verkleinert.
 Nicht für Sätze, Musterteile, Halbschalen, Zukauf und Kundenmaterial. Ohne Qt."""
 import math
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 ZIEL_PREFIX = "pos:"
 HOECHSTENS_POSITIONEN = 3       # so viele Positionen bekommen eine Probe-Rechnung (Rechenzeit)
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def geeignet(p):

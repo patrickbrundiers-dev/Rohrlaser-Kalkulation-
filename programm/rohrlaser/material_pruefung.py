@@ -13,12 +13,9 @@ MAT-014 Vorveredelt kaufen: Hat eine Oberfläche (z. B. „feuerverzinkt“) in 
 MAT-019 STEP-Gewicht: Gewicht aus dem STEP-Volumen × Dichte gegen das Gewicht aus Profil × Länge; weicht es mehr als
   'step_gewicht_abweichung' % ab (0 = aus), stimmt oft Wand, Profil oder Werkstoff nicht."""
 from . import angebot_check as ac
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 EPS = 1e-9
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 # ---------------------------------------------------------------- MAT-013 Mindestabnahme

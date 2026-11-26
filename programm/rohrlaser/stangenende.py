@@ -12,14 +12,11 @@ mit dem Stangenende entladen. Es nutzt so den Greiferrest. Bedingungen (Handbuch
 Konturen ohne Lage (gleichmäßig verteilt) und Positionen mit Konturen ohne Konturliste zählen zur sicheren Seite als
 „Kontur im Spannbereich“. Ohne Qt."""
 import math
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 MIN_ABFALL = 5.0        # [mm] Vorgabe Mindestabfall
 MAX_ABFALL = 300.0      # [mm] Vorgabe höchster Abfall (Abfallband)
 EPS = 1e-6
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def kann(m):

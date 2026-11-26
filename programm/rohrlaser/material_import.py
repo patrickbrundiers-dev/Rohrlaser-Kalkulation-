@@ -84,10 +84,6 @@ def einrichten(con):
     csv_import.einrichten(con)
 
 
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
-
-
 def _norm(t):
     return re.sub(r"[^a-z0-9äöüß]", "", str(t or "").lower())
 

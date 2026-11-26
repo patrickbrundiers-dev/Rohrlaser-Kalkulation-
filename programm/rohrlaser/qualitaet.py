@@ -13,12 +13,9 @@ Stufe nicht (keine Doppelzählung). Fehlt der Stundensatz, wird nichts erfunden:
 import math
 
 from .pruefplan import ZUSATZ as ERSTMUSTER_ZUSATZ, merkmale
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 ALLE, JEDES_N, ERSTE_N = "alle Teile", "jedes n-te Teil", "erste n Teile"
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def stufe(name, tabellen):

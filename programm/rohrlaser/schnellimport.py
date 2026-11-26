@@ -86,7 +86,7 @@ def nur_linien(netz):
     if netz is None:
         return False
     if isinstance(netz, (bytes, bytearray, memoryview)):
-        from .ansicht3d import entpacken
+        from .netz_daten import entpacken
         try:
             netz = entpacken(bytes(netz))
         except (ValueError, TypeError, OSError):

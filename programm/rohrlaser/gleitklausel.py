@@ -16,12 +16,9 @@ import copy
 import datetime
 
 from . import abruf, rechnen
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 MATERIAL_TEILE = ("preise", "tonnenpreise", "lieferlaengen", "teuerung")   # Teile der Preisbasis, die gleiten
-
-
-def _n(w):
-    return float(w) if isinstance(w, (int, float)) and not isinstance(w, bool) else 0.0
 
 
 def moeglich(kopf):

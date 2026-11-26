@@ -12,13 +12,10 @@ WARNUNG (auffällig, kann gewollt sein, je Zeile quittierbar):
   - Einstechzeit sinkt mit der Wand
   - €/kg mehr als doppelt so hoch wie bei der Nachbarabmessung (gleicher Werkstoff und Profilform)
 Ohne Qt."""
+from .zahlen import float_oder_none as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 FEHLER, WARNUNG = "FEHLER", "WARNUNG"
 QUITTIERT = "stammdaten_quittiert"          # Einstellung: JSON-Liste der quittierten Schlüssel
 FAKTOR_NACHBAR = 2.0
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def _m(stufe, tabelle, zeile, regel, text):

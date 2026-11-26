@@ -15,6 +15,7 @@ Original, wenn dort Positionsnummern frei sind (10, 20 → 15), sonst am Ende; a
 Positionen ans Ende (letzte Pos.-Nummer + 10 …). Der Preis entsteht immer neu aus der Kalkulation."""
 from . import baugruppe, reihenfolge, satzgruppen
 from .angebot import ist_baugruppe
+from .zahlen import ist_zahl as _zahl  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 BG, SATZ, EINZEL = "bg", "satz", "einzel"
 SCHRITT = 10
@@ -23,10 +24,6 @@ _OHNE = ("id", "angebot_id", "nr")
 
 def _txt(w):
     return "" if w is None else str(w).strip()
-
-
-def _zahl(w):
-    return isinstance(w, (int, float)) and not isinstance(w, bool)
 
 
 def einheiten(positionen, markiert):

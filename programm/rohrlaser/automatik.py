@@ -19,6 +19,7 @@ import json
 import shutil
 from pathlib import Path
 from . import protokoll
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 TABELLE = "automatik"
 TABELLEN = (TABELLE,)
@@ -46,10 +47,6 @@ class AutomatikFehler(ValueError):
 def einrichten(con):
     for sql in TABELLEN_SQL:
         con.execute(sql)
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def _kuerzel(db):

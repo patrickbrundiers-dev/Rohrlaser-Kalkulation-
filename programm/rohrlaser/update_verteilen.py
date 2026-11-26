@@ -28,6 +28,7 @@ import zipfile
 from pathlib import Path
 
 from . import update
+from .zahlen import jetzt_text as jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 UNTERORDNER = "Kalkulation"
 FREIGABE = "Freigabe.json"
@@ -40,10 +41,6 @@ _ERLAUBT = re.compile(r"(Update\.json|Update\.json\.sig|Sperrliste\.json|[dp]-[0
 
 class VerteilFehler(update.UpdateFehler):
     pass
-
-
-def jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 # ------------------------------------------------------------------ Update-Ordner finden

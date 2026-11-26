@@ -30,9 +30,9 @@ neu auf Reststücke verteilt (dafür: Variantenvergleich, varianten.py).
 Mehrere Arbeitsplätze: das Lager steht in der eigenen Datendatei und wird nicht abgeglichen (teilen.py); es gehört
 an einen Arbeitsplatz (Arbeitsvorbereitung).
 """
-import datetime
 import json
 from . import db_verbindung
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 ARTEN = ("Stange", "Rest")
 KENNUNG = {"Stange": "S", "Rest": "R"}
@@ -73,10 +73,6 @@ def einrichten(con):
     # Zustand je Posten (Verschachtelung 23.11.2026): leer = frei
     if "status" not in set(db_verbindung.spalten(con, "lager_bestand")):
         con.execute("ALTER TABLE lager_bestand ADD COLUMN status TEXT")
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def _ob(oberflaeche):

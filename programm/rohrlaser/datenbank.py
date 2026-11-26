@@ -1758,7 +1758,7 @@ class Datenbank:
         Werte ändern sich), eigene Zeilen werden entfernt (außer behalten bzw. markierte Zeilen), fehlende
         Standardzeilen ergänzt. Vorher geschützte Sicherung 'vor_Schneiddaten_Standard' (sichern=False: ohne).
         Ergebnis dict(geaendert, weg, neu, pfad)."""
-        from .schneiddaten_standard import WERTE, vergleich
+        from .schneiddaten_werte import WERTE, vergleich
         v = vergleich(self.zeilen("schneiddaten"), maschinen, ids, eigene_behalten)
         if not (v["aendern"] or v["entfernen"] or v["ergaenzen"]):
             return dict(geaendert=0, weg=0, neu=0, pfad=None)
@@ -3362,13 +3362,15 @@ class Datenbank:
             r = self.con.execute("SELECT material_vorgabe FROM angebote WHERE id=?", (angebot_id,)).fetchone()
             if r and r[0] == KUNDENMATERIAL and werte.get("art") not in (ZUKAUFTEIL, BAUGRUPPE):
                 werte["material_herkunft"] = KUNDENMATERIAL
-        nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM positionen WHERE angebot_id=?",
-                              (angebot_id,)).fetchone()[0]
-        namen = ["angebot_id", "nr"] + list(werte)
         with self.con:
+            # Audit 26.11.2026 (G-08): erst das Angebot sperren (UPDATE sperrt die Zeile), dann die Nummer in derselben
+            # Transaktion vergeben; vorher lagen Lesen und Einfügen getrennt, zwei Schreiber konnten dieselbe Nr ziehen
+            self.con.execute("UPDATE angebote SET geaendert=? WHERE id=?", (self._jetzt(), angebot_id))
+            nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM positionen WHERE angebot_id=?",
+                                  (angebot_id,)).fetchone()[0]
+            namen = ["angebot_id", "nr"] + list(werte)
             i = self.con.execute(f'INSERT INTO positionen ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
                                  f'VALUES ({", ".join("?" * len(namen))})', [angebot_id, nr] + list(werte.values())).lastrowid
-            self.con.execute("UPDATE angebote SET geaendert=? WHERE id=?", (self._jetzt(), angebot_id))
         return i
 
     @schreibt

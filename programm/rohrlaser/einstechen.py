@@ -9,16 +9,13 @@ LaserCalc Pro), Edelstahl × 1,5–2, Aluminium × 1,5 (ebd.); die Umrechnung au
 eine Annahme; Einstichüberwachung spart rund 25 % (Garcia u. a., Applied Sciences 2019; Trumpf PierceLine).
 Grundzeit 0,15 s: progressives Einstechen 100 ms + Absenken auf Schneidhöhe (CypCut). Ohne Grundzeit oder
 Laserleistung der Maschine gilt die Einstechzeit der Schneiddaten wie bisher. Ohne Qt."""
+from .zahlen import float_oder_none as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 K = 0.1                 # [s] bei 1 mm und 6 kW
 EXPONENT = 1.4          # Wachstum mit der Wand
 P_REF = 6.0             # [kW] Bezugsleistung der Kurve
 WERKSTOFF = {"Stahl": 1.0, "Edelstahl": 1.75, "Aluminium": 1.5, "Buntmetall": 2.0}   # Buntmetall: Annahme
 UEBERWACHUNG = 0.75     # Einstichüberwachung beendet das Einstechen, sobald es durch ist
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def aktiv(m):

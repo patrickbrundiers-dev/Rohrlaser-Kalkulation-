@@ -30,6 +30,7 @@ import json
 import re
 
 from .stammdaten import Feld, Tabelle
+from .zahlen import jetzt_text as jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 WEGE = ("Shop-Suche", "Preisliste", "OCI-Punchout")
 INTERVALLE = ("manuell", "täglich", "wöchentlich", "beim Öffnen")
@@ -195,10 +196,6 @@ def zahl(t):
 
 def ja(v):
     return str(v or "").strip().lower() in ("ja", "j", "1", "true", "x", "yes")
-
-
-def jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def _zeit(t):

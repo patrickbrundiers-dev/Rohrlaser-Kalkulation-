@@ -16,6 +16,7 @@ Die Regel für den gemeinsamen Schnitt bleibt: nur zwei gerade Enden, gegenläuf
 from dataclasses import replace
 
 from . import optimierung as opt, rechnen
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 EINFACH, OPTIMIERT, OHNE_GEM, LIEFER, LAGER = "einfach", "optimiert", "ohne gemeinsamen Schnitt", "Lieferlänge", "Lager"
 SPALTEN = (("name", "Einteilung"), ("stangen", "Stangen"), ("eingeplant", "Teile eingeplant"),
@@ -24,10 +25,6 @@ SPALTEN = (("name", "Einteilung"), ("stangen", "Stangen"), ("eingeplant", "Teile
            ("verschnitt", "Verschnitt [%]"), ("eur_teil", "Material [€/Teil]"), ("schnitte", "Schnitte gespart"),
            ("laser_s", "Laserzeit gespart [s]"), ("laser_eur", "Laser gespart [€]"),
            ("ersparnis", "Einsparung ggü. einfach [€]"))
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _zeile(art, name, stangen, stange_mm, teile_mm, n_teile, preis_stange, kgm, nicht=0, **w):

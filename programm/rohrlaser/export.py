@@ -692,11 +692,3 @@ def profirst_bytes(spalten, zeilen):
     return puffer.getvalue().encode(PROFIRST_KODIERUNG, errors="replace")
 
 
-def profirst_schreiben(ordner, kopf, kopfzeile, pos_zeilen, kunde=None):
-    """Beide Dateien in den Ordner schreiben; Ergebnis [Pfad Positionen, Pfad Kopf]."""
-    k, p = profirst(kopf, kopfzeile, pos_zeilen, kunde)
-    pos_name, kopf_name = profirst_dateinamen(kopf)
-    ordner = Path(ordner)
-    _sicher_schreiben(ordner / pos_name, profirst_bytes(POSITION_SPALTEN, p))
-    _sicher_schreiben(ordner / kopf_name, profirst_bytes(KOPF_SPALTEN, [k]))
-    return [ordner / pos_name, ordner / kopf_name]

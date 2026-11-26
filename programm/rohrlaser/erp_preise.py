@@ -25,6 +25,7 @@ import re
 from statistics import median
 
 from . import csv_import, db_verbindung
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 FELDER = (("datum", "Kaufdatum"), ("menge", "Menge [m]"), ("preis", "Meterpreis [€/m]"),
           ("artikelnr", "Artikelnummer"), ("bezeichnung", "EK-Artikel (Bezeichnung)"),
@@ -373,7 +374,6 @@ def _familie(t):
     return {"10219"} if g and not n else {"10210"} if n and not g else set()
 
 
-
 def _f(x):
     return float(str(x).replace(",", "."))
 
@@ -613,10 +613,6 @@ def einrichten(con):
     con.execute("CREATE INDEX IF NOT EXISTS erp_kaeufe_lauf ON erp_kaeufe (import_id)")
     if "erp_preise" not in set(db_verbindung.spalten(con, "angebote")):
         con.execute("ALTER TABLE angebote ADD COLUMN erp_preise TEXT")      # gewählte ERP-Preise je Angebot (JSON)
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def speichern(db, liste, datei="", import_id=None):

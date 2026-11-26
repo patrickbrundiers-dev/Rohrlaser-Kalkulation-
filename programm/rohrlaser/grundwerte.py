@@ -10,15 +10,12 @@ Preis. Genutzt von der Seite „Grundwerte prüfen“ (Einstellungen → Kosten 
    „Materialverlust / Ausschuss“ und Einstellung Ausschuss; Zusatzarbeit Entgraten und Arbeitsschritt Entgraten
    mit Zeit. Ohne Qt."""
 import dataclasses
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 # Richtwerte für die €-Wirkung leerer Maschinenfelder (geschätzt, an der Maschine messen)
 RICHTWERTE = {"zeit_teil": 8.0, "zeit_kontur": 1.5}
 FELD_TEXT = {"zeit_teil": "Nebenzeit je Teil (Ausschieben/Entnehmen)", "zeit_kontur": "Zeit je Kontur (Anfahren/Drehen)"}
 BEISPIEL = "beispielwert"
-
-
-def _n(w):
-    return float(w) if isinstance(w, (int, float)) and not isinstance(w, bool) else 0.0
 
 
 def _leer(w):

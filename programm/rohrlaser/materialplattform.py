@@ -29,6 +29,7 @@ import re
 
 from . import masstext
 from .stammdaten import flaeche_wirksam
+from .zahlen import float_oder_none as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 EPS = 1e-9
 JA = "ja"
@@ -52,10 +53,6 @@ FORM_WORTE = {
 VORSILBEN = ("aisi", "aw", "enaw", "st")                # Zahl danach gehört zum Werkstoffnamen
 _WNR = re.compile(r"^\d\.\d{4}$")                       # Werkstoffnummer 1.4301
 _MASS = re.compile(r"^(?:ø|d)?(\d+(?:[.,]\d+)?)(?:x(\d+(?:[.,]\d+)?))?(?:x(\d+(?:[.,]\d+)?))?(?:mm)?$")
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def _leer(v):

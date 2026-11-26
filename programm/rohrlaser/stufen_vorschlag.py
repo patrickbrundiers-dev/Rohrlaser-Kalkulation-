@@ -11,15 +11,12 @@ Empfohlen (vorangehakt) sind Stufen, an denen der Stückpreis spürbar sinkt (PR
 Zeile) und die erste Stufe, ab der Rüsten und Programmierung unter RUEST_GRENZE des Preises liegen. Übernommen wird
 nur per Klick. Ohne Qt."""
 from .stammdaten import zahl_als_text as zahl
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 FAKTOREN = (2, 3, 5, 10, 20, 50)
 PREIS_SPRUNG = 0.05         # 5 % günstiger je Teil als die vorige Zeile
 RUEST_GRENZE = 0.05         # Rüsten und Programmierung unter 5 % des Preises
 HOECHSTENS_EMPFOHLEN = 3
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _mengen_positionen(positionen, mengen):

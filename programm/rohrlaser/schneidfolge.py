@@ -28,6 +28,7 @@ wird um die Stegbreiten kürzer, dafür kommt Nacharbeit; beides klein). Ohne Qt
 import math
 
 from . import schneidweg as sw
+from .zahlen import float_oder_0 as _z  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 STEG_BREITE = 0.5           # mm je Mikrosteg ohne Angabe und ohne Dicke
 # Stegbreite nach Wand-/Blechdicke (Patrick 16.11.2026): bis 1,5 mm 0,3; ab 2 mm 0,5; ab 4 mm 0,7; ab 6 mm 0,8;
@@ -47,10 +48,6 @@ ANFAHR_ZUSCHLAG = 1.0       # mm: Anfahrweg = Wandstärke + Zugabe ohne Maschine
 MIKROSTEG_EINSTICH = 100.0  # %: jeder Mikrosteg = neuer Einstich (Einstellung mikrosteg_einstich)
 OHNE_ABFALL = ("Gravur", "Text-Gravur", "Schlitz", "Ausklinkung", "Senkung", "Flowdrill", "V-Ausschnitt")
 ENDE_A, ENDE_B, AUSSEN = "ende:a", "ende:b", "teil"
-
-
-def _z(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def staffel(text):

@@ -2376,7 +2376,7 @@ def rechnung_aus_text(text):
     if not re.fullmatch(r"[\d\s.,+\-−*/×÷:()xX]+", t) or not re.search(r"(?<=[\d)\s])[+\-−*/×÷:xX]|[()]", t):
         return None
     t = re.sub(r"(?<=\d)\.(?=\d{3}(?!\d))", "", t)
-    from .rechenfeld import auswerten
+    from .rechenformel import auswerten
     try:
         return auswerten(t)
     except ValueError:

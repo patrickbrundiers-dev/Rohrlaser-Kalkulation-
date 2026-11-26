@@ -17,6 +17,7 @@ Prüfungen:
 import statistics
 
 from . import materialplattform as mp
+from .zahlen import float_oder_none as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 HINWEIS, WARNUNG, VORSCHLAG = "HINWEIS", "WARNUNG", "VORSCHLAG"
 AGENT = "Materialprüfung"
@@ -25,10 +26,6 @@ SPRUNG = 0.25               # Preisänderung über 25 % zum vorigen Stand
 MIN_ERSPARNIS = 2.0         # günstigerer Lieferant ab 2 % Ersparnis
 # Edelstahl ab 7,6: ferritische Sorten (1.4003, 1.4016, 1.4509) haben 7,7 kg/dm³
 DICHTE = {"Stahl": (7.7, 8.0), "Edelstahl": (7.6, 8.1), "Aluminium": (2.6, 2.85), "Buntmetall": (7.3, 9.0)}
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def _zahl(v, stellen=2):

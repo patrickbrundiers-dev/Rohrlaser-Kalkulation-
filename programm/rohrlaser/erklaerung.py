@@ -7,12 +7,9 @@ Verhältnis); die Antwort nennt die Unterschiede je Baustein, größter zuerst, 
 (Länge, Profil, Laserzeit, Stückzahl …). Die Unterschiede ergeben zusammen genau den Preisunterschied. Es werden nur
 Zahlen der Kalkulation genannt, keine geschätzten. Ohne Qt, ohne Netz."""
 from . import herkunft, rechnen
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 GRENZE = 0.005          # € je Teil: kleinere Unterschiede nennt die Antwort nicht einzeln (stehen unter „Rest“)
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _je_baustein(z, p, kopf, k, tabellen):

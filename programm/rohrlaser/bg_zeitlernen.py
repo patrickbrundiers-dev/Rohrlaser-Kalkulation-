@@ -28,6 +28,7 @@ import json
 import math
 
 from .stammdaten import Feld, Tabelle
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 TABELLE = "bg_zeiten"
 FREI, AUS, ZURUECK = "", "aus", "zurück"        # Status: freigegeben | nicht fürs Lernen | Zeit zurückgesetzt
@@ -64,10 +65,6 @@ WEIT_AB = 0.50              # Abweichung über 50 % von der automatischen Zeit: 
 
 def _zahl(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 # ------------------------------------------------------------------ Merkmale

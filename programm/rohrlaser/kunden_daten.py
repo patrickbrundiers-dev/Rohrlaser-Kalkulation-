@@ -26,12 +26,12 @@ import io
 import json
 import re
 import shutil
-import socket
 import unicodedata
 from pathlib import Path
 
 from . import protokoll
 from .stammdaten import Feld, Tabelle
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 STATUS = ("Aktiv", "Inaktiv", "Gesperrt")
 AKTIV, INAKTIV, GESPERRT = STATUS
@@ -144,10 +144,6 @@ class KundenFehler(ValueError):
 
 
 # ------------------------------------------------------------------ Hilfen
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
-
-
 def _wer(db):
     from . import teilen
     try:
@@ -653,44 +649,6 @@ def nummer_hinweis(db):
     except Exception:       # noqa: BLE001 – nur ein Hinweis
         hoechste = 0
     return f"Pflichtfeld – zuletzt vergeben {praefix}{hoechste}" if hoechste else "Pflichtfeld, z. B. 10001"
-
-
-def naechste_kundennr(db, reservieren=True):
-    """Nächste freie Kundennummer: Präfix (Einstellung kunden_nummer_praefix; nicht gesetzt = wie die vorhandenen
-    Nummern, z. B. K-) + höchste vergebene Zahl + 1, mindestens Einstellung kunden_nummer_start (ohne Kunden 10001). Mit gemeinsamem Ordner im Unterordner
-    Kundennummern reserviert, damit zwei Arbeitsplätze nie dieselbe Nummer vergeben. OSError, wenn der Ordner
-    gerade nicht erreichbar ist (dann Nummer von Hand)."""
-    from . import teilen
-    praefix_einst, start_einst = db.einstellung("kunden_nummer_praefix"), db.einstellung("kunden_nummer_start")
-    if praefix_einst is None:
-        praefix, hoechste = nummern_schema(db)
-    else:
-        praefix, hoechste = _t(praefix_einst), 0
-    try:
-        start = int(float(start_einst)) if start_einst not in (None, "") else \
-            (hoechste + 1 if hoechste else NUMMER_START)
-    except (TypeError, ValueError):
-        start = NUMMER_START
-    werte = [r[0] for r in db.con.execute("SELECT kundennr FROM kunden")] + [db.einstellung("kunden_letzte_nummer")]
-    n = max([start - 1] + [_numerisch(x, praefix) for x in werte])
-    vergeben = {_t(r[0]) for r in db.con.execute("SELECT kundennr FROM kunden")}
-    if reservieren and teilen.aktiv(db):
-        w = teilen.weg(db)
-        if w is None or not w.erreichbar():
-            raise FileNotFoundError("Der gemeinsame Ordner ist nicht erreichbar – Kundennummer bitte von Hand "
-                                    "eintragen oder später erneut versuchen.")
-        n = max(n, w.nummer_hoechste(NUMMERN_ORDNER))
-        while True:
-            n += 1
-            if f"{praefix}{n}" in vergeben:
-                continue
-            if w.nummer_belegen(NUMMERN_ORDNER, n, f"{praefix}{n}\n{_wer(db)}\n{socket.gethostname()}\n{_jetzt()}\n"):
-                break
-    else:
-        n += 1
-        while f"{praefix}{n}" in vergeben:
-            n += 1
-    return f"{praefix}{n}"
 
 
 # ------------------------------------------------------------------ Prüfen und Speichern

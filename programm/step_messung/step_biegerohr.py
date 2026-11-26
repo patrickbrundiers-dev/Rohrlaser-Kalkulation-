@@ -250,10 +250,6 @@ class Mittellinie:
         d = self.teile[0]
         return d["t"] if d["art"] == "gerade" else d["t0"]
 
-    def tangente_ende(self):
-        d = self.teile[-1]
-        return d["t"] if d["art"] == "gerade" else d["t1"]
-
     def projektion(self, p):
         """Nächster Punkt der Mittellinie: (s, Abstand, Winkel um die Achse in Grad, Teil)."""
         best = None

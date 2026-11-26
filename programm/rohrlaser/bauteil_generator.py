@@ -987,7 +987,7 @@ def vorschau(plan, platte_e=None):
     """Alle Teile des Plans in Einbaulage als ein Netz (gleiche Teile gleiche Farbe, Platten als Blech) oder None.
     platte_e: Blech-Eingaben der Platte bzw. des Blechteils (blech_e)."""
     from . import blech, blech3d
-    from .ansicht3d import baugruppe
+    from .netz_daten import baugruppe
     w = plan["werte"]
     netze, farben = [], []
     if plan.get("erg"):

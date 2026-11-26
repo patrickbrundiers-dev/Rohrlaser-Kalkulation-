@@ -18,6 +18,7 @@ beantworten die Agenten Fragen über alle Daten (uebersicht). Ohne Qt."""
 import datetime
 import statistics
 from . import protokoll
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 FEHLER, WARNUNG, HINWEIS, INFO, VORSCHLAG = "FEHLER", "WARNUNG", "HINWEIS", "INFO", "VORSCHLAG"
 ARTEN = (FEHLER, WARNUNG, VORSCHLAG, HINWEIS, INFO)
@@ -26,10 +27,6 @@ AUSNUTZUNG_MIN = 0.75       # Stangengruppe darunter: Hinweis auf Verschnitt
 GEWINN_MIN = 0.05           # Gewinn unter 5 % des Verkaufspreises: Warnung
 KONTUR_JE_M = 40            # mehr Einstiche je Meter Teil: ungewöhnliche Geometrie
 PREISSPRUNG_PCT = 10        # Materialpreis in 3 Monaten mehr als ±10 %
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _z(v, stellen=2):

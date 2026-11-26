@@ -10,9 +10,9 @@ ki_empfehlungen  offene Empfehlungen der Agenten (Dashboard „Offene KI-Empfehl
                  abgelehnt), erstellt, erledigt_am, benutzer
 Eine Empfehlung ändert nie selbst Daten: „Erledigen“ springt ins Programm (ziel) oder ruft eine vorhandene Aktion des
 Angebots-Checks auf, die man dort wie bisher sieht. Ohne Qt."""
-import datetime
 import json
 from . import protokoll
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 AKTIONEN, EMPFEHLUNGEN = "ki_aktionen", "ki_empfehlungen"
 OFFEN, ERLEDIGT, ABGELEHNT = "offen", "erledigt", "abgelehnt"
@@ -41,10 +41,6 @@ def bereit(db):
         _BEREIT.add(id(db))
     except Exception:           # noqa: BLE001
         protokoll.warnung("ki_protokoll: abgefangen")
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def _wer(db):

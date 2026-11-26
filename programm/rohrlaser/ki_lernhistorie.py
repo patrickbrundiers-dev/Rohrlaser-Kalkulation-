@@ -19,13 +19,10 @@ Nachkalkulation, Rückmeldungen, LST; 3. Abweichung = abweichungen(); 4. Ursache
 import datetime
 import json
 from . import protokoll
+from .zahlen import float_oder_none as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 AUSREISSER_FAKTOR = 10.0        # Ist mehr als 10-mal (oder weniger als ein Zehntel) des Solls: fast sicher ein Tippfehler
 VERGLEICH_ANGEBOTE = 10         # so viele Angebote rechnet der Vergleich alt/neu
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def _z(v, stellen=2):

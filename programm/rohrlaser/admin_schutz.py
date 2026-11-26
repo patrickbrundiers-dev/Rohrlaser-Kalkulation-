@@ -45,6 +45,7 @@ from . import admin_signatur as sig
 from . import einstellungen_ordnung as ordnung
 from . import passwort as pw
 from . import db_verbindung
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 ADMIN_SEITEN = "admin_seiten"           # Liste der geschützten Bereiche (None = VORGABE); kommt mit dem Paket
 STAND = "admin_vorgaben_stand"          # lokal: {stand, von, hash} des zuletzt übernommenen/geschriebenen Pakets
@@ -241,10 +242,6 @@ def admins(db):
 def recht(db, kuerzel):
     """Recht eines Mitarbeiters: ADMIN, GESPERRT oder MITARBEITER."""
     return (admins(db).get(kuerzel) or {}).get("recht") or MITARBEITER
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def recht_setzen(db, kuerzel, neu, name="", startpasswort=None):

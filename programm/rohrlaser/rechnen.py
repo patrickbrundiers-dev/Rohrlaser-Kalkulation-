@@ -26,6 +26,7 @@ from . import fracht_angebot
 from . import (abruf, anbau, baugruppe, bg_mengen, dfm, dreid, dynamik, geometrie, naht, parallel, rp_profile,
                qualitaet, stangenende, virtuell, zeit_zusatz, zeitbild, zukauf)
 from . import zusatz_formel
+from .zahlen import ist_zahl as _zahl  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 EPS = opt.EPS
 
@@ -4646,10 +4647,6 @@ def einstellungen_angebot(kopf, einst):
     if isinstance((kopf or {}).get("gewinn"), (int, float)):
         out["gewinn_bis_1"] = 0         # eigener Gewinn des Angebots: kein gestaffelter Gewinn
     return out
-
-
-def _zahl(w):
-    return isinstance(w, (int, float)) and not isinstance(w, bool)
 
 
 def konturen_anzahl(p):

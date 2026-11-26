@@ -36,8 +36,8 @@ from .editor_ergebnis import Ergebnisleiste
 from .menueband import Menueband
 from .eingabe import RechenSpin
 
-STEP, MANUELL, VORGABE = "STEP", "manuell", "Vorgabe"
-GEAENDERT = "manuell (STEP geändert)"
+# Herkunft eines Merkmals: in teile_status.py ohne Qt (Audit 26.11.2026, A-01), hier unverändert weitergeführt
+from .teile_status import GEAENDERT, MANUELL, STEP, VORGABE  # noqa: E402,F401
 OEFFNEN, IMPORT = "oeffnen", "import"       # Zurücksetzen auf den Ursprung (Patrick 03.11.2026)
 GRUPPEN = ("Teil", "Enden", "Innenkonturen", "Knicke", "Biegungen", "Anbauteile", "Schweißnaht", "Gravur")
 FARBE_HERKUNFT = {STEP: stil.GRUEN, GEAENDERT: stil.ORANGE, MANUELL: stil.TEXT, VORGABE: stil.TEXT_GRAU}

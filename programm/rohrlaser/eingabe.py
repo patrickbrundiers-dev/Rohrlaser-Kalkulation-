@@ -250,7 +250,7 @@ class _Rechnen:
             and re.search(r"(?<=[\d)\s])[+\-−*/×÷:xX]|[()]", kern) is not None
 
     def _ergebnis(self, kern):
-        from .rechenfeld import auswerten
+        from .rechenformel import auswerten
         if "," in kern:     # deutsche Schreibweise im Feld: Punkt = Tausender („6.000,5/4“)
             kern = re.sub(r"(?<=\d)\.(?=\d{3}(?!\d))", "", kern)
         elif re.search(r"\d\.\d{3}(?!\d)", kern) and self.groupSeparatorShown():

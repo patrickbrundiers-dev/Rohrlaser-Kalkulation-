@@ -172,7 +172,7 @@ def netz_mit_lagen(messwerte, gruppe):
     'lagen' = Einbaulage jedes gleichen Körpers derselben Datei und 'koerper' = ihre Körpernummern, damit der
     Baugruppen-Editor die ganze Baugruppe in 3D zeigt und Nahtgruppen ihren Teilen zuordnet (D1). Ergebnis: gepackte
     Bytes wie '_netz'."""
-    from .ansicht3d import entpacken, packen
+    from .netz_daten import entpacken, packen
     from .lage_abgleich import passende_lage
     m0 = messwerte[gruppe[0]]
     netz = entpacken(m0["_netz"])
@@ -205,7 +205,7 @@ def netz_mit_lagen(messwerte, gruppe):
 
 def mit_mutter(netz, pfad):
     """Gepacktes Netz mit dem Pfad der Mutter-STEP (Prüfung im STEP-Export, step_vergleich)."""
-    from .ansicht3d import entpacken, packen
+    from .netz_daten import entpacken, packen
     n = entpacken(netz) if pfad else None
     if not n:
         return netz
@@ -1918,7 +1918,7 @@ def netz_der_art(m):
     df = m.get("profilform") in DREHFRAES       # Dreh-/Frästeil ganz goldgelb 'KD' (Patrick 04.11.2026)
     if not netz or (m.get("profilform") not in BLECHE and not df):
         return netz
-    from .ansicht3d import entpacken
+    from .netz_daten import entpacken
     n = entpacken(bytes(netz)) if isinstance(netz, (bytes, bytearray, memoryview)) else netz
     if not n or not n.get("t"):
         return netz
@@ -2625,7 +2625,7 @@ def kant_gegenprobe(m):
     if not b or not isinstance(b.get("abwicklung"), dict):
         return None
     from . import blech as bl, blech3d
-    from .ansicht3d import entpacken
+    from .netz_daten import entpacken
     try:
         e = bl.aus_step(b, None, 1)
         g = blech3d.gegenprobe(blech3d.netz(e, bl.zuschnitt(e)), entpacken(m["_netz"]))
@@ -4284,7 +4284,7 @@ def _nach_knoten_teilen(liste, struktur, neu, naechste, bericht):
     geteilt (gleiche Artikelnummer, Stück je Satz = Körper dort, Netz mit den Lagen dieser Körper), damit
     baugruppe.aus_step jede in ihre Unterbaugruppe hängt statt alle direkt an die Baugruppe. Ändert liste und neu.
     Ergebnis: nächste freie Pos."""
-    from .ansicht3d import entpacken, packen
+    from .netz_daten import entpacken, packen
     knoten = [k for k in (struktur or {}).get("knoten") or () if isinstance(k, dict) and k.get("id")]
     wurzeln = [k["id"] for k in knoten if not k.get("eltern")]
     ids = {k["id"] for k in knoten} - set(wurzeln[:1] if len(wurzeln) == 1 else ())

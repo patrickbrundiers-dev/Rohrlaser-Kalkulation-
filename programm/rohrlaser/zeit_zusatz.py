@@ -19,6 +19,8 @@ Alles hängt an neuen Maschinenfeldern (leer = aus, alte Angebote bleiben bitgle
 - C4 Entladegrenze: Teil länger oder schwerer als die Entladegrenze wird von Hand entnommen (Vorgabe 30 s je Teil).
 Ohne Qt."""
 from . import rechenmerker
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
+from .zahlen import ist_zahl as _zahl  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 EPS = 1e-6
 MESSEN = {"schnell": 4.0, "sorgfältig": 8.0}          # [s] je Messung (Vorgabe, Patrick 12.11.2026)
@@ -43,10 +45,6 @@ ANSCHLUSS_BESCHL = ((3.0, 3.0), (4.0, 2.0), (5.0, 1.0), (6.0, 0.5), (8.0, 0.1), 
 KASTEN_KANTEN = ("Quadratrohr", "Rechteckrohr", "RP-Profil")
 ASYMMETRISCH = ("L-Profil", "U-Profil", "C-Profil", "T-Profil", "Sonderprofil", "Halbflachoval", "RP-Profil")
 OHNE_ABFALL = ("Gravur", "Text-Gravur", "Schlitz", "Ausklinkung", "Senkung", "Flowdrill")   # kein loser Abfall
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _form(p, k):
@@ -222,10 +220,6 @@ def stange_laenge_s(m, laenge_mm):
     if stangenwechsel_berechnet(m) is None:
         return 0.0
     return einziehen_s(m, laenge_mm) - einziehen_s(m, _n((m or {}).get("max_stange")) or STANGE_BEZUG)
-
-
-def _zahl(w):
-    return isinstance(w, (int, float)) and not isinstance(w, bool)
 
 
 def entladen_s(m, p, k=None, einst=None):

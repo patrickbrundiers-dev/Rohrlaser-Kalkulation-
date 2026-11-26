@@ -8,10 +8,7 @@ Herkunft je Zahl (nichts geschätzt):
   Zahl der nachkalkulierten Aufträge; ohne Nachkalkulation bleibt er leer statt geschätzt
 Nur Anzeige, ändert nichts. Ohne Qt."""
 import json
-
-
-def _n(w):
-    return float(w) if isinstance(w, (int, float)) and not isinstance(w, bool) else None
+from .zahlen import float_oder_none as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 
 def zeilen(db, jahr=None):
