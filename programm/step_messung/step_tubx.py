@@ -245,6 +245,10 @@ def lies_tubx_info(pfad):
         lst = step_lst.lst_daneben(pfad)
         if lst is not None:
             koerper, info = step_lst.lies_lst_info(lst)
+            if info.pop("abfall_offen", 0):
+                # Öffnung der LST nicht vollständig gebaut (Kerbe über drei Seiten): das Netz der TUBX ist für dieses
+                # Teil genauer (Importengine 2.0, 10186133 P10: LST +1,4 % Volumen, Netz wie STEP)
+                raise ValueError("Öffnung über mehr als die halbe Rohrseite nicht aus dem Schneidweg baubar")
             if len(koerper) == 1:
                 info["meldungen"].insert(0, f"aus der LST daneben ({Path(str(lst)).name}), genauer als das Netz der TUBX")
                 return koerper, info

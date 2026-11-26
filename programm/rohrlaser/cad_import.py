@@ -28,6 +28,8 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import dateiformat
+
 STEP_ENDUNGEN = (".step", ".stp")
 IGES_ENDUNGEN = (".igs", ".iges")
 BLM_ENDUNGEN = (".artube", ".bpf")      # BLM/Adige ArTube-Projekt und Teileprogramm (step_messung/step_blm.py)
@@ -202,6 +204,23 @@ def vorbereiten(pfade, basis=None):
 
     def nimm(p, anzeige, aus_zip=None):
         e = p.suffix.lower()
+        fmt = dateiformat.erkennen(p) if e not in ZIP_ENDUNGEN and e not in NATIV else None
+        if fmt is not None and fmt.art == dateiformat.ZIP and not fmt.fehler:
+            e = ".zip"       # ZIP unter anderer Endung (Importengine 2.0: Inhalt statt Endung)
+            erg.befunde.append(dict(datei=anzeige, stufe=HINWEIS, text=f"{fmt.hinweis()} – als ZIP entpackt"))
+        if fmt is not None and e not in ZIP_ENDUNGEN and fmt.art != dateiformat.UNBEKANNT and not fmt.messbar \
+                and fmt.art != dateiformat.LEER and (e in CAD_ENDUNGEN or fmt.art == dateiformat.LST_AUFTRAG):
+            text = (NATIV_TEXT.format(art=fmt.name, endung=p.suffix) if fmt.art != dateiformat.LST_AUFTRAG else
+                    "TRUMPF-Fertigungsauftrag ohne Schneidweg (nur Programmnamen und Stückzahlen) – bitte die LST der "
+                    "Programme selbst importieren")
+            erg.befunde.append(dict(datei=anzeige, stufe=FEHLER, text=text))
+            return
+        if fmt is not None and fmt.messbar and e not in CAD_ENDUNGEN:
+            # messbarer Inhalt unter fremder Endung (z. B. STEP als .txt aus dem Mailprogramm): mit Hinweis messen
+            erg.befunde.append(dict(datei=anzeige, stufe=HINWEIS, text=f"{fmt.hinweis()} – trotzdem gemessen"))
+            e = next(iter(sorted(dateiformat.ENDUNGEN[fmt.art])))
+        elif fmt is not None and fmt.messbar and not fmt.endung_passt:
+            erg.befunde.append(dict(datei=anzeige, stufe=HINWEIS, text=f"{fmt.hinweis()} – als {fmt.art} gemessen"))
         if e in ZIP_ENDUNGEN:
             for x in entpacken(p, basis, 0, erg.befunde, anzeige):
                 erg.herkunft[x] = aus_zip or anzeige
@@ -221,7 +240,9 @@ def vorbereiten(pfade, basis=None):
         if schluessel in gesehen:
             return
         gesehen.add(schluessel)
-        befund = step_pruefen(p) if e in STEP_ENDUNGEN else None
+        inhalt_klar = fmt is not None and fmt.art not in (dateiformat.UNBEKANNT, dateiformat.LEER)
+        ist_step = fmt.art == dateiformat.STEP if inhalt_klar else e in STEP_ENDUNGEN
+        befund = step_pruefen(p) if ist_step else None
         if befund and befund[0] == FEHLER:
             erg.befunde.append(dict(datei=anzeige, stufe=FEHLER, text=befund[1]))
             return

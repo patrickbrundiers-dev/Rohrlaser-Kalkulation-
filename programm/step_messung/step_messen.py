@@ -287,12 +287,33 @@ def step_dateien(pfade):
 
 
 # ------------------------------------------------------------------ Zwischenspeicher
+def begleitdateien(datei):
+    """Dateien, die die Messung neben der Datei mitliest: LST neben einer TUBX (step_tubx misst aus ihr), BPF neben
+    einer ARTUBE (exakter Querschnitt). Gehören in den Schlüssel des Zwischenspeichers (Importengine 2.0: eine
+    geänderte LST neben unveränderter TUBX lieferte sonst das alte Ergebnis)."""
+    p = Path(str(datei))
+    e = p.suffix.lower()
+    if e == ".tubx":
+        import step_lst
+        q = step_lst.lst_daneben(p)
+        return [q] if q is not None else []
+    if e == ".artube":
+        return [q for q in (p.with_suffix(".bpf"), p.with_suffix(".BPF")) if q.is_file()][:1]
+    return []
+
+
 def cache_schluessel(datei, kennung, einst):
-    """SHA-256 über Inhalt der Datei, Kennung (Programmversion) und wirksame Einstellungen der Messung."""
+    """SHA-256 über Inhalt der Datei (samt mitgelesener Begleitdateien), Kennung (Programmversion) und wirksame
+    Einstellungen der Messung."""
     h = hashlib.sha256()
     with open(datei, "rb") as f:
         for block in iter(lambda: f.read(1 << 20), b""):
             h.update(block)
+    for q in begleitdateien(datei):     # nur bei TUBX/ARTUBE mit Nachbardatei: STEP-Schlüssel bleiben unverändert
+        h.update(b"\0begleit\0")
+        with open(q, "rb") as f:
+            for block in iter(lambda: f.read(1 << 20), b""):
+                h.update(block)
     h.update(json.dumps([kennung, step_ergebnis.SCHEMA_VERSION, einst], sort_keys=True).encode("utf-8"))
     return h.hexdigest()
 

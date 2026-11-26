@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.525", "<b>Importengine 2.0</b>: TRUMPF-LST, BPF und ARTUBE werden genauer und schneller zum 3D-Teil. "
+                "Werkzeuge der Konturen entstehen direkt mit gemeinsamen Kanten statt genäht (LST 10186133 P10 hing "
+                "über 20 min, jetzt unter 1 min; P20 jetzt wie die STEP statt 718 mm³ zu wenig). Fenster und Kerben "
+                "aus zwei offenen Schnitten mit Haltestegen werden als Öffnung erkannt (P30: Volumen wie STEP statt "
+                "24.114 mm³ zu viel); Schnittlänge und Einstiche bleiben gleich. Das Format zählt jetzt am Inhalt, "
+                "nicht nur an der Endung (STEP als .txt, ZIP als .step, IGES als .stp, Fertigungsauftrag ohne "
+                "Schneidweg), mit Hersteller und Softwareversion im Hinweis ([[trumpf_programm]]).",
+     "Importengine 2.0: LST/BPF/ArTube genauer und schneller, Format am Inhalt"],
     ["0.9.516", "<b>Supportpaket 26.11.</b>: Der Kundenimport stürzte im Prüfschritt ab, sobald ein neuer Kunde mit "
                 "Kundennummer in der Datei stand (Fehlermeldung „multiple values for keyword argument kundennr“); "
                 "behoben. <i>Fracht berechnen …</i> und <i>Packvorschlag</i> hingen bei sehr großen Angeboten "

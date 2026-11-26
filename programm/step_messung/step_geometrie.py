@@ -278,21 +278,49 @@ def _grosse_datei_einstellen(leser, pfad):
         return False
 
 
+_ENDUNG_ART = {".step": "STEP", ".stp": "STEP", ".igs": "IGES", ".iges": "IGES", ".tubx": "TUBX", ".lst": "LST",
+               ".bpf": "BPF", ".artube": "ARTUBE"}
+
+
+def leser_art(pfad):
+    """Welcher Leser die Datei liest: am Inhalt erkannt (rohrlaser.dateiformat, Importengine 2.0: „Dateiendungen
+    allein reichen nicht“), die Endung zählt nur, wenn der Inhalt nichts Messbares verrät (dann wie bisher). So liest
+    eine IGES-Datei mit Endung .stp der IGES-Leser, eine STEP-Datei mit Endung .txt der STEP-Leser. Eine TRUMPF-LST
+    ohne Schneidweg (Fertigungsauftrag) und Herstellerformate unter falscher Endung ergeben eine klare Meldung."""
+    endung = _ENDUNG_ART.get(_Path(str(pfad)).suffix.lower())
+    try:
+        from rohrlaser import dateiformat
+        f = dateiformat.erkennen(pfad)
+    except Exception:       # noqa: BLE001 – Erkennen ist Zusatz: dann wie bisher nach der Endung
+        return endung or "STEP"
+    if f.art == dateiformat.LST_AUFTRAG:
+        raise ValueError("TRUMPF-Fertigungsauftrag ohne Schneidweg (nur Programmnamen und Stückzahlen): bitte die "
+                         "LST der Programme selbst importieren")
+    if f.messbar:
+        return f.art
+    if f.art in (dateiformat.OLE, dateiformat.CATIA, dateiformat.PARASOLID, dateiformat.MEGACAD, dateiformat.STL,
+                 dateiformat.ACIS):
+        raise ValueError(f"{f.name} unter der Endung {f.endung or '(ohne)'}: kein lesbares CAD-Format, bitte als "
+                         "STEP speichern")
+    return endung or "STEP"
+
+
 def lies_step_info(pfad):
     """Liest eine STEP-Datei. Ergebnis: (Körper, Info). Körper = Liste (Art, Shape) mit Art 'Volumenkörper',
     'aus Flächenmodell genäht' (geschlossene Fläche zu Volumen gemacht) oder 'Flächenmodell offen' (nicht messbar).
     Info: einheit, meldungen (Fehler/Warnungen des Lesers), baugruppe (mehrere Körper). Nichts wird still verworfen:
     alles, was weder Volumenkörper noch nähbar ist, kommt als 'Flächenmodell offen' zurück.
     Wirft ValueError, wenn die Datei nicht lesbar ist. IGES-Dateien (.igs/.iges) liest lies_iges_info."""
-    if ist_iges(pfad):
+    art = leser_art(pfad)
+    if art == "IGES":
         return lies_iges_info(pfad)
-    if _Path(str(pfad)).suffix.lower() == ".tubx":      # TRUMPF TubeCAM (Patrick 20.11.2026): Netz wie STEP messen
+    if art == "TUBX":       # TRUMPF TubeCAM (Patrick 20.11.2026): Netz wie STEP messen
         from step_tubx import lies_tubx_info
         return lies_tubx_info(pfad)
-    if _Path(str(pfad)).suffix.lower() == ".lst":      # TRUMPF-LST (Patrick 24.11.2026): aus dem Schneidweg
+    if art == "LST":        # TRUMPF-LST (Patrick 24.11.2026): aus dem Schneidweg
         from step_lst import lies_lst_info
         return lies_lst_info(pfad)
-    if _Path(str(pfad)).suffix.lower() in (".bpf", ".artube"):   # BLM ArTube/BPF (Patrick 24.11.2026) wie STEP
+    if art in ("BPF", "ARTUBE"):    # BLM ArTube/BPF (Patrick 24.11.2026) wie STEP
         from step_blm import lies_blm_info
         return lies_blm_info(pfad)
     from OCP.IFSelect import IFSelect_RetVoid
