@@ -16146,8 +16146,8 @@ def kapitel_frachtkosten(i):
     i.genauer()
     i.tabelle(["Ladehilfsmittel", "Bedeutung"], [
         ["<b>Ladehilfsmittel</b>, Bezeichnung", "Kurzname und Klartext"],
-        ["<b>Art</b>", "Europalette, Einwegpalette, Industriepalette, Gitterbox, Sonderpalette, Langgut, "
-                       "Sonderladung oder Karton (Paketversand; Maße = Innenmaße wie bei der Gitterbox)"],
+        ["<b>Art</b>", "Europalette, Einwegpalette, Industriepalette, Halbpalette, Gitterbox, Sonderpalette, "
+                       "Langgut, Sonderladung oder Karton (Paketversand; Maße = Innenmaße wie bei der Gitterbox)"],
         ["Länge, Breite, Höhe [mm]", "für Volumen und Lademeter; fehlt ein Maß, rechnet das Programm ohne Volumen"],
         ["Eigengewicht, Nutzlast [kg]", "Eigengewicht = Verpackungsgewicht; Nutzlast für Packvorschlag und Warnung "
                                         "(Karton: Gewichtsklasse des Pakets − Kartongewicht, z. B. 10 − 0,3 = 9,7 kg)"],
@@ -16159,10 +16159,17 @@ def kapitel_frachtkosten(i):
         ["Außen Länge [mm], Außen Breite [mm], Außen Höhe [mm]", "Außenmaß des Packstücks für Paketregeln und "
                                                                  "Gurtmaß (leer = Maße)"],
         ["Max. Gesamthöhe [mm]", "Höhe mit Ware für dieses Packmittel (leer = Einstellung Palettenhöhe)"],
-        ["Preis je Stück [€], Kauf/Miete/Tausch, Pfand/Tauschwert [€]", "Kauf oder Miete = Preis je Stück; Tausch "
-                                                                        "(Europool) = 0 € mit Pfand-Hinweis"],
-        ["Sicherungsmaterial je Stück [€], Packzeit je Stück [min]", "je Packstück; Packzeit × Stundensatz "
-                                                                    "Verpackung"],
+        ["Preis je Stück [€], Kauf/Miete/Tausch, Pfand je Stück [€]", "Kauf oder Miete = Preis je Stück; Tausch "
+                                                                       "(Europool) = Tauschregel des Dienstleisters "
+                                                                       "([[fracht_tausch]]); Pfand für „Tausch gegen "
+                                                                       "Pfand“"],
+        ["Verpackung/Sicherung je Stück [€], Packzeit je Stück [min]", "je Packstück (Folie, Umreifung, "
+                                                                      "Kantenschutz); Packzeit × Stundensatz "
+                                                                      "Verpackung"],
+        ["Wiederbeschaffungswert [€], Tauschwert [€]", "was ein nicht getauschtes Tauschpackmittel kostet (leer = "
+                                                       "Tauschwert, dann Preis; fehlt alles: Hinweis, kein Betrag)"],
+        ["Tauschzuschlag je Stück [€]", "gilt bei „Tausch gegen Zuschlag“ ohne eigenen Betrag in der Regel"],
+        ["Verfügbar [Stück]", "Bestand; braucht eine Sendung mehr, kommt ein Hinweis (leer = unbegrenzt)"],
         ["Aufsetzrahmen Höhe [mm], Aufsetzrahmen Gewicht [kg], Aufsetzrahmen Preis [€], Aufsetzrahmen max. Anzahl",
          "nur Palette mit Aufsetzrahmen: das Programm "
                                                                     "rechnet die Rahmen aus der Ladehöhe (z. B. 350 "
@@ -16171,15 +16178,54 @@ def kapitel_frachtkosten(i):
          "Packstück", "Grenzen des Packkerns 3.0 nur für dieses Packmittel ([[packkern]]); leer = Einstellung. "
                       "Gitterbox, Karton und Sonderbehälter haben nie Überstand"]],
               [75, 190])
-    i.text("<b>Standard-Packmittel laden</b> legt Europalette mit Aufsetzrahmen, Gitterbox EPAL (außen 1.240 × 835 × "
-           "970 mm, innen 1.200 × 800 × 800 mm, 85 kg), Rohrkartons 1,2 m und 2 m sowie einen Sonderbehälter mit "
-           "Normmaßen an, ohne Preise: Preise tragen Sie selbst ein. Vorhandene bleiben.")
+    i.text("<b>Standard-Packmittel laden</b> legt Europalette, Europalette mit Aufsetzrahmen, Halbpalette, "
+           "Einwegpalette, Industriepalette, Gitterbox EPAL (außen 1.240 × 835 × 970 mm, innen 1.200 × 800 × 800 mm, "
+           "85 kg), Rohrkartons 1,2 m und 2 m sowie einen Sonderbehälter mit Normmaßen an, ohne Preise und "
+           "Wiederbeschaffungswerte: die tragen Sie selbst ein. Vorhandene bleiben.")
     i.text("<b>Packmittelkosten</b>: Preis (Kauf/Miete) + Sicherungsmaterial + Packzeit × Stundensatz Verpackung + "
            "Aufsetzrahmen × Rahmenpreis, ohne Gewinn. Der Frachtrechner zeigt sie im Reiter <i>Packliste und "
            "Packmittelkosten</i>. Ins Angebot kommen sie mit dem Haken <b>Verpackung aus der Packliste</b> im Fenster "
            "<i>Fracht berechnen …</i> (bzw. Einstellung <i>Verpackungskosten aus den Packmitteln der Packliste "
            "rechnen</i> für die automatische Fracht) statt der Tabelle Verpackung; ältere Angebote rechnen wie "
            "bisher.")
+    i.abschnitt("Packmitteltausch je Dienstleister", marke="fracht_tausch")
+    i.text("Ob ein Dienstleister Europaletten, Gitterboxen und andere Tauschpackmittel tauscht, steht je "
+           "Dienstleister und Packmittel unter Einstellungen → Fracht → Dienstleister, Bereich "
+           "<b>Packmitteltausch je Dienstleister</b>. Ohne Regel tauscht er nicht: jedes Stück kostet seinen "
+           "Wiederbeschaffungswert.", kurz=True)
+    i.genauer()
+    i.tabelle(["Tausch", "Was das Programm rechnet"], [
+        ["vollständiger Tausch", "0 € (Zuschlag je Stück, wenn eingetragen)"],
+        ["teilweiser Tausch", "Getauscht [%] (abgerundet) bzw. Getauscht höchstens [Stück]; nur die übrigen "
+                              "kosten den Wiederbeschaffungswert"],
+        ["kein Tausch", "Anzahl × Wiederbeschaffungswert, z. B. 3 × 22 € = 66 €"],
+        ["Tausch gegen Zuschlag", "Anzahl × Zuschlag je Stück (leer = Tauschzuschlag des Packmittels), ab der "
+                                  "Freimenge"],
+        ["Tausch gegen Pfand", "Anzahl × Pfand je Stück (leer = Pfand des Packmittels), eigene Kostenart Pfand"],
+        ["Tausch nur bei Rücklieferung", "Anzahl × Rückführung je Stück (leer = Wiederbeschaffungswert)"]], [60, 205])
+    i.tabelle(["Packmitteltausch", "Bedeutung"], [
+        ["<b>Regel</b>, Dienstleister, Packmittel", "Kurzname; Dienstleister und Packmittel (einzelnes Packmittel "
+                                                    "oder Art, z. B. Europalette) leer = alle"],
+        ["Tausch, Getauscht [%], Getauscht höchstens [Stück]", "Art des Tauschs (Tabelle oben)"],
+        ["Zuschlag je Stück [€], Zuschlag je Lieferung [€], Freimenge ohne Zuschlag [Stück]", "Zuschlag je "
+         "getauschtem Stück über der Freimenge; je Lieferung einmal je Sendung"],
+        ["Pfand je Stück [€], Rückführung je Stück [€]", "für Tausch gegen Pfand bzw. nur bei Rücklieferung"],
+        ["Tausch ab [Stück]", "Mindestmenge: darunter kein Tausch"],
+        ["Kundennummer, Gültig ab, Gültig bis, Aktiv, Bemerkung (Vertrag, Ansprechpartner)", "Vertragskonditionen "
+         "für einen Kunden oder Zeitraum; die speziellere Regel gilt (Kunde vor Dienstleister vor Packmittel vor "
+         "Art vor allgemein)"]], [75, 190])
+    i.text("Je Stück gilt genau eine Abrechnung (getauscht, Pfand, Rückführung oder Wiederbeschaffung): Pfand, "
+           "Tauschzuschlag und Wiederbeschaffung kommen nie doppelt. Gekaufte und gemietete Packmittel kosten nur "
+           "ihren Preis. Im Reiter <i>Packliste und Packmittelkosten</i> stehen die Kosten je Kostenart "
+           "(Packmittel, Verpackung und Sicherung, Tauschzuschläge, nicht getauschte Packmittel, Pfand, "
+           "Rückführung) und die <b>Kostenaufschlüsselung Logistik</b> mit reiner Fracht, sonstigen "
+           "Transportzuschlägen und der Gesamtsumme; in der Kalkulation des Angebots stehen sie getrennt unter "
+           "Verpackung. Der <b>Preisvergleich</b> rechnet den Tausch je Anbieter mit (z. B. „+ 66,00 € Tausch“) und "
+           "empfiehlt nach Fracht + Tausch. Neu berechnete Fracht merkt sich die Regeln; ältere Angebote rechnen wie "
+           "bisher.")
+    i.text("<b>Korrektur von Hand</b>: Im Fenster <i>Fracht berechnen …</i> lässt sich die berechnete Fracht um einen "
+           "Betrag ändern, nur mit Begründung (z. B. Angebot der Spedition). Die Korrektur gilt je Sendung, auch in "
+           "jeder Staffelstufe, und steht mit Begründung im Text der Fracht.")
     i.abschnitt("Packkern 3.0: Ladung berechnen und ansehen", marke="packkern")
     i.text("Der Packkern legt die Teile Lage für Lage auf den Ladungsträger: gleiche Artikel als Block, Lücken mit "
            "passenden anderen Teilen gefüllt, Überstand nur an der langen Seite, die kurze Seite (800 mm) nie. Der "
@@ -16282,7 +16328,14 @@ def kapitel_frachtkosten(i):
         ["<b>Dienstleister</b>, Name", "Kurzname und Name des Frachtführers"],
         ["Versandarten", "mit Komma getrennt, erscheinen im Rechner zur Auswahl"],
         ["Unsere Kundennummer beim Dienstleister", "zur Info"],
-        ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
+        ["Aktiv, Bemerkung", "leer = aktiv; freier Text"],
+        ["Max. Länge Packstück [mm], Max. Höhe Packstück [mm], Max. Gewicht je Packstück [kg]", "Transport"
+         "bedingungen; leer = keine Grenze"],
+        ["Hebebühne möglich, Gefahrgut möglich", "„nein“ = nicht möglich, wenn der Zuschlag Hebebühne bzw. "
+                                                 "Gefahrgut gewählt ist"]], [75, 190])
+    i.text("Erfüllt ein Dienstleister eine Transportbedingung nicht, steht er im Preisvergleich rot mit Grund und "
+           "wird nie automatisch empfohlen; von Hand übernehmen geht mit Warnung. Darunter stehen die "
+           "Tauschregeln ([[fracht_tausch]]).")
     i.abschnitt("Historie und Einstellungen", marke="fracht_einstellungen")
     i.bild("fracht_historie", "Historie und Einstellungen", hoehe=100 * mm, legende=[
         (1, "Gespeicherte Kalkulationen: Datum, Bezeichnung, Empfänger, Zone, Tarif, frachtpflichtiges Gewicht, "

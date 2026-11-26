@@ -296,6 +296,7 @@ def lht_werte(eintraege, lht_zeilen):
                        eigengewicht=_n(z.get("eigengewicht")) * n + rahmen * _n(z.get("rahmen_gewicht")),
                        rahmen=rahmen, brutto_je=list(e.get("brutto_je") or ()) or None,
                        aussen=_aussen(z, e),
+                       ladung=list(e.get("ladung") or ()) or None, kg_max=e.get("kg_max"),
                        brutto=_n(e["gewicht"]) * n if _zahl(e.get("gewicht")) else None,
                        nutzlast=_n(z.get("nutzlast")) * n if z.get("nutzlast") else None, stapel=stapel))
     vol = [x["volumen"] for x in je]
@@ -845,7 +846,10 @@ def snapshot(daten, s, zone_e, zone_v, tarif):
                 zuschlaege=zus, dieselpreis=dieselpreis(daten, datum),
                 dieselstaffel=[dict(d) for d in daten.get("dieselstaffel", []) if d.get("zuschlag_id") in ids],
                 waehrung=waehrung, kurs=None if waehrung == "EUR" else (kurs or {}).get("kurs"),
-                kurs_stand=(kurs or {}).get("stand"), lht=[dict(z) for z in daten.get("lht", [])])
+                kurs_stand=(kurs or {}).get("stand"), lht=[dict(z) for z in daten.get("lht", [])],
+                **({"tausch": [dict(r) for r in daten["tauschregeln"] if not r.get("dienstleister")
+                               or r["dienstleister"] == tarif.get("dienstleister")]}
+                   if "tauschregeln" in daten else {}))       # Packmitteltausch (26.11.2026): fehlt = wie bisher
 
 
 def kalkulieren(snap, s):

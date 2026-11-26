@@ -2094,8 +2094,10 @@ EINSTELLUNGEN = (
     # Fracht + Verpackung 2.0 (Patrick 25.11.2026): Packmittelkosten aus der Packliste (Preis, Sicherung, Packzeit,
     # Aufsetzrahmen der Packmittel) statt der Tabelle Verpackung – nur für neu berechnete Fracht, Vorgabe aus.
     # Live-Preise über Schnittstellen (fracht_api.py) nur auf Knopfdruck und nur, wenn eingeschaltet (Vorgabe aus).
+    # Packmittelmanagement (26.11.2026): Vorgabe ja, damit Tausch und nicht getauschte Packmittel automatisch in die
+    # Kalkulation kommen; ohne Packmittelpreise gilt weiter die Tabelle Verpackung (nur neu berechnete Fracht).
     Einstellung("fracht_packmittel_kosten", "Verpackungskosten aus den Packmitteln der Packliste rechnen",
-                "Frachtkosten", "auswahl", "nein", auswahl="janein"),
+                "Frachtkosten", "auswahl", "ja", auswahl="janein"),
     Einstellung("fracht_api_aktiv", "Live-Frachtpreise über Schnittstellen abfragen (UPS, FedEx, DHL Express, "
                 "Cargoboard; nur auf Knopfdruck)", "Frachtkosten", "auswahl", "nein", auswahl="janein"),
     # Versand und Palettenschein (Plan Palettenbegleitschein 24.10.2026): Paletten nach Gewicht und Packraum

@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.534", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
+                "steht jetzt, ob er tauscht (vollständig, teilweise, gar nicht, gegen Zuschlag, gegen Pfand, nur bei "
+                "Rücklieferung), mit Zuschlag je Stück oder Lieferung, Freimenge, Mindestmenge, Kunde und Gültigkeit. "
+                "Ohne Regel tauscht er nicht: nicht getauschte Europaletten und Gitterboxen kosten ihren neuen "
+                "<b>Wiederbeschaffungswert</b> (z. B. 3 × 22 € = 66 €). Je Stück genau eine Abrechnung, Pfand, "
+                "Tauschzuschlag und Wiederbeschaffung nie doppelt. Packmittelkosten erscheinen je Kostenart getrennt, "
+                "dazu eine Kostenaufschlüsselung Logistik; der Preisvergleich rechnet den Tausch je Anbieter mit und "
+                "empfiehlt keinen Dienstleister, der eine Transportbedingung (Länge, Höhe, Gewicht, Hebebühne, "
+                "Gefahrgut) nicht erfüllt. Fracht lässt sich mit Begründung von Hand korrigieren. Packmittelkosten aus "
+                "der Packliste sind jetzt Vorgabe (ohne Packmittelpreise gilt die Tabelle Verpackung). Neue Paletten: "
+                "Europalette, Halbpalette, Einweg- und Industriepalette. Ältere Angebote rechnen unverändert.",
+     "Palettentausch je Dienstleister, Wiederbeschaffung nicht getauschter Packmittel"],
     ["0.9.532", "<b>Lizenz-Werkzeug: Lizenzen 2.0 verwalten</b> (nur für Patrick): Der neue Knopf <b>Lizenzen 2.0 "
                 "(Lizenzschlüssel) …</b> öffnet eine Übersicht aller Lizenzen mit belegten Plätzen, Ablauf und Status "
                 "(gelb: läuft bald ab, rot: abgelaufen) und darunter die Plätze der markierten Lizenz. Knöpfe für neue "
