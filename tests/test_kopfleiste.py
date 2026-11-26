@@ -121,6 +121,13 @@ pruefe(leiste.zahl("Anfragen") == 99 and z.objectName() == "navzahl", "K5 99+")
 leiste.zahl_setzen("Anfragen", 0)
 pruefe(leiste.zahl("Anfragen") == 0 and z.isHidden(), "K5 0 blendet aus")
 pruefe(leiste.zahl_setzen("Gibt es nicht", 2) is None, "K5 unbekannter Bereich")
+from rohrlaser import materialanfragen as mv  # noqa: E402
+
+mv.alle_ = mv.alle
+mv.alle = lambda _db: [{"status": mv.ERHALTEN}, {"status": mv.ENTWURF}, {"status": mv.ERHALTEN}]
+f.materialanfragen.zahl_melden()
+pruefe(leiste.zahl("Materialanfragen") == 2, "K5 Materialanfragen: erhaltene Angebote ohne die Seite zu öffnen")
+mv.alle = mv.alle_
 pruefe(werkzeugleiste.LEISTE_VORGABE["sichtbar"] is False, "K5 Werkzeugleiste ab Werk aus")
 
 # K6

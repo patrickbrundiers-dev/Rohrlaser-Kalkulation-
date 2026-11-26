@@ -3456,6 +3456,7 @@ class Hauptfenster(QMainWindow):
         from .materialanfragen_seite import MaterialanfragenSeite
         self.materialanfragen = MaterialanfragenSeite(self)
         self.reiter.addTab(self.materialanfragen, self.materialanfragen.titel)
+        self.materialanfragen.zahl_melden()      # Zähler in der Seitenleiste gleich beim Start (Codex #686)
         self.angebote = AngeboteSeite(self)
         self.angebote.oeffnen.connect(self.angebot_oeffnen)
         self.reiter.addTab(self.angebote, "Angebote")
