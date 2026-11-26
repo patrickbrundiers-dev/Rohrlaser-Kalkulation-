@@ -19,12 +19,9 @@ staffeln.stufe_rechnen):
 Die Schritte ergeben zusammen genau den Unterschied P4 − P0. Dazu ein Satz für den Kunden. Nur Anzeige: kein Preis
 ändert sich. Ohne Qt."""
 from .stammdaten import zahl_als_text as zahl
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 GRENZE = 0.005              # € je Stück: kleinere Schritte nennt der Satz für den Kunden nicht
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _allein(kopf, positionen, i, menge, k, tabellen, einst):

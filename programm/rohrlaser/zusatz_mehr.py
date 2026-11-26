@@ -14,12 +14,9 @@ CALC-024 Folge- und Hinweisregeln: „Schlägt zusätzlich vor“ (Namen, ; getr
          der Erkennung; „Hinweis zusammen mit“ („Name = Text; …“) nennt der Angebots-Check, wenn beide an einer
          Position stehen (z. B. Verzinken + Pulvern = Duplex)."""
 import re
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 EPS = 1e-9
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _leer(v):

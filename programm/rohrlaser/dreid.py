@@ -33,6 +33,7 @@ import json
 import math
 
 from . import json_lesen
+from .zahlen import float_oder_0 as _z  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 VORGABE_MIN, VORGABE_MAX = -45.0, 45.0
 GREIFMASS = 300.0
@@ -41,10 +42,6 @@ GRENZE_ABS = 89.0          # mehr ist geometrisch kein Schwenk mehr
 ENDE_A, ENDE_B, BOHRUNG = "Gehrung 3D Ende A", "Gehrung 3D Ende B", "Bohrung 3D"
 V_INNEN = "Knick 3D Innenwand"
 KONTUR_3D = "Kontur 3D"                 # Sonderkontur mit schräger Schnittfläche (STEP gemessen, Patrick 25.11.2026)          # Knickrahmen mit schräger Innenwand (knickrahmen.py, schraeg)
-
-
-def _z(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _zahl(w, stellen=1):

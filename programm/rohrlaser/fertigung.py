@@ -18,6 +18,7 @@ import datetime
 import hashlib
 import json
 from . import db_verbindung
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 TABELLEN = ("auftrag_status",)
 TABELLEN_SQL = (
@@ -42,10 +43,6 @@ def einrichten(con):
         con.execute(sql)
     if "freigabe" not in set(db_verbindung.spalten(con, "angebote")):
         con.execute("ALTER TABLE angebote ADD COLUMN freigabe TEXT")
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def aktiv(db):

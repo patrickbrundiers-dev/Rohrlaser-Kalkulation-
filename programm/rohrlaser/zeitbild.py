@@ -15,6 +15,7 @@ Summe 1–5 = Laserzeit netto je Teil (laser_netto), Test tests/test_zeitbild.py
 Je Bestandteil steht, aus welchem Feld er kommt. Ist der Bestandteil 0 und das Feld leer, heißt er „nicht
 berücksichtigt“ (das Programm rechnet ohne diesen Wert, statt einen zu erfinden); ist er 0 bei gesetztem Feld, kommt
 er beim Teil nicht vor. Ohne Qt."""
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 LASER, EINSTICH, POSITIONIEREN, BEWEGUNG, NEBEN, RUESTEN, BELEGUNG = (
     "laser", "einstich", "positionieren", "bewegung", "neben", "ruesten", "belegung")
@@ -56,10 +57,6 @@ FELD_NAMEN = {"vorschub_gross": "Vorschub groß", "vorschub_mittel": "Vorschub m
               "pruefzeit_anbau": "Prüfzeit Anbauteile", "ruestzeit": "Rüstzeit je Angebot",
               "ruesten_abmessung": "Rüstzeit je Abmessung", "stangenwechsel": "Stangenwechsel je Stange"}
 QUELLE = {"schneiddaten": "Schneiddaten", "maschine": "Maschine", "einstellungen": "Einstellungen"}
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _leer(v):

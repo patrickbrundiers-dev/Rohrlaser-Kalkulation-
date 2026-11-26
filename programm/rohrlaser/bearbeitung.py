@@ -14,6 +14,7 @@ Kalkulation). Was die Konturzeilen nicht genau treffen (Active Tilt, Rand ohne E
 von Hand ergänzter Schneidweg), steht als eigene Zeile „Abgleich“, nie verteilt: keine Doppelzählung. Gewinde,
 Senken, Flowdrill und Bohren bleiben €/Stück (Zusatzarbeiten) und stehen hier nicht. Ohne Qt."""
 from . import schneidweg as sw
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 KONTUR, ENDE, REST, ABGLEICH, HAND = "Kontur", "Ende", "ohne Merkmal", "Abgleich", "von Hand"
 KLASSEN = {"klein": 0, "mittel": 1, "groß": 2}
@@ -25,10 +26,6 @@ REST_ANTEILE = (("gravur", "Gravur"), ("gravur_anbau", "Gravur Anbauteile"), ("e
                 ("neben", "Nebenzeit je Teil"), ("entnahme", "Entnahme von Hand"))
 OHNE_GAS = ("anfahren", "neben", "drehen", "messen", "entnahme")       # wie rechnen.OHNE_GAS
 TOL = 0.005             # s: kleinere Abweichungen sind Rundung und erscheinen nicht als Abgleich
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def schritte_der_position(p, profil, grenzen, maschine=None):

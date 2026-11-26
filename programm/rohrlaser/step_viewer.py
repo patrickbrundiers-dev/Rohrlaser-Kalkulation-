@@ -743,7 +743,7 @@ def gesamt_netz(mes, sichtbar, hervor=(), nach_pruefung=False):
     """Alle sichtbaren Körper in Einbaulage (ansicht3d.baugruppe), jedes Teil anklickbar (netz 'ti' = teil:<Nr>);
     Normteile dunkelgrau; nach_pruefung: Farbe nach der Geometrieprüfung (PRUEF_ART). Ergebnis: (Netz oder None,
     Teile ohne Einbaulage)."""
-    from .ansicht3d import baugruppe
+    from .netz_daten import baugruppe
     from .baugruppe_ansicht import teil_kennung
     teile = [i for i in sichtbar if mes.netz(i)]
     bereiche = []

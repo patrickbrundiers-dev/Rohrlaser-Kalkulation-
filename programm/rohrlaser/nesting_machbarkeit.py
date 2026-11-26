@@ -18,6 +18,7 @@ hier nicht ein zweites Mal geschätzt.
 from dataclasses import dataclass
 
 from . import nesting as ne, optimierung as opt
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 FEHLER, HINWEIS = "Fehler", "Hinweis"
 EPS = 1e-6
@@ -28,10 +29,6 @@ class Befund:
     stufe: str
     text: str
     stange: int = None      # Nummer der Stange im Plan (1 …) oder None = ganzer Plan
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def pruefen(g, stangen, m=None, profil=None, kgm=None, uebrig=(), reste=()):

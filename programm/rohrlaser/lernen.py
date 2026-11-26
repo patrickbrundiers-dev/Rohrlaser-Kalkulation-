@@ -22,6 +22,7 @@ import json
 from .stammdaten import Feld, Tabelle
 from . import db_verbindung
 from . import protokoll
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 SCHWELLE = 3                    # F2a: nach 3 gleichen Entscheidungen (in verschiedenen Angeboten) gilt es als gelernt
 ZUSATZ = "zusatz"
@@ -54,10 +55,6 @@ EINSTELLUNGEN_GETEILT = (NACHARBEIT, STEP_ART, STEP_PROFIL, MUSTER_AB, STEP_ZUKA
 KENNWERT_AB = 0.05              # Startseite: Kennwert-Vorschlag erst ab 5 % Abweichung Ist ÷ Soll
 TREFFER_AB = 3                  # Trefferquote erst ab 3 entschiedenen Angeboten des Kunden
 VERLERNEN_AB = 2                # I10: nach so vielen Rücknahmen von selbst Angewendetem ist es verlernt
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def _kuerzel(db):

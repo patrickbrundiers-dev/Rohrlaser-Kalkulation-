@@ -11,12 +11,9 @@ import copy
 import re
 
 from . import baugruppe, satzgruppen
+from .zahlen import ist_zahl as _zahl  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 OBEN, UNTEN, ANFANG, ENDE = -1, 1, "anfang", "ende"
-
-
-def _zahl(v):
-    return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
 def bloecke(positionen):

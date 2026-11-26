@@ -12,6 +12,7 @@ und „Durchbruch“ (Loch im Gegenrohr) dieselbe Rechnung mit vertauschten Roll
 Versatz ergibt genau schneidweg.sattel(d, D).
 """
 import math
+from .zahlen import float_oder_0 as _f  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 RUND, RECHTECK = "rund", "rechteck"
 SCHRITTE = 720
@@ -157,10 +158,6 @@ LAGEN = (WAAGERECHT, SENKRECHT)
 KONTAKT_AUSSEN, KONTAKT_INNEN = "außen", "innen"
 KONTAKTE = (KONTAKT_AUSSEN, KONTAKT_INNEN)
 GESCHLOSSEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
-
-
-def _f(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def gegen_lesen(e):

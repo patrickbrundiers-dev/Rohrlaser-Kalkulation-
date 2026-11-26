@@ -12,10 +12,7 @@ stehen echte Lieferantenpreise). Festgeschriebene Angebote (preisbasis) behalten
 und „Aktuelle Preise übernehmen …“ melden den Unterschied wie bei jeder Preisänderung. Leere Tabelle = wie bisher.
 Ohne Qt."""
 import datetime
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+from .zahlen import float_oder_none as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 
 def monat(datum=None):

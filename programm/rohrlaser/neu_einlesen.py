@@ -12,15 +12,12 @@ import re
 from pathlib import Path
 
 from . import schneidweg as sw
+from .zahlen import float_oder_none as _z  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 LAGE_TOL = 0.5          # mm: gleiche Lage längs und quer
 MASS_TOL = 0.05         # mm: gleiche Maße
 RUND = (sw.BOHRUNG, sw.SENKUNG, sw.FLOWDRILL)       # dieselbe geschnittene Bohrung, Art von Hand wählbar
 MAX_ZEILEN = 6          # so viele neue bzw. entfallende Konturen nennt die Vorschau einzeln
-
-
-def _z(w):
-    return float(w) if isinstance(w, (int, float)) and not isinstance(w, bool) else None
 
 
 def _nah(a, b, tol):

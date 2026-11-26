@@ -9,14 +9,11 @@ Die Werte sind Richtwerte für Kundenfragen (z. B. Nachhaltigkeitsberichte), kei
 Faktoren stehen in den Werkszeugnissen bzw. Umweltproduktdeklarationen der Lieferanten.
 Ohne Qt."""
 from . import rechnen
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 # kg CO₂ je kg Material (Richtwerte Stahlindustrie Europa, Mischung Hochofen/Elektrostahl; bitte anpassen)
 KATEGORIE_VORGABE = {"Stahl": 2.0, "Edelstahl": 4.5, "Aluminium": 8.6}
 VORGABE = 2.0
-
-
-def _n(w):
-    return float(w) if isinstance(w, (int, float)) and not isinstance(w, bool) else 0.0
 
 
 def faktor(werkstoff_id, k):

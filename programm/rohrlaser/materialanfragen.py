@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 SCHLUESSEL = "materialanfragen"
 ENTWURF, VERSENDET, ERHALTEN, ABGESCHLOSSEN = "Entwurf", "Versendet", "Angebot erhalten", "Abgeschlossen"
@@ -258,10 +259,6 @@ def artikel_text(z):
 
 
 # ---------------------------------------------------------------------- Verlauf je Angebot
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
-
-
 def liste(db, angebot_id):
     return [dict(e) for e in (db.zusatz(angebot_id, SCHLUESSEL) or [])]
 
@@ -586,7 +583,7 @@ def blech_datei(art, ziel, p, kopf, einst, db, widget=None):
     plan = step_export.blech_teil(e, erg["zuschnitt"], blech_name(p))
     netz = None
     if p.get("id") and hasattr(db, "netz"):             # Konturen wie in der STEP des Kunden (Grundregel 25.10.)
-        from .ansicht3d import entpacken
+        from .netz_daten import entpacken
         netz = entpacken(db.netz(p["id"])) or None
     plan = step_export.mutter_einzelteil(plan, netz) if netz else [plan]
     r = step_export.mit_anzeige(widget, plan, str(ziel), name=blech_name(p)) if widget is not None else \

@@ -21,6 +21,7 @@ import json
 from . import produktion_lst as pl
 from . import trumpf_programm as tp
 from .stammdaten import Feld, Tabelle
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 ZEITRAUM_TAGE = 183             # Rückfall ohne PPEASE-Nummer: Angebote der letzten 6 Monate
 LAENGE_TOL = 0.5                # mm
@@ -40,10 +41,6 @@ ZUORDNUNG = Tabelle(
      Feld("benutzer", "Von", breite=80)),
     ("programm", "teil_nr"),
     "Von Hand gemerkte Zuordnungen der LST-Teile zu Angebot und Position (Lernsystem).")
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def _norm(text):

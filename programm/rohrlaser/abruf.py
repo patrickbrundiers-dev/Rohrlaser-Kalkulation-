@@ -13,12 +13,9 @@ Ohne Qt, damit Rechnung, Tests und PDF es nutzen können."""
 import math
 
 from .stammdaten import ABRUF_LAGER, zahl_als_text
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 GEBUNDEN = 0.5          # Anteil des Jahresbedarfs, der im Mittel auf Lager liegt (gleichmäßige Abrufe)
-
-
-def _n(w):
-    return float(w) if isinstance(w, (int, float)) and not isinstance(w, bool) else 0.0
 
 
 def aktiv(kopf):

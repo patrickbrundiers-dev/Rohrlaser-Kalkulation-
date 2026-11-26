@@ -253,7 +253,7 @@ def aus_koerper(rahmen, wahl=None):
     """Rohr-Editor: Körper wählen (wahl = Text des Eintrags für Tests) und die Konturen anhängen. Ergebnis: Zahl
     der neuen Konturzeilen oder None (Grund gemeldet)."""
     from . import einblendung, rohr3d
-    from .ansicht3d import entpacken
+    from .netz_daten import entpacken
     d = rahmen.d
     db = getattr(d, "db", None)
     netz_rohr = d._mutter_netz() if hasattr(d, "_mutter_netz") else None

@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.515", "<b>Software-Audit</b>: Der Rechenkern (Kalkulation, Optimieren, Staffeln, Preisherkunft, STEP-Übernahme, "
+                "Nesting-Abwicklung) lädt keine Teile der Oberfläche mehr nach und lässt sich dadurch unabhängig prüfen; "
+                "ein neuer Test rechnet dieselben Angebote in sechs Threads gleichzeitig und verlangt bitgleiche Ergebnisse. "
+                "77 doppelte Hilfsfunktionen sind zusammengeführt, nicht mehr benutzter Code ist entfernt, die "
+                "Positionsnummer einer neuen Position wird in derselben Transaktion vergeben. Bedienung und Rechenergebnisse "
+                "bleiben unverändert.",
+     "Software-Audit: Rechenkern ohne Oberfläche, Paralleltest, Aufräumen"],
     ["0.9.514", "<b>Gesamtprüfung, Teil 2</b>: Eine Konturzeile mit einem ungültigen Zahlenwert (z. B. aus einer "
                 "beschädigten Importdatei) meldet jetzt <i>Maß ist keine gültige Zahl – Kontur prüfen</i>, statt einen "
                 "ungültigen Schneidweg still in Zeit und Preis zu übernehmen; die übrigen Zeilen rechnen weiter "

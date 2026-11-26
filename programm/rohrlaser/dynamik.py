@@ -13,15 +13,13 @@ Lage längs des Rohrs angefahren (wie die Maschine von Ende A nach Ende B). Kont
 Ohne Qt."""
 import json
 import math
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
+from .zahlen import ist_zahl as _zahl  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 EPS = 1e-9
 # Beschleunigungsgrenze der Schneidwerkzeuge mit N₂ [m/s²] ab Wand [mm] (LT8.20 Tabelle 6-1)
 SCHNEID_BESCHL = ((6.0, 3.0), (8.0, 1.0), (10.0, 0.75), (12.0, 0.2))
 KASTEN_WINKEL = {"oben": 0.0, "vorne": 90.0, "unten": 180.0, "hinten": 270.0}
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def bewegung(s, v, a):
@@ -156,10 +154,6 @@ def _folge_rechnen(pkt, m, laenge, profil, fenster):
     gesamt = lambda r: sum(t(p, q) for p, q in zip([(0.0, None)] + r, r + ([(_n(laenge), None)] if laenge  # noqa: E731
                                                                          else [r[-1]])))
     return reihe if gesamt(reihe) < gesamt(pkt) - 1e-9 else pkt
-
-
-def _zahl(w):
-    return isinstance(w, (int, float)) and not isinstance(w, bool)
 
 
 def kopfweg_aktiv(m):

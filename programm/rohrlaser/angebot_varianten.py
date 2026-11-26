@@ -13,6 +13,7 @@ import json
 
 from . import preis_simulator, rechnen
 from .angebot import KALKULATION
+from .zahlen import ist_zahl as _zahl  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 BUCHSTABEN = "ABCDE"
 # Kalkulationswerte, die eine Variante ändern darf (Kopffelder des Angebots, Prozentwerte in %)
@@ -26,10 +27,6 @@ FELDER = tuple((n, _TITEL[n]) for n in KALK_FELDER) + PREIS_FELDER
 ERGEBNIS = (("herstell", "Herstellkosten"), ("selbst", "Selbstkosten"), ("gewinn", "Gewinn (nach Rabatt und Konditionen)"),
             ("verkauf", "Verkaufspreis netto"), ("marge", "Gewinnmarge (vom Verkaufspreis)"),
             ("deckungsbeitrag", "Deckungsbeitrag"), ("unterschied", "Unterschied zum Original"))
-
-
-def _zahl(w):
-    return isinstance(w, (int, float)) and not isinstance(w, bool)
 
 
 def lesen(kopf):

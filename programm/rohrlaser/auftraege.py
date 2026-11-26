@@ -31,6 +31,7 @@ import json
 import re
 import socket
 import uuid
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 TABELLEN = ("auftrag_ereignisse", "auftrag_kopf", "auftrag_angebote", "auftrag_positionen")
 TABELLEN_SQL = (
@@ -105,10 +106,6 @@ def recht(db, bereich):
     """Rechte (Paket 6, rollen.py): AuftragFehler, wenn der Benutzer im Bereich nicht bearbeiten darf."""
     from . import rollen
     rollen.pruefen(db, bereich, fehler=AuftragFehler)
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def _json(d):

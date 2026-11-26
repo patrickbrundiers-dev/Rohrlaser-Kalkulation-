@@ -196,11 +196,11 @@ def abweichung(m, profil, eingaben, laenge, ohne=()):
     """Größte Abweichung [mm] zwischen Editor-Modell und STEP-Netz (beide Richtungen, ohne den Abstand der
     Konturlinien über der Wand) und eine kurze Angabe, wo; None, wenn nicht vergleichbar oder nicht berechenbar.
     ohne: Bereiche (z von, z bis) ab Ende A, die nicht verglichen werden (Fase am Ende: geschlossene Rohre)."""
-    from . import ansicht3d
+    from . import netz_daten
     if not vergleichbar(m, profil, eingaben):
         return None
     try:
-        st = ansicht3d.entpacken(m["_netz"])
+        st = netz_daten.entpacken(m["_netz"])
     except (ValueError, TypeError, KeyError):
         return None
     if not st or not isinstance(st.get("l"), dict):

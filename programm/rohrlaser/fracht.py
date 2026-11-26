@@ -25,6 +25,7 @@ import math
 from .ausgabe import kaufm_runden
 from .fracht_daten import OHNE_FRACHT, liste, plz_schluessel
 from .stammdaten import zahl_als_text
+from .zahlen import ist_zahl as _zahl  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 VERSION = 1
 EPS = 1e-9
@@ -43,10 +44,6 @@ ZUSCHLAG_EBENE = ("Kunde", "Dienstleister", "Tarif", "allgemein")
 
 def _n(v):
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
-
-
-def _zahl(v):
-    return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
 def euro(w):

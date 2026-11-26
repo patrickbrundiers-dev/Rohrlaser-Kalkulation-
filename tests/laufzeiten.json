@@ -110,6 +110,7 @@
 "test_gehrung_2d_umstellen.py": 2,
 "test_gehrung_beide_richtungen.py": 4,
 "test_gesamtpruefung_2511.py": 22,
+"test_architektur_2611.py": 25,
 "test_gewinn_basis.py": 1,
 "test_gewinn_gestaffelt.py": 1,
 "test_gravur.py": 3,

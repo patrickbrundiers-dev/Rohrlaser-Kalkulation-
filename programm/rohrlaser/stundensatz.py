@@ -16,6 +16,7 @@ Auswahl je Maschine 'Stundensatz': „von Hand“ (leer, alle Maschinen vor der 
 gilt und enthält Gas und Strom; Gas kommt nur mit 'Gas zusätzlich zum Stundensatz' = ja dazu (Frage 2b).
 „ermittelt“ = der hier gerechnete Satz gilt, Gas kommt immer dazu.
 """
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 SATZ_HAND, SATZ_ERMITTELT = "von Hand", "ermittelt"
 SATZARTEN = (SATZ_HAND, SATZ_ERMITTELT)
@@ -24,10 +25,6 @@ FELDER = ("anschaffung", "nutzungsdauer", "flaeche", "instandhaltung", "wartung"
           "bediener_anteil", "last_anteil")
 # Einstellungen der Ermittlung (für alle Maschinen gleich)
 EINST = ("strompreis", "raumkosten", "zinssatz", "bediener_satz", "gemeinkosten", "arbeitstage", "auslastung_jahr")
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _e(einst, name):

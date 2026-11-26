@@ -10,13 +10,10 @@ Einstiche, und die Konturen und Enden aus dem Schneidweg-Rechner (technik) sind 
 Ein identisches Teil ist kein Spiegelteil (das regelt teil_gleich_schluessel). Ohne Konturen aus dem Rechner wird
 nichts erkannt (lieber nicht zusammenfassen als falsch). Ohne Qt."""
 from . import json_lesen
+from .zahlen import float_oder_none as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 LAENGE_TOL, SCHNEIDWEG_TOL, X_TOL = 0.5, 0.01, 0.6
 SEITE_GRAD = {"oben": 0, "vorne": 90, "unten": 180, "hinten": 270}
-
-
-def _n(w):
-    return float(w) if isinstance(w, (int, float)) and not isinstance(w, bool) else None
 
 
 def _technik(p):

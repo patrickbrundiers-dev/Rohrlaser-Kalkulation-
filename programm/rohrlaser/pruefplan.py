@@ -13,6 +13,7 @@ import json
 
 from .schneidweg import (AUSKLINKUNG, AUSSCHNITT, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUREN, LANGLOCH, LOCHFELD, RECHTECK,
                          SCHLITZ, SENKUNG)
+from .zahlen import float_oder_none as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 # ISO 2768-1 Grenzabmaße für Längenmaße [mm]: (bis Nennmaß, fein f, mittel m, grob c)
 ISO_LAENGE = ((6, 0.05, 0.1, 0.2), (30, 0.1, 0.2, 0.5), (120, 0.15, 0.3, 0.8), (400, 0.2, 0.5, 1.2),
@@ -25,10 +26,6 @@ VORGABE = "ISO 2768-m"
 # Maßbezug je Kontur (Plan Paket 7 nach LT8.20 Kapitel 3); leer = Flächenmitte
 MASSBEZUEGE = ("Flächenmitte", "Kante vorherige Fläche", "Kante folgende Fläche")
 ZUSATZ = "Erstmusterprüfung"
-
-
-def _n(w):
-    return float(w) if isinstance(w, (int, float)) and not isinstance(w, bool) else None
 
 
 def toleranz(mass, klasse=VORGABE):

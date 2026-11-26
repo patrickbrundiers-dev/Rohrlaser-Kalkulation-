@@ -24,6 +24,7 @@ import datetime
 import io
 import json
 import re
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 TRENNER = {";": "Semikolon", ",": "Komma", "\t": "Tabulator", "|": "senkrechter Strich"}
 SICHER, VORSCHLAG = "sicher", "Vorschlag"
@@ -469,10 +470,6 @@ def einrichten(con):
         if name not in sp:
             con.execute(f"ALTER TABLE material_importe ADD COLUMN {name} TEXT")
     con.execute("CREATE INDEX IF NOT EXISTS material_import_posten_lauf ON material_import_posten (import_id)")
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 class Lauf:

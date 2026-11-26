@@ -8,12 +8,9 @@ CALC-018 Ausschuss nach Regel: „Kategorie oder Werkstoff [bis Wand] = Prozent;
          erhöht den Ausschuss der passenden Positionen um diese Prozentpunkte (größte passende Regel).
 CALC-020 Programmierzeit je Gehrungsende (schräges Ende): Minuten je schrägem Ende zusätzlich zur Grundzeit."""
 import re
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 EPS = 1e-9
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _zahl(t):

@@ -167,7 +167,7 @@ def bauplan(p, kopf, k):
 
 def kundendateien(positionen, netze):
     """Pfade der Kundendateien (Mutter-STEP) der Positionen, die es noch gibt."""
-    from .ansicht3d import entpacken
+    from .netz_daten import entpacken
     out = []
     for p in positionen:
         n = entpacken(netze.get(p.get("id"))) if netze.get(p.get("id")) else None

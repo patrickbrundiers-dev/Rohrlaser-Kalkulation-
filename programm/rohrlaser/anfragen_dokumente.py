@@ -242,60 +242,6 @@ def herkunft_html(akte, kunden_namen=None):
             "</b><br>" + "<br>".join(zeilen) + "</div>")
 
 
-class KundeDialog(QDialog):
-    """Kunde wählen, mit „Als Regel merken“ (Adresse bzw. Domain → Kunde)."""
-
-    def __init__(self, parent, kunden, akte):
-        super().__init__(parent)
-        self.setWindowTitle(f"Kunde zuordnen – {akte.nr}")
-        lay = QVBoxLayout(self)
-        self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Kunde suchen: Name, Nummer, E-Mail …")
-        lay.addWidget(self.suche)
-        self.liste = QListWidget()
-        lay.addWidget(self.liste, 1)
-        self.kunden = list(kunden)
-        vorschlag = [v["kundennr"] for v in akte.zuordnung.get("vorschlaege") or []]
-        self.kunden.sort(key=lambda k: (str(k.get("kundennr")) not in vorschlag, str(k.get("name") or "")))
-        self.suche.textChanged.connect(self._fuellen)
-        adresse = akte.absender_adresse
-        self.regel = QCheckBox(f"Als Regel merken: {adresse} gehört immer zu diesem Kunden" if adresse else
-                               "Als Regel merken")
-        self.regel.setEnabled(bool(adresse))
-        self.regel.setToolTip("Gilt für neue Mails; die Regel steht im Fenster „Outlook …“ und lässt sich löschen")
-        lay.addWidget(self.regel)
-        self.domain = QCheckBox(f"… auch für alle Adressen @{mz.mail._domain(adresse)}" if adresse else "")
-        self.domain.setVisible(bool(adresse) and mz.mail._domain(adresse) not in mz.mail.FREEMAIL)
-        lay.addWidget(self.domain)
-        self.grund = QLineEdit()
-        self.grund.setPlaceholderText("Grund (für das Protokoll, freiwillig)")
-        lay.addWidget(self.grund)
-        k = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        k.button(QDialogButtonBox.Cancel).setText("Abbrechen")
-        k.accepted.connect(self.accept)
-        k.rejected.connect(self.reject)
-        lay.addWidget(k)
-        self.resize(520, 480)
-        self._fuellen("")
-
-    def _fuellen(self, text):
-        self.liste.clear()
-        t = text.lower().strip()
-        for k in self.kunden:
-            s = f"{k.get('kundennr')} – {k.get('name') or ''}  {k.get('email') or ''}"
-            if t and t not in s.lower():
-                continue
-            it = QListWidgetItem(s)
-            it.setData(Qt.UserRole, str(k.get("kundennr")))
-            self.liste.addItem(it)
-        if self.liste.count():
-            self.liste.setCurrentRow(0)
-
-    def wahl(self):
-        it = self.liste.currentItem()
-        return it.data(Qt.UserRole) if it else None
-
-
 class ZusammenDialog(QDialog):
     """Weitere Anfragen wählen (Vorschläge vorab markiert) und die Übersicht bestätigen."""
 

@@ -6,10 +6,7 @@ PROfirst zeigt „Marge brutto“ (Preis minus Einkauf) und „Marge netto“ (P
   Schweißbaugruppen: was nach dem Einkauf für Maschine, Personal und Gewinn bleibt.
 - Ertrag nach Herstellkosten = Warenwert − Herstellkosten − Zukaufteile (Einstand): Deckungsbeitrag nach der Fertigung.
 Je Angebot (Preisaufbau der Übersicht) und je Position (Spalten der Kalkulation). Nur Anzeige, ändert keine Preise."""
-
-
-def _n(w):
-    return float(w) if isinstance(w, (int, float)) and not isinstance(w, bool) else 0.0
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 
 def _anteil(w, ware):

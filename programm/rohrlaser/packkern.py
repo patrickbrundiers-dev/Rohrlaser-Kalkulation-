@@ -26,6 +26,7 @@ Die Teile werden nur für Anzeige und Prüfung einzeln erzeugt (teile()); gerech
 bleiben auch 80.000 Teile schnell.
 """
 import math
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 EPS = 1e-6
 SPIEL = 3.0                     # Spiel beim Verschachteln je Seite [mm]
@@ -40,10 +41,6 @@ MODI = (AUTOMATISCH, "A – " + VARIANTEN["A"], "B – " + VARIANTEN["B"], "C �
 SORTEN = ("stark", "normal", "aus")
 MAX_TEIL = 6500.0               # Vorgabe: lange Teile bis zur max. Teillänge der Maschine auf der Palette [mm]
 UEBERSTAND = 50.0               # Vorgabe Überstand je Stirnseite der langen Seite [mm]
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _mm(x):

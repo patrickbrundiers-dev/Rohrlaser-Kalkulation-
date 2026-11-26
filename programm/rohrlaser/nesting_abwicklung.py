@@ -120,7 +120,7 @@ def stange(s, positionen, profil_von, merker=None):
     t1)], kanten [(t, Art)] (Seitenkanten, Radiusübergänge), naht (t der Schweißnaht oder None), bereiche [(art, von,
     bis)] (end, teil, schnitt, rest, greif aus dem Schnittplan), teile [teil_auf_stange], fehlt [Pos.], profil, qs)
     oder None ohne Querschnitt. merker: dict für gleiche Teile über mehrere Stangen (Form je Position und Länge)."""
-    from .stangen_ansicht import bereiche
+    from .stangen_bereiche import bereiche
     qs = m = profil0 = None
     teile, fehlt = [], []
     for t in s.get("teile") or ():
@@ -242,7 +242,7 @@ def zwischen_netz(qs, mantel, zwischen, punkte=PUNKTE):
 
 def kennzahlen(d, s):
     """Kennzahlen einer Stange aus dem Schnittplan: Teile, Verbrauch, Schnittfugen, Verschnitt, Rest, Ausnutzung."""
-    from .stangen_ansicht import bereiche
+    from .stangen_bereiche import bereiche
     b = d["bereiche"] if d else [(a, v, bis) for a, v, bis, _ in bereiche(s)]
 
     def summe(art):
@@ -312,7 +312,7 @@ def _gerade(profil, laenge):
 
 def _farbnummer(farbe_ref, ref, farbe_je):
     """Nummer der Teilfarbe (ansicht3d.TEILFARBEN) wie in der Abwicklung, sonst je Position der Reihe nach."""
-    from .ansicht3d import TEILFARBEN
+    from .netz_daten import TEILFARBEN
     f = (farbe_ref or {}).get(ref)
     if f:
         f = str(f).upper()
@@ -337,8 +337,8 @@ def netz_stange(s, positionen, profil_von, netz_von=None, merker=None, farbe_ref
     (Reihenfolge wie im Stangenbild), Rest/Verschnitt als eigene Art. farbe_ref = {Bezug: Farbe} aus der Abwicklung:
     dieselbe Farbe im 3D (Teilfarben ansicht3d.TEILFARBEN; info je Teil zusätzlich mitte = Punkt über dem Teil)."""
     from . import rohr3d
-    from .ansicht3d import baugruppe, entpacken
-    from .stangen_ansicht import bereiche
+    from .netz_daten import baugruppe, entpacken
+    from .stangen_bereiche import bereiche
     merker = merker if merker is not None else {}
     netze, farben, info, reste = [], [], [], []
     farbe_je = {}

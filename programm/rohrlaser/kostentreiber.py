@@ -10,13 +10,10 @@ gerechnet; ohne Schnittplan zählt es als „nicht gerechnet“. Ändert nichts.
 import datetime
 
 from . import bearbeitung, rechnen
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 TOP = 10
 ZEITRAUM = 365
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _vorgang(z):

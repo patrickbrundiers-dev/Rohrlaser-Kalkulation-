@@ -167,7 +167,7 @@ def netz(teil, profil):
 def vorschau(erg, profil):
     """Alle Rohre in Einbaulage als ein Netz für die 3D-Vorschau des Assistenten (gleiche Rohre in gleicher Farbe)
     oder None."""
-    from .ansicht3d import baugruppe
+    from .netz_daten import baugruppe
     netze, farben = [], []
     for nr, t in enumerate(erg["teile"]):
         n = netz(t, profil)

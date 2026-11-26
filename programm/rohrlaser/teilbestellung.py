@@ -11,15 +11,12 @@ Einstellung 'teilbestell_schwelle' [%]: ab dieser Abweichung nennt der Angebots-
 Bedingungen den Text der Einstellung 'teilbestell_text' (leer = TEXT). Kein Preis ändert sich von selbst. Ohne Qt."""
 from .angebot import aktiv as position_aktiv
 from .stammdaten import zahl_als_text as zahl
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 TEXT = ("Die Preise gelten bei Bestellung aller angebotenen Positionen in den genannten Mengen; bei einer "
         "Teilbestellung behalten wir uns eine Neuberechnung vor.")
 HOECHSTENS = 12             # so viele Sätze bzw. Positionen werden allein gerechnet (je eine Optimierung)
 ZIEL_PREFIX = "pos:"
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def schwelle(einst):

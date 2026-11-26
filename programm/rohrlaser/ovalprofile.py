@@ -8,14 +8,11 @@ Elliptisch. Maße wie beim Rechteckrohr: A = Breite (waagrecht, die lange Achse)
 Gewicht (Querschnitt außen − innen, innen um die Wandstärke kleiner), Umfang (gerader Trennschnitt) und Umriss für
 Bilder. Ohne Qt."""
 import math
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 FLACHOVAL, HALBFLACHOVAL, ELLIPTISCH = "Flachoval", "Halbflachoval", "Elliptisch"
 FORMEN = (FLACHOVAL, HALBFLACHOVAL, ELLIPTISCH)
 PUNKTE = 48
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _ellipse_umfang(a, b):

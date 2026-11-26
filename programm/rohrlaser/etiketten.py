@@ -22,6 +22,7 @@ from reportlab.lib.units import mm
 
 from . import fertigung
 from .angebot import aktiv as position_aktiv
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 TABELLEN = ("rueckmeldungen",)
 TABELLEN_SQL = (
@@ -120,10 +121,6 @@ def laserzeit(db, angebot_id):
     if not laeufe:
         return None
     return dict(stunden=summe / 3600, laeufe=laeufe, offen=start is not None)
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def finden(db, text):

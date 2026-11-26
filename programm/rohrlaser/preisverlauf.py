@@ -14,6 +14,7 @@ Zukauf: Preisänderungen stehen schon im Protokoll zukauf_historie (Feld „Eink
 der Schwelle der Einstellung 'zukauf_preissprung' (0 = aus). Ohne Qt."""
 import datetime
 import re
+from .zahlen import float_oder_none as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 TABELLE = "preis_verlauf"
 ART_PREIS, ART_LIEFERLAENGE, ART_TONNE = "Preise", "Lieferlängen", "Tonnenpreis"
@@ -26,10 +27,6 @@ def einrichten(con):
     con.execute(f"CREATE TABLE IF NOT EXISTS {TABELLE} (id INTEGER PRIMARY KEY, zeit TEXT, datum TEXT, art TEXT, "
                 "profil_id TEXT, werkstoff_id TEXT, laenge REAL, basis TEXT, preis REAL, lieferant TEXT)")
     con.execute(f"CREATE INDEX IF NOT EXISTS {TABELLE}_schluessel ON {TABELLE} (art, profil_id, werkstoff_id, laenge)")
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def _heute():

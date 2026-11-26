@@ -15,7 +15,6 @@ bleibt ein eigener Posten (die LST weist sie nicht getrennt aus).
 Produktionsdaten-Intelligenz (Patrick 24.11.2026): auch BLM-BPF-Dateien (ohne Zeiten: Geometrie, Schnittlänge,
 Konturen, Einstiche, Eilgänge) und je Teil alle ausgelesenen Werte mit Quelle, Einheit und Deutung (Spalte merkmale,
 maschinendaten.py); je Datei Format, Formatversion und die nicht gedeuteten Felder (Importprotokoll)."""
-import datetime
 import hashlib
 import json
 import re
@@ -23,6 +22,7 @@ from pathlib import Path
 
 from . import maschinendaten as md
 from . import trumpf_programm as tp
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 TABELLEN_SQL = (
     "CREATE TABLE IF NOT EXISTS lst_dateien (id INTEGER PRIMARY KEY, pruefsumme TEXT UNIQUE, name TEXT, pfad TEXT, "
@@ -57,10 +57,6 @@ def einrichten(con):
             if name not in da:
                 con.execute(f"ALTER TABLE {tab} ADD COLUMN {name} {art}")
     con.execute("CREATE INDEX IF NOT EXISTS lst_teile_profil ON lst_teile (profilform, a, b, wand)")
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def ppease(*texte):

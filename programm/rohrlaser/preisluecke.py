@@ -12,13 +12,10 @@ um mehr als die Schwelle (Einstellung preisluecke_schwelle, Vorgabe 10 %, 0 = au
 Angebots-Check eine WARNUNG; „Erledigen“ legt den Vorschlag als Zeile in 'Preise' an (Rückgängig löscht sie wieder).
 Nur Hinweis und Vorschlag: ohne „Erledigen“ ändert sich kein Preis. Ohne Qt."""
 import datetime
+from .zahlen import float_oder_0 as _n  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 SCHWELLE_VORGABE = 10.0         # %
 AKTION = "preisluecke"
-
-
-def _n(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
 def _kg_m(profil_id, werkstoff_id, k):

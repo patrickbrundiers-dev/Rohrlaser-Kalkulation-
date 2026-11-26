@@ -14,7 +14,7 @@ Endbeschnitt zeigt seine Länge (bereich_gewaehlt). Messen: zwei Klicks, Abstand
 ein Teil: Kontextmenü (zur Position, gleiche Teile hervorheben, im 3D zeigen).
 """
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QMenu, QSizePolicy, QToolTip, QWidget
 
 from . import rechnen, stil, stangen_abwicklung as sa
@@ -584,9 +584,3 @@ class AbwicklungAnsicht(QWidget):
             self.im_3d.emit(i)
         self.update()
 
-    def bild_pfad(self):
-        """Umriss aller Teile als QPainterPath (Tests: Lage im Bild)."""
-        path = QPainterPath()
-        for poly, _ in self._flaechen:
-            path.addPolygon(poly)
-        return path

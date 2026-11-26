@@ -9,11 +9,11 @@ nur mit ausdrücklicher Bestätigung. zuruecksetzen() holt die zuletzt abgelöst
 
 Gespeichert als Einstellung REGISTER (geht mit den Admin-Vorgaben, Bereich „KI-Plattform“, auf alle PCs). Ohne Qt,
 ohne Internet."""
-import datetime
 import hashlib
 from pathlib import Path
 
 from . import protokoll
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 REGISTER = "ki_modell_register"
 TRAININGSDATEN = "ki_trainingsdaten"        # Liste der Exporte (ki_training)
@@ -33,10 +33,6 @@ UNBEKANNT = "unbekannt – vor dem Einsatz prüfen"
 
 class BestaetigungNoetig(ValueError):
     """Aktivieren ohne (bestandenen, gleich guten) Prüfsatz: nur mit erzwingen=True."""
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def lizenz(name):

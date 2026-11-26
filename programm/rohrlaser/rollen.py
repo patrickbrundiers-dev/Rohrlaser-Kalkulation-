@@ -16,10 +16,10 @@ darf nur sehen. Ein freigeschalteter Admin (Admin-Schutz) darf immer alles, dami
 Passwörter und PINs liegen nur als gesalzener, langsamer Hash vor (passwort.py). Nach FEHL_FREI Fehlversuchen wartet
 die Anmeldung SPERRE_S Sekunden.
 """
-import datetime
 import time
 
 from . import passwort as pw
+from .zahlen import jetzt_text as _jetzt  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 BENUTZER = "benutzer_rollen"            # {Kürzel: {name, rollen: [...], hash, pin, aktiv, stand}}
 RECHTE = "rollen_rechte"                # {Rolle: {Bereich: Stufe}}; leer = VORGABE
@@ -62,10 +62,6 @@ SPERRE_S = 30
 
 class RechteFehler(ValueError):
     """Keine Berechtigung (Text für den Benutzer)."""
-
-
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 # ------------------------------------------------------------------ Daten

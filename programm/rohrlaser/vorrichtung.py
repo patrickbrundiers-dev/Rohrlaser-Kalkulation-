@@ -16,6 +16,7 @@ import re
 
 from . import baugruppe, blech
 from .angebot import BAUGRUPPE, ist_zukaufteil
+from .zahlen import float_oder_none as _z  # Audit 26.11.2026 R-01: gemeinsame Hilfsfunktion
 
 ART = "Vorrichtung"
 GRUND, JE_TEIL = "Grundbetrag", "Betrag je Teil"
@@ -31,10 +32,6 @@ RICHTWERTE = (            # Art, Ausprägung, bis, Wert, Einheit (wie vorkalk.RI
     (ART, F_ENG, None, 1.5, "× bei enger Toleranz"),
 )
 TOLERANZ = "toleranz_eng"           # Haken in der Baugruppe (bg[TOLERANZ] = True)
-
-
-def _z(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def _text(v, stellen=2):
