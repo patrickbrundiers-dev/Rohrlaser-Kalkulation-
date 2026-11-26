@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.516", "<b>Supportpaket 26.11.</b>: Der Kundenimport stürzte im Prüfschritt ab, sobald ein neuer Kunde mit "
+                "Kundennummer in der Datei stand (Fehlermeldung „multiple values for keyword argument kundennr“); "
+                "behoben. <i>Fracht berechnen …</i> und <i>Packvorschlag</i> hingen bei sehr großen Angeboten "
+                "(40.000 Teile) je etwa 23 s: der Packkern rechnet jetzt gut doppelt so schnell mit genau "
+                "demselben Ergebnis, und dieselbe Ware wird nicht noch einmal gepackt.",
+     "Supportpaket: Kundenimport-Absturz, Packvorschlag großer Sendungen schneller"],
     ["0.9.515", "<b>Software-Audit</b>: Der Rechenkern (Kalkulation, Optimieren, Staffeln, Preisherkunft, STEP-Übernahme, "
                 "Nesting-Abwicklung) lädt keine Teile der Oberfläche mehr nach und lässt sich dadurch unabhängig prüfen; "
                 "ein neuer Test rechnet dieselben Angebote in sechs Threads gleichzeitig und verlangt bitgleiche Ergebnisse. "

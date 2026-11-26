@@ -106,6 +106,19 @@ e5 = K.analysieren(db, d5, s5, modus=K.UEBERSCHREIBEN)[0]
 assert {f for f, _a, _n in e5["aenderungen"]} >= {"telefon", "ort", "plz_ort"}, e5["aenderungen"]
 ok("fremde Datei: vorhandene Werte bleiben (nur leere Felder), überschreiben nur auf Wunsch")
 
+# Neukunde MIT Kundennummer in der Datei (Supportpaket 26.11.2026: TypeError „multiple values for keyword argument
+# kundennr“, der Assistent blieb im Prüfschritt hängen): wird geprüft, als neu vorgeschlagen und übernommen
+d6 = K.lesen("Kundennummer;Firma;Straße;PLZ;Ort\n20030;Komplett Neu GmbH;Am Rohr 5;33100;Paderborn\n"
+             "20031;Zweiter Neukunde KG;;59555;Lippstadt\n".encode(), "neu.csv")
+s6 = csv_import.zuordnung(K.spalten_erkennen(d6))
+v6 = K.analysieren(db, d6, s6)
+assert [e["gruppe"] for e in v6] == [K.G_NEU, K.G_NEU] and v6[0]["kundennr"] == "20030", v6
+erg6 = K.uebernehmen(db, v6, "neu.csv", sichern=False)
+assert erg6["neu"] == 2 and kd.kunde(db, "20030")["name"] == "Komplett Neu GmbH", erg6
+K.rueckgaengig(db, erg6["import_id"])
+assert kd.kunde(db, "20030") is None
+ok("Neukunden mit Kundennummer aus der Datei: kein Absturz, neu angelegt und rückgängig")
+
 # ------------------------------------------------------------------ 4 Übernehmen, Historie, Rückgängig
 v = K.analysieren(db, daten, sp, kundennummern={3: "20001"}, entscheidungen={5: (K.UEBERSPRINGEN,)})
 erg = K.uebernehmen(db, v, "kunden.csv", sichern=False)
