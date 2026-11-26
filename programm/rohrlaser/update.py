@@ -40,7 +40,7 @@ import zipfile
 import zlib
 from pathlib import Path
 
-from . import NAME, VERSION, update_netz
+from . import NAME, PROGRAMM_ID, VERSION, update_netz
 
 DATEILISTE = "Update.json"
 SPERRLISTE = "Sperrliste.json"      # Lizenz: signierte Sperrliste, neben Update.json im Release update-dateien
@@ -361,7 +361,7 @@ def erstellen(programm, ziel, stand, commit="", aenderung="", adresse="", datum=
             for sha in sorted(eintraege):
                 z.writestr(_zip_eintrag(sha), eintraege[sha].read_bytes(), compresslevel=6)
         pakete[paket] = dict(groesse=datei.stat().st_size, sha256=pruefsumme(datei))
-    liste = dict(format=1, programm=NAME, version=VERSION, stand=int(stand), commit=commit,
+    liste = dict(format=1, programm=PROGRAMM_ID, version=VERSION, stand=int(stand), commit=commit,
                  datum=datum or datetime.date.today().isoformat(), aenderung=aenderung, adresse=adresse,
                  dateien={rel: dict(sha256=info[rel][0], groesse=info[rel][1], paket=zuordnung[rel])
                           for rel in sorted(info)},

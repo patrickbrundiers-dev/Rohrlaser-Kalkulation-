@@ -456,6 +456,33 @@ def _schreiben(pfad, text):
     os.replace(tmp, pfad)
 
 
+PROTOKOLL = "lizenz_protokoll.txt"      # Lizenz 2.0 L2-4: Ereignisse dieses Rechners (Support, Nachvollziehen)
+PROTOKOLL_STAND = "lizenz_protokoll.stand"
+PROTOKOLL_ZEILEN = 1000
+
+
+def protokoll_schreiben(ordner_, text, jetzt=None):
+    """Eine Zeile ins Lizenzprotokoll (älteste fallen nach PROTOKOLL_ZEILEN weg). Fehler beim Schreiben stören nie."""
+    jetzt = jetzt or datetime.datetime.now()
+    p = Path(ordner_) / PROTOKOLL
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        alt = p.read_text(encoding="utf-8").splitlines() if p.exists() else []
+        zeilen = (alt + [f"{jetzt:%Y-%m-%d %H:%M:%S}  {' '.join(str(text).split())}"])[-PROTOKOLL_ZEILEN:]
+        p.write_text("\n".join(zeilen) + "\n", encoding="utf-8")
+    except OSError:
+        return False
+    return True
+
+
+def protokoll_lesen(ordner_, letzte=200):
+    p = Path(ordner_) / PROTOKOLL
+    try:
+        return p.read_text(encoding="utf-8").splitlines()[-letzte:] if p.exists() else []
+    except OSError:
+        return []
+
+
 def ersetzte(ordner_):
     """Lizenz-IDs, die an diesem Rechner durch eine neuere Lizenz ersetzt wurden (Menge)."""
     try:
@@ -578,6 +605,9 @@ class LizenzStelle:
             self.db.lesemodus(z.nur_lesen)
         if z.stufe == "admin" and not z.hauptadmin and not self.admin_ok and self.admin_passwort(z):
             z.admin_aus, z.hinweis, z.farbe = True, self.ADMIN_HINWEIS, "gelb"
+        from . import module
+        module.setzen(module.aus_zustand(z))      # Lizenz-Module (L2-4): funktionen.an() fragt sie
+        self._protokoll_zustand(z)
         self.zustand = z
         return z
 
@@ -839,7 +869,40 @@ class LizenzStelle:
     def aktivierung_anfragen(self, schluessel_text, name=""):
         """Aktivierungsanfrage für diesen Rechner (Datei-Inhalt). LizenzFehler bei falschem Lizenzschlüssel."""
         from . import aktivierung
-        return aktivierung.anfrage_erstellen(self.ordner, schluessel_text, name)
+        anfrage = aktivierung.anfrage_erstellen(self.ordner, schluessel_text, name)
+        protokoll_schreiben(self.ordner, "Aktivierungsanfrage erstellt")
+        return anfrage
+
+    def _protokoll_zustand(self, z):
+        """Zustandswechsel ins Lizenzprotokoll (nur wenn sich Stufe, Lizenz, Platz, Module oder Grund ändern)."""
+        from . import module
+        i = z.inhalt or {}
+        merkmal = "|".join(str(x) for x in (z.stufe, z.hauptadmin, i.get("lizenz_id", ""), i.get("aktivierung_id", ""),
+                                            ",".join(i.get("funktionen") or []), z.grund if z.stufe == "lesemodus"
+                                            else ""))
+        stand = Path(self.ordner) / PROTOKOLL_STAND
+        try:
+            if stand.exists() and stand.read_text(encoding="utf-8") == merkmal:
+                return
+        except OSError:
+            return
+        if z.hauptadmin:
+            text = "Zustand: Hauptadmin angemeldet"
+        elif z.stufe == "lesemodus":
+            text = f"Zustand: Lesemodus ({z.grund})" if z.durchsetzung else f"Zustand: ohne gültige Lizenz ({z.grund})"
+        else:
+            text = (f"Zustand: {z.stufe}, Lizenz {i.get('lizenz_id', '?')}"
+                    + (f", Platz {i['aktivierung_id']}" if i.get("aktivierung_id") else "")
+                    + f", {module.text(i.get('funktionen'))}")
+        if protokoll_schreiben(self.ordner, text):
+            try:
+                stand.write_text(merkmal, encoding="utf-8")
+            except OSError:
+                return
+
+    def protokoll(self, letzte=200):
+        """Letzte Zeilen des Lizenzprotokolls dieses Rechners."""
+        return protokoll_lesen(self.ordner, letzte)
 
     def aktivierung_laden(self, quelle, heute=None):
         """Aktivierungsantwort (Datei, Code oder dict) übernehmen. LizenzFehler, wenn sie nicht passt; dann bleibt
@@ -847,7 +910,9 @@ class LizenzStelle:
         from . import aktivierung
         if isinstance(quelle, str) and not quelle.lstrip().startswith(("{", "AKTIVIERUNG")):
             quelle = Path(quelle)
-        aktivierung.antwort_laden(self.ordner, quelle, self.schluessel, heute=heute)
+        inhalt = aktivierung.antwort_laden(self.ordner, quelle, self.schluessel, heute=heute)
+        protokoll_schreiben(self.ordner, f"Aktivierung übernommen: Lizenz {inhalt.get('lizenz_id', '?')}, Platz "
+                                         f"{inhalt.get('aktivierung_id', '?')}")
         return self.pruefen(heute)
 
     def aktiviert(self):
@@ -859,12 +924,15 @@ class LizenzStelle:
         """Platz freigeben: Freigabebeleg (für Patrick) erzeugen, Aktivierung entfernen. Ergebnis: Beleg (dict)."""
         from . import aktivierung
         beleg = aktivierung.freigabe_erstellen(self.ordner, self.schluessel)
+        protokoll_schreiben(self.ordner, f"Platz freigegeben: {beleg['inhalt'].get('aktivierung_id', '?')} "
+                                         "(Freigabebeleg erstellt)")
         self.pruefen()
         return beleg
 
     def sperrliste(self, quelle):
         """Sperrliste vom Update-Check übernehmen (nur gültig signiert und neuer). Ergebnis: True = übernommen."""
         if sperrliste_uebernehmen(self.ordner, quelle, self.schluessel):
+            protokoll_schreiben(self.ordner, "Sperrliste übernommen")
             self.pruefen()
             return True
         return False

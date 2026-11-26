@@ -10,9 +10,11 @@ from urllib.parse import quote
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
-                               QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout)
+                               QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
+                               QVBoxLayout)
 
 from . import NAME, lizenz
+from .module import text as modul_text
 from .klartext import fehler_text
 
 STUFEN = dict(admin="Admin-Lizenz – voller Zugriff", gueltig="Lizenz gültig", bald="Lizenz läuft bald ab",
@@ -108,12 +110,35 @@ class LizenzDialog(QDialog):
         self.freigeben_knopf.setToolTip("Diesen Rechner abmelden, z. B. vor einem PC-Wechsel: der Platz wird für einen "
                                         "anderen Rechner frei")
         self.freigeben_knopf.clicked.connect(lambda: self.platz_freigeben())
-        for k in (self.aktivieren_knopf, self.einfuegen_knopf, self.freigeben_knopf):
+        self.protokoll_knopf = QPushButton("Lizenzprotokoll …")
+        self.protokoll_knopf.setToolTip("Was an diesem Rechner mit der Lizenz passiert ist (Aktivierung, Freigabe, "
+                                        "Lesemodus, Sperrliste)")
+        self.protokoll_knopf.clicked.connect(lambda: self.protokoll_zeigen())
+        for k in (self.aktivieren_knopf, self.einfuegen_knopf, self.freigeben_knopf, self.protokoll_knopf):
             zeile2.addWidget(k)
         zeile2.addStretch(1)
         lay.addLayout(zeile2)
         lay.addWidget(knoepfe)
         self.anzeigen()
+
+    def protokoll_zeigen(self):
+        """Lizenzprotokoll dieses Rechners (neueste unten). Ergebnis: angezeigter Text (Tests)."""
+        zeilen = self.stelle.protokoll()
+        text = "\n".join(zeilen) or "Noch keine Einträge."
+        if self.stumm:
+            return text
+        d = QDialog(self)
+        d.setWindowTitle("Lizenzprotokoll")
+        d.resize(720, 420)
+        lay = QVBoxLayout(d)
+        feld = QPlainTextEdit(text)
+        feld.setReadOnly(True)
+        lay.addWidget(feld)
+        k = QDialogButtonBox(QDialogButtonBox.Close)
+        k.rejected.connect(d.reject)
+        lay.addWidget(k)
+        d.exec()
+        return text
 
     def anzeigen(self):
         z = self.stelle.zustand or self.stelle.pruefen()
@@ -122,6 +147,7 @@ class LizenzDialog(QDialog):
         self.freigeben_knopf.setVisible(aktiviert)
         self.aktivieren_knopf.setVisible(hasattr(self.stelle, "aktivierung_anfragen"))
         self.einfuegen_knopf.setVisible(hasattr(self.stelle, "aktivierung_laden"))
+        self.protokoll_knopf.setVisible(hasattr(self.stelle, "protokoll"))
         ha = bool(getattr(self.stelle, "hauptadmin_ok", False))
         self.ha_passwort.setVisible(ha and not getattr(self.stelle, "hauptadmin_notfall", False))
         self.ha_export.setVisible(ha)
@@ -152,7 +178,7 @@ class LizenzDialog(QDialog):
                                             f"{_datum(i.get('gueltig_bis')) if i.get('gueltig_bis') else 'unbefristet'}"),
                                 ("Updates bis:", _datum(i.get("updates_bis")) if i.get("updates_bis") else ""),
                                 ("Dieser Platz:", f"{i.get('aktivierung_id')} (aktiviert am {_datum(i.get('aktiviert_am'))})"),
-                                ("Module:", ", ".join(i.get("funktionen") or ["alle"])),
+                                ("Module:", modul_text(i.get("funktionen"))),
                                 ("Hinweis:", i.get("hinweis"))):
                 if wert:
                     w = QLabel(str(wert))

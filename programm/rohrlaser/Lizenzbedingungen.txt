@@ -1,9 +1,9 @@
-﻿Lizenzbedingungen Rohrlaser Angebotskalkulation
+﻿Lizenzbedingungen NexTube
 
 Copyright (c) 2026 Patrick Brundiers. Alle Rechte vorbehalten.
 
 1. Gegenstand
-Diese Bedingungen gelten für das Programm „Rohrlaser Angebotskalkulation“ einschließlich STEP-Import, Bedienungsanleitung, Online-Updates und aller zugehörigen Dateien (zusammen „Software“). Mit der Installation, dem Entpacken oder der Nutzung der Software stimmen Sie diesen Bedingungen zu.
+Diese Bedingungen gelten für das Programm „NexTube“ (bisher „Rohrlaser Angebotskalkulation“) einschließlich STEP-Import, Bedienungsanleitung, Online-Updates und aller zugehörigen Dateien (zusammen „Software“). Mit der Installation, dem Entpacken oder der Nutzung der Software stimmen Sie diesen Bedingungen zu.
 
 2. Nutzungsrecht
 Sie erhalten ein einfaches, nicht übertragbares Recht, die Software im Rahmen einer gültigen Lizenz (Lizenzdatei) auf der darin genannten Zahl von Rechnern für eigene betriebliche Zwecke zu nutzen. Alle Rechte, die nicht ausdrücklich eingeräumt werden, bleiben bei Patrick Brundiers.

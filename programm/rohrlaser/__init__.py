@@ -4,7 +4,6 @@ import importlib.util
 from pathlib import Path
 
 VERSION = "0.9.539"
-NAME = "Rohrlaser Angebotskalkulation"
 URHEBER = "© 2026 Patrick Brundiers. Alle Rechte vorbehalten."
 _HIER = Path(__file__).resolve().parent
 # übersetzt ausgeliefert (programm/kompilieren.py): Qt-Slots brauchen dann eine Python-Hülle (qt_slots.py)

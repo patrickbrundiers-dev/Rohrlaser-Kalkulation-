@@ -16,6 +16,7 @@ from pathlib import Path
 
 import lizenz_werkzeug as W
 from rohrlaser import aktivierung as A
+from rohrlaser import module as MD
 from rohrlaser import lizenz
 
 REGISTER2 = "lizenzen2.json"
@@ -297,5 +298,6 @@ def uebersicht(ordner, heute=None):
                            plaetze=z["plaetze"], benutzer=z.get("benutzer", 0), belegt=len(aktive(d, nr)),
                            max=z["aktivierungen_max"], gueltig_bis=z.get("gueltig_bis") or "unbefristet",
                            gesperrt=e.get("gesperrt", ""), lizenzschluessel=e["lizenzschluessel"], status=st,
-                           status_text=st_text, ersetzt_durch=e.get("ersetzt_durch", "")))
+                           status_text=st_text, ersetzt_durch=e.get("ersetzt_durch", ""),
+                           module=z.get("module") or ["alle"], module_text=MD.text(z.get("module"))))
     return zeilen

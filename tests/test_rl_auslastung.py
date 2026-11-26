@@ -2128,7 +2128,7 @@ code = ("import sys; sys.path.insert(0, r'%s'); import rl_auslastung.fenster, rl
         "print(','.join(sorted(m for m in sys.modules if m.startswith('rohrlaser'))))" % (HIER.parent / "programm"))
 geladen = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip()
 assert geladen == ("rohrlaser,rohrlaser.auslastung_grafik,rohrlaser.datenspeicher,rohrlaser.db_verbindung,"
-                   "rohrlaser.design,rohrlaser.einlastung,rohrlaser.feiertage,rohrlaser.stil,"
+                   "rohrlaser.design,rohrlaser.einlastung,rohrlaser.feiertage,rohrlaser.marke,rohrlaser.stil,"
                    "rohrlaser.update,rohrlaser.update_netz,rohrlaser.wochen"), geladen
 ok("R6 das Programm lädt aus der Kalkulation nur Rechenkern, Feiertage, Design, Grafik, das Online-Update und die "
    "Datenbankschicht (SQLite oder PostgreSQL je PC)")
@@ -2182,7 +2182,7 @@ import shutil  # noqa: E402
 
 from cryptography.hazmat.primitives import serialization  # noqa: E402
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey  # noqa: E402
-from rl_auslastung import NAME as RLA_NAME  # noqa: E402
+from rl_auslastung import PROGRAMM_ID as RLA_NAME  # noqa: E402
 from rl_auslastung import VERSION as RLA_VERSION  # noqa: E402
 from rl_auslastung import aktualisierung as AK  # noqa: E402
 from rl_auslastung import aktualisierung_fenster as AKF  # noqa: E402
