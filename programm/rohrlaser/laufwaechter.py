@@ -26,7 +26,7 @@ import socket
 import time
 from pathlib import Path
 
-from . import VERSION, orte
+from . import VERSION, orte, zahlen
 
 MARKER = "laeuft.json"
 WAECHTER = "Waechter"
@@ -37,8 +37,6 @@ RESTE_DATEN = ("*.neu", "*.tmp", "*.merk")
 _bestaetigt = set()                 # riskante Stellen, die in diesem Lauf schon einmal gut gegangen sind
 
 
-def _jetzt():
-    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 def _schreiben(pfad, daten):
@@ -76,7 +74,7 @@ def beginnen(daten):
     except OSError:
         vorher = None
     try:
-        _schreiben(pfad, dict(pid=os.getpid(), version=VERSION, seit=_jetzt(), rechner=socket.gethostname(),
+        _schreiben(pfad, dict(pid=os.getpid(), version=VERSION, seit=zahlen.jetzt_text(), rechner=socket.gethostname(),
                               benutzer=_benutzer()))
     except OSError:
         pass
@@ -199,7 +197,7 @@ def markieren(name, umgebung=None):
     if name in _bestaetigt:
         return
     try:
-        _schreiben(_marker(name, umgebung), dict(pid=os.getpid(), version=VERSION, seit=_jetzt()))
+        _schreiben(_marker(name, umgebung), dict(pid=os.getpid(), version=VERSION, seit=zahlen.jetzt_text()))
     except OSError:
         pass
 
@@ -224,13 +222,13 @@ def blockiert(name, umgebung=None):
         if m.is_file():
             d = _lesen(m)
             if d.get("pid") != os.getpid():
-                _schreiben(_sperre(name, umgebung), dict(d, gesperrt=_jetzt()))
+                _schreiben(_sperre(name, umgebung), dict(d, gesperrt=zahlen.jetzt_text()))
                 m.unlink(missing_ok=True)
                 try:
                     from . import protokoll
                     protokoll.info(f"Programm ist zuletzt an der Stelle „{name}“ gestorben (seit {d.get('seit')}); "
                                    f"gesperrt bis zur nächsten Programmversion")
-                except Exception:       # noqa: BLE001 - Protokoll ist kein Muss
+                except (OSError, RuntimeError, ValueError):     # Protokoll ist kein Muss
                     pass
         s = _sperre(name, umgebung)
         if not s.is_file():

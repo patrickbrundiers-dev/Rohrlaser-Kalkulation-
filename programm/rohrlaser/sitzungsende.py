@@ -67,8 +67,8 @@ class Sitzung:
             return
         try:
             self._melden(text)
-        except Exception:       # noqa: BLE001
-            pass
+        except (OSError, RuntimeError, ValueError):     # Protokoll nicht schreibbar: Herunterfahren geht vor
+            return
 
 
 def reihenfolge_setzen(stufe=SHUTDOWN_STUFE):
