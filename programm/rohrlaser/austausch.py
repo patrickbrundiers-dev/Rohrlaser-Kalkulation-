@@ -87,8 +87,18 @@ class OrdnerWeg:
 
     def erreichbar(self):
         """Ordner da und nicht umgezogen (nach dem Umzug gilt der alte Ordner als nicht erreichbar: nichts wird mehr
-        hineingeschrieben, neue Angebote bekommen vorläufige Nummern, bis der Arbeitsplatz umgestellt ist)."""
-        return self.pfad.is_dir() and not (self.pfad / UMZUG_DATEI).is_file()
+        hineingeschrieben, neue Angebote bekommen vorläufige Nummern, bis der Arbeitsplatz umgestellt ist).
+        Netzlaufwerk nach einem Windows-Neustart noch getrennt (Z: fehlt, \\\\server\\freigabe ist da): derselbe
+        Ordner über den UNC-Pfad (netzpfad, 26.11.2026)."""
+        from . import netzpfad
+        if self.pfad.is_dir():
+            netzpfad.merken(self.pfad)
+        else:
+            unc = netzpfad.ersatz(self.pfad)
+            if unc is None:
+                return False
+            self.pfad = unc
+        return not (self.pfad / UMZUG_DATEI).is_file()
 
     def umgezogen(self):
         """Hinweis des Admins nach dem Umzug (dict: neu, von, zeit, fertig) oder None."""

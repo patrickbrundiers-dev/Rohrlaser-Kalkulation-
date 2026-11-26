@@ -113,6 +113,17 @@ def gl_moeglich():
     global _PRUEFUNG
     if _PRUEFUNG is not None:
         return _PRUEFUNG
+    from . import laufwaechter
+    laufwaechter.markieren("opengl")    # stirbt das Programm hier im Treiber, bleibt der Marker (ansicht3d.renderer_waehlen)
+    try:
+        return _gl_pruefen()
+    finally:
+        if _PRUEFUNG is not None and not _PRUEFUNG[0]:
+            laufwaechter.entmarken("opengl")     # sauber gescheitert: kein Absturz; gut gegangen: erst nach dem 1. Bild
+
+
+def _gl_pruefen():
+    global _PRUEFUNG
     try:
         ctx = QOpenGLContext()
         if not ctx.create():
@@ -239,6 +250,8 @@ class GLFlaeche(QOpenGLWidget):
         self.puffer_wk, self._wk_schl = {}, None       # Schnittkörper (je Auswahl neu)
 
     def initializeGL(self):
+        from . import laufwaechter
+        laufwaechter.markieren("opengl")         # bis zum ersten fertigen Bild (paintGL)
         try:
             self.prog = QOpenGLShaderProgram(self)
             if not (self.prog.addShaderFromSourceCode(QOpenGLShader.Vertex, VERTEX) and
@@ -248,6 +261,8 @@ class GLFlaeche(QOpenGLWidget):
             self._fehler(e)
 
     def _fehler(self, e):
+        from . import laufwaechter
+        laufwaechter.entmarken("opengl")         # abgefangener Fehler, kein Absturz
         self.fehler = str(e) or type(e).__name__
         self.ansicht._gl_aus(self.fehler)
 
@@ -308,6 +323,8 @@ class GLFlaeche(QOpenGLWidget):
         except Exception as e:  # z. B. Treiberfehler: zurück zu QPainter
             self._fehler(e)
             return
+        from . import laufwaechter
+        laufwaechter.entmarken("opengl")         # erstes Bild mit OpenGL gezeichnet: Treiber in Ordnung
         p = QPainter(self)
         self.ansicht._beschriften(p)
         p.end()
