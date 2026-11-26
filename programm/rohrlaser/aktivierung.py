@@ -319,6 +319,16 @@ def zertifikat_pruefen(daten, schluessel=None):
     return i
 
 
+def _module(liste):
+    """Module für ein Zertifikat: bekannte Namen (module.NAMEN) oder ['alle']; Unbekanntes ist ein Fehler."""
+    from . import module as M
+    roh = [str(m).strip().lower() for m in (liste or []) if str(m).strip()]
+    falsch = [m for m in roh if m not in (M.ALLE, M.BASIS) and m not in M.NAMEN]
+    if falsch:
+        raise _fehler(f"Unbekannte Module: {', '.join(falsch)} (bekannt: {', '.join(M.NAMEN)}, basis oder alle)")
+    return M.normal(roh)
+
+
 def zertifikat_inhalt(lizenz_nr, schluessel, lizenznehmer, typ, plaetze, *, firma="", kundennr="", benutzer=0,
                       reserve=1, module=None, gueltig_ab=None, gueltig_bis=None, updates_bis=None, admins=(),
                       heute=None, schluessel_id="K1", hinweis="", ersetzt=""):
@@ -330,7 +340,7 @@ def zertifikat_inhalt(lizenz_nr, schluessel, lizenznehmer, typ, plaetze, *, firm
     d = dict(art=ART_ZERTIFIKAT, lizenz_nr=lizenz_nr, schluessel_pruef=schluessel_pruefwert(schluessel),
              lizenznehmer=lizenznehmer, firma=firma or "", kundennr=kundennr or "", typ=typ, plaetze=plaetze,
              benutzer=int(benutzer or 0), aktivierungen_max=plaetze + max(0, int(reserve)),
-             module=list(module or ["alle"]), ausgestellt=heute.isoformat(),
+             module=_module(module), ausgestellt=heute.isoformat(),
              gueltig_ab=(gueltig_ab or heute).isoformat(), gueltig_bis=gueltig_bis.isoformat() if gueltig_bis else None,
              updates_bis=updates_bis.isoformat() if updates_bis else None, admins=list(admins),
              schluessel_id=schluessel_id, hinweis=hinweis or "")

@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.538", "<b>Lizenz 2.0: Module und Lizenzprotokoll</b>: Jede Lizenz enthält die Basis (Rohr-Kalkulation, "
+                "Angebote, STEP-Import, PDF, Fracht). Dazu kommen je nach Lizenz die Module Blech, Baugruppen, Auftrag, "
+                "Vertrieb, Einkauf, Auslastung und KI. Funktionen eines nicht enthaltenen Moduls sind ausgeblendet, "
+                "Daten bleiben. Bisherige Lizenzen enthalten alle Module. Neu unter <i>Hilfe → Lizenz …</i> ist "
+                "<b>Lizenzprotokoll …</b>: Es zeigt Aktivierung, Freigabe, Sperrliste und jeden Lizenzwechsel an diesem "
+                "Rechner (auch im Supportpaket). Im Lizenz-Werkzeug werden die Module per Haken gewählt.",
+     "Lizenz 2.0: Module je Lizenz und Lizenzprotokoll"],
     ["0.9.534", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
                 "steht jetzt, ob er tauscht (vollständig, teilweise, gar nicht, gegen Zuschlag, gegen Pfand, nur bei "
                 "Rücklieferung), mit Zuschlag je Stück oder Lieferung, Freimenge, Mindestmenge, Kunde und Gültigkeit. "

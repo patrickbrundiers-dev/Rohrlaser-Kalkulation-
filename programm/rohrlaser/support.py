@@ -106,6 +106,11 @@ def erstellen(db, ziel_ordner=None, protokoll_ordner=None, lizenz_text=None, sys
                                                                indent=1, default=str))):
             z.writestr(name, inhalt)
             dateien.append(name)
+        from . import lizenz as _lizenz     # Lizenz 2.0 L2-4: Lizenzprotokoll dieses Rechners (ohne Schlüssel)
+        zeilen = _lizenz.protokoll_lesen(_lizenz.ordner(Path(db.pfad).parent), _lizenz.PROTOKOLL_ZEILEN)
+        if zeilen:
+            z.writestr("lizenz_protokoll.txt", "\n".join(zeilen) + "\n")
+            dateien.append("lizenz_protokoll.txt")
         from . import db_verweise           # Systemprüfung DB-01: Zeilen, die ins Leere zeigen (nur Anzahlen)
         z.writestr("verweise.json", json.dumps(db_verweise.zaehlen(db), ensure_ascii=False, indent=1))
         dateien.append("verweise.json")

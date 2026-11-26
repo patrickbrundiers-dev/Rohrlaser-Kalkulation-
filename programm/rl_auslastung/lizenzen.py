@@ -179,10 +179,16 @@ class Stelle(L.LizenzStelle):
         """Lizenz 2.0: eine gültige Aktivierung (eigene oder die der Kalkulation auf diesem Rechner) gilt auch hier.
         Ist sie ungültig, bleibt es beim Ergebnis der Lizenzdatei."""
         from rohrlaser import aktivierung
+        from rohrlaser import module as MD
         for o in (self.ordner, Path(self.kalkulation) if self.kalkulation else None):
             if o is not None and aktivierung.vorhanden(o):
                 z2 = L._zustand_mit_aktivierung(o, None, heute, self.rechner, self.schluessel, sperr, spaet,
                                                 self.durchsetzung, "")
+                mods = MD.normal((z2.inhalt or {}).get("funktionen"))
+                if z2.stufe != "lesemodus" and mods != [MD.ALLE] and "auslastung" not in mods:
+                    # Lizenz 2.0 L2-4: Modul Auslastung nicht lizenziert
+                    z2 = _lesemodus(f"Modul Auslastung ist in der Lizenz {z2.inhalt.get('lizenz_id')} nicht enthalten",
+                                    heute, self.rechner, spaet, self.durchsetzung, z2.inhalt)
                 if z2.stufe != "lesemodus" or z.stufe == "lesemodus" and not z.inhalt:
                     if z2.stufe != "lesemodus":
                         self.quelle = "eigene" if o == self.ordner else "kalkulation"
