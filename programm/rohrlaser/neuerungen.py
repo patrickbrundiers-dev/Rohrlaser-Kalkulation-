@@ -30,6 +30,14 @@ NEUERUNGEN = [
                 "Arbeitsplatz (Ansicht → <i>Fenster mit Inhalt maximiert öffnen</i>, <i>Fenstergrößen "
                 "zurücksetzen</i>, [[fenster_merken]]).",
      "Neues Designsystem, Schritt 3: Kopfband im Angebot; Fenster mit Inhalt maximiert"],
+    ["0.9.539", "<b>Serverversion (Stufe 2): Zusammenarbeiten am Server</b>: Wer ein Angebot öffnet, reserviert es; "
+                "Kollegen sehen in der Angebotsliste „● XY bearbeitet“ und öffnen es nur zum Ansehen. Änderungen "
+                "erscheinen bei allen innerhalb von etwa einer Sekunde. Bricht ein PC ab (Absturz, Netz weg), wird "
+                "die Reservierung nach 90 s frei; mit <i>Übernehmen …</i> geht es sofort (wird protokolliert). "
+                "<i>Kollegen am Server</i> zeigt, wer angemeldet ist und woran gearbeitet wird. Benutzer und Rechte "
+                "aus der Benutzerverwaltung gelten direkt als Zugänge am Server (Passwort statt PIN), der "
+                "Änderungsverlauf nennt das Kürzel. Die lokale Betriebsart bleibt unverändert.",
+     "Serverversion Stufe 2: Mehrbenutzer mit Reservierung und Live-Anzeige"],
     ["0.9.538", "<b>Neuer Name: NexTube</b>. Das Programm heißt jetzt NexTube und hat ein eigenes Icon (Fenster, "
                 "Taskleiste, Programmdatei, Hilfe → Über, Anleitung). Daten, Ordner, Programmdatei und Online-Update "
                 "bleiben unverändert; das nächste Setup benennt die Verknüpfungen um. Die Auslastung heißt NexTube "

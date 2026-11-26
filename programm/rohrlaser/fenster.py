@@ -192,7 +192,7 @@ class StammdatenModell(QAbstractTableModel):
             wert = wert_aus_text(f, text)
             if wert == z.get(f.name):
                 return False
-            uid = self._uid(z) if teilen.aktiv(self.db) else None
+            uid = self._uid(z) if teilen.mehrplatz(self.db) else None
             bei = teilen.zeile_bei_kollegen(self.db, self.t.name, uid) if uid else None
             if bei and not zeile_trotzdem(self.db, self.t.titel, *bei):
                 self.meldung(f"Nicht geändert: {bei[0]} ändert diese Zeile gerade.")
@@ -221,6 +221,16 @@ class StammdatenModell(QAbstractTableModel):
                 return True
             if uid:
                 teilen.zeile_merken(self.db, self.t.name, uid)
+                if teilen.server(self.db):          # Serverbetrieb: Änderung mit Kürzel in den Verlauf
+                    from . import aenderungsverlauf
+                    try:
+                        with self.db.con:
+                            aenderungsverlauf.eintrag_stamm(self.db.con, self.db.server.kuerzel, self.t.name, uid,
+                                                            aenderungsverlauf._bezug_stamm(self.t.name, z), f.name,
+                                                            z.get(f.name), wert)
+                    except Exception:       # noqa: BLE001 – Verlauf darf das Speichern nicht verhindern
+                        from . import protokoll
+                        protokoll.warnung("Änderungsverlauf der Stammdaten am Server nicht geschrieben")
         except ValueError as e:
             self.meldung(str(e), fehler=True)
             return False
@@ -3725,10 +3735,17 @@ class Hauptfenster(QMainWindow):
         self.teilen_puls = QTimer(self)
         self.teilen_puls.timeout.connect(self._teilen_puls)
         self.teilen_puls.start(teilen_fenster.PULS_TICK_MS)
+        if getattr(self.db, "server", None) is not None:     # Serverversion S2: Anwesenheit, Reservierung, Live
+            from . import server_dialog
+            server_dialog.mehrplatz_starten(self)
 
     def _teilen_puls(self):
         from . import teilen_fenster
         try:
+            if getattr(self.db, "server", None) is not None:
+                from . import server_dialog
+                server_dialog.puls(self)
+                return
             teilen_fenster.puls(self)
         except sqlite3.ProgrammingError:        # Fenster schon geschlossen (Tests)
             self.teilen_puls.stop()
@@ -4492,6 +4509,9 @@ class Hauptfenster(QMainWindow):
             from . import dauermerker
             dauermerker.angebot_benutzt(angebot_id, (self.db.angebot(angebot_id) or {}).get("nummer"))
             self._cache_von_kollegen(angebot_id)
+            if getattr(self.db, "server", None) is not None:     # Serverbetrieb: hier bearbeiten oder nur ansehen
+                from . import server_dialog
+                server_dialog.reservieren(self, angebot_id)
             seite = AngebotSeite(self, angebot_id)      # lädt das Angebot selbst
             from . import symbole
             symbole.versehen(seite)
@@ -4648,6 +4668,9 @@ class Hauptfenster(QMainWindow):
             from . import dauermerker
             dauermerker.leeren()                # Angebots-Cache: alles Gerechnete geschrieben, bevor es zu ist
             self._cache_fuer_kollegen(angebot_id)
+            if getattr(self.db, "server", None) is not None:     # Serverbetrieb: Verlauf, Reservierung frei
+                from . import server_dialog
+                server_dialog.freigeben(self, angebot_id)
             self.reiter.removeTab(self.reiter.indexOf(seite))
             from . import freigeben
             freigeben.nach_loeschen(seite)      # Systemcheck 19.11.: sonst bleibt das Angebot ganz im Speicher
@@ -4862,7 +4885,7 @@ class Hauptfenster(QMainWindow):
         if not isinstance(w, (AngebotSeite, AngeboteSeite)):
             return None
         try:
-            kollegen = teilen.kollegen_offen(self.db) if teilen.aktiv(self.db) else {}
+            kollegen = teilen.kollegen_offen(self.db) if teilen.mehrplatz(self.db) else {}
             if isinstance(w, AngebotSeite):
                 kollegen = kollegen.get((getattr(w, "kopf", None) or {}).get("nummer"))
             else:
@@ -5147,6 +5170,13 @@ class Hauptfenster(QMainWindow):
                 teilen.lebenszeichen_schreiben(self.db, ende=True)      # Kollegen sehen gleich: nicht mehr da
             except OSError:
                 pass
+        if getattr(self.db, "server", None) is not None:     # Serverbetrieb: abmelden, Reservierungen frei
+            from . import server_dialog
+            try:
+                server_dialog.mehrplatz_beenden(self)
+            except Exception:       # noqa: BLE001 – darf das Beenden nie abbrechen
+                from . import protokoll
+                protokoll.warnung("Zusammenarbeit am Server beim Beenden nicht sauber abgemeldet")
         if not self.stumm:
             from . import fenster_merken, werkzeugleiste_qt
             fenster_merken.sitzung_merken(self)     # offene Angebote für den nächsten Start (B4)
