@@ -38,8 +38,9 @@ def kalkulation_ordner():
     lokal = os.environ.get("LOCALAPPDATA")
     if not lokal:
         return None
+    from rohrlaser.aktivierung import DATEI_AKTIVIERUNG
     o = Path(lokal) / KALKULATION
-    return o if (o / L.AKTIV).is_file() else None
+    return o if (o / L.AKTIV).is_file() or (o / DATEI_AKTIVIERUNG).is_file() else None
 
 
 def pruefen(quelle, schluessel=None):

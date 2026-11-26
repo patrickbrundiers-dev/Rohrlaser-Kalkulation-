@@ -23,10 +23,16 @@ REGISTER2 = "lizenzen2.json"
 
 def register_lesen(ordner):
     p = Path(ordner) / REGISTER2
-    try:
-        d = json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    if not p.exists():
         d = {}
+    else:                   # unlesbares Register nie still durch ein leeres ersetzen (Schlüssel gingen verloren)
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            raise SystemExit(f"Register {p} ist nicht lesbar ({e}). Bitte aus der Sicherung wiederherstellen; "
+                             "es wurde nichts geändert.") from None
+        if not isinstance(d, dict):
+            raise SystemExit(f"Register {p} ist beschädigt. Bitte aus der Sicherung wiederherstellen.")
     d.setdefault("zertifikate", {})
     d.setdefault("aktivierungen", [])
     return d

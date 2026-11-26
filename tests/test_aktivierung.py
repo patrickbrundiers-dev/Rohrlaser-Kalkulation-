@@ -221,6 +221,21 @@ try:
 finally:
     A.merkmale = alt_m
 
+# ------------------------------------------------------------------ Auslastung, kaputtes Register
+from rl_auslastung import lizenzen as AL  # noqa: E402
+
+lokal = tmp / "appdata"
+(lokal / AL.KALKULATION).mkdir(parents=True)
+shutil.copy2(P1 / A.DATEI_AKTIVIERUNG, lokal / AL.KALKULATION / A.DATEI_AKTIVIERUNG)
+os.environ["LOCALAPPDATA"] = str(lokal)
+pruefe(AL.kalkulation_ordner() == lokal / AL.KALKULATION,
+       "A35 Auslastung findet die Kalkulation auch, wenn dort nur eine Aktivierung liegt")
+kaputt = tmp / "kaputt"
+kaputt.mkdir()
+(kaputt / L2.REGISTER2).write_text("{kaputt", "utf-8")
+pruefe("nicht lesbar" in wirft(L2.register_lesen, kaputt) and (kaputt / L2.REGISTER2).read_text("utf-8") == "{kaputt",
+       "A36 unlesbares Register wird nicht überschrieben")
+
 # ------------------------------------------------------------------ Werkzeug-Befehle
 os.environ["ROHRLASER_LIZENZ_ORDNER"] = str(WZ)
 pruefe(W.main(["liste2"]) == 0, "A34 lizenz_werkzeug liste2 läuft")
