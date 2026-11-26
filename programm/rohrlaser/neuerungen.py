@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.532", "<b>Lizenz-Werkzeug: Lizenzen 2.0 verwalten</b> (nur für Patrick): Der neue Knopf <b>Lizenzen 2.0 "
+                "(Lizenzschlüssel) …</b> öffnet eine Übersicht aller Lizenzen mit belegten Plätzen, Ablauf und Status "
+                "(gelb: läuft bald ab, rot: abgelaufen) und darunter die Plätze der markierten Lizenz. Knöpfe für neue "
+                "Lizenz, Anfrage beantworten, Freigabe verbuchen, Platz deaktivieren, Verlängern, Ändern/Übertragen und "
+                "Sperren. Beim Verlängern bleibt der Lizenzschlüssel gleich, die Plätze ziehen mit.",
+     "Lizenz-Werkzeug: Übersicht Lizenzen 2.0 mit allen Aktionen"],
     ["0.9.527", "<b>Lizenz 2.0: Aktivierung mit Lizenzschlüssel</b>: Unter <i>Hilfe → Lizenz …</i> lässt sich das "
                 "Programm jetzt mit einem Lizenzschlüssel (<i>LZ-…</i>) aktivieren, ganz ohne Internet. Das Programm "
                 "erstellt eine Aktivierungsanfrage als Datei oder Code, Patricks Antwort kommt über <b>Aktivierung "
