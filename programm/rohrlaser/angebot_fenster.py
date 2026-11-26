@@ -2347,7 +2347,9 @@ class AngebotReiter(QTabWidget):
             return
         reiter = self.tabBar().sizeHint().width() + 12
         stufe = next((s for s in (0, 1, 2) if reiter + ecke.breite_bei(s) <= self.width()), 2)
-        if stufe != ecke.stufe:
+        # neu einsetzen auch bei gleicher Stufe, wenn der Text länger wurde („Weiter: Angebot (PDF) ▸“): die Ecke
+        # behält sonst ihre alte Breite und der Knopf wird gequetscht (seit Phase 3 ist die Übersicht ab Werk aus)
+        if stufe != ecke.stufe or ecke.sizeHint().width() > ecke.width():
             ecke.kompakt(stufe)
             ecke.updateGeometry()
             QTimer.singleShot(0, self, lambda: (self.setCornerWidget(ecke, Qt.TopRightCorner), ecke.show()))
@@ -2567,14 +2569,16 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         pdf = QPushButton("Angebot (PDF)")
         pdf.setObjectName("primaer")
         pdf.clicked.connect(lambda: self.angebot_pdf())
-        leiste.addWidget(pdf)
+        self.pdf_knopf = pdf                    # steht im Kopfband (UI Next Level Phase 3), siehe unten
         # Übersicht rechts ein-/ausblenden (Patrick 04.11.2026: mehr Platz für die Liste), gemerkt je Platz
         # Plan B2 04.11.2026: « im schmalen Streifen blendet ein, » im Titel der Übersicht blendet aus
         self.uebersicht_knopf = QToolButton()
         self.uebersicht_knopf.setText("«")
         self.uebersicht_knopf.setAutoRaise(True)
         self.uebersicht_knopf.setCheckable(True)
-        self.uebersicht_knopf.setChecked(self.db.einstellung(UEBERSICHT_EINSTELLUNG) is not False)
+        # Vorgabe aus (Patrick 26.11.2026, F4): Verkaufspreis und Marge stehen im Kopfband; wer die Übersicht
+        # eingeschaltet hat (Einstellung True), behält sie
+        self.uebersicht_knopf.setChecked(self.db.einstellung(UEBERSICHT_EINSTELLUNG) is True)
         self.uebersicht_knopf.setToolTip("Übersicht rechts (Preise, Zeiten, Meldungen) ein- bzw. ausblenden: "
                                          "ausgeblendet hat die Positionsliste die ganze Breite, rechts bleibt ein schmaler "
                                          "Streifen mit Verkaufspreis und Stand")
@@ -2863,6 +2867,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.kalk_kompakt.toggled.connect(self._kompakt_umschalten)
         kalk_seite = QWidget()
         kl = QVBoxLayout(kalk_seite)
+        from .kalk_kopf import KalkKopf          # Kennzahlen und Preisbalken (UI Next Level Phase 3)
+        self.kalk_kopf = KalkKopf()
+        kl.addWidget(self.kalk_kopf)
         kl.addWidget(self.summen)
         kz = QHBoxLayout()
         kz.addWidget(self.kalk_info, 1)
@@ -3109,7 +3116,11 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.spalten.setStretchFactor(1, 0)
         self.spalten.setChildrenCollapsible(False)
         self.uebersicht_rahmen.setVisible(self.uebersicht_knopf.isChecked())
-        self.uebersicht_streifen.setVisible(not self.uebersicht_knopf.isChecked())
+        self.uebersicht_streifen.setVisible(False)      # Kopfband zeigt Verkaufspreis und Stand (Phase 3)
+        # Kopfband (UI Next Level Phase 3): Nummer, Vorgang, Stand, Kunde, Verkaufspreis, Marge, Angebot (PDF)
+        from .angebot_kopfband import Kopfband
+        self.kopfband = Kopfband([self.pdf_knopf], uebersicht_umschalten=self.uebersicht_zeigen)
+        self.kopfband.uebersicht.setChecked(self.uebersicht_knopf.isChecked())
         # Angebot eines Kollegen (teilen.py): Hinweis mit Kopieren, Eingaben gesperrt
         self.fremd_leiste = QFrame()
         self.fremd_leiste.setStyleSheet("QFrame { background: #FFF4D6; border: 1px solid #E8C66B; border-radius: 4px; }"
@@ -3159,6 +3170,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self._ohne_leiste_bauen(self.fremd_leiste.styleSheet())
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 4)
+        lay.addWidget(self.kopfband)
         lay.addWidget(self.fremd_leiste)
         lay.addWidget(self.nachtrag_leiste)
         lay.addWidget(self.ohne_leiste)
@@ -3369,6 +3381,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if self.auto_optimieren_moeglich():
             self._auto_timer.start(self.AUTO_PAUSE_MS)      # jede weitere Änderung schiebt den Lauf hinaus
             self.uebersicht_bereich.wird_berechnet()        # V7: kein vorläufiger Preis ohne Material
+            if getattr(self, "kopfband", None) is not None:
+                self.kopfband.vk.setText("wird berechnet …")
         else:
             self._auto_timer.stop()
 
@@ -3669,9 +3683,12 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
     def uebersicht_zeigen(self, an):
         """Übersicht rechts ein- bzw. ausblenden (» im Titel, « bzw. Klick im schmalen Streifen), gemerkt je Platz."""
         self.uebersicht_rahmen.setVisible(bool(an))
-        self.uebersicht_streifen.setVisible(not an)
+        band = getattr(self, "kopfband", None)
+        self.uebersicht_streifen.setVisible(not an and band is None)    # mit Kopfband kein Streifen (Phase 3)
         if self.uebersicht_knopf.isChecked() != bool(an):
             self.uebersicht_knopf.setChecked(bool(an))
+        if band is not None and band.uebersicht.isChecked() != bool(an):
+            band.uebersicht.setChecked(bool(an))
         if not self.db.nur_lesen:
             self.db.einstellung_setzen(UEBERSICHT_EINSTELLUNG, bool(an))
 
@@ -5324,6 +5341,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                                             f"{_z(100 * e['netto_anteil'], 1)} %</span>"
                                             if e["netto_anteil"] is not None else "")))
         self._wirtschaft_setzen(summen)
+        self._kopfband_setzen(vk, stand, e.get("netto"))
+        self.kalk_kopf.setzen(kosten, self._wirtschaft if hasattr(self, "_wirtschaft") else None,
+                              {"maschine": f"{rechnen.zeit_text(zs['maschine_min'])} Maschinenzeit"})
         self.uebersicht_bereich.zeitbild_setzen(summen)
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
         self.uebersicht_rahmen.jetzt_anpassen()
@@ -10271,6 +10291,19 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             self._kalk_letzte = (inhalt, self.k, self.tabellen, jetzt, rechnen.kopie(erg))
         return erg
 
+    def _kopfband_setzen(self, vk=None, stand=None, deckung=None):
+        """Kopfband mit den Werten des Angebots füllen (ohne eigene Rechnung, siehe angebot_kopfband.py)."""
+        band = getattr(self, "kopfband", None)
+        if band is None:
+            return None
+        if self.uebersicht_bereich.preis.get("verkauf") is not None and \
+                self.uebersicht_bereich.preis["verkauf"].text() == "wird berechnet …":
+            vk = "wird berechnet …"
+        return band.setzen(self.kopf, vk, stand or self.stand_optimierung(), getattr(self, "_wirtschaft", None),
+                           deckung, gueltig_bis(self.kopf, ausgabe.gueltigkeit_tage(
+                               dict(self.einst, gueltigkeit=self.db.einstellung("gueltigkeit")), self.positionen,
+                               self.k)), vorgang(self.kopf))
+
     def _wirtschaft_setzen(self, summen):
         """Kacheln „Gewinn und Marge“ und „Wirtschaftlichkeit“ (Master-Prompt 21.11.2026, preisleiter.py)."""
         from . import preisleiter as pl
@@ -10278,6 +10311,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if "gewinn" not in kz:
             return
         b = pl.bewertung(summen, self.einst, self.unsicher_anteil())
+        self._wirtschaft = b or None        # auch fürs Kopfband; ohne Bewertung keine alte Marge stehen lassen
         grau = stil.umsetzen("#5F6B7A")
         if not b:
             kz["gewinn"].setText("–")

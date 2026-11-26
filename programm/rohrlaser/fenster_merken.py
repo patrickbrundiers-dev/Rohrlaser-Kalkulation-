@@ -1,16 +1,33 @@
-"""Das Programm merkt sich Fenster (Plan Bedienung B4): Größe, Lage und Teiler jedes Dialogs je Fensterart, und welche
-Angebote beim Beenden offen waren (Freigabe F2a: sie öffnen beim nächsten Start wieder, samt Unterreiter).
+"""Zentrale Fensterverwaltung (Plan Bedienung B4, ausgebaut 26.11.2026 „Einheitliches Fenster- und Dialogmanagement“):
+Größe, Lage, maximiert und Teiler jedes Fensters je Fensterart, Benutzer und Arbeitsplatz, und welche Angebote beim
+Beenden offen waren (Freigabe F2a: sie öffnen beim nächsten Start wieder, samt Unterreiter).
 
-Gemerkt wird in der eigenen Datendatei (Einstellungen fenster_geometrie, sitzung_offen), nicht im gemeinsamen Ordner.
-Meldungs-, Datei- und Eingabefenster von Qt bleiben außen vor; die Teile-Editoren öffnen weiter maximiert.
+Regeln (Entscheidung Patrick 26.11.2026: „Nur Fenster mit Inhalt maximiert“):
+- Ein Fenster ohne gemerkten Stand öffnet maximiert, wenn es Inhalt hat (Tabellen, Listen, Reiter, Teiler, Texte,
+  Zeichnungen und eine Größe ab etwa 560 × 420). Kurze Rückfragen, Eingaben und Meldungen bleiben klein.
+  Ein Fenster kann das mit der Eigenschaft fenster_groesse = "klein" oder "maximiert" selbst festlegen.
+- Jedes Fenster hat Minimieren, Maximieren/Wiederherstellen und Schließen in der Titelleiste und lässt sich in der
+  Größe ändern und verschieben (außer Fenstern mit fester Größe).
+- Beim Schließen merkt das Programm Größe, Lage, ob maximiert, und die Teiler, je Benutzer (angemeldetes Kürzel) und
+  Arbeitsplatz. Beim nächsten Öffnen gilt das Gemerkte, auch wenn es kleiner war als die Vorgabe.
+- Ansicht → „Fenster mit Inhalt maximiert öffnen“ schaltet die Vorgabe ab (dann öffnen Fenster in ihrer eigenen
+  Größe); „Fenstergrößen zurücksetzen“ vergisst das Gemerkte des Benutzers.
+
+Gemerkt wird in der eigenen Datendatei (Einstellungen fenster_geometrie, fenster_maximiert_vorgabe, sitzung_offen),
+nicht im gemeinsamen Ordner und ohne Abgleich (fenster_* gilt je Arbeitsplatz). Meldungs-, Datei- und
+Eingabefenster von Qt bleiben außen vor.
 """
 import base64
 
-from PySide6.QtCore import QByteArray, QEvent, QObject, QTimer
-from PySide6.QtWidgets import (QApplication, QDialog, QFileDialog, QInputDialog, QMessageBox, QProgressDialog,
-                               QSplitter)
+from PySide6.QtCore import QByteArray, QEvent, QObject, Qt, QTimer
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import (QAbstractScrollArea, QApplication, QDialog, QFileDialog, QInputDialog, QLayout,
+                               QMainWindow, QMessageBox, QProgressDialog, QSplitter, QTabWidget, QWidget)
 
-GEOMETRIE = "fenster_geometrie"     # {Fensterart: {"g": Geometrie, "t": [Teiler-Zustände]}} (base64)
+GEOMETRIE = "fenster_geometrie"     # {"Kürzel|Fensterart": {"g": Geometrie, "t": [Teiler], "m": maximiert}} (base64)
+VORGABE = "fenster_maximiert_vorgabe"   # Fenster mit Inhalt ohne gemerkten Stand maximiert öffnen (Vorgabe: ja)
+INHALT_BREITE, INHALT_HOEHE = 560, 420  # ab dieser Größe (oder Wunschgröße) gilt ein Fenster mit Inhalt als groß
+NIE_GROESSER = 16777215                 # QWIDGETSIZE_MAX
 SITZUNG = "sitzung_offen"           # {"angebote": [IDs], "aktiv": ID, "unterreiter": {ID: Index}}
 OHNE = (QMessageBox, QFileDialog, QInputDialog, QProgressDialog)
 
@@ -35,14 +52,68 @@ def art(dialog):
     return name
 
 
-class FensterMerker(QObject):
-    """Ereignisfilter an der QApplication: beim ersten Zeigen eines Dialogs Größe, Lage und Teiler setzen, beim
-    Schließen merken."""
+def feste_groesse(w):
+    """Fenster mit fester Größe (gleiche Mindest- und Höchstgröße oder Layout SetFixedSize) lässt sich nicht ziehen."""
+    lay = w.layout()
+    return w.minimumSize() == w.maximumSize() or (lay is not None and lay.sizeConstraint() == QLayout.SetFixedSize)
 
-    def __init__(self, db, parent=None):
+
+def mit_inhalt(w):
+    """Hat das Fenster Inhalt, für den mehr Platz hilft (Tabellen, Listen, Reiter, Teiler, Texte, Zeichnungen) und
+    eine gewisse Größe? Kurze Rückfragen und Eingaben bleiben klein. Eigenschaft fenster_groesse entscheidet vorab."""
+    wahl = w.property("fenster_groesse")
+    if wahl in ("klein", "maximiert"):
+        return wahl == "maximiert"
+    if feste_groesse(w) or w.maximumWidth() < NIE_GROESSER or w.maximumHeight() < NIE_GROESSER:
+        return False
+    groesse = w.size().expandedTo(w.sizeHint())
+    if groesse.width() < INHALT_BREITE and groesse.height() < INHALT_HOEHE:
+        return False
+    # nur eigene Teile zählen: die Auswahlliste einer Combobox ist ein eigenes (Popup-)Fenster
+    return any(c.window() is w for t in (QAbstractScrollArea, QTabWidget, QSplitter) for c in w.findChildren(t))
+
+
+def knoepfe_setzen(w):
+    """Minimieren, Maximieren und Schließen in der Titelleiste (vor dem ersten Zeigen, sonst blendet Qt das Fenster
+    beim Ändern der Flags aus). Fenster mit fester Größe bekommen nur Schließen. Ergebnis: True bei Änderung."""
+    alt = w.windowFlags()
+    neu = (alt | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint | Qt.CustomizeWindowHint) \
+        & ~Qt.WindowContextHelpButtonHint
+    if not feste_groesse(w):
+        neu |= Qt.WindowMinMaxButtonsHint
+    if neu == alt:
+        return False
+    w.setWindowFlags(neu)
+    return True
+
+
+class FensterMerker(QObject):
+    """Ereignisfilter an der QApplication (zentrale Fensterverwaltung): vor dem ersten Zeigen Knöpfe der Titelleiste,
+    beim ersten Zeigen Größe, Lage, maximiert und Teiler setzen, beim Schließen merken."""
+
+    def __init__(self, db, parent=None, benutzer=None):
         super().__init__(parent)
         self.db = db
-        self.gesetzt = set()        # id() der Dialoge, die schon eingerichtet sind
+        self.gesetzt = set()        # id() der Fenster, die schon eingerichtet sind
+        self._benutzer = benutzer   # Kürzel fest (Tests); sonst das angemeldete Kürzel
+
+    def benutzer(self):
+        if self._benutzer is not None:
+            return self._benutzer
+        try:
+            from . import rollen
+            return rollen.angemeldet(self.db) or ""
+        except Exception:           # noqa: BLE001 – ohne Benutzerverwaltung (Tests, Probeordner): ohne Kürzel
+            return ""
+
+    def schluessel(self, w):
+        return f"{self.benutzer()}|{art(w)}"
+
+    def vorgabe_maximiert(self):
+        try:
+            return self.db.einstellung(VORGABE) is not False
+        except Exception:           # noqa: BLE001 – Datendatei geschlossen o. Ä.: Vorgabe
+            return True
 
     def _alle(self):
         try:
@@ -53,12 +124,20 @@ class FensterMerker(QObject):
 
     @staticmethod
     def _passt(w):
-        return isinstance(w, QDialog) and not isinstance(w, OHNE) and w.isWindow() \
-            and not w.property("fenster_nicht_merken")
+        """Dialoge und eigene Fenster (z. B. Viewer), nicht das Hauptfenster, Popups, Werkzeugfenster und die
+        Standarddialoge von Qt (Meldung, Datei, Eingabe, Fortschritt)."""
+        if not isinstance(w, QWidget) or not w.isWindow() or isinstance(w, OHNE) or w.property("fenster_nicht_merken"):
+            return False
+        if isinstance(w, QDialog):
+            return True
+        return w.windowType() == Qt.Window and not (isinstance(w, QMainWindow) and type(w).__name__ == "Hauptfenster")
 
     def eventFilter(self, w, e):
         t = e.type()
-        if t == QEvent.Show and self._passt(w) and id(w) not in self.gesetzt:
+        if t == QEvent.Polish and self._passt(w) and not w.isVisible() and not w.property("_fenster_knoepfe"):
+            w.setProperty("_fenster_knoepfe", True)
+            knoepfe_setzen(w)
+        elif t == QEvent.Show and self._passt(w) and id(w) not in self.gesetzt:
             self.gesetzt.add(id(w))
             w.destroyed.connect(lambda *_a, i=id(w): self.gesetzt.discard(i))
             self.setzen(w)
@@ -66,13 +145,29 @@ class FensterMerker(QObject):
             self.merken(w)
         return False
 
+    def eintrag(self, w):
+        """Gemerkter Stand des Fensters für diesen Benutzer (ältere Einträge ohne Kürzel gelten weiter)."""
+        alle = self._alle()
+        return alle.get(self.schluessel(w)) or alle.get(art(w))
+
     def setzen(self, w):
-        eintrag = self._alle().get(art(w))
+        eintrag = self.eintrag(w)
         if not eintrag:
+            if self.vorgabe_maximiert() and not w.isMaximized() and mit_inhalt(w):
+                self.maximieren(w)
+                return True
             return False
         if not w.isMaximized() and eintrag.get("g"):
             g = _bytes(eintrag["g"])
             if g is not None:
+                w.restoreGeometry(g)
+                self._auf_bildschirm(w)
+        if eintrag.get("m") is True and not w.isMaximized():
+            self.maximieren(w)
+        elif eintrag.get("m") is False and w.isMaximized():     # zuletzt bewusst verkleinert (auch Editoren)
+            w.setWindowState(w.windowState() & ~Qt.WindowMaximized)
+            g = _bytes(eintrag.get("g") or "")
+            if g is not None and eintrag.get("g"):
                 w.restoreGeometry(g)
                 self._auf_bildschirm(w)
         teiler = w.findChildren(QSplitter)
@@ -81,6 +176,10 @@ class FensterMerker(QObject):
             if z is not None:
                 s.restoreState(z)
         return True
+
+    @staticmethod
+    def maximieren(w):
+        w.setWindowState((w.windowState() & ~Qt.WindowMinimized) | Qt.WindowMaximized)
 
     @staticmethod
     def _auf_bildschirm(w):
@@ -94,17 +193,62 @@ class FensterMerker(QObject):
         if getattr(self.db, "nur_lesen", False):
             return False
         alle = self._alle()
-        alt = alle.get(art(w)) or {}
-        eintrag = dict(g=alt.get("g") if w.isMaximized() else _b64(w.saveGeometry()),
-                       t=[_b64(s.saveState()) for s in w.findChildren(QSplitter)])
-        if eintrag == alt:
+        schluessel = self.schluessel(w)
+        alt = alle.get(schluessel) or alle.get(art(w)) or {}
+        maximiert = w.isMaximized()
+        # maximiert: die Größe davor bleibt gemerkt (Wiederherstellen kehrt dorthin zurück)
+        eintrag = dict(g=alt.get("g") if maximiert else _b64(w.saveGeometry()),
+                       t=[_b64(s.saveState()) for s in w.findChildren(QSplitter)], m=maximiert)
+        if eintrag == alle.get(schluessel):
             return False
-        alle[art(w)] = eintrag
+        alle[schluessel] = eintrag
         try:
             self.db.einstellung_setzen(GEOMETRIE, alle)
         except Exception:           # noqa: BLE001 – Lesemodus o. Ä.: Fenster einfach nicht merken
             return False
         return True
+
+    def zuruecksetzen(self):
+        """Alles Gemerkte des angemeldeten Benutzers vergessen (und alte Einträge ohne Kürzel). Ergebnis: Anzahl."""
+        alle = self._alle()
+        vorne = f"{self.benutzer()}|"
+        weg = [k for k in alle if k.startswith(vorne) or "|" not in k]
+        for k in weg:
+            del alle[k]
+        if weg and not getattr(self.db, "nur_lesen", False):
+            self.db.einstellung_setzen(GEOMETRIE, alle)
+        return len(weg)
+
+
+ARTEN = (QEvent.Polish, QEvent.Show, QEvent.Hide, QEvent.Close)
+
+
+def menue_eintraege(f, menue):
+    """Ansicht → „Fenster mit Inhalt maximiert öffnen“ (Haken, je Arbeitsplatz) und „Fenstergrößen zurücksetzen“."""
+    menue.addSeparator()
+    a = QAction("Fenster mit Inhalt maximiert öffnen", f)
+    a.setCheckable(True)
+    a.setChecked(f.db.einstellung(VORGABE) is not False)
+    a.setToolTip("Fenster mit Tabellen, Listen oder Zeichnungen öffnen maximiert, solange keine Größe gemerkt ist; "
+                 "kurze Rückfragen bleiben klein")
+
+    def umschalten(an):
+        if not getattr(f.db, "nur_lesen", False):
+            f.db.einstellung_setzen(VORGABE, bool(an))
+    a.toggled.connect(umschalten)
+    menue.addAction(a)
+    b = QAction("Fenstergrößen zurücksetzen", f)
+    b.setToolTip("Gemerkte Größe und Lage aller Fenster für den angemeldeten Benutzer vergessen")
+
+    def zuruecksetzen():
+        m = getattr(f, "fenster_merker", None) or FensterMerker(f.db)
+        n = m.zuruecksetzen()
+        if hasattr(f, "meldung"):
+            f.meldung(f"Fenstergrößen zurückgesetzt ({n} Fenster)." if n else "Keine Fenstergrößen gemerkt.")
+    b.triggered.connect(zuruecksetzen)
+    menue.addAction(b)
+    f.fenster_vorgabe_aktion, f.fenster_zuruecksetzen_aktion = a, b
+    return a, b
 
 
 # ------------------------------------------------------------------ offene Angebote (F2a)

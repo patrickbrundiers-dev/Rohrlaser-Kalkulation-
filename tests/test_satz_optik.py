@@ -138,6 +138,8 @@ assert s.pos_ansicht.isColumnHidden(c)
 st = next(i for i, (a_, _) in enumerate(m.spalten) if a_ == "status")
 ok_zeile = next(r for r in range(m.rowCount()) if str(m.roh(r, st)).strip() == "OK")
 assert m.data(m.index(ok_zeile, st)) == "" and m.data(m.index(ok_zeile, st), Qt.ItemDataRole.DecorationRole) is not None
+assert not s.uebersicht_knopf.isChecked() and s.uebersicht_rahmen.isHidden()     # ab Werk aus (Klar F4)
+s.uebersicht_zeigen(True)
 assert s.uebersicht_knopf.isChecked() and not s.uebersicht_rahmen.isHidden()
 s.uebersicht_knopf.setChecked(False)
 assert s.uebersicht_rahmen.isHidden() and db.einstellung("ansicht_uebersicht") is False

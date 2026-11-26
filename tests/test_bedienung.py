@@ -227,6 +227,8 @@ from PySide6.QtWidgets import QSplitter  # noqa: E402
 from rohrlaser import fenster_merken  # noqa: E402
 
 merker = fenster_merken.FensterMerker(db)
+# hier geht es um gemerkte Größe und Teiler; „Fenster mit Inhalt maximiert“ prüft test_fensterverwaltung.py
+db.einstellung_setzen(fenster_merken.VORGABE, False)
 
 
 class TestDialog(QDialog):
@@ -247,7 +249,7 @@ d1.teil.setSizes([100, 500])
 app.processEvents()
 d1.close()
 app.processEvents()
-assert "TestDialog" in db.einstellung(fenster_merken.GEOMETRIE)
+assert any(k.endswith("|TestDialog") for k in db.einstellung(fenster_merken.GEOMETRIE))
 d2 = TestDialog()
 d2.show()
 app.processEvents()

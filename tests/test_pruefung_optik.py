@@ -127,6 +127,7 @@ ok("O1 niedrige Angebotsseite: Karten flacher, Kalkulation + Fracht zugeklappt n
 
 # ------------------------------------------------------------------ O2 Einblendung links neben der Übersicht
 f.reiter.setCurrentWidget(s)
+s.uebersicht_knopf.setChecked(True)          # rechte Übersicht ist ab Werk aus (Klar F4), hier eingeblendet
 ruhe()
 grenze = f.einblendung_grenze()
 assert grenze and grenze == s.uebersicht_rahmen.mapTo(f, s.uebersicht_rahmen.rect().topLeft()).x()
