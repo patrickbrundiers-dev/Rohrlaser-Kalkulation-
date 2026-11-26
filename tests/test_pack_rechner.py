@@ -70,7 +70,7 @@ e = r.rechnen()
 assert e["gesamt"] == v[0]["gesamt"], (e["gesamt"], v[0]["gesamt"])
 eur = next(x for x in v if x["std_id"] == "EUR")
 ind = next(x for x in v if x["std_id"] == "IND")
-assert eur["lht"] == [dict(lht_id="EUR", anzahl=1)] and v[0]["gesamt"] == eur["gesamt"], eur["lht"]
+assert [(x["lht_id"], x["anzahl"]) for x in eur["lht"]] == [("EUR", 1)] and v[0]["gesamt"] == eur["gesamt"], eur["lht"]
 assert any(t["lht_id"] == "LG" for t in ind["lht"]) and ind["gesamt"] > eur["gesamt"], ind["lht"]
 assert not any(x["paket"] for x in v), "Teile bis 2.150 mm passen in keinen Karton"
 assert "günstigste" in r.vergleich.text()

@@ -159,6 +159,19 @@ def packmittel():
         dict(lht_id="K-R1", bezeichnung="Rohrkarton 1200 × 150 × 150", art="Karton", laenge=1200, breite=150,
              hoehe=150, eigengewicht=0.8, nutzlast=30, max_laenge=1200, aussen_laenge=1210, aussen_breite=160,
              aussen_hoehe=160, abrechnung="Kauf", bemerkung=q),
+        # Packmittelmanagement (26.11.2026): weitere Paletten mit Normmaßen, Werte trägt jeder selbst ein
+        dict(lht_id="EUR", bezeichnung="Europalette", art="Europalette", laenge=1200, breite=800, hoehe=144,
+             eigengewicht=25, nutzlast=1500, max_laenge=1200, stellplaetze=1, abrechnung="Tausch",
+             bemerkung=q + "; Wiederbeschaffungswert eintragen (nicht getauschte Paletten)"),
+        dict(lht_id="HP", bezeichnung="Halbpalette (Düsseldorfer)", art="Halbpalette", laenge=800, breite=600,
+             hoehe=144, eigengewicht=10, nutzlast=500, max_laenge=800, stellplaetze=0.5, abrechnung="Tausch",
+             bemerkung=q),
+        dict(lht_id="EW", bezeichnung="Einwegpalette 1200 × 800", art="Einwegpalette", laenge=1200, breite=800,
+             hoehe=120, eigengewicht=15, nutzlast=1000, max_laenge=1200, stellplaetze=1, abrechnung="Kauf",
+             bemerkung=q + "; wird nicht getauscht (Kaufpreis)"),
+        dict(lht_id="IP", bezeichnung="Industriepalette 1200 × 1000", art="Industriepalette", laenge=1200,
+             breite=1000, hoehe=144, eigengewicht=30, nutzlast=1500, max_laenge=1200, stellplaetze=1.25,
+             abrechnung="Tausch", bemerkung=q),
         dict(lht_id="SB", bezeichnung="Sonderbehälter (Maße eintragen)", art="Sonderbehälter", aktiv="nein",
              abrechnung="Kauf", bemerkung="Vorlage: Maße, Gewicht und Preis eintragen, dann aktivieren")]
     return [dict(_zeile(LHT), aktiv="ja", **w) if "aktiv" not in w else dict(_zeile(LHT), **w) for w in werte]
