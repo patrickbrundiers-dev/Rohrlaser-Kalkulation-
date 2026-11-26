@@ -25,7 +25,8 @@ NEUERUNGEN = [
                 "Stelle. Ruhigere Arbeitsfläche, weiße Eingabefelder mit feinem, rundem Rahmen, schlichtere "
                 "Tabellenköpfe, modernere Menüs, Hinweise und Bildlaufleisten. Funktionen und Berechnungen sind "
                 "unverändert; die weiteren Schritte (Kopfleiste mit Befehlssuche, Angebot mit Kopfband, "
-                "Materialfenster, Einstellungen) folgen."],
+                "Materialfenster, Einstellungen) folgen.",
+     "Neues Designsystem „Klar“, Schritt 1: ruhigere Flächen, moderne Eingabefelder"],
     ["0.9.523", "<b>Serverversion (Stufe 1)</b>: Neben der lokalen Datenbank je PC gibt es die Betriebsart "
                 "<i>Zentraler Server</i>: alle Arbeitsplätze arbeiten mit einer PostgreSQL-Datenbank auf einem Rechner im "
                 "Firmennetz (verschlüsselt, eigenes Kürzel und Passwort je Mitarbeiter, Nummern zentral ohne Doppelte, "
