@@ -440,6 +440,27 @@ def lizenz_pruefen(orte_, db):
         return None
 
 
+def _sitzung_schritte(db, sicherung, sperre, daten):
+    """Schritte bei Windows-Abmeldung/Neustart (sitzungsende): wie das normale Ende von main(), mit Zeitgrenzen.
+    db und sicherung sind Funktionen (beim Einrichten gibt es beides noch nicht)."""
+    from . import datenspeicher, laufwaechter
+
+    def sicherung_warten(rest):
+        s = sicherung()
+        if s is not None and not s.warten(min(rest, 10.0)):
+            raise TimeoutError("Tagessicherung nicht fertig (wird beim nächsten Start als unvollständig erkannt)")
+
+    def db_schliessen(_rest):
+        d = db()
+        if d is not None:
+            d.schliessen()
+
+    return [("Tagessicherung", sicherung_warten), ("Datenbank schließen", db_schliessen),
+            ("PostgreSQL stoppen", lambda _r: datenspeicher.alle_stoppen()),
+            ("Datensperre freigeben", lambda _r: sperre.freigeben()),
+            ("Laufmarker", lambda _r: laufwaechter.beenden(daten))]
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog=NAME)
     ap.add_argument("--daten", help="Datenordner (Vorgabe: siehe orte.py)")
@@ -493,6 +514,16 @@ def main(argv=None):
     except OSError as e:
         QMessageBox.critical(None, NAME, f"Im Datenordner {o.daten} darf das Programm nicht schreiben:\n\n{fehler_text(e)}")
         return 1
+    from . import laufwaechter, sitzungsende
+    unterbrochen = laufwaechter.beginnen(o.daten)      # letzter Lauf unerwartet beendet (Windows-Neustart, Absturz)?
+    reste = []
+    if unterbrochen is not None:
+        reste = laufwaechter.reste_aufraeumen(o.daten, unterbrochen.get("seit"))
+        protokoll.info(f"Letzter Lauf endete unerwartet (seit {unterbrochen.get('seit')}, Version "
+                       f"{unterbrochen.get('version')}); {len(reste)} unvollständige Datei(en) verschoben")
+    db = sicherung = ausstehend = None
+    sitzung = sitzungsende.einrichten(app, _sitzung_schritte(lambda: db, lambda: sicherung, sperre, o.daten),
+                                      melden=protokoll.info)
     try:
         if not o.datei.exists():
             erster_start(o)
@@ -545,13 +576,18 @@ def main(argv=None):
         if a.nach_update:
             f.meldung(NACH_UPDATE_TEXT[a.nach_update].format(stand=update.stand_text(f.updater.lokal)),
                       fehler=a.nach_update != "ok")
+        if unterbrochen is not None:
+            f.meldung(laufwaechter.text_unterbrochen(unterbrochen, reste))
         code = app.exec()
         ausstehend = f.updater.ausstehend
-        if sicherung is not None:
-            sicherung.warten()          # tägliche Sicherung zu Ende schreiben, nie halb liegen lassen
-        db.schliessen()
+        if not sitzung.erledigt:
+            if sicherung is not None:
+                sicherung.warten()          # tägliche Sicherung zu Ende schreiben, nie halb liegen lassen
+            db.schliessen()
     finally:
-        sperre.freigeben()
+        if not sitzung.erledigt:
+            sperre.freigeben()
+            laufwaechter.beenden(o.daten)
     if ausstehend:          # Online-Update: erst jetzt (alles zu, Sperre frei) austauschen, dann neu starten
         from .update_fenster import nach_beenden
         nach_beenden(programmordner(), ausstehend)

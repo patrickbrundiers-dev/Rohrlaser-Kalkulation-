@@ -85,6 +85,7 @@ REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
 RENDERER = ("Automatisch", "Software", "OpenGL")
 _renderer = RENDERER[0]
 _gl_fehler = None       # OpenGL ist in diesem Programmlauf schon einmal gescheitert: Grund
+GL_WAECHTER = "opengl"  # riskante Stelle im laufwaechter (nativer Absturz im Grafiktreiber)
 GROB_DREIECKE = 10000   # beim Drehen/Zoomen höchstens so viele Dreiecke zeichnen (grobe Stufe, Modell.grob)
 GROB_ZEIT, GROB_MIN = 0.06, 3000   # V3: grobe Stufe so groß, dass ein Bild etwa 60 ms braucht, mindestens 3000
 DREHPUNKT_FEIN = 80000  # Drehpunkt bis zu so vielen Dreiecken im vollen Modell suchen, darüber in der groben Stufe
@@ -523,6 +524,11 @@ def renderer_waehlen():
         return "Software", f"OpenGL gescheitert: {_gl_fehler}"
     if _renderer == "Automatisch" and _remote_desktop():
         return "Software", "Remote-Desktop"
+    from . import laufwaechter          # Windows-Update-Sicherheit 26.11.2026: Grafiktreiber hat das Programm beendet
+    sperre = laufwaechter.blockiert(GL_WAECHTER)
+    if sperre is not None:
+        return "Software", ("OpenGL hat das Programm beim letzten Versuch beendet (Grafiktreiber, seit "
+                            f"{str(sperre.get('seit', '')).replace('T', ' ')}); neuer Versuch mit der nächsten Version")
     try:
         from .ansicht3d_gl import gl_moeglich
     except ImportError as e:            # PySide6 ohne OpenGL-Module

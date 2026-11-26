@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.521", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
+    ["0.9.524", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
                 "steht jetzt, ob er tauscht (vollständig, teilweise, gar nicht, gegen Zuschlag, gegen Pfand, nur bei "
                 "Rücklieferung), mit Zuschlag je Stück oder Lieferung, Freimenge, Mindestmenge, Kunde und Gültigkeit. "
                 "Ohne Regel tauscht er nicht: nicht getauschte Europaletten und Gitterboxen kosten ihren neuen "
@@ -33,6 +33,17 @@ NEUERUNGEN = [
                 "der Packliste sind jetzt Vorgabe (ohne Packmittelpreise gilt die Tabelle Verpackung). Neue Paletten: "
                 "Europalette, Halbpalette, Einweg- und Industriepalette. Ältere Angebote rechnen unverändert.",
      "Palettentausch je Dienstleister, Wiederbeschaffung nicht getauschter Packmittel"],
+    ["0.9.522", "<b>Windows-Updates und Neustarts</b>: Startet Windows für Updates neu, während das Programm offen ist, "
+                "schließt es jetzt Datenbank, PostgreSQL und Datensperre selbst sauber. Endete der letzte Lauf "
+                "trotzdem unerwartet (Stromausfall, Absturz), meldet das Programm das beim nächsten Start und legt "
+                "halb geschriebene Dateien nach <i>Sicherung\\Unvollstaendig</i> (nichts wird gelöscht); eine "
+                "halbe Sicherung verhindert die Tagessicherung nicht mehr. PostgreSQL startet auch mit einer "
+                "liegengebliebenen Sperrdatei, mit zurückgesetzten Ordnerrechten und mit einer nicht mehr lesbaren "
+                "Zugangsdatei (Datenordner von einem anderen PC, Windows neu aufgesetzt). Hat ein Grafiktreiber das "
+                "Programm beim 3D beendet, zeichnet 3D bis zur nächsten Version mit Software. Ein nach dem Neustart "
+                "noch getrenntes Netzlaufwerk (z. B. Z:) wird für den gemeinsamen Ordner über den Netzwerkpfad "
+                "erreicht. Das Paket bringt die Laufzeit für PostgreSQL selbst mit.",
+     "Windows-Updates und Neustarts: sauberes Beenden, Selbstheilung beim Start"],
     ["0.9.519", "<b>Einfacher bedienen</b>: Der Rechtsklick auf Positionen ist aufgeräumt (oben die täglichen Aktionen, "
                 "Seltenes in den Untermenüs <i>Prüfen und anzeigen</i>, <i>Teil ändern</i>, <i>Kennzeichnen</i>, "
                 "<i>Satz und Baugruppe</i>, <i>Reihenfolge</i>; Löschen abgesetzt unten, ab drei Positionen bzw. bei "

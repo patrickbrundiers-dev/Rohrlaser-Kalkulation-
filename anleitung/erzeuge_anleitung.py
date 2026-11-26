@@ -17400,6 +17400,30 @@ def kapitel_fragen(i):
          "Version wiederhergestellt; Daten sind nicht betroffen. <i>Hilfe → Nach Updates suchen …</i> noch einmal "
          "aufrufen. Meldet es, dass das nicht vollständig ging, das Setup bzw. ZIP neu installieren, die Daten "
          "bleiben erhalten ([[updates]])."],
+        ["Beim Start: <b>Das Programm wurde zuletzt nicht normal beendet</b>",
+         "Seit 0.9.522: Der letzte Lauf endete ohne normales Beenden (Stromausfall, Absturz, Task-Manager). "
+         "Gespeicherte Eingaben sind erhalten, die Datenbank (PostgreSQL) stellt sich beim Start selbst wieder her. "
+         "Halb geschriebene Dateien dieses Laufs (z. B. eine angefangene Tagessicherung) liegen danach in "
+         "<i>Daten\\Sicherung\\Unvollstaendig</i>; gelöscht wird nichts, die Tagessicherung wird neu geschrieben. "
+         "Nichts zu tun. Startet Windows für <b>Updates</b> neu, während das Programm offen ist, schließt das "
+         "Programm Datenbank, PostgreSQL und Datensperre seit 0.9.522 selbst; dann erscheint die Meldung nicht."],
+        ["PostgreSQL startet nach einem <b>Windows-Neustart</b> oder <b>Stromausfall</b> nicht",
+         "Seit 0.9.522 behebt das Programm die bekannten Ursachen selbst und versucht es einmal neu: eine "
+         "liegengebliebene oder leere Sperrdatei <i>postmaster.pid</i> (kommt als <i>postmaster.pid.alt</i> beiseite), "
+         "von einem Update zurückgesetzte Rechte am Datenordner und eine nicht mehr lesbare Zugangsdatei "
+         "<i>pg_zugang.json</i> (Datenordner von einem anderen PC kopiert, Windows neu aufgesetzt: neue Passwörter, "
+         "die Daten bleiben). Was es getan hat, steht im Protokoll. Hilft das nicht: Support-Paket senden."],
+        ["3D zeigt <b>Software</b> statt OpenGL: <i>OpenGL hat das Programm beim letzten Versuch beendet</i>",
+         "Nach einem Grafiktreiber-Update hat der Treiber das Programm beim Zeichnen einer 3D-Ansicht ohne Meldung "
+         "beendet. Damit das nicht bei jedem Start wieder passiert, zeichnet 3D an diesem PC bis zur nächsten "
+         "Programmversion mit Software (gleiches Bild, bei großen Baugruppen langsamer). Mit der nächsten Version "
+         "versucht das Programm OpenGL einmal neu."],
+        ["Gemeinsamer Ordner auf einem <b>Netzlaufwerk</b> (z. B. Z:) nach dem Neustart <b>nicht erreichbar</b>",
+         "Windows verbindet Netzlaufwerke nach dem Neustart oft erst beim ersten Klick im Explorer. Seit 0.9.522 "
+         "merkt sich das Programm den Netzwerkpfad hinter dem Laufwerk (z. B. \\\\server\\freigabe) und "
+         "erreicht den gemeinsamen Ordner darüber, solange der Buchstabe noch getrennt ist; die Einstellung bleibt, "
+         "wie sie ist. Ist das Netz selbst noch nicht da, arbeitet das Programm wie bisher ohne den Ordner weiter "
+         "und gleicht ab, sobald er wieder erreichbar ist."],
         ["<b>Keine Verbindung zum Update</b>",
          "Kein Internet, oder eine Firewall sperrt github.com. Bei einer Version vor 0.5.5 liegt es an der alten "
          "Update-Adresse ([[updates]]). Später noch einmal versuchen; sonst das Setup "
