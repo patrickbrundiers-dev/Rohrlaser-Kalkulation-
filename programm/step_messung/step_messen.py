@@ -293,6 +293,10 @@ def begleitdateien(datei):
     geänderte LST neben unveränderter TUBX lieferte sonst das alte Ergebnis)."""
     p = Path(str(datei))
     e = p.suffix.lower()
+    if e not in (".tubx", ".artube") and p.is_file():
+        # Format am Inhalt: TUBX/ARTUBE unter fremder Endung liest step_geometrie.leser_art ebenso mit Begleitdatei
+        from rohrlaser import dateiformat
+        e = {dateiformat.TUBX: ".tubx", dateiformat.ARTUBE: ".artube"}.get(dateiformat.erkennen(p).art, e)
     if e == ".tubx":
         import step_lst
         q = step_lst.lst_daneben(p)

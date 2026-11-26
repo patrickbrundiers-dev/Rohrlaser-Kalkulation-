@@ -147,9 +147,10 @@ def _f2():
     (d / "solid.step").write_bytes((D / "i.sldprt").read_bytes())
     (d / "auftrag.lst").write_text(lst_text(auftrag=True, programm=False))
     (d / "notiz.txt").write_text("nur Text")
+    (d / "rohr.zip").write_bytes((D / "c.tubx").read_bytes())     # TUBX mit Endung .zip: messen, nicht entpacken
     v = cad_import.vorbereiten([d], basis=TMP / "entpackt")
     namen = sorted(p.name for p in v.dateien)
-    assert namen == ["teil.step", "teil.txt"], namen
+    assert namen == ["rohr.zip", "teil.step", "teil.txt"], namen
     texte = {Path(b["datei"]).name: (b["stufe"], b["text"]) for b in v.befunde}
     assert texte["teil.txt"][0] == cad_import.HINWEIS and "STEP" in texte["teil.txt"][1], texte
     assert texte["archiv.step"][0] == cad_import.HINWEIS and "ZIP" in texte["archiv.step"][1], texte
@@ -389,6 +390,8 @@ def _c1():
     (d / "teil.lst").write_text(lst_text() + "C\n")
     b = sm.cache_schluessel(d / "teil.tubx", "0.9", {})
     assert a != b and sm.begleitdateien(d / "teil.tubx") == [d / "teil.lst"], (a, b)
+    (d / "teil.step").write_bytes((d / "teil.tubx").read_bytes())      # TUBX unter .step: LST gehört ebenso dazu
+    assert sm.begleitdateien(d / "teil.step") == [d / "teil.lst"], sm.begleitdateien(d / "teil.step")
     import hashlib
     import json
     import step_ergebnis

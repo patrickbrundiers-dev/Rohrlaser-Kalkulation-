@@ -1008,14 +1008,19 @@ def _bpf_daneben(pfad, programm=""):
     if programm:
         name = re.split(r"[\\/]", programm)[-1]
         kand.append(p.parent / name)
-    return next((k for k in kand if k.is_file()), None)
+    return next((k for k in kand if k.is_file() and k != p), None)    # ARTUBE unter .bpf: nicht sich selbst
 
 
 def lies_blm_info(pfad):
     """BPF oder ARTUBE lesen: (Körper, Info) wie step_geometrie.lies_step_info."""
     pfad = Path(str(pfad))
     koerper, meld = [], []
-    if pfad.suffix.lower() == ".bpf":
+    try:        # Format am Inhalt (Importengine 2.0): BPF unter .artube/.step und umgekehrt
+        from rohrlaser import dateiformat
+        art = dateiformat.erkennen(pfad).art
+    except Exception:  # noqa: BLE001 – dann wie bisher nach der Endung
+        art = ""
+    if art == "BPF" or (art != "ARTUBE" and pfad.suffix.lower() == ".bpf"):
         teil = bpf_teil(pfad.read_bytes(), pfad.stem)
         form, m = bpf_koerper(teil)
         koerper.append(("Volumenkörper", form))

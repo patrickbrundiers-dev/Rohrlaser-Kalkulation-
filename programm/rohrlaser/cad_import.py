@@ -204,7 +204,9 @@ def vorbereiten(pfade, basis=None):
 
     def nimm(p, anzeige, aus_zip=None):
         e = p.suffix.lower()
-        fmt = dateiformat.erkennen(p) if e not in ZIP_ENDUNGEN and e not in NATIV else None
+        fmt = dateiformat.erkennen(p) if e not in NATIV else None
+        if e in ZIP_ENDUNGEN and fmt is not None and fmt.art != dateiformat.TUBX:
+            fmt = None       # gewöhnliches ZIP: entpacken wie bisher; eine TUBX mit Endung .zip wird gemessen
         if fmt is not None and fmt.art == dateiformat.ZIP and not fmt.fehler:
             e = ".zip"       # ZIP unter anderer Endung (Importengine 2.0: Inhalt statt Endung)
             erg.befunde.append(dict(datei=anzeige, stufe=HINWEIS, text=f"{fmt.hinweis()} – als ZIP entpackt"))
