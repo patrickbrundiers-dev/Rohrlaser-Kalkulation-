@@ -393,10 +393,12 @@ fs.ordner.mkdir(parents=True, exist_ok=True)
 fs.hauptadmin_pfad().write_text(json.dumps(D), encoding="utf-8")
 fs.pruefen()
 f = Hauptfenster(fdb, stumm=True, lizenz=fs)
-pruefe(not f.hauptadmin_menue.menuAction().isVisible(), "H10 Menü Hauptadmin vor der Anmeldung unsichtbar")
+from rohrlaser.kopfleiste import menue_sichtbar  # noqa: E402
+
+pruefe(not menue_sichtbar(f, f.hauptadmin_menue), "H10 Menü Hauptadmin vor der Anmeldung unsichtbar")
 fs.hauptadmin_anmelden(PW)
 f.lizenz_anwenden()
-pruefe(f.hauptadmin_menue.menuAction().isVisible() and f.bereich.admin and f.bereich.offen
+pruefe(menue_sichtbar(f, f.hauptadmin_menue) and f.bereich.admin and f.bereich.offen
        and not fdb.nur_lesen, "H10 angemeldet: Menü Hauptadmin, Admin-Rechte, Einstellungen offen")
 from rohrlaser import admin_schutz, hauptadmin_menue  # noqa: E402
 pruefe(admin_schutz.ist_haupt(fdb, f.bereich.sitzung), "H10 Hauptadmin darf Admin-Schutz und Rechte ändern")

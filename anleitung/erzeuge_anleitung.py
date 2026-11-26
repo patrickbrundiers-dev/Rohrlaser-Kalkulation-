@@ -632,12 +632,25 @@ def kapitel_ueberblick(i):
     i.text("Links die <b>Seitenleiste</b> nach Arbeitsbereichen: <i>Arbeiten</i> (Start, Angebote, Kunden), "
            "<i>Auftrag</i> (Versand, Fertigung, Lager), <i>Pflege</i> (Material [[material_seite]], Frachtkosten [[frachtkosten]], "
            "Zukaufartikel [[zukauf]]) und ganz unten <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen oben in der "
-           "Menüzeile neben <i>Datei … Hilfe</i>: ganz links die <i>Angebotsliste</i> (blau hinterlegt, damit "
+           "Menüzeile neben dem Knopf <i>☰ Menü</i>: ganz links die <i>Angebotsliste</i> (blau hinterlegt, damit "
            "sie sich von den Angeboten abhebt), daneben je Angebot ein Reiter, der sich mit dem × schließt; rechts daneben die Suche (Strg+K). Die Angebote erscheinen, solange "
            "<i>Angebote</i> gewählt ist; ein Klick auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. "
            "Was gespeichert oder gerechnet wurde, meldet eine "
            "Einblendung unten (Fehler in Rot); alle Meldungen stehen unter <i>Meldungen (n)</i> rechts in der "
            "Statusleiste. Wo die Anleitung „die Statuszeile meldet“ schreibt, ist diese Einblendung gemeint.", kurz=True)
+    i.text("<b>Knopf ☰ Menü</b> (seit 0.9.536): Oben links steht statt fünf Menüs nebeneinander ein Knopf <i>Menü</i>. "
+           "Darin stehen alle Menüs; das lange Menü Datei ist nach Themen geteilt: <i>Datei</i> (neues Angebot, "
+           "STEP-Viewer, Schnellpreis, Ablage, Beenden), <i>Bearbeiten</i>, <i>Kunden</i>, <i>Daten und Abgleich</i> "
+           "(Benutzer, gemeinsamer Ordner, Sicherung, Datenbank, Archiv, Export und Import), <i>Auswertung und "
+           "Prüfung</i> (Auswertung, Simulator, Prüfangebote, Kostentreiber, Reklamationen …), <i>KI</i>, "
+           "<i>Ansicht</i> und <i>Hilfe</i>. Alle Tastenkürzel gelten weiter, Alt+D, Alt+B, Alt+K, Alt+A und Alt+H "
+           "öffnen die Menüs wie bisher. Schneller geht es mit der Suche rechts oben (Strg+K): sie findet jeden "
+           "Menüpunkt. Wer die alte Leiste lieber hat: <i>Ansicht → Klassische Menüleiste</i> (gilt nur an diesem "
+           "Arbeitsplatz). <i>Meine Werkzeugleiste</i> ist ab 0.9.536 zuerst ausgeschaltet; wer sie angepasst hat, "
+           "behält sie, einschalten unter <i>Ansicht → Meine Werkzeugleiste</i>. In der Seitenleiste zeigen kleine "
+           "<b>Zähler</b> neben <i>Anfragen</i> (neue Anfragen), <i>Angebote</i> (Wiedervorlage fällig) und "
+           "<i>Materialanfragen</i> (Lieferantenangebot erhalten), was zu tun ist; hell hervorgehoben, wenn etwas "
+           "überfällig ist.", kurz=True)
     i.genauer()
     i.text("Die Seitenleiste zeigt ab 1600 Pixel Fensterbreite Symbol und Text, in kleineren Fenstern nur die "
            "Symbole (der Mauszeiger nennt den Bereich). <b>« Leiste schmal</b> bzw. <b>»</b> unten in der Leiste oder "
@@ -1005,7 +1018,10 @@ def kapitel_start(i):
             "falls eingestellt, in den zweiten Sicherungsordner."),
         (2, "<b>Sicherung wiederherstellen …</b>: einen früheren Stand zurückholen ([[datensicherung]])."),
         (3, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
-    i.text("Ganz oben stehen fünf <b>Kennzahl-Kacheln</b> (seit 0.9.309, für alle Benutzer): <b>Entwürfe</b>, "
+    i.text("Oben begrüßt die Startseite den angemeldeten Benutzer mit Datum und Version (seit 0.9.536). Sind die "
+           "Stammdaten noch Beispielwerte, steht darunter ein gelbes <b>Hinweisband</b> mit <i>Einstellungen "
+           "öffnen</i>; <i>Später</i> blendet es bis zum nächsten Start aus.", kurz=True)
+    i.text("Darunter stehen fünf <b>Kennzahl-Kacheln</b> (seit 0.9.309, für alle Benutzer): <b>Entwürfe</b>, "
            "<b>Verschickt, offen</b> (je Anzahl und Verkaufspreis netto der eigenen Angebote), <b>Aufträge (90 "
            "Tage)</b>, <b>Trefferquote (90 Tage)</b> (beauftragt ÷ entschieden) und <b>Wiedervorlage fällig</b>. "
            "Ein Klick auf Entwürfe, Verschickt oder Aufträge öffnet die Angebotsliste mit diesem Filter, ein Klick "
@@ -1049,7 +1065,8 @@ def kapitel_start(i):
            "ihrem Tastenkürzel. Tippen filtert (alle Wörter müssen vorkommen, z. B. „40x3 re“), <b>↑/↓</b> wählt, "
            "<b>Enter</b> öffnet das Angebot, zeigt Kunde oder Profil, springt zur Einstellung (Einstellungen mit "
            "gefilterter Suche) oder führt den Befehl aus; <b>Esc</b> schließt.", kurz=True)
-    i.text("Seit 0.9.269 steht dafür oben rechts in der Menüleiste das Feld <b>Suchen … (Strg+K)</b>. Mit "
+    i.text("Seit 0.9.269 steht dafür oben rechts in der Menüleiste ein Suchfeld, seit 0.9.536 breiter: "
+           "<b>⌕ Befehl, Angebot oder Kunde suchen Strg+K</b>. Mit "
            "durchsucht werden auch die <b>Knöpfe der offenen Seite</b>, im Angebot z. B. <i>Optimieren</i>, "
            "<i>Zusatzarbeiten …</i>, <i>Material …</i> oder <i>Angebot (PDF)</i>.")
     i.abschnitt("Meine Werkzeugleiste", marke="meine_werkzeugleiste")

@@ -124,7 +124,20 @@ class MaterialanfragenSeite(QWidget):
         for st, b in self.zaehler.items():
             n = len(self.eintraege) if st == ALLE else sum(1 for e in self.eintraege if e.get("status") == st)
             b.setText(f"{st}  {n}")
+        self.zahl_melden(self.eintraege)
         self._fuellen()
+
+    def zahl_melden(self, eintraege=None):
+        """Zähler „Angebot erhalten“ (zu bearbeiten) in der Seitenleiste; beim Programmstart ohne die Seite zu
+        füllen (die Seite lädt erst beim Öffnen)."""
+        from .navigation import zahl_melden
+        try:
+            eintraege = mv.alle(self.db) if eintraege is None else eintraege
+        except Exception:           # noqa: BLE001  nur Anzeige
+            return None
+        n = sum(1 for e in eintraege if e.get("status") == mv.ERHALTEN)
+        return zahl_melden(self.f, "Materialanfragen", n,
+                           tipp=f"{n} Lieferantenangebote erhalten, noch nicht abgeschlossen")
 
     def status_waehlen(self, st):
         self.status = st

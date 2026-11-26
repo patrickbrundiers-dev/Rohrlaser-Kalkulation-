@@ -644,6 +644,11 @@ class AngeboteSeite(QWidget):
         faellig = {id(w.z): w for w in cockpit.wiedervorlagen(alle, tage,
                                                              nachfassen=self.db.einstellung("nachfassen_tage"))
                    } if wv_an else {}
+        if not such:                # Zähler „Wiedervorlage fällig“ in der Seitenleiste (UI Next Level Phase 2)
+            from .navigation import zahl_melden
+            spaet = sum(1 for w in faellig.values() if w[2] < 0)
+            zahl_melden(self.f, "Angebote", len(faellig), hervor=bool(spaet),
+                        tipp=f"{len(faellig)} Angebote zur Wiedervorlage fällig" + (f", {spaet} überfällig" if spaet else ""))
         i = self.vorgang_filter.findText("Wiedervorlage fällig")    # Filter nur mit eingeschalteter Wiedervorlage
         self.vorgang_filter.view().setRowHidden(i, not wv_an)
         if not wv_an and i == self.vorgang_filter.currentIndex():

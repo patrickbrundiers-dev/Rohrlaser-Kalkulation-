@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.535", "<b>Serverversion (Stufe 2): Zusammenarbeiten am Server</b>: Wer ein Angebot öffnet, reserviert es; "
+    ["0.9.539", "<b>Serverversion (Stufe 2): Zusammenarbeiten am Server</b>: Wer ein Angebot öffnet, reserviert es; "
                 "Kollegen sehen in der Angebotsliste „● XY bearbeitet“ und öffnen es nur zum Ansehen. Änderungen "
                 "erscheinen bei allen innerhalb von etwa einer Sekunde. Bricht ein PC ab (Absturz, Netz weg), wird "
                 "die Reservierung nach 90 s frei; mit <i>Übernehmen …</i> geht es sofort (wird protokolliert). "
@@ -29,6 +29,14 @@ NEUERUNGEN = [
                 "aus der Benutzerverwaltung gelten direkt als Zugänge am Server (Passwort statt PIN), der "
                 "Änderungsverlauf nennt das Kürzel. Die lokale Betriebsart bleibt unverändert.",
      "Serverversion Stufe 2: Mehrbenutzer mit Reservierung und Live-Anzeige"],
+    ["0.9.536", "<b>Neues Designsystem, Schritt 2</b> (Hauptfenster): Oben links steht statt fünf Menüs ein Knopf "
+                "<i>☰ Menü</i> mit allen Menüs, das lange Menü Datei nach Themen geteilt (Datei, Daten und Abgleich, "
+                "Auswertung und Prüfung, KI). Tastenkürzel und Alt+Buchstabe gelten weiter; die alte Leiste gibt es "
+                "unter <i>Ansicht → Klassische Menüleiste</i>. Rechts oben eine breitere Suche (Strg+K). Die "
+                "Seitenleiste zeigt Zähler für neue Anfragen, fällige Wiedervorlagen und erhaltene Lieferantenangebote. "
+                "Die Startseite begrüßt mit Datum; Beispiel-Stammdaten meldet ein Hinweisband. <i>Meine "
+                "Werkzeugleiste</i> ist ab Werk aus (wer sie angepasst hat, behält sie).",
+     "Neues Designsystem, Schritt 2: Knopf Menü, Suche, Zähler, Startseite"],
     ["0.9.534", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
                 "steht jetzt, ob er tauscht (vollständig, teilweise, gar nicht, gegen Zuschlag, gegen Pfand, nur bei "
                 "Rücklieferung), mit Zuschlag je Stück oder Lieferung, Freimenge, Mindestmenge, Kunde und Gültigkeit. "
