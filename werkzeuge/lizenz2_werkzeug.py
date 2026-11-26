@@ -179,14 +179,30 @@ def deaktivieren(ordner, aktivierung_id, heute=None, pw=None):
 
 
 def lizenz_sperren(ordner, nr, heute=None, pw=None):
-    """Ganze Lizenz (alle Plätze) sperren: Register + Sperrliste mit der Lizenznummer."""
+    """Ganze Lizenz (alle Plätze) sperren: Register + Sperrliste mit der Lizenznummer UND allen Vor- und Nachfolgern
+    (ersetzt/ersetzt_durch), denn Rechner, die eine Verlängerung noch nicht geholt haben, laufen mit der alten Nummer."""
     heute = heute or datetime.date.today()
     d = register_lesen(ordner)
     if nr not in d["zertifikate"]:
         raise SystemExit(f"Lizenz {nr} ist nicht im Register.")
-    d["zertifikate"][nr]["gesperrt"] = heute.isoformat()
+    nrs = kette(d, nr)
+    for n in nrs:
+        d["zertifikate"][n]["gesperrt"] = heute.isoformat()
     register_schreiben(ordner, d)
-    return W.sperren(ordner, [nr], pw)
+    return W.sperren(ordner, nrs, pw)
+
+
+def kette(d, nr):
+    """Alle Lizenznummern derselben Lizenz (Vorgänger und Nachfolger über ersetzt/ersetzt_durch), sortiert."""
+    z = d["zertifikate"]
+    gefunden, offen = set(), [nr]
+    while offen:
+        n = offen.pop()
+        if n in gefunden or n not in z:
+            continue
+        gefunden.add(n)
+        offen += [x for x in (z[n].get("ersetzt"), z[n].get("ersetzt_durch")) if x]
+    return sorted(gefunden)
 
 
 def aendern(ordner, nr, heute=None, pw=None, ziel=None, **neu):
@@ -265,13 +281,8 @@ def status(eintrag, heute=None):
 def aktivierungen_von(ordner, nr):
     """Alle Aktivierungen einer Lizenz (auch über ersetzte Vorgänger), neueste zuerst."""
     d = register_lesen(ordner)
-    kette = {nr}
-    while True:
-        mehr = {e.get("ersetzt") for k, e in d["zertifikate"].items() if k in kette and e.get("ersetzt")} - kette
-        if not mehr:
-            break
-        kette |= mehr
-    return sorted((a for a in d["aktivierungen"] if a["lizenz_nr"] in kette), key=lambda a: a["aktivierung_id"],
+    nrs = set(kette(d, nr))
+    return sorted((a for a in d["aktivierungen"] if a["lizenz_nr"] in nrs), key=lambda a: a["aktivierung_id"],
                   reverse=True)
 
 

@@ -141,6 +141,10 @@ gesperrt = dlg.sperren(bestaetigt=True)
 pruefe(weg == aid1 and gesperrt == nr3 and zeile(dlg, nr3)["status"] == "gesperrt" and zeile(dlg, nr3)["belegt"] == 0,
        f"F16 Platz deaktivieren ({weg}) und Lizenz sperren im Dashboard")
 pruefe("gesperrt" in wirft(L2.aendern, WZ, nr3, pw=PW, plaetze=5), "F17 gesperrte Lizenz lässt sich nicht ändern")
+sperr = json.loads((WZ / "Sperrliste.json").read_text("utf-8"))
+reg = L2.register_lesen(WZ)["zertifikate"]
+pruefe({nr1, nr2, nr3} <= set(sperr["gesperrt"]) and all(reg[n]["gesperrt"] for n in (nr1, nr2, nr3)),
+       "F17b Sperren trifft auch die Vorgänger (Rechner, die die Verlängerung noch nicht geholt haben)")
 
 # ------------------------------------------------------------------ Hauptfenster-Knopf
 import lizenz_werkzeug_fenster as WF  # noqa: E402
