@@ -496,8 +496,16 @@ def main(argv=None):
     try:
         if not o.datei.exists():
             erster_start(o)
+        from . import datenspeicher, server_betrieb
         while True:
+            server = datenspeicher.art(o.datei) == datenspeicher.SERVER     # Serverversion: zentrale Datenbank
             try:
+                if server and not server_betrieb.angemeldet():
+                    from . import server_dialog
+                    server_betrieb.heben_fragen = server_dialog.heben_fragen
+                    if not server_dialog.anmelden_beim_start(o.datei):
+                        protokoll.info("Anmeldung am Server abgebrochen – Programm beendet")
+                        return 0
                 with umstellung_anzeigen(o.datei):
                     db = Datenbank(o.datei)
                 from . import dokumente_sicherung     # Schritt 4: Angebotsdokumente mit der Sicherung
@@ -508,8 +516,22 @@ def main(argv=None):
                     orte.merken(o)      # damit eine neue Kopie des Programms diese Daten findet
                 break
             except Exception as e:
+                if server:          # Server nicht erreichbar, Anmeldung abgelehnt, Version passt nicht
+                    from . import server_dialog
+                    protokoll.info(f"Server nicht bereit: {e}")
+                    server_betrieb.abmelden()
+                    wahl = server_dialog.fehler_beim_start(o.datei, e)
+                    if wahl == "lokal":
+                        server_betrieb.zurueck_lokal(o.datei)
+                    elif wahl != "nochmal":
+                        return 1
+                    continue
                 if not oeffnen_fehlgeschlagen(o, e):
                     return 1
+        if db.server is not None:
+            protokoll.info(db.server.text())
+            if db.server.meldung:       # nur lesen (andere Programmversion, Leserecht) oder gerade umgestellt
+                QMessageBox.information(None, NAME, db.server.meldung)
         from . import stil
         stil.anwenden(app, db.einstellung("ansicht_thema"), db.einstellung("ansicht_schrift"),
                       db.einstellung("ansicht_dichte"))

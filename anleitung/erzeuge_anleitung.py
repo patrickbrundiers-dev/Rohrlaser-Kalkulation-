@@ -17025,6 +17025,44 @@ def kapitel_admin_datenbank(i):
             "Eine Eingabe, die gerade nicht gespeichert werden kann, geht nicht verloren: Sie bleibt sichtbar, wird "
             "gemerkt und gespeichert, sobald die Datenbank wieder erreichbar ist (in der Reihenfolge der Eingabe). "
             "Hat jemand dasselbe Feld inzwischen geändert, kommt die Rückfrage <i>Inzwischen geändert</i>.")
+    i.abschnitt("Zentraler Server (Serverversion)", marke="admin_server")
+    i.text("Statt jeder PC mit eigener Datenbank und Abgleich über den gemeinsamen Ordner können alle Arbeitsplätze "
+           "mit <b>einer zentralen Datenbank</b> auf einem Server-Rechner im Firmennetz arbeiten (ausgelegt für 10 "
+           "bis 25 gleichzeitige Mitarbeiter). Das Programm ist dasselbe; nur die Betriebsart ändert sich. Die "
+           "lokale Betriebsart bleibt unverändert und lässt sich jederzeit wieder wählen.")
+    i.liste("<b>Server einrichten</b> (einmal, auf dem Server-Rechner, in der Eingabeaufforderung): "
+            "<i>Rohrlaser-Angebotskalkulation.exe --server einrichten --ordner D:\\RohrlaserServer --admin PB "
+            "--name \"Firma\" --adresse SERVERNAME 192.168.1.10</i>. Das Passwort des ersten Administrators wird "
+            "abgefragt. Es entstehen der Datenordner, ein eigenes Zertifikat und die Zugangsdatei "
+            "<i>Arbeitsplatz-Zugang.rlserver</i> (ohne Passwort). Der Fingerabdruck des Zertifikats wird angezeigt.",
+            "<b>Mitarbeiter anlegen</b>: <i>… --server benutzer --ordner D:\\RohrlaserServer --kuerzel AB --recht "
+            "bearbeiten --name \"Anna Becker\"</i> (Recht <i>bearbeiten</i>, <i>lesen</i> für die Werkstatt oder "
+            "<i>verwalter</i>). <i>--sperren</i> sperrt einen Zugang, <i>status</i> zeigt Version, Verbindungen und "
+            "Benutzer. Firewall: Port 5432 im Firmennetz freigeben.",
+            "<b>Arbeitsplatz verbinden</b>: <i>Datei → Datenbank … → Mit dem Server verbinden …</i>, Zugangsdatei "
+            "wählen, Fingerabdruck mit der Anzeige am Server vergleichen, mit Kürzel und Passwort anmelden, "
+            "Programm neu starten. Die bisherigen Daten des PCs bleiben unverändert; <i>Zurück zur lokalen "
+            "Datenbank …</i> stellt sie wieder her.",
+            "<b>Anmelden</b>: Beim Start fragt das Programm Kürzel und Passwort. Die Prüfung macht der Server selbst; "
+            "jeder Mitarbeiter hat einen eigenen Zugang und kann an jedem Arbeitsplatz arbeiten.",
+            nummeriert=True)
+    i.tabelle(["Thema", "Im Serverbetrieb"], [
+        ["Sicherheit", "Verbindung nur verschlüsselt (TLS) mit dem eigenen Zertifikat des Servers; ein anderer "
+         "Rechner, der sich als Server ausgibt, wird abgewiesen. Passwörter nur als Prüfwert am Server."],
+        ["Rechte", "<i>lesen</i> setzt der Server selbst durch (nicht nur das Programm). Verwalter dürfen die "
+         "Programmversion des Servers heben."],
+        ["Programmversion", "Alle Arbeitsplätze rechnen mit derselben Version. Eine abweichende Version öffnet nur "
+         "zum Ansehen (oder gar nicht, wenn sich der Aufbau der Datenbank geändert hat). Startet ein Verwalter eine "
+         "neuere Version, fragt das Programm, ob der Server umgestellt wird; danach müssen alle aktualisieren."],
+        ["Angebotsnummern", "Vergibt der Server in einer Transaktion: eindeutig, auch wenn mehrere gleichzeitig "
+         "anlegen, nie zweimal."],
+        ["Einstellungen", "Firmenwerte (Preise, Zuschläge, Regeln, Admin-Vorgaben) gelten für alle. Ordner, "
+         "Geräte und Fensteransicht gelten je Arbeitsplatz; Name, Signatur und Darstellung je Mitarbeiter."],
+        ["Abgleich, Sicherung je PC", "Entfallen: alle arbeiten in derselben Datenbank."],
+    ], [38 * mm, 132 * mm])
+    i.hinweis("Ausbaustand: Datenbank, Anmeldung, Rechte, Nummern und Einstellungen arbeiten zentral. Die zentrale "
+              "Dateiablage, Hintergrundberechnungen am Server und die automatische Serversicherung folgen in den "
+              "nächsten Ausbaustufen. Bis dahin den Serverbetrieb nur zum Erproben nutzen.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",

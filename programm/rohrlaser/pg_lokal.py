@@ -188,10 +188,8 @@ class LokalerServer:
         if r.returncode != 0:
             raise RuntimeError(f"Datenordner für PostgreSQL ließ sich nicht anlegen: {r.stderr.strip()[:500]}")
         with open(self.pg / "postgresql.conf", "a", encoding="utf-8") as f:
-            f.write("\n# Rohrlaser-Kalkulation Einzelplatz\nlisten_addresses = '127.0.0.1'\n"
-                    "unix_socket_directories = ''\nmax_connections = 30\nshared_buffers = 128MB\n"
-                    "fsync = on\nsynchronous_commit = on\nfull_page_writes = on\n"
-                    + "".join(f"{k} = {v}\n" for k, v in PROTOKOLL.items()))
+            f.write(self._konfiguration())
+        self._nach_initdb()
         self._zugang_schreiben(dict(benutzer=BENUTZER, passwort=passwort, admin_benutzer=VERWALTER,
                                     admin_passwort=verwalter, port=None))
         self.starten()
@@ -202,6 +200,21 @@ class LokalerServer:
                 con.execute(g.replace("{neu}", BENUTZER))
         with self._verbinden(VERWALTER, verwalter, DATENBANK) as con:
             con.execute(f'ALTER SCHEMA public OWNER TO "{BENUTZER}"')
+
+    def _konfiguration(self):
+        """Zeilen für postgresql.conf beim Anlegen. Einzelplatz: nur 127.0.0.1, wenige Verbindungen. Der zentrale
+        Server (server_betrieb.ZentralerServer) überschreibt das."""
+        return ("\n# Rohrlaser-Kalkulation Einzelplatz\nlisten_addresses = '127.0.0.1'\n"
+                "unix_socket_directories = ''\nmax_connections = 30\nshared_buffers = 128MB\n"
+                "fsync = on\nsynchronous_commit = on\nfull_page_writes = on\n"
+                + "".join(f"{k} = {v}\n" for k, v in PROTOKOLL.items()))
+
+    def _nach_initdb(self):
+        """Nach initdb, vor dem ersten Start (zentraler Server: Zertifikat, Zugangsregeln). Einzelplatz: nichts."""
+
+    def _port_waehlen(self):
+        """Port für den Start. Einzelplatz: jedes Mal ein freier Port (nur 127.0.0.1)."""
+        return _freier_port()
 
     def rollen_pruefen(self):
         """Ältere Datenordner (bis 0.9.407): das Programm meldete sich als rohrlaser an, den Superuser des Servers.
@@ -262,7 +275,7 @@ class LokalerServer:
         if self.laeuft():
             return
         d = self._zugang_lesen() or {}
-        d["port"] = _freier_port()
+        d["port"] = self._port_waehlen()
         self._zugang_schreiben(d)
         log = self.daten / "pg_server.log"
         # Ohne Pipes: der Server erbt sonst unter Windows die Ausgabe-Handles von pg_ctl, und das Warten auf das Ende

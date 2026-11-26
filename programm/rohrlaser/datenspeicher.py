@@ -27,8 +27,8 @@ from pathlib import Path
 from . import db_verbindung
 
 TABELLE = "datenspeicher"
-SQLITE, POSTGRES = "sqlite", "postgres"
-TITEL = {SQLITE: "SQLite-Datendatei", POSTGRES: "PostgreSQL auf diesem PC"}
+SQLITE, POSTGRES, SERVER = "sqlite", "postgres", "server"
+TITEL = {SQLITE: "SQLite-Datendatei", POSTGRES: "PostgreSQL auf diesem PC", SERVER: "Zentraler Server"}
 ARCHIV = "Migration"    # Unterordner von Sicherung: die alte SQLite-Datendatei nach dem Umstellen (nur Archiv)
 
 _server = {}            # Datenordner → LokalerServer (von diesem Programm gestartet, beim Beenden gestoppt)
@@ -101,7 +101,9 @@ def pg_test_umstellen(pfad):
 
 def art(pfad):
     m = merkdatei_lesen(pfad)
-    return POSTGRES if m and m.get("art") == POSTGRES else SQLITE
+    if m and m.get("art") in (POSTGRES, SERVER):
+        return m["art"]
+    return SQLITE
 
 
 def _merkdatei_schreiben(pfad, werte):
@@ -173,6 +175,10 @@ def bereitstellen(pfad, bin_ordner=None):
     SQLite-Datendatei automatisch um (siehe oben). UmstellFehler, wenn das nicht geht (die Daten bleiben dann, wie
     sie sind)."""
     pfad = Path(pfad)
+    m = merkdatei_lesen(pfad)
+    if m and m.get("art") == SERVER:        # Serverbetrieb (Serverversion S1): zentrale Datenbank, angemeldet
+        from . import server_betrieb
+        return server_betrieb.oeffnen(pfad, m)
     if art(pfad) == POSTGRES:
         try:
             return oeffnen(pfad)
@@ -444,6 +450,9 @@ def _pg_leeren(pfad):
 def status(db):
     """Text für Dialoge: wo die Daten liegen."""
     m = merkdatei_lesen(db.pfad) or {}
+    if getattr(db, "server", None) is not None:
+        zeilen = status_zeilen(db)
+        return f"{TITEL[SERVER]}: {db.server.text()}" + ("\n\n" + "\n".join(zeilen) if zeilen else "")
     archiv = f"; alte SQLite-Datendatei archiviert: {m['archiv']}" if m.get("archiv") else ""
     konto = ""
     with contextlib.suppress(Exception):        # Prüflauf oder Server nicht erreichbar: ohne Angabe zum Konto

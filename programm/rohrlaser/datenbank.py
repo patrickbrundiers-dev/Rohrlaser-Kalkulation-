@@ -415,6 +415,14 @@ class Datenbank:
             neu = db_verbindung.schema_version(self.con) == 0
         if db_verbindung.ist_sqlite(self.con):
             self.con.execute("PRAGMA journal_mode=DELETE")      # eine Datei ohne -wal/-shm (Kopie, Sicherung)
+        # Serverbetrieb (Serverversion S1): Anmeldung am zentralen Server; die Datenpflege läuft dort einmal je
+        # Programmversion (durch einen Administrator), nicht bei jedem Start jedes Arbeitsplatzes
+        self.server = getattr(getattr(self.con, "v", None), "server", None)
+        if self.server is not None and not self.server.pflegen:
+            self._ohne_pflege()
+            if self.server.nur_lesen:       # Leserecht oder andere Programmversion: Oberfläche im Lesemodus
+                self.nur_lesen = ("nur Lesen am Server – " + (self.server.meldung or "Benutzer mit Leserecht"))
+            return
         # PostgreSQL: öffnen zwei Programme gleichzeitig (Kalkulation und Auslastung, zwei Fenster), richtet nur eines
         # die Tabellen und Trigger ein, das andere wartet (Lasttest Phase 8: sonst „deadlock detected“)
         sperre = not db_verbindung.ist_sqlite(self.con)
@@ -467,11 +475,26 @@ class Datenbank:
             self._preise_merken()
             self._materialstamm_ergaenzen()
             self._erp_sondergueten_reparieren()
+            if self.server is not None:
+                from . import VERSION, server_betrieb
+                with self.con:
+                    server_betrieb.pflege_fertig(self.con, VERSION, SCHEMA_VERSION)
+                self.server.zustand = server_betrieb.OK
+                self.server.pflicht = VERSION
         finally:
             if sperre:
                 self.con.commit()
                 self.con.execute("SELECT pg_advisory_unlock(73100)")
                 self.con.commit()
+
+    def _ohne_pflege(self):
+        """Serverbetrieb, Server auf dem Stand dieser Programmversion: nur was diese Sitzung im Speicher braucht
+        (Zwischenspeicher, Zähler der Stammdaten, eigene Werkstoff-Gleichnamen); nichts schreiben."""
+        self._zwischen = {}
+        self._einst_merk = None
+        self._stand_schema = ""
+        from . import werkstoff_namen
+        werkstoff_namen.eigene_setzen(self.einstellung("werkstoff_gleichnamen"))
 
     _PREIS_TABELLEN = ("preise", "lieferlaengen", "werkstoffe")
 
@@ -3574,7 +3597,7 @@ class Datenbank:
     def _einst_texte(self):
         con = self.con
         if not hasattr(con, "rueckgaengig"):        # fremde Verbindung ohne Zähler verworfener Transaktionen
-            return dict(con.execute("SELECT name, wert FROM einstellungen").fetchall())
+            return self._einst_sicht(dict(con.execute("SELECT name, wert FROM einstellungen").fetchall()))
         marke = (id(con), con.total_changes, con.in_transaction, con.rueckgaengig)
         c = self.__dict__.get("_einst_merk")
         sqlite = db_verbindung.ist_sqlite(con)
@@ -3590,9 +3613,18 @@ class Datenbank:
                     self._einst_merk = (c[0], c[1], c[2], jetzt)
                     return c[1]
         stand = db_verbindung.aenderungsstand(con) if sqlite else self._stand_zaehler()
-        texte = dict(con.execute("SELECT name, wert FROM einstellungen").fetchall())
+        texte = self._einst_sicht(dict(con.execute("SELECT name, wert FROM einstellungen").fetchall()))
         self._einst_merk = (marke, texte, stand, time.monotonic())
         return texte
+
+    server = None       # Sitzung am zentralen Server (server_betrieb.Sitzung) oder None (lokale Betriebsart)
+
+    def _einst_sicht(self, texte):
+        """Serverbetrieb: Firmenwerte, darüber die eigenen Werte dieses Arbeitsplatzes und Benutzers."""
+        if self.server is None:
+            return texte
+        from . import server_betrieb
+        return server_betrieb.sicht(self.server, texte)
 
     def _stand_zaehler(self):
         if "_stand_schema" not in self.__dict__:      # noch beim Öffnen (vor _stand_einrichten)
@@ -3633,8 +3665,12 @@ class Datenbank:
     def _einstellung_schreiben(self, name, wert):
         if name == "passwort":
             wert = passwort.speicherwert(wert)       # nie im Klartext in die Datendatei
+        gespeichert = name
+        if self.server is not None:                  # Serverbetrieb: je Arbeitsplatz/Benutzer eigene Zeile
+            from . import server_betrieb
+            gespeichert = server_betrieb.gespeicherter_name(self.server, name)
         self.con.execute(db_verbindung.EINSTELLUNG_SETZEN,
-                         (name, json.dumps(wert, ensure_ascii=False)))
+                         (gespeichert, json.dumps(wert, ensure_ascii=False)))
         if name == "werkstoff_gleichnamen":
             from . import werkstoff_namen
             werkstoff_namen.eigene_setzen(wert)
@@ -3762,6 +3798,8 @@ class Datenbank:
         """Beim Start: eine Sicherung je Tag. hintergrund=True: in einem eigenen Thread mit eigener Verbindung (bei
         großen Datendateien dauert sie, Prüfung Datenbank bei vielen Angeboten 4b); Ergebnis dann SicherungLauf
         (oder None, wenn heute schon gesichert)."""
+        if self.server is not None:      # Serverbetrieb: der Server sichert zentral, kein Arbeitsplatz kopiert alles
+            return None
         ordner = Path(ordner) if ordner else self.pfad.parent / "Sicherung"
         if any(ordner.glob(f"{self.pfad.stem}_{datetime.date.today():%Y-%m-%d}_*.db")):
             return None
@@ -3774,6 +3812,8 @@ class Datenbank:
         """Sicherung nach Daten/Sicherung und, falls eingestellt, in den zweiten Sicherungsordner.
         Ergebnis: (Pfade, Fehlertext oder None) – ein nicht erreichbarer zweiter Ordner (Netzlaufwerk,
         USB-Stick fehlt) verhindert die erste Sicherung nicht."""
+        if self.server is not None and zusatz == "beenden":     # Serverbetrieb: der Server sichert zentral
+            return [], None
         pfade = [self.sicherung(zusatz=zusatz)]
         fehler = None
         ordner2 = (self.einstellung("sicherung_ordner2") or "").strip()
