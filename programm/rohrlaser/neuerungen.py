@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.523", "<b>Neues Designsystem, Schritt 1</b> (Oberfläche „Klar“): Farben, Rahmen und Abstände kommen aus einer "
+                "Stelle. Ruhigere Arbeitsfläche, weiße Eingabefelder mit feinem, rundem Rahmen, schlichtere "
+                "Tabellenköpfe, modernere Menüs, Hinweise und Bildlaufleisten. Funktionen und Berechnungen sind "
+                "unverändert; die weiteren Schritte (Kopfleiste mit Befehlssuche, Angebot mit Kopfband, "
+                "Materialfenster, Einstellungen) folgen."],
     ["0.9.522", "<b>Windows-Updates und Neustarts</b>: Startet Windows für Updates neu, während das Programm offen ist, "
                 "schließt es jetzt Datenbank, PostgreSQL und Datensperre selbst sauber. Endete der letzte Lauf "
                 "trotzdem unerwartet (Stromausfall, Absturz), meldet das Programm das beim nächsten Start und legt "

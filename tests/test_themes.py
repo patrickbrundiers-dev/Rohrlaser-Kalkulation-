@@ -1,6 +1,6 @@
 """Themes, Schriftgröße, Dichte und Einblendungen (Layout-Plan D2, Plan B1/B2/B7).
 
-T1 Hell + normal = bisheriges Stylesheet Zeichen für Zeichen (Hell sieht aus wie vorher);
+T1 Hell + normal = Stylesheet plus Hell-Ergänzung (Eingabefelder, Designsystem „Klar“ 26.11.2026);
 T2 jede wichtige Textfarbe erreicht auf ihrer Fläche in jedem Theme WCAG AA (4,5 : 1);
 T3 Dunkel setzt jede Farbe des Stylesheets um (keine helle Fläche bleibt stehen), Farbkonstanten werden umgefärbt;
 T4 „Wie Windows“ folgt dem Farbschema des Systems; Schriftgröße auf 90–150 % begrenzt;
@@ -28,7 +28,8 @@ def pruefe(bedingung, text):
 
 
 # T1
-pruefe(stil.stylesheet("Hell", "normal") == stil.STIL, "T1 Hell + normal = bisheriges Stylesheet")
+pruefe(stil.stylesheet("Hell", "normal").startswith(stil.STIL) and "QComboBox::down-arrow" in stil.stylesheet("Hell"),
+       "T1 Hell + normal = Stylesheet plus Eingabefelder")
 pruefe(stil.umsetzen("color: #B42318;", "Hell") == "color: #B42318;", "T1 Hell setzt keine Farbe um")
 
 # T2
@@ -59,7 +60,7 @@ l.setText("<span style='color:#B42318'>x</span>")
 pruefe("#F28B82" in l.text(), "T3 Farben in Beschriftungen umgesetzt")
 pruefe("QPushButton { padding: 2px 8px; }" in stil.aktuell(), "T3 Dichte kompakt im Stylesheet")
 stil.anwenden(app, "Hell", 100, "normal")
-pruefe(konst.name().upper() == "#FFFCF0" and stil.aktuell() == stil.STIL, "T3 zurück auf Hell")
+pruefe(konst.name().upper() == "#FFFCF0" and stil.aktuell() == stil.stylesheet("Hell"), "T3 zurück auf Hell")
 app.setFont(app.font())
 
 # T4

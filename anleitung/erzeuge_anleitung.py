@@ -13220,7 +13220,9 @@ def kapitel_einstellungen(i):
          "<i>OpenGL</i>: immer mit Grafikkarte, wenn möglich. Klappt OpenGL nicht, zeichnet die Ansicht von selbst "
          "ohne Grafikkarte weiter ([[step_3d_ansicht]]). Gilt für neu geöffnete Ansichten, nur an diesem Arbeitsplatz."],
         ["Ansicht", "Farbschema (Hell, Dunkel, Hoher Kontrast, Wie Windows)",
-         "<i>Hell</i> (Vorgabe) wie bisher; <i>Dunkel</i>: dunkle Flächen, helle Schrift, für dunkle Räume und lange "
+         "<i>Hell</i> (Vorgabe): ruhige, leicht bläuliche Arbeitsfläche, weiße Karten und Eingabefelder mit feinem, "
+         "rundem Rahmen (blau beim Bearbeiten), schmale Bildlaufleisten, Tabellenköpfe in Grau, Status als farbige "
+         "Marke mit Zeichen (✓ in Ordnung, ! prüfen, ✕ Fehler, i Hinweis; Designsystem seit 0.9.523); <i>Dunkel</i>: dunkle Flächen, helle Schrift, für dunkle Räume und lange "
          "Arbeit am Bildschirm; <i>Hoher Kontrast</i>: dunklere Schrift und deutlich umrandete Knöpfe; <i>Wie "
          "Windows</i>: hell oder dunkel wie in den Windows-Einstellungen (Personalisierung › Farben › Standard-App-"
          "Modus). Im Dunkelmodus sind Eingabezellen blaugrau und berechnete Zellen dunkler, auch Skizzen, "
