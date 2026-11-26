@@ -55,3 +55,7 @@ CHIPS = {
     "info": (AKZENT, AKZENT_FLAECHE, "i"),
     "neutral": (TEXT_GRAU, NEUTRAL_FLAECHE, ""),
 }
+
+# Preisbalken der Kalkulation (UI Next Level Phase 3): Kostengruppen von dunkel (Material) nach hell, Gewinn grün
+PREIS_BALKEN = ("#1F4E78", "#2E6DA4", "#5B8FC7", "#8DB3DC", "#A6C2E0", "#BCCAD9", "#9AA7B6", "#C5CCD6")
+PREIS_BALKEN_GEWINN = ("#2E8B4A", "#8CCB9E")       # Gewinn, Skonto/Rundung

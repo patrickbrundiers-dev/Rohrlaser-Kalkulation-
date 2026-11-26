@@ -121,6 +121,8 @@ QFrame#hinweis_fehler QLabel { color: #B42318; }
 QFrame#hinweis_info QLabel { color: #1F4E78; }
 QFrame#hinweis_ok QLabel { color: #1E6B34; }
 QFrame#seitenkopf { background: transparent; }
+QFrame#kopfband { background: #FFFFFF; border: 1px solid #E3E7EC; border-radius: 8px; }
+QFrame#kopfband QLabel { border: none; }
 QPushButton#suchknopf { text-align: left; padding: 3px 12px; min-width: 300px; color: #5F6B7A; background: #FFFFFF;
     border: 1px solid #C5CCD6; border-radius: 6px; }
 QPushButton#suchknopf:hover { border-color: #1F4E78; color: #1F2937; }
