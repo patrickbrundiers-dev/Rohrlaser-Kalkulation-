@@ -2112,7 +2112,8 @@ class EinstellungenSeite(QScrollArea):
                                "csv_ordner": "Ordner für den CSV-Export wählen",
                                "anfrage_ordner": "Anfrage-Ordner wählen",
                                "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen",
-                               "lst_ordner": "Ordner der gefertigten LST- und BPF-Dateien wählen"}.get(e.name, "Standardordner wählen"),
+                               "lst_ordner": "Ordner der gefertigten LST- und BPF-Dateien wählen",
+                               "server_ablage_hier": "Ablage am Server wählen"}.get(e.name, "Standardordner wählen"),
                               e.titel)
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
