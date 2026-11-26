@@ -183,6 +183,10 @@ class NavigationsReiter(QWidget):
         links.addWidget(self.suche)
         links.addWidget(self.baum, 1)
         links.addWidget(self.ebene_info)
+        # Spalte so breit wie der Baum (früher begrenzte das sichtbare Wahlfeld die Breite; ohne es wuchs die Spalte
+        # und nahm den Seiten rechts Platz, z. B. für zwei Kartenspalten, test_ansicht)
+        for w in (self.suche, self.ebene_info):
+            w.setMaximumWidth(self.baum.maximumWidth())
         # Titel der gewählten Seite über dem Inhalt (Phase 4)
         self.seiten_titel = QLabel()
         self.seiten_titel.setObjectName("abschnitt_gross")
