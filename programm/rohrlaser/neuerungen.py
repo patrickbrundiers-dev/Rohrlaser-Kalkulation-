@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.529", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
+    ["0.9.533", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
                 "steht jetzt, ob er tauscht (vollständig, teilweise, gar nicht, gegen Zuschlag, gegen Pfand, nur bei "
                 "Rücklieferung), mit Zuschlag je Stück oder Lieferung, Freimenge, Mindestmenge, Kunde und Gültigkeit. "
                 "Ohne Regel tauscht er nicht: nicht getauschte Europaletten und Gitterboxen kosten ihren neuen "
@@ -33,6 +33,12 @@ NEUERUNGEN = [
                 "der Packliste sind jetzt Vorgabe (ohne Packmittelpreise gilt die Tabelle Verpackung). Neue Paletten: "
                 "Europalette, Halbpalette, Einweg- und Industriepalette. Ältere Angebote rechnen unverändert.",
      "Palettentausch je Dienstleister, Wiederbeschaffung nicht getauschter Packmittel"],
+    ["0.9.532", "<b>Lizenz-Werkzeug: Lizenzen 2.0 verwalten</b> (nur für Patrick): Der neue Knopf <b>Lizenzen 2.0 "
+                "(Lizenzschlüssel) …</b> öffnet eine Übersicht aller Lizenzen mit belegten Plätzen, Ablauf und Status "
+                "(gelb: läuft bald ab, rot: abgelaufen) und darunter die Plätze der markierten Lizenz. Knöpfe für neue "
+                "Lizenz, Anfrage beantworten, Freigabe verbuchen, Platz deaktivieren, Verlängern, Ändern/Übertragen und "
+                "Sperren. Beim Verlängern bleibt der Lizenzschlüssel gleich, die Plätze ziehen mit.",
+     "Lizenz-Werkzeug: Übersicht Lizenzen 2.0 mit allen Aktionen"],
     ["0.9.527", "<b>Lizenz 2.0: Aktivierung mit Lizenzschlüssel</b>: Unter <i>Hilfe → Lizenz …</i> lässt sich das "
                 "Programm jetzt mit einem Lizenzschlüssel (<i>LZ-…</i>) aktivieren, ganz ohne Internet. Das Programm "
                 "erstellt eine Aktivierungsanfrage als Datei oder Code, Patricks Antwort kommt über <b>Aktivierung "
