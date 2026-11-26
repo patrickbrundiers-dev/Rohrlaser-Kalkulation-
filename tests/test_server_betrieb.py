@@ -216,6 +216,15 @@ try:
     offen.append(db3)
     assert db3.server.nur_lesen and db3.server.rolle == sb.ROLLE_LESEN and db3.nur_lesen.startswith("nur Lesen")
     assert db3.angebote(), "Leser sieht die Angebote"
+    db3.lesemodus("")           # Lizenzprüfung beim Start hebt den Lesemodus auf: Serverrecht bleibt
+    assert db3.nur_lesen.startswith("nur Lesen am Server"), db3.nur_lesen
+    z_alt = db2.server.zustand
+    db2.server.zustand = sb.VERALTET        # andere Programmversion: bleibt nur Lesen, auch nach lesemodus("")
+    db2.lesemodus("")
+    assert db2.nur_lesen.startswith("nur Lesen am Server"), db2.nur_lesen
+    db2.server.zustand = z_alt
+    db2.lesemodus("")
+    assert not db2.nur_lesen
     for sql in ("UPDATE angebote SET kunde = 'x'", "SET default_transaction_read_only = off"):
         try:
             db3.con.execute(sql)

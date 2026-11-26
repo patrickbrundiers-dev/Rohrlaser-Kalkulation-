@@ -553,6 +553,9 @@ class Datenbank:
         und SQLite selbst nimmt keine Änderung mehr an (PRAGMA query_only), auch nicht über db.con direkt."""
         if self.con.in_transaction:      # Offenes aus der Zeit mit Schreibrecht behalten, abgewiesenes verwerfen
             self.con.rollback() if self.nur_lesen else self.con.commit()
+        if not grund and self.server is not None and self.server.nur_lesen:     # Serverbetrieb: Leserecht oder
+            grund = ("nur Lesen am Server – "                                    # andere Version bleibt Lesemodus,
+                     + (self.server.meldung or "Benutzer mit Leserecht"))       # auch nach der Lizenzprüfung
         self.nur_lesen = str(grund or "")
         db_verbindung.nur_lesen(self.con, bool(self.nur_lesen))
 
