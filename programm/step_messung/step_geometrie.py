@@ -6734,6 +6734,11 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
         if out:
             out[0].hinweise.append(f"Anbauteile, Verbund und Nahtkandidaten nicht bestimmt: {auslassen[n + 1]}")
         naehte = []
+    elif info.get("aus_programm"):
+        # Körper aus Maschinenprogrammen (LST-Fertigungsauftrag mit mehreren Programmen, BPF, TUBX): jedes Programm
+        # ist ein eigenes Rohr, alle liegen im Nullpunkt der Maschine übereinander – keine Baugruppe. Sonst wurde ein
+        # Rohr als Verbundkern im anderen erkannt (Importengine 2.0, 2026-44094_1: P30 in P10)
+        naehte = []
     else:
         beginn = time.monotonic()
         import step_gravurkoerper
