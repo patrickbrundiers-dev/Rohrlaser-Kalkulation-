@@ -41,7 +41,9 @@ FARBEN = (("", "Neutral"), ("akzent", "Akzent (Dunkelblau)"), ("gruen", "Grün")
 LEISTE_VORGABE = {
     "knoepfe": [{"id": "angebot_neu", "farbe": "akzent"}, {"id": "angebot_neu_step"}, {"id": "angebote_letzte"},
                 {"gruppe": ""}, {"id": "suchen"}, {"id": "favoriten"}],
-    "kontext": {}, "kontext_an": True, "groesse": "mittel", "beschriftung": "neben", "tasten": {}, "sichtbar": True}
+    "kontext": {}, "kontext_an": True, "groesse": "mittel", "beschriftung": "neben", "tasten": {}, "sichtbar": False}
+# Vorgabe aus seit UI Next Level (Patrick 26.11.2026, F3): wer die Leiste angepasst hat, behält seine (sichtbar=True);
+# einschalten unter Ansicht → Meine Werkzeugleiste
 # Kontextabhängige Knöpfe (Punkt 3.3): erscheinen rechts neben den eigenen, je nach Arbeitsbereich
 KONTEXT_VORGABE = {
     "start": ["kalk_neu", "mat_suchen", "startseite_anpassen"],
