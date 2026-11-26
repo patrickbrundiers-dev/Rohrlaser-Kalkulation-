@@ -47,7 +47,8 @@ class Fenster(QWidget):
         self.ordner_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
         kopf.addWidget(self.ordner_text, 1)
         for text, ziel in (("Ordner öffnen", self.ordner_oeffnen), ("Schlüssel erzeugen …", self.schluessel),
-                           ("Update-Schlüssel …", self.update_schluessel)):
+                           ("Update-Schlüssel …", self.update_schluessel),
+                           ("Lizenzen 2.0 (Lizenzschlüssel) …", self.lizenzen2)):
             b = QPushButton(text)
             b.clicked.connect(ziel)
             kopf.addWidget(b)
@@ -196,6 +197,15 @@ class Fenster(QWidget):
         if art in ("admin", "hauptadmin"):
             self.beliebig.setChecked(False)
             self.inhaber.setText(self.inhaber.text() or "Patrick")
+
+    def lizenzen2(self):
+        """Übersicht Lizenz 2.0: Lizenzen mit Lizenzschlüssel, Plätze, Anfragen beantworten (lizenz2_fenster)."""
+        import lizenz2_fenster
+        if not self.schluessel_da():
+            return self.fehler("Zuerst „Schlüssel erzeugen …“.")
+        self.dashboard2 = lizenz2_fenster.Lizenzen2(self, self.ordner)
+        self.dashboard2.show()
+        return self.dashboard2
 
     def ordner_oeffnen(self):
         self.ordner.mkdir(parents=True, exist_ok=True)
