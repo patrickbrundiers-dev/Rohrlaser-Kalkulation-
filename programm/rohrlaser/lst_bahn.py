@@ -327,6 +327,68 @@ def streifen(k, qs, halb):
     return _raeumlich(_verschoben(flach, -halb, False), qs), _raeumlich(_verschoben(flach, halb, False), qs)
 
 
+KNICK = 60.0            # Richtungswechsel ab dem eine offene Kontur für die Schnittfuge geteilt wird [Grad]
+
+
+def _gefaltet(flach, versetzt):
+    """True, wenn ein Fugenrand gegen die Bahn zurückläuft (Rand faltet sich: ein Bahnstück zwischen zwei Knicken ist
+    kürzer als die Fuge breit ist, z. B. 0,08 mm Grund einer Kerbe bei 0,2 mm Fuge). Daraus gebaut wäre das Werkzeug
+    ein sich selbst schneidender Körper (Importengine 2.0, LST 10186133 P10: Nähen über 20 min, Volumen falsch)."""
+    for i in range(1, len(flach)):
+        bx, bs = flach[i][0] - flach[i - 1][0], flach[i][1] - flach[i - 1][1]
+        vx, vs = versetzt[i][0] - versetzt[i - 1][0], versetzt[i][1] - versetzt[i - 1][1]
+        if bx * vx + bs * vs < 0:
+            return True
+    return False
+
+
+def _knicke(flach):
+    out = []
+    for i in range(1, len(flach) - 1):
+        a = (flach[i][0] - flach[i - 1][0], flach[i][1] - flach[i - 1][1])
+        b = (flach[i + 1][0] - flach[i][0], flach[i + 1][1] - flach[i][1])
+        la, lb = math.hypot(*a), math.hypot(*b)
+        if la < 1e-9 or lb < 1e-9:
+            continue
+        c = max(-1.0, min(1.0, (a[0] * b[0] + a[1] * b[1]) / (la * lb)))
+        if math.degrees(math.acos(c)) > KNICK:
+            out.append(i)
+    return out
+
+
+def _verlaengert(stueck, um):
+    """Bahnstück an beiden Enden um um entlang der Endrichtung verlängern (die Teilstücke überlappen am Knick, die
+    Fuge bleibt dort geschlossen)."""
+    def weiter(p, q):
+        dx, ds = p[0] - q[0], p[1] - q[1]
+        lg = math.hypot(dx, ds) or 1e-12
+        return (p[0] + um * dx / lg, p[1] + um * ds / lg)
+    return [weiter(stueck[0], stueck[1])] + stueck[1:-1] + [weiter(stueck[-1], stueck[-2])]
+
+
+def streifen_stuecke(k, qs, halb):
+    """Fugenstreifen einer offenen Kontur als Liste [(links, rechts)] wie streifen(). Normalfall: ein Streifen (genau
+    wie bisher). Faltet sich ein Fugenrand (_gefaltet), wird die Kontur an den Knicken (> KNICK) geteilt und jedes
+    Stück an beiden Enden um die halbe Fuge verlängert; jedes Stück wird ein eigenes Werkzeug. Faltet auch ein Stück,
+    bleibt es beim einen Streifen wie bisher."""
+    flach = _flach(k["bahn"], k["s_bahn"], qs.umfang)
+    links, rechts = _verschoben(flach, -halb, False), _verschoben(flach, halb, False)
+    if len(flach) < 3 or not (_gefaltet(flach, links) or _gefaltet(flach, rechts)):
+        return [(_raeumlich(links, qs), _raeumlich(rechts, qs))]
+    grenzen = [0] + _knicke(flach) + [len(flach) - 1]
+    out = []
+    for a, b in zip(grenzen, grenzen[1:]):
+        st = flach[a:b + 1]
+        if len(st) < 2 or math.dist(st[0], st[-1]) < 1e-9:
+            continue
+        st = _verlaengert(st, halb)
+        li, re = _verschoben(st, -halb, False), _verschoben(st, halb, False)
+        if _gefaltet(st, li) or _gefaltet(st, re):
+            return [(_raeumlich(links, qs), _raeumlich(rechts, qs))]
+        out.append((_raeumlich(li, qs), _raeumlich(re, qs)))
+    return out or [(_raeumlich(links, qs), _raeumlich(rechts, qs))]
+
+
 def programme(text, name="LST"):
     """Je Programm der LST: dict(programm, querschnitt (Querschnitt), laenge, teile_im_programm, maschinenweg, halbspalt,
     schnittlaenge, anfahrt, restzerteilung, einstiche, abweichung, konturen [dict(nr, block, art, punkte [(x, y, z)],

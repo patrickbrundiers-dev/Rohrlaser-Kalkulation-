@@ -29,6 +29,16 @@ NEUERUNGEN = [
                 "aus der Benutzerverwaltung gelten direkt als Zugänge am Server (Passwort statt PIN), der "
                 "Änderungsverlauf nennt das Kürzel. Die lokale Betriebsart bleibt unverändert.",
      "Serverversion Stufe 2: Mehrbenutzer mit Reservierung und Live-Anzeige"],
+    ["0.9.537", "<b>Importengine 2.0</b>: TRUMPF-LST, BPF und ARTUBE werden genauer und schneller zum 3D-Teil. "
+                "Werkzeuge der Konturen entstehen direkt mit gemeinsamen Kanten statt genäht (LST 10186133 P10 hing "
+                "über 20 min, jetzt 2,6 min; P20 jetzt wie die STEP statt 718 mm³ zu wenig). Fenster und Kerben "
+                "aus zwei offenen Schnitten mit Haltestegen werden als Öffnung erkannt (P30: Volumen wie STEP statt "
+                "24.114 mm³ zu viel); Schnittlänge und Einstiche aus dem NC-Programm bleiben gleich. Ein "
+                "Fertigungsauftrag mit mehreren Programmen wird nicht mehr als Baugruppe ausgewertet (P30 war "
+                "„Verbundkern“ in P10). STEP-Import rund 12 % schneller bei gleichen Messwerten (Nahtsuche). Das Format zählt jetzt am Inhalt, "
+                "nicht nur an der Endung (STEP als .txt, ZIP als .step, IGES als .stp, Fertigungsauftrag ohne "
+                "Schneidweg), mit Hersteller und Softwareversion im Hinweis ([[trumpf_programm]]).",
+     "Importengine 2.0: LST/BPF/ArTube genauer und schneller, Format am Inhalt"],
     ["0.9.536", "<b>Neues Designsystem, Schritt 2</b> (Hauptfenster): Oben links steht statt fünf Menüs ein Knopf "
                 "<i>☰ Menü</i> mit allen Menüs, das lange Menü Datei nach Themen geteilt (Datei, Daten und Abgleich, "
                 "Auswertung und Prüfung, KI). Tastenkürzel und Alt+Buchstabe gelten weiter; die alte Leiste gibt es "
