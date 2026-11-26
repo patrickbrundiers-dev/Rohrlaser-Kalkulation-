@@ -265,7 +265,8 @@ def zahl_melden(f, text, n, hervor=False, tipp=""):
         if isinstance(leiste, Seitenleiste):
             return leiste.zahl_setzen(text, n, hervor, tipp)
     except Exception:           # noqa: BLE001
-        pass
+        from . import protokoll
+        protokoll.warnung("Seitenleiste: Zähler nicht gesetzt")
     return None
 
 
@@ -284,7 +285,7 @@ class MenueEcke(QWidget):
         zeile.setMinimumHeight(28)              # Platz für das × der Reiter
         lay.addStretch(0)                       # ohne offene Angebote steht die Suche trotzdem rechts
         lay.addWidget(suchknopf, 0, Qt.AlignVCenter)
-        suchknopf.setMaximumWidth(300)          # ohne offene Angebote nicht über die ganze Zeile
+        suchknopf.setMaximumWidth(360)          # ohne offene Angebote nicht über die ganze Zeile
 
         self._rechnet = False
 

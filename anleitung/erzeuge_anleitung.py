@@ -1065,7 +1065,8 @@ def kapitel_start(i):
            "ihrem Tastenkürzel. Tippen filtert (alle Wörter müssen vorkommen, z. B. „40x3 re“), <b>↑/↓</b> wählt, "
            "<b>Enter</b> öffnet das Angebot, zeigt Kunde oder Profil, springt zur Einstellung (Einstellungen mit "
            "gefilterter Suche) oder führt den Befehl aus; <b>Esc</b> schließt.", kurz=True)
-    i.text("Seit 0.9.269 steht dafür oben rechts in der Menüleiste das Feld <b>Suchen … (Strg+K)</b>. Mit "
+    i.text("Seit 0.9.269 steht dafür oben rechts in der Menüleiste ein Suchfeld, seit 0.9.531 breiter: "
+           "<b>⌕ Befehl, Angebot oder Kunde suchen Strg+K</b>. Mit "
            "durchsucht werden auch die <b>Knöpfe der offenen Seite</b>, im Angebot z. B. <i>Optimieren</i>, "
            "<i>Zusatzarbeiten …</i>, <i>Material …</i> oder <i>Angebot (PDF)</i>.")
     i.abschnitt("Meine Werkzeugleiste", marke="meine_werkzeugleiste")

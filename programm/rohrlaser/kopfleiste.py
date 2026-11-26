@@ -145,11 +145,31 @@ class Kopfleiste:
             a.setVisible(not kompakt and self.erlaubt(a))
         for t in self._tasten:
             t.setEnabled(kompakt)
+        self._tastenkuerzel_halten()
         self.leiste.updateGeometry()
         ecke = self.leiste.cornerWidget()
         if ecke is not None:
             ecke.updateGeometry()
         return self.modus
+
+    def _tastenkuerzel_halten(self):
+        """Tastenkürzel der Menüpunkte (Strg+N, F9 …) gelten weiter, auch wenn ihr Menü in der Leiste verborgen ist:
+        Qt nimmt ein Kürzel nur über ein sichtbares Menü oder Fenster an. Die Punkte hängen deshalb zusätzlich am
+        Hauptfenster (einmal je Punkt, ändert weder Menüs noch Reihenfolge)."""
+        gesehen = set()
+
+        def durch(menue):
+            if menue is None or id(menue) in gesehen:
+                return
+            gesehen.add(id(menue))
+            for a in menue.actions():
+                if a.menu() is not None:
+                    durch(a.menu())
+                elif not a.isSeparator() and a.shortcuts() and self.f not in a.associatedObjects():
+                    self.f.addAction(a)
+        for _n, a in self.originale():
+            if self.erlaubt(a):          # gesperrte Menüs (z. B. Hauptadmin vor der Anmeldung) bleiben ohne Kürzel
+                durch(a.menu())
 
     def _kuerzel_merken(self):
         """Alt+Buchstabe der bisherigen Menüs (z. B. &Datei = Alt+D) öffnet im kompakten Modus dasselbe Menü."""

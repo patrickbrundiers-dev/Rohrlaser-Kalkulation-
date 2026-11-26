@@ -3958,7 +3958,7 @@ class Hauptfenster(QMainWindow):
         a.triggered.connect(lambda: self.befehlspalette())
         ansicht.addAction(a)
         # B1 (Verbesserungsplan 06.11.2026): die Suche sichtbar oben rechts, nicht nur über Strg+K
-        self.suchknopf = QPushButton("⌕  Befehl, Angebot oder Kunde suchen …      Strg+K")
+        self.suchknopf = QPushButton("⌕  Befehl, Angebot oder Kunde suchen    Strg+K")
         self.suchknopf.setObjectName("suchknopf")       # Aussehen im Stylesheet (stil.py, Designsystem „Klar“)
         self.suchknopf.setCursor(Qt.PointingHandCursor)
         self.suchknopf.setToolTip("Angebote, Kunden, Profile, Einstellungen, Menübefehle und Knöpfe der offenen Seite "
