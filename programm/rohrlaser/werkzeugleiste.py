@@ -390,7 +390,7 @@ def vorgabe_setzen(db, rolle, daten):
 def vorgaben_schreiben(db):
     """Vorgaben in Admin/oberflaeche_vorgaben.json im gemeinsamen Ordner ablegen. Ergebnis: True, wenn geschrieben."""
     from . import teilen
-    w = teilen.weg(db)
+    w = teilen.dateiweg(db)
     if w is None:
         return False
     try:
@@ -404,7 +404,7 @@ def vorgaben_schreiben(db):
 def vorgaben_lesen(db):
     """Vorgaben aus dem gemeinsamen Ordner übernehmen (beim Start und nach dem Abgleich). Ergebnis: True = neu."""
     from . import teilen
-    w = teilen.weg(db)
+    w = teilen.dateiweg(db)
     if w is None:
         return False
     try:

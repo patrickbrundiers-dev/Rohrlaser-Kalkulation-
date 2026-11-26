@@ -457,6 +457,9 @@ def status(db):
     m = merkdatei_lesen(db.pfad) or {}
     if getattr(db, "server", None) is not None:
         zeilen = status_zeilen(db)
+        with contextlib.suppress(Exception):            # S3: wo die gemeinsamen Dateien liegen
+            from . import teilen
+            zeilen = [teilen.ablage_zustand(db)[2]] + list(zeilen)
         return f"{TITEL[SERVER]}: {db.server.text()}" + ("\n\n" + "\n".join(zeilen) if zeilen else "")
     archiv = f"; alte SQLite-Datendatei archiviert: {m['archiv']}" if m.get("archiv") else ""
     konto = ""

@@ -541,3 +541,23 @@ def benutzer_entfernen(db, kuerzel):
 def benutzer_liste(db):
     """Logins am Server wie server_betrieb.benutzer_liste (über die Programmverbindung)."""
     return sb.benutzer_liste(db.con.v.con)
+
+
+# ------------------------------------------------------------------------------------------------ Ablage (S3)
+def ablage_speichern(db, pfad):
+    """Verwalter: Pfad der Ablage am Server für alle Arbeitsplätze eintragen (leer = keine). Wird protokolliert.
+    Ergebnis: (Pfad oder None, erreichbar von diesem Arbeitsplatz aus)."""
+    from pathlib import Path
+
+    from . import austausch
+    s = _s(db)
+    if s is None or not s.verwalter:
+        raise sb.ServerFehler("Die Ablage am Server trägt nur ein Verwalter (Administrator) ein.")
+    p = str(pfad or "").strip()
+    with db.con:
+        sb.ablage_setzen(db.con, p, db)
+    protokollieren(db, "ablage", f"Ablage am Server: {p or '(keine)'}")
+    if not p:
+        return None, False
+    w = austausch.weg(Path(p))
+    return w.pfad, w.erreichbar()

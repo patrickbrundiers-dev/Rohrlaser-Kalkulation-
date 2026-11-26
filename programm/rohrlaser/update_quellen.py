@@ -168,13 +168,14 @@ def netz_anwenden(db):
 
 
 def update_ordner(db):
-    """Eingestellter Update-Ordner oder Vorgabe <gemeinsamer Ordner>\\Updates; None ohne beides."""
+    """Eingestellter Update-Ordner oder Vorgabe <gemeinsamer Ordner>\\Updates (Serverbetrieb: <Ablage am
+    Server>\\Updates); None ohne beides."""
     e = einstellungen(db)
     if e["ordner"]:
         return Path(e["ordner"])
     try:
         from . import teilen
-        o = teilen.ordner(db)
+        o = teilen.dateiordner(db)
     except Exception:       # noqa: BLE001
         o = None
     return Path(o) / UPDATES if o else None

@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.541", "<b>Serverversion (Stufe 3): Dateiablage am Server</b>: Angebotsordner (PDF, CSV, STEP), Anfragen, "
+                "Anfrage-Akten, die Seite <i>Austausch</i>, Updates und Vorgaben liegen im Serverbetrieb in einer "
+                "Freigabe am Server (<i>Ablage am Server</i>, der Verwalter trägt sie unter <i>Datei → Datenbank …"
+                "</i> oder am Server mit <i>--server ablage</i> ein). Was ein Kollege ablegt, ist sofort bei allen "
+                "da, ohne Abgleich. Auftrags- und Rahmenauftragsnummern vergibt jetzt ebenfalls der Server (nie "
+                "doppelt). <i>Datei → Datenbank …</i> zeigt, ob die Ablage erreichbar ist. Die lokale Betriebsart "
+                "bleibt unverändert ([[admin_server]]).",
+     "Serverversion Stufe 3: gemeinsame Dateiablage am Server, Auftragsnummern zentral"],
     ["0.9.539", "<b>Serverversion (Stufe 2): Zusammenarbeiten am Server</b>: Wer ein Angebot öffnet, reserviert es; "
                 "Kollegen sehen in der Angebotsliste „● XY bearbeitet“ und öffnen es nur zum Ansehen. Änderungen "
                 "erscheinen bei allen innerhalb von etwa einer Sekunde. Bricht ein PC ab (Absturz, Netz weg), wird "

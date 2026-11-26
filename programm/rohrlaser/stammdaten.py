@@ -2336,6 +2336,10 @@ EINSTELLUNGEN = (
                 "Benutzer", "auswahl", "ja", auswahl="janein"),
     Einstellung("teilen_sicherung", "Sicherung beim Beenden auch im gemeinsamen Ordner",
                 "Benutzer", "auswahl", "ja", auswahl="janein"),
+    # Serverversion S3 (26.11.2026): Pfad der Ablage am Server trägt der Verwalter ein (Fenster Server); hier nur,
+    # wenn dieser Arbeitsplatz die Freigabe unter einem anderen Pfad erreicht
+    Einstellung("server_ablage_hier", "Serverbetrieb: Ablage am Server von diesem Arbeitsplatz aus (leer = wie am "
+                "Server eingetragen)", "Benutzer", "ordner", ""),
 ) + tuple(
     # Funktionen ein/aus (funktionen.py, Patrick 29.10.2026): ja = sichtbar, nein = ausgeblendet, Daten bleiben
     Einstellung(f.name, f.titel, "Funktionen", "auswahl", f.vorgabe, auswahl="janein") for f in funktionen.FUNKTIONEN)
