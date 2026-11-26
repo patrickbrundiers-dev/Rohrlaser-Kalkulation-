@@ -124,6 +124,10 @@ class MaterialanfragenSeite(QWidget):
         for st, b in self.zaehler.items():
             n = len(self.eintraege) if st == ALLE else sum(1 for e in self.eintraege if e.get("status") == st)
             b.setText(f"{st}  {n}")
+        from .navigation import zahl_melden      # Zähler „Angebot erhalten“ (zu bearbeiten) in der Seitenleiste
+        n = sum(1 for e in self.eintraege if e.get("status") == mv.ERHALTEN)
+        zahl_melden(self.f, "Materialanfragen", n,
+                    tipp=f"{n} Lieferantenangebote erhalten, noch nicht abgeschlossen")
         self._fuellen()
 
     def status_waehlen(self, st):

@@ -156,6 +156,51 @@ class Seitenleiste(QFrame):
             self._aktuell = i
             self.currentChanged.emit(i)
 
+    # -------------------------------------------------- Zähler (UI Next Level Phase 2)
+    def zahl_setzen(self, text, n, hervor=False, tipp=""):
+        """Kleiner Zähler rechts im Knopf (z. B. Anfragen: 3 neue). n = 0/None blendet ihn aus; hervor = Akzent
+        (etwas wartet zu lange). Ergebnis: QLabel oder None, wenn es den Knopf nicht gibt."""
+        if text not in self.texte:
+            return None
+        k = self.knoepfe[self.texte.index(text)]
+        z = getattr(k, "zahl", None)
+        if z is None:
+            z = k.zahl = QLabel(k)
+            z.setAlignment(Qt.AlignCenter)
+            z.setAttribute(Qt.WA_TransparentForMouseEvents)
+            k.installEventFilter(self)
+        z.setObjectName("navzahl_hervor" if hervor else "navzahl")
+        z.style().unpolish(z)
+        z.style().polish(z)
+        z.setText("99+" if n and n > 99 else str(n or ""))
+        z.setToolTip(tipp)
+        z.setVisible(bool(n))
+        self._zahl_lage(k)
+        return z
+
+    def zahl(self, text):
+        """Angezeigter Zähler eines Knopfs (0 = keiner)."""
+        k = self.knoepfe[self.texte.index(text)] if text in self.texte else None
+        z = getattr(k, "zahl", None)
+        return int(z.text().rstrip("+") or 0) if z is not None and not z.isHidden() else 0
+
+    def _zahl_lage(self, k):
+        z = getattr(k, "zahl", None)
+        if z is None:
+            return
+        z.adjustSize()
+        h = max(16, z.sizeHint().height())
+        b = max(h, z.sizeHint().width())
+        if self.breit:
+            z.setGeometry(k.width() - b - 8, (k.height() - h) // 2, b, h)
+        else:
+            z.setGeometry(k.width() - b - 2, 2, b, h)
+
+    def eventFilter(self, obj, ev):
+        if ev.type() == QEvent.Resize and getattr(obj, "zahl", None) is not None:
+            self._zahl_lage(obj)
+        return super().eventFilter(obj, ev)
+
     def tabRect(self, i):
         return self.knoepfe[i].geometry() if 0 <= i < len(self.knoepfe) else self.rect()
 
@@ -191,6 +236,7 @@ class Seitenleiste(QFrame):
         for i, k in enumerate(self.knoepfe):
             k.setToolButtonStyle(stil)
             self._text_setzen(i)
+            self._zahl_lage(k)
         self._titel_zeigen()
         self.umschalter.setText("«  Leiste schmal" if self.breit else "»")
         self.umschalter.setToolButtonStyle(Qt.ToolButtonTextOnly)
@@ -210,6 +256,17 @@ class Seitenleiste(QFrame):
 
     def _geklickt(self, k):
         self.setCurrentIndex(self.knoepfe.index(k))
+
+
+def zahl_melden(f, text, n, hervor=False, tipp=""):
+    """Zähler in der Seitenleiste des Hauptfensters f setzen; nur Anzeige, Fehler stören nie die Seite."""
+    try:
+        leiste = getattr(getattr(f, "reiter", None), "oben", None)
+        if isinstance(leiste, Seitenleiste):
+            return leiste.zahl_setzen(text, n, hervor, tipp)
+    except Exception:           # noqa: BLE001
+        pass
+    return None
 
 
 class MenueEcke(QWidget):
