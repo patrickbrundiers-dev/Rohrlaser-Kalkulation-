@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.527", "<b>Neues Designsystem, Schritt 2</b> (Hauptfenster): Oben links steht statt fünf Menüs ein Knopf "
+    ["0.9.531", "<b>Neues Designsystem, Schritt 2</b> (Hauptfenster): Oben links steht statt fünf Menüs ein Knopf "
                 "<i>☰ Menü</i> mit allen Menüs, das lange Menü Datei nach Themen geteilt (Datei, Daten und Abgleich, "
                 "Auswertung und Prüfung, KI). Tastenkürzel und Alt+Buchstabe gelten weiter; die alte Leiste gibt es "
                 "unter <i>Ansicht → Klassische Menüleiste</i>. Rechts oben eine breitere Suche (Strg+K). Die "

@@ -638,7 +638,7 @@ def kapitel_ueberblick(i):
            "Was gespeichert oder gerechnet wurde, meldet eine "
            "Einblendung unten (Fehler in Rot); alle Meldungen stehen unter <i>Meldungen (n)</i> rechts in der "
            "Statusleiste. Wo die Anleitung „die Statuszeile meldet“ schreibt, ist diese Einblendung gemeint.", kurz=True)
-    i.text("<b>Knopf ☰ Menü</b> (seit 0.9.527): Oben links steht statt fünf Menüs nebeneinander ein Knopf <i>Menü</i>. "
+    i.text("<b>Knopf ☰ Menü</b> (seit 0.9.531): Oben links steht statt fünf Menüs nebeneinander ein Knopf <i>Menü</i>. "
            "Darin stehen alle Menüs; das lange Menü Datei ist nach Themen geteilt: <i>Datei</i> (neues Angebot, "
            "STEP-Viewer, Schnellpreis, Ablage, Beenden), <i>Bearbeiten</i>, <i>Kunden</i>, <i>Daten und Abgleich</i> "
            "(Benutzer, gemeinsamer Ordner, Sicherung, Datenbank, Archiv, Export und Import), <i>Auswertung und "
@@ -646,7 +646,7 @@ def kapitel_ueberblick(i):
            "<i>Ansicht</i> und <i>Hilfe</i>. Alle Tastenkürzel gelten weiter, Alt+D, Alt+B, Alt+K, Alt+A und Alt+H "
            "öffnen die Menüs wie bisher. Schneller geht es mit der Suche rechts oben (Strg+K): sie findet jeden "
            "Menüpunkt. Wer die alte Leiste lieber hat: <i>Ansicht → Klassische Menüleiste</i> (gilt nur an diesem "
-           "Arbeitsplatz). <i>Meine Werkzeugleiste</i> ist ab 0.9.527 zuerst ausgeschaltet; wer sie angepasst hat, "
+           "Arbeitsplatz). <i>Meine Werkzeugleiste</i> ist ab 0.9.531 zuerst ausgeschaltet; wer sie angepasst hat, "
            "behält sie, einschalten unter <i>Ansicht → Meine Werkzeugleiste</i>. In der Seitenleiste zeigen kleine "
            "<b>Zähler</b> neben <i>Anfragen</i> (neue Anfragen), <i>Angebote</i> (Wiedervorlage fällig) und "
            "<i>Materialanfragen</i> (Lieferantenangebot erhalten), was zu tun ist; hell hervorgehoben, wenn etwas "
@@ -1018,7 +1018,7 @@ def kapitel_start(i):
             "falls eingestellt, in den zweiten Sicherungsordner."),
         (2, "<b>Sicherung wiederherstellen …</b>: einen früheren Stand zurückholen ([[datensicherung]])."),
         (3, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
-    i.text("Oben begrüßt die Startseite den angemeldeten Benutzer mit Datum und Version (seit 0.9.527). Sind die "
+    i.text("Oben begrüßt die Startseite den angemeldeten Benutzer mit Datum und Version (seit 0.9.531). Sind die "
            "Stammdaten noch Beispielwerte, steht darunter ein gelbes <b>Hinweisband</b> mit <i>Einstellungen "
            "öffnen</i>; <i>Später</i> blendet es bis zum nächsten Start aus.", kurz=True)
     i.text("Darunter stehen fünf <b>Kennzahl-Kacheln</b> (seit 0.9.309, für alle Benutzer): <b>Entwürfe</b>, "
