@@ -33,6 +33,15 @@ Aufrufe (python werkzeuge/lizenz_werkzeug.py …):
                                          nicht der Lizenzschlüssel): öffentlich für update_schluessel.py, privat als
                                          Wert für das GitHub-Secret UPDATE_SIGNATUR
   update-secret [--id U1]                Wert für UPDATE_SIGNATUR noch einmal ausgeben (aus privat_U1.pem)
+  Lizenz 2.0 (lizenz2_werkzeug.py, Register lizenzen2.json):
+  zertifikat --lizenznehmer … --typ einzelplatz|mehrplatz|server [--plaetze N] [--benutzer N] [--reserve 1]
+             [--firma …] [--kundennr …] [--bis JJJJ-MM-TT | --unbefristet] [--module a,b] [--admin Name]…
+                                         Lizenzzertifikat + Lizenzschlüssel LZ-… für den Kunden (Vorgabe 12 Monate)
+  aktivieren DATEI|CODE                  Aktivierungsanfrage eines Rechners beantworten (Antwortdatei + Code)
+  freigeben DATEI|CODE                   Freigabebeleg eines Rechners verbuchen (Platz wieder frei)
+  deaktivieren AK-JJJJ-NNNNN             Platz ohne Beleg deaktivieren (Register + Sperrliste)
+  lizenz-sperren LN-JJJJ-NNNN            ganze Lizenz sperren (Register + Sperrliste)
+  liste2                                 alle Zertifikate mit belegten Plätzen
   (ohne Befehl)                          Fenster mit allem oben (lizenz_werkzeug_fenster.py, Lizenz-Werkzeug.exe)
 Passwort: wird abgefragt (oder Umgebungsvariable ROHRLASER_LIZENZ_PASSWORT, z. B. für Tests). Admin-Passwort für das
 Programm: Abfrage oder ROHRLASER_ADMIN_PASSWORT.
@@ -528,6 +537,45 @@ def liste(ordner, heute=None):
     return zeilen
 
 
+def lizenz2_befehl(ordner, a):
+    """Befehle von Lizenz 2.0 (lizenz2_werkzeug.py)."""
+    import lizenz2_werkzeug as L2
+    from rohrlaser import aktivierung
+    heute = datetime.date.today()
+
+    def quelle(text):
+        p = Path(text)
+        return p if len(text) < 260 and p.is_file() else text
+
+    if a.befehl == "zertifikat":
+        bis = None if a.unbefristet else (datetime.date.fromisoformat(a.bis) if a.bis else monate_spaeter(heute, 12))
+        schl, datei = L2.zertifikat_ausstellen(
+            ordner, a.lizenznehmer, a.typ, a.plaetze, firma=a.firma, kundennr=a.kundennr, benutzer=a.benutzer,
+            reserve=a.reserve, module=[m.strip() for m in a.module.split(",") if m.strip()], bis=bis,
+            updates_bis=datetime.date.fromisoformat(a.updates_bis) if a.updates_bis else None, admins=a.admin,
+            hinweis=a.hinweis, ziel=a.ziel)
+        print(f"Zertifikat {datei.stem.split('_')[0]} für {a.lizenznehmer} ({a.typ}, gültig bis "
+              f"{bis or 'unbefristet'}):\n  {datei}\n\nLizenzschlüssel für den Kunden:\n\n    {schl}\n")
+    elif a.befehl == "aktivieren":
+        antwort, datei, text = L2.aktivieren(ordner, quelle(a.quelle), ziel=a.ziel)
+        print(f"{text}\n  {datei}\n\nOder diesen Code an den Kunden schicken (Hilfe → Lizenz … → Aktivierung "
+              f"einfügen):\n\n{aktivierung.als_code(antwort)}\n")
+    elif a.befehl == "freigeben":
+        print(f"Platz {L2.freigeben(ordner, quelle(a.quelle))} ist wieder frei.")
+    elif a.befehl == "deaktivieren":
+        L2.deaktivieren(ordner, a.aktivierung_id)
+    elif a.befehl == "lizenz-sperren":
+        L2.lizenz_sperren(ordner, a.lizenz_nr)
+    elif a.befehl == "liste2":
+        zeilen = L2.uebersicht(ordner)
+        if not zeilen:
+            print("Noch keine Zertifikate ausgestellt.")
+        for z in zeilen:
+            print(f"{z['lizenz_nr']}  {z['typ']:11}  {z['belegt']}/{z['max']} belegt  bis {z['gueltig_bis']:11}  "
+                  f"{z['lizenznehmer']} / {z['firma']}" + (f"  GESPERRT {z['gesperrt']}" if z['gesperrt'] else ""))
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="lizenz_werkzeug", description=__doc__.split("\n")[0])
     ap.add_argument("--ordner", help="Lizenzordner mit privatem Schlüssel und Register")
@@ -568,6 +616,30 @@ def main(argv=None):
     v.add_argument("--bis", help="gültig bis JJJJ-MM-TT (Vorgabe: im Anschluss 3 Monate bzw. 30 Tage)")
     v.add_argument("--ziel")
     sub.add_parser("sperrliste-hochladen")
+    z2 = sub.add_parser("zertifikat")
+    z2.add_argument("--lizenznehmer", required=True)
+    z2.add_argument("--typ", choices=("einzelplatz", "mehrplatz", "server"), default="einzelplatz")
+    z2.add_argument("--plaetze", type=int, default=1)
+    z2.add_argument("--benutzer", type=int, default=0)
+    z2.add_argument("--reserve", type=int, default=1, help="zusätzliche Aktivierungen für Hardwaretausch")
+    z2.add_argument("--firma", default="")
+    z2.add_argument("--kundennr", default="")
+    z2.add_argument("--bis", help="gültig bis JJJJ-MM-TT (Vorgabe: 12 Monate, Jahreslizenz)")
+    z2.add_argument("--unbefristet", action="store_true", help="Kauflizenz ohne Ablauf")
+    z2.add_argument("--updates-bis", help="Kauflizenz: Updates bis JJJJ-MM-TT (Wartung)")
+    z2.add_argument("--module", default="alle")
+    z2.add_argument("--admin", action="append", default=[])
+    z2.add_argument("--hinweis", default="")
+    z2.add_argument("--ziel")
+    for name in ("aktivieren", "freigeben"):
+        x = sub.add_parser(name)
+        x.add_argument("quelle", help="Datei oder Code in Anführungszeichen")
+        x.add_argument("--ziel")
+    x = sub.add_parser("deaktivieren")
+    x.add_argument("aktivierung_id")
+    x = sub.add_parser("lizenz-sperren")
+    x.add_argument("lizenz_nr")
+    sub.add_parser("liste2")
     for name in ("update-schluessel-erzeugen", "update-secret"):
         u = sub.add_parser(name)
         u.add_argument("--id", default="U1")
@@ -620,6 +692,8 @@ def main(argv=None):
     elif a.befehl == "sperrliste-hochladen":
         token = os.environ.get("ROHRLASER_GITHUB_TOKEN") or getpass.getpass("GitHub-Token (Rohrlaser-Updates): ")
         sperrliste_hochladen(ordner, token.strip())
+    elif a.befehl in ("zertifikat", "aktivieren", "freigeben", "deaktivieren", "lizenz-sperren", "liste2"):
+        return lizenz2_befehl(ordner, a)
     elif a.befehl in ("update-schluessel-erzeugen", "update-secret"):
         if a.befehl == "update-schluessel-erzeugen":
             oeffentlich, geheim = update_schluessel_erzeugen(ordner, a.id, passwort(neu=True))
