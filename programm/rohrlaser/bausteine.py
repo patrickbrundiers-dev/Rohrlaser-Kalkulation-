@@ -138,6 +138,56 @@ def kennzahl(titel, wert="", unter="", hervor=False):
     return rahmen
 
 
+def kennzahlleiste(eintraege, rechts=()):
+    """Schmale Zeile mit Kennzahlen nebeneinander (Titel klein über dem Wert), z. B. im Kopf eines Fensters statt
+    großer Kacheln (UI Next Level Phase 4). eintraege = [(Schlüssel, Titel, Wert)]; rechts = Widgets am rechten Rand
+    (z. B. ein Chip). Ergebnis: QFrame mit .werte {Schlüssel: QLabel} und .titel {Schlüssel: QLabel}."""
+    rahmen = QFrame()
+    rahmen.setObjectName("kennzahlleiste")
+    zeile = QHBoxLayout(rahmen)
+    zeile.setContentsMargins(design.ABSTAND_GROSS, design.ABSTAND, design.ABSTAND_GROSS, design.ABSTAND)
+    zeile.setSpacing(design.ABSTAND_GROSS + 8)
+    rahmen.werte, rahmen.titel = {}, {}
+    for key, titel, wert in eintraege:
+        spalte = QVBoxLayout()
+        spalte.setSpacing(0)
+        t = QLabel(titel)
+        t.setObjectName("kennzahltitel")
+        w = QLabel(wert)
+        w.setObjectName("kennzahlwert_leiste")
+        spalte.addWidget(t)
+        spalte.addWidget(w)
+        zeile.addLayout(spalte)
+        rahmen.werte[key], rahmen.titel[key] = w, t
+    zeile.addStretch(1)
+    for w in rechts:
+        zeile.addWidget(w)
+    return rahmen
+
+
+def wertzeilen(zeilen):
+    """Kleine Tabelle „Bezeichnung … Wert“ (Werte rechtsbündig), z. B. im Detailbereich. zeilen = [(Text, Wert)],
+    Wert darf ein Widget sein. Ergebnis: QWidget mit .werte {Text: QLabel/Widget}."""
+    from PySide6.QtWidgets import QGridLayout
+    w = QWidget()
+    g = QGridLayout(w)
+    g.setContentsMargins(0, 0, 0, 0)
+    g.setHorizontalSpacing(design.ABSTAND)
+    g.setVerticalSpacing(design.ABSTAND_KLEIN)
+    g.setColumnStretch(0, 1)
+    w.werte = {}
+    for r, (text, wert) in enumerate(zeilen):
+        t = QLabel(text)
+        t.setObjectName("nebentext")
+        g.addWidget(t, r, 0)
+        ziel = wert if isinstance(wert, QWidget) else QLabel(str(wert))
+        if isinstance(ziel, QLabel):
+            ziel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        g.addWidget(ziel, r, 1, Qt.AlignRight)
+        w.werte[text] = ziel
+    return w
+
+
 def hinweisband(text, stufe="warnung", knopf_text="", klick=None, schliessen=False):
     """Hinweis über die volle Breite (z. B. „Stammdaten sind Beispielwerte“) mit Zeichen, Text und optional einem
     Knopf rechts; schliessen=True ergänzt „Später“, das das Band ausblendet. Ergebnis: QFrame mit .text, .knopf."""

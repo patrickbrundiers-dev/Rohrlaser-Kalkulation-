@@ -1073,6 +1073,12 @@ def kapitel_start(i):
            "<b>⌕ Befehl, Angebot oder Kunde suchen Strg+K</b>. Mit "
            "durchsucht werden auch die <b>Knöpfe der offenen Seite</b>, im Angebot z. B. <i>Optimieren</i>, "
            "<i>Zusatzarbeiten …</i>, <i>Material …</i> oder <i>Angebot (PDF)</i>.")
+    i.abschnitt("Kopf der Bereiche", marke="seitenkopf_bereiche")
+    i.text("Jeder Bereich der Seitenleiste beginnt mit einer Kopfzeile: links der Name des Bereichs groß "
+           "(z. B. <b>Angebote</b>, <b>Aufträge</b>, <b>Versand</b>), daneben in Grau ein Satz, wofür der Bereich da "
+           "ist. Darunter folgen wie bisher Filter, Knöpfe und Tabelle. Start, Kunden, Austausch und Einstellungen "
+           "haben ihren eigenen Kopf mit weiteren Knöpfen. Ist das Fenster schmal, wird der graue Satz gekürzt; der "
+           "Tooltip zeigt ihn ganz.", kurz=True)
     i.abschnitt("Meine Werkzeugleiste", marke="meine_werkzeugleiste")
     i.text("Seit 0.9.414 steht unter der Menüleiste <b>Meine Werkzeugleiste</b>: eigene Knöpfe für die Funktionen, "
            "die man oft braucht. Links stehen die festen Knöpfe (Vorgabe: <i>Neues Angebot</i>, <i>Aus STEP …</i>, "
@@ -3499,6 +3505,14 @@ def kapitel_angebot(i):
     i.abschnitt("Material je Abmessung (Fenster Material …)", marke="material_fenster")
     i.text("<b>Material …</b> (rechts neben den Ausgaben oder Rechtsklick auf eine Position): alles zum Material je "
            "Abmessung in einem Fenster; <b>Übernehmen</b> gilt für alle Positionen der Abmessung.", kurz=True)
+    i.text("Oben stehen Angebot und Kunde, darunter eine schmale <b>Kennzahlleiste</b> (Abmessungen, Stangen, Meter "
+           "Einkauf, Gewicht, Material, Kundenmaterial, Ohne Preis) mit dem Kennzeichen <i>Alle Abmessungen mit "
+           "Preis</i> bzw. wie viele Abmessungen keinen Preis haben. Rechts neben der Tabelle zeigt der "
+           "<b>Detailbereich</b> die markierte Abmessung: Meterpreis und woher er kommt, Gewicht je Meter, Teile, "
+           "Einkauf und Material laut Schnittplan, Verschnitt, Stangen, Lieferlängen und die Ausnutzung als Balken "
+           "(grün ab 85 %, gelb ab 70 %, sonst rot). Die Knöpfe darunter öffnen <i>Abmessung mit Schnittplan …</i>, "
+           "<i>Preise der Abmessung …</i> und den <i>Lieferantenvergleich …</i>. Handling und Übernehmen stehen "
+           "zusammen in der Fußzeile.")
     i.bild("material_fenster", "Material je Abmessung", hoehe=85 * mm, legende=[
         (1, "<b>Querschnitt</b> des Profils (RP-Profile mit ihrer Kontur aus dem MegaCAD-Makro, seit 0.9.513 alle "
             "141 Profile der Bibliothek); der Mauszeiger auf "
@@ -13060,10 +13074,12 @@ def kapitel_einstellungen(i):
     i.text("Wert ändern, Feld verlassen: gespeichert. Er gilt ab der nächsten Rechnung für alle Angebote. Jede Seite "
            "hat Abschnitte als Karten; Abschnitte mit „(Experte)“ sind eingeklappt, der Haken in der Überschrift "
            "klappt sie auf.", kurz=True)
-    i.text("<b>Drei Ebenen</b> (seit 0.9.519): Über der Suche wählt das Feld <b>Grundeinstellungen</b> (Vorgabe: die "
-           "wichtigsten Einstellungen für den täglichen Betrieb, rund 80 statt über 450), <b>Erweiterte "
-           "Einstellungen</b> (dazu selten benötigte, sinnvolle Optionen) oder <b>Expertenbereich</b> (dazu technische "
-           "Parameter, Toleranzen, Faktoren und Sonderfunktionen). Die Navigation zeigt nur die Seiten und Abschnitte "
+    i.text("<b>Drei Ebenen</b> (seit 0.9.519): Oben rechts im Kopf der Einstellungen wählt die Knopfreihe <b>Grund</b> "
+           "(Grundeinstellungen, Vorgabe: die wichtigsten Einstellungen für den täglichen Betrieb, rund 80 statt über "
+           "450), <b>Erweitert</b> (Erweiterte Einstellungen: dazu selten benötigte, sinnvolle Optionen) oder "
+           "<b>Experte</b> (Expertenbereich: dazu technische Parameter, Toleranzen, Faktoren und Sonderfunktionen). "
+           "Über dem Inhalt steht der Name der gewählten Seite, die Gruppen links (Allgemein, Kalkulation …) in kleinen "
+           "Großbuchstaben. Die Navigation zeigt nur die Seiten und Abschnitte "
            "bis zur gewählten Ebene, unten steht, wie viele Seiten darüber liegen. Die Wahl gilt je Benutzer bzw. "
            "Arbeitsplatz.")
     i.liste("Ausgeblendet heißt nur <i>nicht angezeigt</i>: jede Einstellung gilt weiter mit ihrem Wert bzw. dem "
@@ -17776,7 +17792,9 @@ def kapitel_einfacher_modus(i):
             "usw.), bleibt im Expertenmodus unverändert erreichbar.")
     i.abschnitt("Knöpfe im Einfachen Modus", marke="einfach_knoepfe")
     i.liste("Kopfleiste: die Schrittknöpfe <i>1 Start</i> bis <i>6 Angebot</i>, <i>? Hilfe</i> und "
-            "<i>Expertenmodus</i>. Fußleiste: <i>‹ Zurück</i> und <i>Weiter ›</i>.",
+            "<i>Expertenmodus</i>. Der aktuelle Schritt ist dunkelblau, erledigte Schritte davor zeigen ein "
+            "<b>✓</b> statt der Nummer und sind hellblau; ein Klick springt zurück. Fußleiste: <i>‹ Zurück</i> und "
+            "<i>Weiter ›</i>.",
             "Schritt 1: <i>＋ Neue Kalkulation erstellen</i>, die Kacheln und bei einer offenen Kalkulation "
             "<i>Weiterbearbeiten ›</i>.",
             "Schritt 2: <i>Weitere Bauteile importieren …</i>, <i>Im Editor prüfen</i> und <i>Bauteil entfernen</i> "

@@ -2580,8 +2580,15 @@ class EinstellungenBereich(QWidget):
         self.unter.ebene_merken = lambda e: bedienmodus.einstellungen_ebene_setzen(db, e)
         self.unter.currentChanged.connect(lambda _: self.neu_laden())
         self.sperren_knopf = self.leiste.sperren
+        # Seitenkopf (UI Next Level Phase 4): Titel, Untertitel und rechts die Ebene Grund · Erweitert · Experte
+        from . import bausteine, design
+        self.kopf = bausteine.seitenkopf("Einstellungen", "Gelten für alle Arbeitsplätze, Abgleich über den "
+                                         "gemeinsamen Ordner. Seiten mit Schloss ändert nur der Admin.",
+                                         [self.unter.ebene_segment])
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setContentsMargins(design.ABSTAND_GROSS, design.ABSTAND, design.ABSTAND_GROSS, 0)
+        lay.setSpacing(design.ABSTAND_KLEIN)
+        lay.addWidget(self.kopf)
         lay.addWidget(self.leiste)
         lay.addWidget(self.unter, 1)
         self.schutz_anwenden()
@@ -3565,6 +3572,8 @@ class Hauptfenster(QMainWindow):
         self.material = MaterialBereich(self)
         self.reiter.addTab(self.material, self.material.titel)
         self.reiter.addTab(self.bereich, "Einstellungen")
+        from . import seitenkoepfe
+        seitenkoepfe.anwenden(self)                 # einheitlicher Kopf der Bereiche (UI/UX Next Level Phase 5)
         self.reiter.gruppe_setzen(self.angebote)     # ab hier: geöffnete Angebote in der Zeile unter „Angebote“
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
         self.setCentralWidget(self.reiter)

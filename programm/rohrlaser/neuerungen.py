@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.542", "<b>Neues Designsystem, Schritt 4 und 5</b>: Das Fenster <i>Material je Abmessung</i> zeigt oben eine "
+                "Kennzahlleiste und rechts zur markierten Abmessung Meterpreis mit Herkunft, Gewicht, Einkauf, "
+                "Verschnitt, Stangen und die Ausnutzung als Balken mit Ampel, dazu Schnittplan, Preise und "
+                "Lieferantenvergleich. <b>Einstellungen</b>: Kopf mit Erklärung, <i>Grund · Erweitert · Experte</i> als "
+                "Knopfreihe, Seitentitel groß. Jeder Bereich (Angebote, Aufträge, Versand …) beginnt mit einer "
+                "Kopfzeile mit Name und kurzer Erklärung ([[seitenkopf_bereiche]]). Im <b>Einfachen Modus</b> zeigen "
+                "erledigte Schritte ein ✓. Alle Zahlen bleiben gleich.",
+     "Neues Designsystem, Schritt 4 und 5: Materialfenster, Einstellungen, Kopf je Bereich"],
     ["0.9.540", "<b>Neues Designsystem, Schritt 3</b> (Angebot): Oben im Angebot steht ein Kopfband mit Nummer, Vorgang, "
                 "Stand, Kunde, Verkaufspreis, Marge mit Ampel und Deckungsbeitrag, dazu <i>Angebot (PDF)</i> und der "
                 "Knopf <i>Übersicht</i>. Die Übersicht rechts ist ab Werk aus und lässt sich damit zurückholen. Im "
