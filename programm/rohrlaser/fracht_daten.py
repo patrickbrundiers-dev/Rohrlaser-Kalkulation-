@@ -22,7 +22,7 @@ MODELLE = ("Gewichtstarif", "Palettentarif", "Gitterboxtarif", "Kombinationstari
 BEZUG = ("Sendung", "kg", "100 kg", "Ladungsträger", "Stellplatz", "km", "Lademeter", "Packstück", "Paketgröße")
 PREISARTEN = ("Festpreis", "je Einheit")
 LHT_ARTEN = ("Europalette", "Einwegpalette", "Industriepalette", "Gitterbox", "Sonderpalette", "Langgut",
-             "Sonderladung", "Karton", "Palette mit Aufsetzrahmen", "Sonderbehälter")
+             "Sonderladung", "Karton", "Palette mit Aufsetzrahmen", "Sonderbehälter", "Halbpalette")
 # Versandarten (Fracht 2.0, Patrick 25.11.2026): feste Auswahl im Rechner und in den Tarifen (Freitext bleibt erlaubt).
 # Mehrpaket und Sperrgut sind Paketversand (Anzahl Pakete, Zuschlag nach Maß), Palette mit Aufsetzrahmen, Gitterbox
 # und Langgut sind Ladungsträger im Palettenversand bzw. Stückgut.
@@ -42,6 +42,10 @@ TARIFBASEN = ("Geschäftskundenangebot", "Kundentarif", "Listenpreis", "Schnitts
 LUECKE = "Tariflücke"
 ECHTE_PREISE = ("Geschäftskundenangebot", "Kundentarif", "Listenpreis", "Schnittstelle")   # Anbieterpreise
 ABRECHNUNGEN = ("Kauf", "Miete", "Tausch")
+# Packmitteltausch je Dienstleister (Patrick 26.11.2026, packmittel_tausch.py): was mit Tauschpackmitteln (Abrechnung
+# Tausch: Europalette, Gitterbox …) geschieht. Ohne passende Regel gilt KEIN Tausch (nie kostenlosen Tausch unterstellen).
+TAUSCHREGELN = ("vollständiger Tausch", "teilweiser Tausch", "kein Tausch", "Tausch gegen Zuschlag",
+                "Tausch gegen Pfand", "Tausch nur bei Rücklieferung")
 LIEFERBEDINGUNGEN = ("frei Haus", "frei Frachtführer", "unfrei", "ab Werk", "Abholung")
 # Lieferbedingungen, bei denen der Kunde die Fracht trägt: Frachtkosten 0 mit Hinweis
 OHNE_FRACHT = ("unfrei", "ab Werk", "Abholung")
@@ -57,7 +61,7 @@ BEDINGUNGEN = ("immer", "nur wenn gewählt", "Gewicht unter", "Gewicht über", "
 # feste Auswahllisten (stammdaten.Kontext.gruppiert fragt hier nach, wenn eine Quelle dort fehlt)
 AUSWAHL_FEST = {"zonenart": ZONENARTEN, "richtung": RICHTUNGEN, "tarifart": TARIFARTEN, "modell": MODELLE,
                 "bezug": BEZUG, "preisart": PREISARTEN, "lhtart": LHT_ARTEN,
-                "tarifbasis": TARIFBASEN, "abrechnung": ABRECHNUNGEN, "versandart": VERSANDARTEN,
+                "tarifbasis": TARIFBASEN, "abrechnung": ABRECHNUNGEN, "tauschregel": TAUSCHREGELN, "versandart": VERSANDARTEN,
                 "lieferbedingung": LIEFERBEDINGUNGEN, "zuschlagtyp": ZUSCHLAGTYPEN, "berechnung": BERECHNUNGEN,
                 "zuschlagbasis": BASEN, "bedingung": BEDINGUNGEN}
 
@@ -178,10 +182,18 @@ DIENSTLEISTER = Tabelle(
      Feld("versandarten", "Versandarten", muster=LISTE_MUSTER, breite=200),
      Feld("kundennr_dl", "Unsere Kundennummer beim Dienstleister", breite=120),
      Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
-     Feld("bemerkung", "Bemerkung", breite=260)),
+     Feld("bemerkung", "Bemerkung", breite=260),
+     # Transportbedingungen (Patrick 26.11.2026): wer sie nicht erfüllt, wird im Vergleich nie empfohlen; leer = egal
+     Feld("max_laenge", "Max. Länge Packstück [mm]", "ganz", 0, 30000, breite=85),
+     Feld("max_hoehe", "Max. Höhe Packstück [mm]", "ganz", 0, 5000, breite=85),
+     Feld("max_kg", "Max. Gewicht je Packstück [kg]", "zahl", 0, 100000, stellen=1, breite=85),
+     Feld("hebebuehne", "Hebebühne möglich", "auswahl", auswahl="janein", breite=75),
+     Feld("gefahrgut", "Gefahrgut möglich", "auswahl", auswahl="janein", breite=75)),
     ("dienstleister_id",),
     "Frachtführer und Paketdienste. Versandarten mit Komma trennen (z. B. Stückgut, Palettenversand, Paket); sie "
-    "erscheinen im Rechner zur Auswahl.")
+    "erscheinen im Rechner zur Auswahl. Transportbedingungen (max. Länge, Höhe, Gewicht je Packstück, Hebebühne, "
+    "Gefahrgut): erfüllt ein Dienstleister sie nicht, steht er im Anbietervergleich mit Grund und wird nie "
+    "automatisch gewählt. Leer = keine Grenze; Hebebühne/Gefahrgut „nein“ = nicht möglich.")
 
 TARIFE = Tabelle(
     "fracht_tarife", "Tarife",
@@ -273,8 +285,8 @@ LHT = Tabelle(
      Feld("max_hoehe", "Max. Gesamthöhe [mm]", "ganz", 0, 5000, breite=80),
      Feld("preis", "Preis je Stück [€]", "zahl", 0, 100000, stellen=2, breite=80),
      Feld("abrechnung", "Kauf/Miete/Tausch", "auswahl", auswahl="abrechnung", breite=85),
-     Feld("pfand", "Pfand/Tauschwert [€]", "zahl", 0, 100000, stellen=2, breite=80),
-     Feld("sicherung", "Sicherungsmaterial je Stück [€]", "zahl", 0, 10000, stellen=2, breite=85),
+     Feld("pfand", "Pfand je Stück [€]", "zahl", 0, 100000, stellen=2, breite=80),
+     Feld("sicherung", "Verpackung/Sicherung je Stück [€]", "zahl", 0, 10000, stellen=2, breite=85),
      Feld("packzeit", "Packzeit je Stück [min]", "zahl", 0, 1440, stellen=1, breite=80),
      Feld("rahmen_hoehe", "Aufsetzrahmen Höhe [mm]", "ganz", 0, 2000, breite=80),
      Feld("rahmen_gewicht", "Aufsetzrahmen Gewicht [kg]", "zahl", 0, 1000, stellen=1, breite=80),
@@ -284,7 +296,12 @@ LHT = Tabelle(
      Feld("pack_ueberstand", "Überstand je Stirnseite [mm]", "zahl", 0, 500, stellen=1, breite=80),
      Feld("pack_rand", "Sicherheitsabstand Rand [mm]", "zahl", 0, 200, stellen=1, breite=80),
      Feld("pack_abstand", "Mindestabstand Teile [mm]", "zahl", 0, 100, stellen=1, breite=80),
-     Feld("pack_max_artikel", "Max. Artikel je Packstück", "ganz", 0, 100, breite=75)),
+     Feld("pack_max_artikel", "Max. Artikel je Packstück", "ganz", 0, 100, breite=75),
+     # Packmittelmanagement (Patrick 26.11.2026): Werte für nicht getauschte Packmittel; leer = wie bisher
+     Feld("wiederbeschaffung", "Wiederbeschaffungswert [€]", "zahl", 0, 100000, stellen=2, breite=85),
+     Feld("tauschwert", "Tauschwert [€]", "zahl", 0, 100000, stellen=2, breite=75),
+     Feld("tauschzuschlag", "Tauschzuschlag je Stück [€]", "zahl", 0, 10000, stellen=2, breite=85),
+     Feld("bestand", "Verfügbar [Stück]", "ganz", 0, 1000000, breite=75)),
     ("lht_id",),
     "Ladungsträger mit Maßen, Eigengewicht und Nutzlast. Max. Teillänge: längere Teile kommen im Packvorschlag "
     "auf Langgut; ist sie größer als die Länge, dürfen Teile längs überstehen, quer nie. Karton: Maße = Innenmaße, "
@@ -294,7 +311,10 @@ LHT = Tabelle(
     "und Sonderbehälter (Maße = Innenmaße). Max. Gesamthöhe leer = Einstellung. Palette mit Aufsetzrahmen: Maße = "
     "Innenmaß des Rahmens, Höhe = Palettenhöhe; das Programm setzt so viele Rahmen auf, wie die Ladung hoch ist. "
     "Packkern: Überstand, Sicherheitsabstand, Mindestabstand und max. Artikel je Packmittel, leer = Einstellung "
-    "(Gitterbox, Karton, Sonderbehälter nie Überstand).",
+    "(Gitterbox, Karton, Sonderbehälter nie Überstand). Tauschpackmittel (Abrechnung Tausch): was ein nicht "
+    "zurückgegebenes Stück kostet, steht unter Wiederbeschaffungswert (leer = Tauschwert, dann Preis); der "
+    "Tauschzuschlag gilt, wenn eine Tauschregel „Tausch gegen Zuschlag“ keinen eigenen Betrag hat. Verfügbar leer = "
+    "unbegrenzt, sonst Hinweis, wenn eine Sendung mehr braucht.",
     pruefung=_lht_pruefung)
 
 ZUSCHLAEGE = Tabelle(
@@ -326,6 +346,46 @@ ZUSCHLAEGE = Tabelle(
     "allgemein). Dieselstaffel: Zuschlag aus der Tabelle Dieselstaffel zum Dieselpreis am Datum.",
     pruefung=_zuschlag_pruefung)
 
+def _tausch_pruefung(z, k):
+    if z.get("regel") == "teilweiser Tausch" and z.get("quote") is None and z.get("tausch_max") is None:
+        return "FEHLER: teilweiser Tausch braucht Getauscht [%] oder Getauscht höchstens [Stück]"
+    if z.get("regel") == "Tausch nur bei Rücklieferung" and z.get("rueckfuehrung") is None:
+        return "WARNUNG: Rückführungskosten fehlen (ohne gilt der Wiederbeschaffungswert)"
+    if z.get("gueltig_ab") and z.get("gueltig_bis") and z["gueltig_bis"] < z["gueltig_ab"]:
+        return "FEHLER: Gültig bis liegt vor Gültig ab"
+    return None
+
+
+TAUSCH = Tabelle(
+    "fracht_tauschregeln", "Packmitteltausch",
+    (Feld("regel_id", "Regel", pflicht=True, breite=110),
+     Feld("dienstleister", "Dienstleister", "auswahl", auswahl="dienstleister", breite=110),
+     Feld("lht_id", "Packmittel", "auswahl", auswahl="lhtart_id", breite=120),
+     Feld("regel", "Tausch", "auswahl", auswahl="tauschregel", pflicht=True, breite=150),
+     Feld("quote", "Getauscht [%]", "zahl", 0, 100, stellen=1, breite=70),
+     Feld("tausch_max", "Getauscht höchstens [Stück]", "ganz", 0, 100000, breite=80),
+     Feld("zuschlag_stueck", "Zuschlag je Stück [€]", "zahl", 0, 10000, stellen=2, breite=80),
+     Feld("zuschlag_lieferung", "Zuschlag je Lieferung [€]", "zahl", 0, 100000, stellen=2, breite=85),
+     Feld("pfand", "Pfand je Stück [€]", "zahl", 0, 100000, stellen=2, breite=75),
+     Feld("rueckfuehrung", "Rückführung je Stück [€]", "zahl", 0, 100000, stellen=2, breite=85),
+     Feld("frei", "Freimenge ohne Zuschlag [Stück]", "ganz", 0, 100000, breite=85),
+     Feld("mindest", "Tausch ab [Stück]", "ganz", 0, 100000, breite=70),
+     Feld("kundennr", "Kundennummer", "auswahl", auswahl="kunde", breite=100),
+     Feld("gueltig_ab", "Gültig ab", "datum", breite=85),
+     Feld("gueltig_bis", "Gültig bis", "datum", breite=85),
+     Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
+     Feld("bemerkung", "Bemerkung (Vertrag, Ansprechpartner)", breite=260)),
+    ("regel_id",),
+    "Was der Dienstleister mit Tauschpackmitteln (Abrechnung Tausch, z. B. Europalette, Gitterbox) macht, je "
+    "Dienstleister und Packmittel (einzelnes Packmittel oder Art; leer = alle). Ohne passende Regel gilt kein Tausch: "
+    "jedes Stück kostet den Wiederbeschaffungswert. Je Stück gilt genau eine Abrechnung (getauscht, Pfand, Rückführung "
+    "oder Wiederbeschaffung), nie zwei. Teilweiser Tausch: Getauscht [%] (abgerundet) bzw. höchstens Stück, der Rest "
+    "kostet den Wiederbeschaffungswert. Zuschlag je Stück gilt für getauschte Stücke über der Freimenge (bei „Tausch "
+    "gegen Zuschlag“ ohne Betrag: Tauschzuschlag des Packmittels), Zuschlag je Lieferung einmal je Sendung. Tausch "
+    "ab: darunter kein Tausch. Kunde und Gültigkeit für Vertragskonditionen; die speziellere Regel gilt (Kunde vor "
+    "Dienstleister vor Packmittel vor Art vor allgemein).",
+    pruefung=_tausch_pruefung)
+
 DIESELPREISE = Tabelle(
     "fracht_dieselpreise", "Dieselpreise",
     (Feld("datum", "Gültig ab", "datum", pflicht=True, breite=90),
@@ -356,19 +416,21 @@ WAEHRUNGEN = Tabelle(
     "Umrechnungskurse für Tarife in fremder Währung, von Hand gepflegt. EUR braucht keinen Eintrag.")
 
 FRACHT_TABELLEN = (LAENDER, ZONEN, PLZ, DIENSTLEISTER, TARIFE, PREISE, LHT, ZUSCHLAEGE, DIESELPREISE, DIESELSTAFFEL,
-                   WAEHRUNGEN)
+                   WAEHRUNGEN, TAUSCH)
 FRACHT_TABELLE = {t.name: t for t in FRACHT_TABELLEN}
 # Kurznamen für den Rechenkern (fracht.py)
 KURZ = {"fracht_laender": "laender", "fracht_zonen": "zonen", "fracht_plz": "plz",
         "fracht_dienstleister": "dienstleister", "fracht_tarife": "tarife", "fracht_preise": "preise",
         "fracht_lht": "lht", "fracht_zuschlaege": "zuschlaege", "fracht_dieselpreise": "dieselpreise",
-        "fracht_dieselstaffel": "dieselstaffel", "fracht_waehrungen": "waehrungen"}
+        "fracht_dieselstaffel": "dieselstaffel", "fracht_waehrungen": "waehrungen",
+        "fracht_tauschregeln": "tauschregeln"}
 
 FRACHT_VERWEISE = {
     ("fracht_laender", "land"): (("fracht_zonen", "land"), ("fracht_plz", "land")),
     ("fracht_zonen", "zone_id"): (("fracht_plz", "zone_id"), ("fracht_preise", "zone_id")),
     ("fracht_dienstleister", "dienstleister_id"): (("fracht_plz", "dienstleister"), ("fracht_tarife", "dienstleister"),
-                                                   ("fracht_zuschlaege", "dienstleister")),
+                                                   ("fracht_zuschlaege", "dienstleister"),
+                                                   ("fracht_tauschregeln", "dienstleister")),
     ("fracht_tarife", "tarif_id"): (("fracht_preise", "tarif_id"),),
     ("fracht_zuschlaege", "zuschlag_id"): (("fracht_dieselstaffel", "zuschlag_id"),),
 }

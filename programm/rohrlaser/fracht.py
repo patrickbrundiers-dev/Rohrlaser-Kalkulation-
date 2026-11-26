@@ -845,7 +845,10 @@ def snapshot(daten, s, zone_e, zone_v, tarif):
                 zuschlaege=zus, dieselpreis=dieselpreis(daten, datum),
                 dieselstaffel=[dict(d) for d in daten.get("dieselstaffel", []) if d.get("zuschlag_id") in ids],
                 waehrung=waehrung, kurs=None if waehrung == "EUR" else (kurs or {}).get("kurs"),
-                kurs_stand=(kurs or {}).get("stand"), lht=[dict(z) for z in daten.get("lht", [])])
+                kurs_stand=(kurs or {}).get("stand"), lht=[dict(z) for z in daten.get("lht", [])],
+                **({"tausch": [dict(r) for r in daten["tauschregeln"] if not r.get("dienstleister")
+                               or r["dienstleister"] == tarif.get("dienstleister")]}
+                   if "tauschregeln" in daten else {}))       # Packmitteltausch (26.11.2026): fehlt = wie bisher
 
 
 def kalkulieren(snap, s):

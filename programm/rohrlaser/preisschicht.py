@@ -21,6 +21,8 @@ je Teil und gesamt, nur zur Anzeige (Kopf, Angebots-Check, Zielpreis). Ohne Qt."
 import json
 import math
 
+from .stammdaten import zahl_als_text
+
 FELDER = ("mannlos", "neuteil", "regel", "verpackung", "finanzierung", "frachtfrei", "rabatt", "rundung")
 ZUSATZ_FELDER = ("preis_hand",)     # nur mit Wert in Zeilen und Summen (Preis von Hand je Baugruppe, 12.11.2026)
 
@@ -141,9 +143,15 @@ def anwenden(kopf, positionen, zeilen, summen, k, tabellen, einst):
             for i, w in _verteilen(aktiv, pm["gesamt"], gewichte if sum(gewichte.values()) else
                                    {id(z): z["stueck"] for z in aktiv}).items():
                 plus[i]["verpackung"] = w
-            info.update(verpackung_text="; ".join(t for t, _ in pm["zeilen"]) + " (Packliste)",
-                        verpackung_anzahl=len(pm["zeilen"]))
-        verpackung = ()
+            if pm.get("neu"):            # Packmitteltausch (26.11.2026): je Kostenart getrennt
+                info.update(verpackung_text="; ".join(f"{k} {zahl_als_text(b, 2)} €" for k, b in pm["posten"].items())
+                            + " (Packliste" + (f", {pm['dienstleister']}" if pm.get("dienstleister") else "") + ")",
+                            verpackung_posten=dict(pm["posten"]))
+            else:
+                info.update(verpackung_text="; ".join(t for t, _ in pm["zeilen"]) + " (Packliste)")
+            info["verpackung_anzahl"] = len(pm["zeilen"])
+        if not (pm and pm.get("neu") and not pm["mit_preis"]):    # neu ohne Packmittelpreise: Tabelle Verpackung
+            verpackung = ()
     if verpackung and kopf.get("verpackung") != "nein":
         werte = {id(z): rechnen.position_werte(p, kopf, k, tabellen) for p, z in zip(positionen, zeilen)
                  if z and z.get("stueck")}

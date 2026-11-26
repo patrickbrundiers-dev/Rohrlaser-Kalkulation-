@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.521", "<b>Packmittelmanagement und Palettentausch</b> ([[fracht_tausch]]): Je Dienstleister und Packmittel "
+                "steht jetzt, ob er tauscht (vollständig, teilweise, gar nicht, gegen Zuschlag, gegen Pfand, nur bei "
+                "Rücklieferung), mit Zuschlag je Stück oder Lieferung, Freimenge, Mindestmenge, Kunde und Gültigkeit. "
+                "Ohne Regel tauscht er nicht: nicht getauschte Europaletten und Gitterboxen kosten ihren neuen "
+                "<b>Wiederbeschaffungswert</b> (z. B. 3 × 22 € = 66 €). Je Stück genau eine Abrechnung, Pfand, "
+                "Tauschzuschlag und Wiederbeschaffung nie doppelt. Packmittelkosten erscheinen je Kostenart getrennt, "
+                "dazu eine Kostenaufschlüsselung Logistik; der Preisvergleich rechnet den Tausch je Anbieter mit und "
+                "empfiehlt keinen Dienstleister, der eine Transportbedingung (Länge, Höhe, Gewicht, Hebebühne, "
+                "Gefahrgut) nicht erfüllt. Fracht lässt sich mit Begründung von Hand korrigieren. Packmittelkosten aus "
+                "der Packliste sind jetzt Vorgabe (ohne Packmittelpreise gilt die Tabelle Verpackung). Neue Paletten: "
+                "Europalette, Halbpalette, Einweg- und Industriepalette. Ältere Angebote rechnen unverändert.",
+     "Palettentausch je Dienstleister, Wiederbeschaffung nicht getauschter Packmittel"],
     ["0.9.516", "<b>Supportpaket 26.11.</b>: Der Kundenimport stürzte im Prüfschritt ab, sobald ein neuer Kunde mit "
                 "Kundennummer in der Datei stand (Fehlermeldung „multiple values for keyword argument kundennr“); "
                 "behoben. <i>Fracht berechnen …</i> und <i>Packvorschlag</i> hingen bei sehr großen Angeboten "

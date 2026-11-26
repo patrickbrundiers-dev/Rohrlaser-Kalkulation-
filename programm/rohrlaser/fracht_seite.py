@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QDate, Qt, QTimer
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog,
+    QAbstractItemView, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog,
     QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton,
     QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
     QTextBrowser, QVBoxLayout, QWidget)
@@ -23,7 +23,7 @@ from .angebot import aktiv as position_aktiv
 from .angebot_oben import Aufklapper
 from .fenster import EinstellungenSeite, StammdatenSeite
 from .fracht_daten import (DIENSTLEISTER, DIESELPREISE, DIESELSTAFFEL, LAENDER, LHT, LIEFERBEDINGUNGEN, PLZ, PREISE,
-                           TARIFE, VERSANDART_TEXT, VERSANDARTEN, WAEHRUNGEN, ZONEN, ZUSCHLAEGE, liste, plz_csv,
+                           TARIFE, TAUSCH, VERSANDART_TEXT, VERSANDARTEN, WAEHRUNGEN, ZONEN, ZUSCHLAEGE, liste, plz_csv,
                            plz_csv_lesen, preise_csv, preise_csv_lesen)
 from .stammdaten import zahl_als_text, zahl_aus_text
 from .eingabe import RechenSpin, RechenSpinGanz
@@ -737,7 +737,10 @@ class RechnerSeite(QWidget):
         t.setRowCount(len(zeilen))
         auto = (v["empfehlung"].get("automatisch") or {}).get("tarif_id")
         for r, z in enumerate(zeilen):
-            werte = [z["dienstleister"], fracht.euro(z["gesamt"]) if z["gesamt"] is not None else "–",
+            preis = fracht.euro(z["gesamt"]) if z["gesamt"] is not None else "–"
+            if z.get("gesamt_logistik") is not None and z.get("packmittel"):     # Packmitteltausch des Anbieters
+                preis += f" + {fracht.euro(z['packmittel'])} Tausch = {fracht.euro(z['gesamt_logistik'])}"
+            werte = [z["dienstleister"], preis,
                      f"{z['laufzeit']} AT" if isinstance(z.get("laufzeit"), int) else "–",
                      z["text"] + (f" ({z['warnung']})" if z.get("warnung") else ""),
                      z["bezeichnung"], z["versandart"],
@@ -749,6 +752,8 @@ class RechnerSeite(QWidget):
                 it.setData(Qt.UserRole, z.get("tarif_id"))
                 if z["status"] == "lücke":
                     it.setForeground(stil.farbe("#7F8A99"))
+                elif z["status"] == fracht_vergleich.BEDINGUNG:
+                    it.setForeground(stil.farbe("#B42318"))
                 elif z["preisart"] == "Richtwert":
                     it.setForeground(stil.farbe("#7A5A00"))
                 elif z.get("tarif_id") and z["tarif_id"] == auto:
@@ -782,7 +787,7 @@ class RechnerSeite(QWidget):
             it = self.vergleich_tabelle.item(self.vergleich_tabelle.currentRow(), 0)
             tarif_id = it.data(Qt.UserRole) if it else None
         z = next((x for x in (self.vergleich_daten or {}).get("zeilen", []) if x["tarif_id"] == tarif_id), None)
-        if not z or z["status"] != "ok":
+        if not z or z["status"] not in ("ok", "bedingung"):
             self.f.meldung("Bitte einen Tarif mit Preis markieren (Tariflücke: erst Angebot eintragen).", fehler=True)
             return False
         from .fracht_richtwerte import PAKET
@@ -799,7 +804,9 @@ class RechnerSeite(QWidget):
         self._laden = False
         self.rechnen()
         self.rechts_reiter.setCurrentIndex(0)
-        self.f.meldung(f"Tarif {tarif_id} übernommen ({fracht.euro(z['gesamt'])}).")
+        self.f.meldung(f"Tarif {tarif_id} übernommen ({fracht.euro(z['gesamt'])})."
+                       + (f" Achtung: {z['text']}" if z["status"] == "bedingung" else ""),
+                       fehler=z["status"] == "bedingung")
         return True
 
     def live_abfragen(self):
@@ -821,7 +828,12 @@ class RechnerSeite(QWidget):
         lw = (self.ergebnis or {}).get("lht") or {}
         eintraege = [dict(lht_id=x["lht_id"], anzahl=x["anzahl"], rahmen=x.get("rahmen"))
                      for x in lw.get("je") or ()] or self.lht_eintraege()
-        return paletten.packmittel_kosten(eintraege, self.daten.get("lht", []), satz)
+        e = self.ergebnis or {}
+        s = e.get("eingaben") or {}
+        return paletten.packmittel_kosten(eintraege, self.daten.get("lht", []), satz,
+                                          tausch=self.daten.get("tauschregeln", []),
+                                          dienstleister=(e.get("tarif") or {}).get("dienstleister"),
+                                          kundennr=s.get("kundennr"), datum=s.get("datum"))
 
     def _packmittel_zeigen(self):
         pm = self.packmittel_kosten()
@@ -839,20 +851,41 @@ class RechnerSeite(QWidget):
         if self.packliste is not None:
             from . import paletten
             teile.append(f"<p>{_e(paletten.kurz(self.packliste))}</p>")
-        teile.append("<p><b>Packmittelkosten</b> (ohne Gewinn, wie Fracht)</p>")
+        teile.append("<p><b>Packmittelkosten</b> (ohne Gewinn, wie Fracht)"
+                     + (f" – Tauschregeln von {_e(pm['dienstleister'])}" if pm.get("dienstleister") else "") + "</p>")
         if pm["zeilen"]:
+            kat = pm.get("kategorien") or [""] * len(pm["zeilen"])
             teile.append("<table cellpadding='3'>" + "".join(
-                f"<tr><td>{_e(t)}</td><td align='right'>{fracht.euro(b)}</td></tr>" for t, b in pm["zeilen"])
-                + f"<tr><td><b>Summe</b></td><td align='right'><b>{fracht.euro(pm['gesamt'])}</b></td></tr></table>")
+                f"<tr><td>{_e(k)}</td><td>{_e(t)}</td><td align='right'>{fracht.euro(b)}</td></tr>"
+                for (t, b), k in zip(pm["zeilen"], kat))
+                + f"<tr><td></td><td><b>Summe</b></td><td align='right'><b>{fracht.euro(pm['gesamt'])}</b></td>"
+                "</tr></table>")
         else:
             teile.append("<p>Keine Packmittelkosten eingetragen.</p>")
+        teile.append(self._aufschluesselung(pm))
         if pm["hinweise"]:
             teile.append("<ul>" + "".join(f"<li>{_e(h)}</li>" for h in pm["hinweise"]) + "</ul>")
-        teile.append("<p style='color:#5F6B7A'>Preise, Sicherungsmaterial, Packzeit und Aufsetzrahmen stehen unter "
-                     "Einstellungen → Fracht → Packmittel und Ladungsträger. Ins Angebot kommen sie mit dem Haken "
+        teile.append("<p style='color:#5F6B7A'>Preise, Wiederbeschaffungswert, Sicherungsmaterial, Packzeit und "
+                     "Aufsetzrahmen stehen unter Einstellungen → Fracht → Packmittel und Ladungsträger, die "
+                     "Tauschregeln je Dienstleister unter Dienstleister. Ins Angebot kommen sie mit dem Haken "
                      "„Verpackung aus der Packliste“ beim Übernehmen.</p>")
         self.packmittel_anzeige.setHtml("".join(teile))
         return pm
+
+    def _aufschluesselung(self, pm):
+        """Kostenaufschlüsselung der Logistik (Patrick 26.11.2026): reine Fracht, sonstige Transportzuschläge und
+        die Packmittel je Kostenart, dazu die Gesamtsumme."""
+        e = self.ergebnis or {}
+        if e.get("gesamt") is None:
+            return ""
+        zus = round(sum(x.get("betrag") or 0 for x in e.get("zuschlaege") or []), 2)
+        zeilen = [("Reine Frachtkosten", round(e["gesamt"] - zus, 2)), ("Sonstige Transportzuschläge", zus)]
+        zeilen += list((pm.get("posten") or {}).items())
+        ges = round(sum(b for _, b in zeilen), 2)
+        return ("<p><b>Kostenaufschlüsselung Logistik</b></p><table cellpadding='3'>" + "".join(
+            f"<tr><td>{_e(t)}</td><td align='right'>{fracht.euro(b)}</td></tr>" for t, b in zeilen if b or t.startswith(
+                "Reine")) + f"<tr><td><b>Gesamt Fracht und Packmittel</b></td><td align='right'><b>{fracht.euro(ges)}"
+                "</b></td></tr></table>")
 
     def speichern(self):
         e = self.rechnen()
@@ -923,6 +956,22 @@ class FrachtDialog(QDialog):
         unten.addWidget(self.umlage)
         unten.addWidget(self.packmittel)
         unten.addStretch(1)
+        # Korrektur von Hand mit Begründung (Patrick 26.11.2026): auf die berechnete Fracht, je Sendung
+        k_alt = (alt or {}).get("korrektur") or {}
+        self.korrektur = QDoubleSpinBox()
+        self.korrektur.setRange(-100000, 100000)
+        self.korrektur.setDecimals(2)
+        self.korrektur.setSuffix(" €")
+        self.korrektur.setValue(float(k_alt.get("betrag") or 0))
+        self.korrektur.setToolTip("Zu- oder Abschlag auf die berechnete Fracht (je Sendung, auch je Staffelstufe); "
+                                  "nur mit Begründung")
+        self.begruendung = QLineEdit(k_alt.get("begruendung") or "")
+        self.begruendung.setPlaceholderText("Begründung, z. B. Angebot der Spedition vom …")
+        unten2 = QHBoxLayout()
+        unten2.addWidget(QLabel("Korrektur von Hand"))
+        unten2.addWidget(self.korrektur)
+        unten2.addWidget(QLabel("Begründung"))
+        unten2.addWidget(self.begruendung, 1)
         knoepfe = QDialogButtonBox()
         self.uebernehmen_knopf = knoepfe.addButton("Ins Angebot übernehmen", QDialogButtonBox.AcceptRole)
         self.uebernehmen_knopf.setObjectName("primaer")
@@ -933,6 +982,7 @@ class FrachtDialog(QDialog):
         lay.addWidget(self.hinweis)
         lay.addWidget(r, 1)
         lay.addLayout(unten)
+        lay.addLayout(unten2)
         lay.addWidget(knoepfe)
         self.resize(1150, 760)
 
@@ -945,6 +995,11 @@ class FrachtDialog(QDialog):
         if e.get("gesamt") is None:
             self.s.f.meldung("Fracht nicht berechnet – nichts übernommen: " + "; ".join(e.get("fehler") or []),
                              fehler=True)
+            return False
+        korr = round(self.korrektur.value(), 2)
+        grund = self.begruendung.text().strip()
+        if korr and not grund:
+            self.s.f.meldung("Korrektur von Hand nur mit Begründung – bitte eintragen.", fehler=True)
             return False
         db = self.s.db
         snap = e.get("snapshot")
@@ -967,15 +1022,22 @@ class FrachtDialog(QDialog):
                                                                 db.einstellung("fracht_lht_standard")))
             if self.packmittel.isChecked():
                 daten["packmittel_aktiv"] = True
+        betrag = e["gesamt"]
+        if korr and snap is not None:
+            daten["korrektur"] = dict(betrag=korr, begruendung=grund)
+            betrag = round(max(0.0, e["gesamt"] + korr), 2)
+            daten["text"] = text + f", Korrektur {fracht.euro(korr)} ({grund})"
         db.angebot_aendern(self.s.id, "fracht_sendung", json.dumps(daten, ensure_ascii=False, default=str))
-        db.angebot_aendern(self.s.id, "fracht", e["gesamt"])
+        db.angebot_aendern(self.s.id, "fracht", betrag)
         db.angebot_aendern(self.s.id, "fracht_modus", "berechnet" if snap is not None else "keine Fracht")
         if self.umlage.currentText() != (self.s.kopf.get("fracht_umlage") or fracht_angebot.JE_STUECK):
             db.angebot_aendern(self.s.id, "fracht_umlage", self.umlage.currentText())
         if self.s.kopf.get("fracht_auto"):        # von Hand übernommen: Automatik aus, sonst würde sie überschreiben
             db.angebot_aendern(self.s.id, "fracht_auto", None)
         db.fracht_kalkulation_speichern(e, self.rechner.bezeichnung.text().strip(), self.s.id)
-        self.s.f.meldung(f"Fracht {fracht.euro(e['gesamt'])} ins Angebot übernommen.")
+        self.s.f.meldung(f"Fracht {fracht.euro(betrag)} ins Angebot übernommen"
+                         + (f" (berechnet {fracht.euro(e['gesamt'])}, Korrektur {fracht.euro(korr)}: {grund})."
+                            if betrag != e["gesamt"] else "."))
         self.accept()
         self.s.neu_laden()
         return True
@@ -1316,16 +1378,21 @@ class DienstleisterSeite(QWidget):
         z.addStretch(1)
         ul.addLayout(z)
         ul.addWidget(self.kundentarife, 1)
+        # Packmitteltausch je Dienstleister und Packmittel (Patrick 26.11.2026, packmittel_tausch.py)
+        self.tausch = StammdatenSeite(self.db, TAUSCH, fenster.meldung)
+        tausch_box = self.tausch
         teiler = QSplitter(Qt.Vertical)
         teiler.addWidget(_box("Dienstleister", self.dienstleister))
+        teiler.addWidget(_box("Packmitteltausch je Dienstleister", tausch_box))
         teiler.addWidget(_box("Kundentarife und Verträge", unten))
-        teiler.setSizes([300, 380])
+        teiler.setSizes([260, 260, 300])
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(teiler)
 
     def neu_laden(self):
         self.dienstleister.neu_laden()
+        self.tausch.neu_laden()
         kunden = {k["kundennr"]: k for k in self.db.zeilen("kunden") if k.get("kundennr")}
         zeilen = [t for t in self.db.zeilen("fracht_tarife")
                   if t.get("kundennr") or t.get("tarifart") in ("Kundentarif", "Rahmenvertrag", "Sondertarif",
