@@ -2112,7 +2112,8 @@ class EinstellungenSeite(QScrollArea):
                                "csv_ordner": "Ordner für den CSV-Export wählen",
                                "anfrage_ordner": "Anfrage-Ordner wählen",
                                "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen",
-                               "lst_ordner": "Ordner der gefertigten LST- und BPF-Dateien wählen"}.get(e.name, "Standardordner wählen"),
+                               "lst_ordner": "Ordner der gefertigten LST- und BPF-Dateien wählen",
+                               "server_ablage_hier": "Ablage am Server wählen"}.get(e.name, "Standardordner wählen"),
                               e.titel)
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
@@ -4410,9 +4411,9 @@ class Hauptfenster(QMainWindow):
         die Plätze fertige Ergebnisse des Angebots-Caches (dauermerker.teilen_*)."""
         from . import dauermerker, teilen
         try:
-            if dauermerker.ordner() is None or not teilen.aktiv(self.db):
+            if dauermerker.ordner() is None or not teilen.dateien_geteilt(self.db):
                 return None
-            return teilen.ordner(self.db) / dauermerker.TEILEN_ORDNER, teilen.kuerzel(self.db)
+            return teilen.dateiordner(self.db) / dauermerker.TEILEN_ORDNER, teilen.kuerzel(self.db)
         except Exception:           # noqa: BLE001 – Einstellungen nicht lesbar: ohne Teilen
             from . import protokoll
             protokoll.warnung("Angebots-Cache: gemeinsamer Ordner nicht bestimmbar, es wird je Platz gerechnet")
@@ -5681,16 +5682,19 @@ class Hauptfenster(QMainWindow):
         self.meldung(text)
         if not self.stumm:
             m = QMessageBox(QMessageBox.Information, "Datenbank", text, parent=self)
-            verbinden = zurueck = None
+            verbinden = zurueck = ablage = None
             if self.ist_hauptadmin_oder_frei():     # Umstellen der Betriebsart (Serverversion S1)
                 if self.db.server is None:
                     verbinden = m.addButton("Mit dem Server verbinden …", QMessageBox.ActionRole)
                 else:
+                    ablage = m.addButton("Ablage am Server …", QMessageBox.ActionRole)       # S3
                     zurueck = m.addButton("Zurück zur lokalen Datenbank …", QMessageBox.ActionRole)
             m.addButton(QMessageBox.Close)
             m.exec()
             from . import server_dialog
-            if verbinden is not None and m.clickedButton() is verbinden:
+            if ablage is not None and m.clickedButton() is ablage:
+                server_dialog.ablage_einstellen(self)
+            elif verbinden is not None and m.clickedButton() is verbinden:
                 server_dialog.verbinden(self, self.db.pfad)
             elif zurueck is not None and m.clickedButton() is zurueck:
                 server_dialog.zurueck(self, self.db.pfad)

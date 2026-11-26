@@ -384,10 +384,64 @@ ANFRAGEN, ANGEBOTE, SICHERUNGEN = "Anfragen", "Angebote", "Sicherungen"     # Un
 
 def unterordner(db, name, einstellung, anlegen=False):
     """Unterordner des gemeinsamen Ordners (Anfragen, Angebote, Sicherungen), wenn geteilt wird, die Einstellung „ja“
-    ist und der Ordner erreichbar ist; sonst None. anlegen: fehlenden Unterordner anlegen."""
+    ist und der Ordner erreichbar ist; sonst None. anlegen: fehlenden Unterordner anlegen.
+    Serverbetrieb (S3): Unterordner der Ablage am Server; Anfragen und Angebote liegen dort immer (alle arbeiten mit
+    denselben Dateien), Sicherungen nie (der Server sichert zentral)."""
+    if server(db):
+        if name == SICHERUNGEN:
+            return None
+        w = dateiweg(db)
+        return w.unterordner(name, anlegen) if w is not None else None
     if not aktiv(db) or db.einstellung(einstellung) != "ja":
         return None
     return weg(db).unterordner(name, anlegen)
+
+
+# ------------------------------------------------------------------ Dateien im Serverbetrieb (S3, 26.11.2026)
+# Die Daten liegen in der zentralen Datenbank, die Dateien (Angebotsordner, Anfrage-Akten, Austausch, Updates,
+# Admin-Vorgaben, Rechenmerker) in einer Freigabe am Server („Ablage am Server“). Den Pfad trägt der Verwalter am
+# Server ein (server_betrieb.ablage_setzen, Befehl „ablage“); ein Arbeitsplatz, der die Freigabe unter einem anderen
+# Pfad sieht (Laufwerksbuchstabe), trägt ihn in server_ablage_hier ein. Ohne Server gilt der gemeinsame Ordner.
+def server_ablage(db):
+    """Ablage am Server (Path) im Serverbetrieb oder None (keine eingetragen / kein Serverbetrieb)."""
+    if not server(db):
+        return None
+    hier = str(db.einstellung("server_ablage_hier") or "").strip()
+    if hier:
+        return Path(hier)
+    from . import server_betrieb
+    o = server_betrieb.ablage(db)
+    return Path(o) if o else None
+
+
+def dateiordner(db):
+    """Ordner der gemeinsamen Dateien: im Serverbetrieb die Ablage am Server, sonst der gemeinsame Ordner."""
+    return server_ablage(db) if server(db) else ordner(db)
+
+
+def dateiweg(db):
+    """Austauschweg (austausch.OrdnerWeg) zum Ordner der gemeinsamen Dateien oder None."""
+    return austausch.weg(dateiordner(db))
+
+
+def ablage_zustand(db):
+    """Serverbetrieb: (Pfad oder None, erreichbar, Text für die Anzeige). Ohne Server: (None, False, "")."""
+    if not server(db):
+        return None, False, ""
+    p = server_ablage(db)
+    if p is None:
+        return None, False, ("Ablage am Server: keine eingetragen – Angebotsordner, Anfrage-Akten und Austausch "
+                             "bleiben auf diesem Arbeitsplatz (der Verwalter trägt sie unter Datei → Datenbank ein)")
+    w = austausch.weg(p)
+    ok = w.erreichbar()
+    return w.pfad, ok, (f"Ablage am Server: {w.pfad} – " + ("erreichbar" if ok else
+                        "NICHT erreichbar (Netzwerk, Freigabe oder Rechte prüfen; bis dahin geht nichts verloren, "
+                        "Ordner öffnen und Speichern melden einen Fehler)"))
+
+
+def dateien_geteilt(db):
+    """Dateien liegen für alle Mitarbeiter an einem Ort: Ablage am Server eingetragen oder Teilen eingerichtet."""
+    return dateiordner(db) is not None if server(db) else aktiv(db)
 
 
 def datei_name(k):

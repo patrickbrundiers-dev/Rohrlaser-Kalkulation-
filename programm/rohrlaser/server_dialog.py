@@ -407,6 +407,40 @@ def _liste_neu(fenster):
     liste.neu_laden()
 
 
+def ablage_einstellen(fenster, pfad=None):
+    """Datei → Datenbank → Ablage am Server … (Verwalter, S3): Pfad der Freigabe für die gemeinsamen Dateien
+    eintragen und prüfen. pfad: ohne Rückfrage (Tests). Ergebnis: (Pfad oder None, erreichbar) oder None."""
+    from PySide6.QtWidgets import QInputDialog
+
+    from . import teilen
+    db = fenster.db
+    if pfad is None:
+        alt = sb.ablage(db)
+        pfad, ok = QInputDialog.getText(
+            fenster, "Ablage am Server",
+            "Ordner für Angebotsordner, Anfrage-Akten, Austausch und Updates, so wie ihn alle Arbeitsplätze im Netz "
+            "erreichen (Freigabe des Ordners „Ablage“ im Server-Ordner, z. B. \\\\SERVER\\Rohrlaser-Ablage).\n"
+            "Leer = keine Ablage (Dateien bleiben auf jedem Arbeitsplatz).", QLineEdit.Normal, alt)
+        if not ok:
+            return None
+    try:
+        erg = _sm().ablage_speichern(db, pfad)
+    except (sb.ServerFehler, db_verbindung.DbFehler) as e:
+        fenster.meldung(str(e))
+        if not fenster.stumm:
+            QMessageBox.warning(fenster, "Ablage am Server", fehler_text(e))
+        return None
+    p, erreichbar = erg
+    _, _, text = teilen.ablage_zustand(db)
+    fenster.meldung(text)
+    if not fenster.stumm:
+        (QMessageBox.information if (p is None or erreichbar) else QMessageBox.warning)(
+            fenster, "Ablage am Server", text + ("" if p is None or erreichbar else
+                                                 "\n\nEingetragen ist der Pfad trotzdem; die anderen Arbeitsplätze "
+                                                 "nutzen ihn, sobald er für sie erreichbar ist."))
+    return erg
+
+
 def sm_eigene(db):
     return _sm().eigene(db)
 
