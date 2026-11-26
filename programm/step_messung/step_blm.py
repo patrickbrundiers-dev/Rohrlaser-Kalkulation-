@@ -1052,7 +1052,8 @@ def lies_blm_info(pfad):
                            f"{_mm(qs.get('thickness'))}, R {_mm(qs.get('edgesRadius'))}" if qs.get("width") else ""))
         if not koerper:
             raise ValueError("ARTUBE-Datei ohne messbares Teil (kein 3D-Netz, kein BPF daneben)")
-    return koerper, dict(einheit="mm", meldungen=meld[:20], baugruppe=len(koerper) > 1, struktur=None, bauteile={})
+    return koerper, dict(einheit="mm", meldungen=meld[:20], baugruppe=len(koerper) > 1, struktur=None, bauteile={},
+                         aus_programm=True)
 
 
 def _mm(v):

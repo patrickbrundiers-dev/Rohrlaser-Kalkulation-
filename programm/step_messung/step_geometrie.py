@@ -4263,12 +4263,13 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
     return t
 
 
-def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
+def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS, aus_programm=False):
     """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
     Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
     step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt. Eine Längsnaht ohne Spalt
     (Rohr als gebogenes Blech gezeichnet, step_naht_zu) wird für die Messung geschlossen; ein eingeschnittenes, mit
-    Radius gebogenes Rohr wird abgewickelt (step_kerbbiegen)."""
+    Radius gebogenes Rohr wird abgewickelt (step_kerbbiegen). aus_programm: Körper aus einem Maschinenprogramm
+    (info["aus_programm"] von step_lst, step_blm, step_tubx) – ohne Nahtsuche."""
     try:        # eingeschnitten und mit Radius gebogen (step_kerbbiegen): als gerades Rohr abwickeln, aus dem Körper wie
         # in der STEP (vor dem Schließen von Nähten: die Schnittkanten der Kerben stoßen dort nur aneinander)
         import step_kerbbiegen
@@ -4279,8 +4280,11 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         return t
     naht_zu = 0
     try:
-        import step_naht_zu
-        solid, naht_zu = step_naht_zu.schliessen(solid)
+        # Körper aus Maschinenprogrammen (LST, BPF, ARTUBE, TUBX) baut das Programm selbst als Rohr: eine Blechnaht
+        # ohne Spalt gibt es dort nicht (Importengine 2.0: LST 10186133 P20 suchte 108 s, fand nichts)
+        if not aus_programm:
+            import step_naht_zu
+            solid, naht_zu = step_naht_zu.schliessen(solid)
     except Exception:  # Schließen darf die Messung nie verhindern
         naht_zu = 0
     t = _analysiere_naht(solid, datei, koerper, netz, flach_bis)
@@ -6473,7 +6477,7 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
         try:
             t = None if NORMTEILE_VOLL else normteil_laut_name(k, gel.name, i, info["bauteile"].get(i, ("",))[0])
             if t is None:
-                t = analysiere(k, gel.name, i, netz, flach_bis)
+                t = analysiere(k, gel.name, i, netz, flach_bis, gel.info.get("aus_programm", False))
         except Exception as e:  # Messung dieses Körpers gescheitert: melden, andere Körper weiter messen
             t = Teil(datei=gel.name, koerper=i)
             t.hinweise.append(f"Messung fehlgeschlagen: {e or type(e).__name__}")
@@ -6634,7 +6638,7 @@ def _geometrie_pruefen(t, k, art, gel, i, netz, flach_bis):
         return t
     if repariert is not None and REPARATUR_MESSEN and _nicht_gemessen(t) and art != "Flächenmodell offen":
         try:
-            t2 = analysiere(repariert, gel.name, i, netz, flach_bis)
+            t2 = analysiere(repariert, gel.name, i, netz, flach_bis, gel.info.get("aus_programm", False))
         except Exception:  # noqa: BLE001 – dann bleibt es beim Ergebnis des gelesenen Körpers
             t2 = None
         if t2 is not None and not _nicht_gemessen(t2):

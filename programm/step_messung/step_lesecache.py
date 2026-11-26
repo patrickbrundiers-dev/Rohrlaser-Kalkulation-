@@ -37,7 +37,7 @@ import pickle
 import time
 from pathlib import Path
 
-LESER_STAND = 3
+LESER_STAND = 4
 AB_S = 0.0                  # s: erst ab dieser Lesedauer merken (0 = immer, siehe Bitgleichheit)
 UMGEBUNG = "STEP_LESECACHE"     # Ordner (vom Messprogramm gesetzt, gilt so auch in den Messprozessen)
 ENDUNGEN = (".step", ".stp", ".igs", ".iges")

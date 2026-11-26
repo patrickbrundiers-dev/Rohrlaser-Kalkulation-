@@ -266,4 +266,5 @@ def lies_tubx_info(pfad):
     meldungen.append("aus TUBX (TubeCAM): Dreiecksnetz, Bohrungen aus den Modellkreisen exakt, Rundungen als Vieleck")
     if meld_lst:
         meldungen.append(meld_lst)
-    return koerper, dict(einheit="mm", meldungen=meldungen, baugruppe=len(koerper) > 1, struktur=None, bauteile={})
+    return koerper, dict(einheit="mm", meldungen=meldungen, baugruppe=len(koerper) > 1, struktur=None, bauteile={},
+                         aus_programm=True)

@@ -315,6 +315,39 @@ def _n4():
     assert len(k) == 1 and info["abfall_offen"] == 0, info
 
 
+@fall("N5 Nahtsuche mit Hüllquader-Vorprüfung: gleiche Füllungen wie ohne; Körper aus Maschinenprogramm ohne Nahtsuche")
+def _n5():
+    sys.path.insert(0, str(HIER))
+    import erzeuge_testteile as et
+    import step_geometrie as sg
+    import step_naht_zu as nz
+    from OCP.Bnd import Bnd_Box
+    from test_step_wie_modell import box
+    re = et.kastenrohr(50, 30, 2.6, 244.48, 5.2)
+    mit = et.cut(et.cut(re, box(-0.005, 12, -1, 0.01, 5, 247)), box(-30, -10, 100, 60, 30, 40))
+    neu = nz.paare(mit)
+    alt_kaesten = nz._kaesten
+
+    def ohne_pruefung(eb):     # Hüllquader, die sich immer berühren: Stand ohne Vorprüfung
+        out = []
+        for _ in eb:
+            b = Bnd_Box()
+            b.Update(-1e6, -1e6, -1e6, 1e6, 1e6, 1e6)
+            out.append(b)
+        return out
+    nz._kaesten = ohne_pruefung
+    try:
+        alt = nz.paare(mit)
+    finally:
+        nz._kaesten = alt_kaesten
+    va, vn = sum(sg._volumen(x) for x in alt), sum(sg._volumen(x) for x in neu)
+    assert len(neu) == len(alt) >= 1 and va == vn, (len(alt), len(neu), va, vn)
+    t = sg.analysiere(mit, "RE_Naht", 1)
+    assert any("Naht ohne Spalt" in h for h in t.hinweise), t.hinweise
+    t = sg.analysiere(mit, "RE_Naht", 1, aus_programm=True)
+    assert not any("Naht ohne Spalt" in h for h in t.hinweise), t.hinweise
+
+
 @fall("C1 Zwischenspeicher: LST neben der TUBX gehört zum Schlüssel, STEP-Schlüssel unverändert")
 def _c1():
     import step_messen as sm

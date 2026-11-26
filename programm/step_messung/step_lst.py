@@ -243,7 +243,7 @@ def lies_lst_info(pfad):
         raise ValueError("; ".join(meld) or "LST ohne messbares Teil")
     # abfall_offen: Öffnungen, deren Abfall im Körper blieb (ketten, über mehr als SPANNE_MAX): für die Gegenprobe
     return koerper_, dict(einheit="mm", meldungen=meld[:20], baugruppe=len(koerper_) > 1, struktur=None,
-                          bauteile={}, abfall_offen=sum(p.get("abfall_offen") or 0 for p in progs))
+                          bauteile={}, abfall_offen=sum(p.get("abfall_offen") or 0 for p in progs), aus_programm=True)
 
 
 def lst_daneben(pfad, programm=""):
