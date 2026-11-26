@@ -213,7 +213,9 @@ def _():
     from rohrlaser.einkauf_felder import EinkaufFelder
     db, fenster, s = _angebot_satz()
     QApplication.processEvents()
-    assert "Blech-EK je Satz/Baugruppe …" in s.pos_aktionen
+    # 26.11.2026: der doppelte Eintrag „Blech-EK je Satz/Baugruppe …“ ist in „Satz bearbeiten …“ aufgegangen
+    assert "Blech-EK je Satz/Baugruppe …" not in s.pos_aktionen
+    assert "Satz bearbeiten (Anzahl Sätze) …" in s.pos_aktionen
     gesehen = {}
 
     def satz3d(d):

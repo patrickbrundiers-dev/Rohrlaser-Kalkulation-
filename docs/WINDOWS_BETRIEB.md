@@ -1,7 +1,7 @@
 # Rohrlaser-Kalkulation unter Windows: Abhängigkeiten, Betrieb, Updates, Wiederherstellung
 
 Technische Dokumentation zum Auftrag Patrick 26.11.2026 „Systemunabhängigkeit, Windows-Update-Sicherheit und
-langfristige Stabilität“ (Stand 0.9.517). Der Prüfbericht mit Befunden und Testergebnissen steht in
+langfristige Stabilität“ (Stand 0.9.522). Der Prüfbericht mit Befunden und Testergebnissen steht in
 [system-audit/WINDOWS_STABILITAET_2611.md](system-audit/WINDOWS_STABILITAET_2611.md).
 
 Grundsatz: Das Programm bringt alles mit, was es zum Laufen braucht, und hängt so wenig wie möglich von dem ab, was
@@ -20,7 +20,7 @@ Windows-Updates verändern. Was trotzdem von Windows kommt, steht unten mit dem 
 | pypdfium2 / olefile | 5.13.0 / 0.47 | Anfrage-PDFs lesen, Outlook-.msg lesen | `programm/requirements.txt` |
 | OpenCascade (cadquery-ocp) | 8.0.1.1.0 | STEP-Messung (`STEP-Import.exe`) | `requirements.txt` |
 | PostgreSQL | 16.2 (Wheel pgserver 0.1.4, SHA-256 geprüft) | Datenbank je PC, nur 127.0.0.1 | `paket.yml` |
-| Visual-C++-Laufzeit für PostgreSQL | aus dem Build (seit 0.9.517) | `vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll` neben `postgres.exe` | `paket.yml` |
+| Visual-C++-Laufzeit für PostgreSQL | aus dem Build (seit 0.9.522) | `vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll` neben `postgres.exe` | `paket.yml` |
 | Tesseract OCR | 5.4.0.20240606 + tessdata_fast 4.1.0 | Scans lesen | `paket.yml` |
 | Inno Setup | aus dem Runner | Setup (nur für den Benutzer, ohne Adminrechte) | `programm/installer/rohrlaser.iss` |
 
@@ -34,13 +34,13 @@ Python).
 |---|---|---|
 | `%LOCALAPPDATA%`, Ordner „Dokumente“ (über Qt, beachtet Umleitung/OneDrive) | `orte.py` | Rückfall `~/AppData/Local` bzw. `~/Documents`; portabel: alles neben der .exe |
 | Dateisperre (`msvcrt.locking`) | `orte.Sperre` | Betriebssystem-Sperre, verschwindet auch bei Absturz und Neustart |
-| DPAPI „dieser Rechner“ (`crypt32`) | `zugangsschutz.py` (PostgreSQL-Passwörter) | Datei auf anderem PC / nach Neuinstallation unlesbar: **seit 0.9.517 neue Passwörter, Daten bleiben** (`pg_lokal.zugang_erneuern`) |
+| DPAPI „dieser Rechner“ (`crypt32`) | `zugangsschutz.py` (PostgreSQL-Passwörter) | Datei auf anderem PC / nach Neuinstallation unlesbar: **seit 0.9.522 neue Passwörter, Daten bleiben** (`pg_lokal.zugang_erneuern`) |
 | Registry `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` (nur lesen) | `lizenz.py` (Rechner-ID) | bleibt bei Updates und Funktionsupdates; nach Neuinstallation neue Rechner-ID → neue Lizenzdatei nötig, Daten unberührt |
 | `GetSystemMetrics(SM_REMOTESESSION)` | `ansicht3d.py` | Remote-Desktop → 3D mit Software |
-| OpenGL-Treiber (ab 2.0) | `ansicht3d_gl.py` | Fehler → Software; **nativer Treiberabsturz → seit 0.9.517 für diese Version gesperrt** (`laufwaechter`) |
+| OpenGL-Treiber (ab 2.0) | `ansicht3d_gl.py` | Fehler → Software; **nativer Treiberabsturz → seit 0.9.522 für diese Version gesperrt** (`laufwaechter`) |
 | Neustart-Manager (`rstrtmgr`), `OpenProcess`/`QueryFullProcessImageNameW` | `update.py` | nur für „wer hält diese Datei“ beim Update; ohne: allgemeine Meldung |
-| `WNetGetConnectionW` (`mpr`) | `netzpfad.py` (seit 0.9.517) | ohne: gemeinsamer Ordner nur über den eingetragenen Pfad |
-| `SetProcessShutdownParameters` (`kernel32`) | `sitzungsende.py` (seit 0.9.517) | ohne: Windows beendet PostgreSQL ggf. vor dem Programm (PostgreSQL stellt sich selbst wieder her) |
+| `WNetGetConnectionW` (`mpr`) | `netzpfad.py` (seit 0.9.522) | ohne: gemeinsamer Ordner nur über den eingetragenen Pfad |
+| `SetProcessShutdownParameters` (`kernel32`) | `sitzungsende.py` (seit 0.9.522) | ohne: Windows beendet PostgreSQL ggf. vor dem Programm (PostgreSQL stellt sich selbst wieder her) |
 | `icacls` | `pg_lokal._windows_zugriff` | Rechte am Datenordner für den angemeldeten Benutzer |
 | Windows PowerShell 5.1 + klassisches Outlook (COM) | `outlook_anfragen.py`, `materialanfrage(n).py` | nur die Outlook-Funktionen; Rest unberührt. **Risiko „neues Outlook“** siehe Abschnitt 7 |
 | Windows Defender (`MpCmdRun`) | `virenpruefung.py` | eigene Prüfung seit 0.9.349 aus |
@@ -77,7 +77,7 @@ das Umleiten aktiv an).
 - Sicherungen: täglich beim ersten Start (im Hintergrund), beim Beenden, vor Update/Schema/Wiederherstellen; jede mit
   Integritätsprüfung, Anzahlen, SHA-256 und PostgreSQL-Abbild (`pg_dump`); wöchentlich eine Probe-Wiederherstellung.
 
-## 5. Neustart, Abmeldung, Absturz (seit 0.9.517)
+## 5. Neustart, Abmeldung, Absturz (seit 0.9.522)
 
 | Fall | Verhalten |
 |---|---|

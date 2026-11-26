@@ -1,6 +1,6 @@
 # Stabilitäts- und Kompatibilitätsbericht: Windows-Updates, Neustarts, Systemunabhängigkeit (26.11.2026)
 
-Auftrag Patrick 26.11.2026 15:27 UTC. Stand main 0.9.516 (Schema 107), Ergebnis 0.9.517, kein Schema-Sprung.
+Auftrag Patrick 26.11.2026 15:27 UTC. Stand main 0.9.516 (Schema 107), Ergebnis 0.9.522, kein Schema-Sprung.
 Technische Dokumentation (Abhängigkeiten, Ordner, Update- und Wiederherstellungsverfahren, Vorgehen bei neuen
 Windows-Versionen): [../WINDOWS_BETRIEB.md](../WINDOWS_BETRIEB.md).
 
@@ -54,7 +54,7 @@ PDFs, deutsches Zahlenformat fest gesetzt (`QLocale`), Remote-Desktop → Softwa
 | W-06 | Build legt `vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll` neben `postgres.exe` (aus dem PyInstaller-Paket, sonst vom Build-Rechner). | `paket.yml` |
 | W-07 | Neues `netzpfad.py`: UNC-Pfad hinter dem Laufwerk merken (`WNetGetConnectionW`); ist der Buchstabe getrennt, der UNC-Pfad aber da, nutzt der gemeinsame Ordner ihn. Fehlversuch 60 s gemerkt. Einstellung unverändert. | `netzpfad.py`, `austausch.py` |
 | W-09 | Laufmarker `Daten\laeuft.json`: beim Start nach unerwartetem Ende Meldung, halbe Dateien dieses Laufs nach `Sicherung\Unvollstaendig` (nur ab Startzeit des Laufs, nur älter als 2 min, nichts gelöscht). | `laufwaechter.py`, `__main__.py` |
-| Doku | WINDOWS_BETRIEB.md, Bedienungsanleitung (Fehlerbehebung, 4 Einträge), Neuerungen 0.9.517 | `docs/`, `anleitung/`, `neuerungen.py` |
+| Doku | WINDOWS_BETRIEB.md, Bedienungsanleitung (Fehlerbehebung, 4 Einträge), Neuerungen 0.9.522 | `docs/`, `anleitung/`, `neuerungen.py` |
 
 Nicht geändert (bewusst): Rechenmodule, STEP, Verschachtelung, Datenbankschema, Oberfläche (keine neuen Dialoge; der
 parallele Auftrag zu Kontextmenü/Einstellungen bleibt unberührt), Outlook-Module.
