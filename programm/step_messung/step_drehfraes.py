@@ -136,8 +136,55 @@ def flaechen(solid):
     return out
 
 
+_COS_TOL = math.cos(math.radians(WINKEL_TOL))
+
+
 def _parallel(a, b, tol=WINKEL_TOL):
-    return abs(_dot(a, b)) >= math.cos(math.radians(tol))
+    return abs(_dot(a, b)) >= (_COS_TOL if tol == WINKEL_TOL else math.cos(math.radians(tol)))
+
+
+class _Richtungen:
+    """Richtungen (Einheitsvektoren) in Reihenfolge des Hinzufügens; erste(n) = die zuerst hinzugefügte Richtung, die
+    zu n parallel ist (_parallel), sonst None – dasselbe wie next(r for r in liste if _parallel(n, r)), aber über ein
+    Raster statt über alle Richtungen (Importengine 2.0: aus Maschinenprogrammen gebaute Körper haben tausende
+    Dreiecksflächen mit je eigener Richtung; LST 10186133 P10: 30 Mio. Vergleiche, 36 s). Parallel heißt
+    |a·b| >= cos(0,5°), damit weicht jede Komponente von b oder −b um höchstens √(2 − 2·cos) ≈ 0,009 ab; das Raster
+    (RASTER = 0,05) sucht in den Nachbarzellen von n und −n, geprüft wird jede Kandidatin wie bisher mit _parallel."""
+    RASTER = 0.05
+
+    def __init__(self):
+        self.liste = []
+        self._zellen = {}
+
+    def _zelle(self, n):
+        return (math.floor(n[0] / self.RASTER), math.floor(n[1] / self.RASTER), math.floor(n[2] / self.RASTER))
+
+    def erste(self, n):
+        kand = set()
+        for v in (n, (-n[0], -n[1], -n[2])):
+            x, y, z = self._zelle(v)
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    for dz in (-1, 0, 1):
+                        kand.update(self._zellen.get((x + dx, y + dy, z + dz), ()))
+        for i in sorted(kand):
+            if _parallel(n, self.liste[i]):
+                return self.liste[i]
+        return None
+
+    def dazu(self, r):
+        self._zellen.setdefault(self._zelle(r), []).append(len(self.liste))
+        self.liste.append(r)
+
+
+def _richtungen(normalen):
+    """Verschiedene Richtungen (je die erste einer parallelen Gruppe), in Reihenfolge – wie die Schleife
+    „if not any(_parallel(n, r) for r in richtungen): richtungen.append(n)“."""
+    ri = _Richtungen()
+    for n in normalen:
+        if ri.erste(n) is None:
+            ri.dazu(n)
+    return ri.liste
 
 
 def _senkrecht(a, b, tol=WINKEL_TOL):
@@ -505,10 +552,7 @@ def fraesteil(fl, t, huelle, form=None, achse=None):
     if lb <= 0 or la > GEDRUNGEN * lb + 1e-6 or lc < 3.0:
         return None
     merkmale, nur_abmessung = [], False
-    richtungen, stufen = [], 0
-    for e in eben:
-        if not any(_parallel(e["normale"], r) for r in richtungen):
-            richtungen.append(e["normale"])
+    richtungen, stufen = _richtungen(e["normale"] for e in eben), 0
     if form in FORMEN_FRAES_VOLL:
         mehrseitig = len(_bohr_richtungen(fl)) >= 2
         if len(eben) <= 6 and not mehrseitig:
@@ -558,10 +602,7 @@ def fraesteil_von_hand(fl, huelle):
     den Richtpreis wie beim erkannten Frästeil, Merkmal „von Hand gewählt“."""
     if len(huelle) != 3 or not fl:
         return None
-    richtungen = []
-    for e in fl:
-        if e["typ"] == "eben" and not any(_parallel(e["normale"], r) for r in richtungen):
-            richtungen.append(e["normale"])
+    richtungen = _richtungen(e["normale"] for e in fl if e["typ"] == "eben")
     kw = _kennwerte_fraes(fl, richtungen, 0)
     la, lb, lc = huelle
     return dict(art=FRAESTEIL, laenge=round(la, 2), breite=round(lb, 2), hoehe=round(lc, 2), merkmale=[VON_HAND],
@@ -571,13 +612,15 @@ def fraesteil_von_hand(fl, huelle):
 def _huelle_ebenen(solid, fl):
     """Hüllmaße (groß -> klein) in den Richtungen der größten Ebenen (prismatische Frästeile in beliebiger Lage),
     None ohne zwei senkrechte Ebenenrichtungen."""
-    flaeche = {}
+    flaeche, ri = {}, _Richtungen()
     for e in fl:
         if e["typ"] != "eben":
             continue
-        r = next((k for k in flaeche if _parallel(k, e["normale"])), None)
+        r = ri.erste(e["normale"])
         if r is None:
             r = e["normale"]
+            if r not in flaeche:
+                ri.dazu(r)
         flaeche[r] = flaeche.get(r, 0.0) + e["flaeche"]
     richt = sorted(flaeche, key=flaeche.get, reverse=True)
     if not richt:

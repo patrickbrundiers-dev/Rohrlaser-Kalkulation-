@@ -52,15 +52,36 @@ def _prisma(f, n, laenge):
     return BRepPrimAPI_MakePrism(f, gp_Vec(n.X() * laenge, n.Y() * laenge, n.Z() * laenge)).Shape()
 
 
+def _kaesten(eb):
+    """Hüllquader je Fläche, um SPALT_MAX + DICKE vergrößert (Vorprüfung in paare)."""
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRepBndLib import BRepBndLib
+    out = []
+    for f, _, _ in eb:
+        b = Bnd_Box()
+        BRepBndLib.Add_s(f, b)
+        b.Enlarge(SPALT_MAX + DICKE)
+        out.append(b)
+    return out
+
+
 def paare(solid):
-    """Füllungen der Nähte: [Körper zwischen zwei gegenüberliegenden Flächen, je DICKE ins Material]."""
+    """Füllungen der Nähte: [Körper zwischen zwei gegenüberliegenden Flächen, je DICKE ins Material].
+    Vorprüfung (Importengine 2.0): Flächen, deren Hüllquader (um SPALT_MAX + DICKE vergrößert) sich nicht berühren,
+    können keine gemeinsame Fläche haben – die Prismen beider Flächen reichen nur d + DICKE weit, ihre Schnittmenge ist
+    leer. Ohne diese Prüfung lief für jedes Paar eine boolesche Operation (aus der LST gebautes Rohr 10186133 P20:
+    32.580 Paare in einer Ebene, 108 s, keine Naht); das Ergebnis ist dasselbe."""
     eb = _ebenen(solid)
     if len(eb) > EBENEN_MAX:
         return []
+    kasten = _kaesten(eb)
     out = []
     for i, (fa, na, pa) in enumerate(eb):
-        for fb, nb, pb in eb[i + 1:]:
+        for j in range(i + 1, len(eb)):
+            fb, nb, pb = eb[j]
             if na.Dot(nb) > -NORMALE_COS:
+                continue
+            if kasten[i].IsOut(kasten[j]):
                 continue
             # Abstand der Ebene von B vor A (in Richtung der Außennormale von A)
             ob, oa = pb.Location(), pa.Location()

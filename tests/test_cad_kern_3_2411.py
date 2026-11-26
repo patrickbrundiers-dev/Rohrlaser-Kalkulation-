@@ -40,8 +40,8 @@ from step_benchmark import unterschiede  # noqa: E402
 GENAU = 1e-12       # BinTools schreibt Richtungen (gp_Dir) und liest sie normiert: Abweichung in der letzten Stelle
 
 # Bei Änderung am Lesen: LESER_STAND in step_lesecache.py hochzählen und beide Werte hier neu eintragen
-LESER_STAND = 3
-LESE_PRUEFSUMME = "b78d346455d8d1af"
+LESER_STAND = 4
+LESE_PRUEFSUMME = "b572f758c6788f2f"
 LESE_FUNKTIONEN = ("lies_step_info", "lies_iges_info", "_iges_einheit", "_solid_analytisch", "_analytisch",
                    "_draht_analytisch", "_caf_uebertragen", "_name", "_struktur", "_naehen", "_einheit",
                    "_grosse_datei_einstellen", "_konsole_mitschneiden", "_instanzen", "_teilform", "_gedrehte", "_fehlende_koerper",

@@ -33,7 +33,8 @@ import time
 from pathlib import Path
 
 FLUECHTIG = {"erzeugt", "schema_version"}      # Felder ohne Messbedeutung (Zeitpunkt, Programmversion)
-ENDUNGEN = (".step", ".stp")
+# Alle Formate des STEP-Imports (Importengine 2.0, 26.11.2026): STEP, IGES, TUBX, TRUMPF-LST, BLM ARTUBE/BPF
+ENDUNGEN = (".step", ".stp", ".igs", ".iges", ".tubx", ".lst", ".artube", ".bpf")
 SCHEMAS = (("AP242", ("AP242", "MANAGED_MODEL_BASED")), ("AP214", ("AUTOMOTIVE_DESIGN",)),
            ("AP203", ("CONFIG_CONTROL_DESIGN", "EXPLICIT_DRAUGHTING")))
 GROESSEN = ((1, "bis 1 MB"), (10, "1–10 MB"), (50, "10–50 MB"), (None, "über 50 MB"))

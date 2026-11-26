@@ -18,6 +18,7 @@ hiddenimports += ["step_abwicklung"]      # Kantteil-Abwicklung, wird erst bei B
 hiddenimports += ["step_tubx"]            # TRUMPF TUBX wie STEP, wird erst bei Bedarf importiert
 hiddenimports += ["step_blm"]             # BLM ArTube/BPF wie STEP, wird erst bei Bedarf importiert
 hiddenimports += ["step_lst", "rohrlaser.lst_bahn"]     # TRUMPF-LST aus dem Schneidweg, erst bei Bedarf importiert
+hiddenimports += ["rohrlaser.dateiformat"]  # Format am Inhalt erkennen (Importengine 2.0), in Funktion importiert
 hiddenimports += ["step_schreiben"]       # STEP-Export (--export), wird erst bei Bedarf importiert
 hiddenimports += ["step_qualitaet"]       # Geometrieprüfung (in Funktionen importiert, Master-Auftrag 24.11.2026)
 # RP-Bibliothek (rohrlaser/rp_profile.json) für die Erkennung der RP-Profile per Fingerabdruck
