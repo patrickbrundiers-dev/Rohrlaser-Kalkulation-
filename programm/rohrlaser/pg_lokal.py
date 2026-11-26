@@ -34,6 +34,8 @@ PROGRAMM_RECHTE = "LOGIN NOSUPERUSER CREATEDB NOCREATEROLE NOREPLICATION NOBYPAS
 # während des Kopierens mit session_replication_role ab (ab PostgreSQL 15 einzeln vergebbar)
 EINZELRECHTE = ('GRANT SET ON PARAMETER session_replication_role TO "{neu}"',)
 # Verbindungsprotokoll im Server-Log (Daten/pg_server.log): wer, von wo, mit welchem Programm
+# Kennzeichen der befristeten trust-Zeile in pg_hba.conf (zugang_erneuern); jeder Start entfernt solche Reste
+HBA_MARKE = "# Rohrlaser: Zugang erneuern"
 PROTOKOLL = dict(log_connections="on", log_disconnections="on", log_line_prefix="'%m [%p] %u@%d %a %h '")
 
 
@@ -112,10 +114,15 @@ class LokalerServer:
         self.pg = self.daten / "pg"
         self.bin = Path(bin_ordner) if bin_ordner else programme()
         self._zugang_datei = self.daten / ZUGANG
+        self.zugang_unlesbar = None         # Grund, wenn die Zugangsdatei nicht entschlüsselt werden konnte
+        self.reparaturen = []               # was starten() vor einem zweiten Versuch repariert hat (Protokoll)
 
     # -------- Zugang
     def _zugang_lesen(self):
-        """Zugangsdatei mit Passwörtern im Klartext (im Speicher); in der Datei unter Windows verschlüsselt."""
+        """Zugangsdatei mit Passwörtern im Klartext (im Speicher); in der Datei unter Windows verschlüsselt.
+        Lässt sich ein Passwort nicht entschlüsseln (Datenordner von einem anderen PC kopiert, Windows neu
+        aufgesetzt), steht es als None im Ergebnis und self.zugang_unlesbar nennt den Grund; starten() setzt die
+        Zugangsdaten dann neu (zugang_erneuern)."""
         from . import zugangsschutz
         try:
             d = json.loads(self._zugang_datei.read_text(encoding="utf-8"))
@@ -123,7 +130,11 @@ class LokalerServer:
             return None
         for k in ("passwort", "admin_passwort"):
             if k in d:
-                d[k] = zugangsschutz.lesen(d[k])
+                try:
+                    d[k] = zugangsschutz.lesen(d[k])
+                except Exception as e:      # noqa: BLE001 - DPAPI-Fehler, beschädigter Wert: Zugang neu setzen
+                    d[k] = None
+                    self.zugang_unlesbar = f"{type(e).__name__}: {e}"
         return d
 
     def _zugang_schreiben(self, d):
@@ -255,16 +266,68 @@ class LokalerServer:
         r = _lauf([str(self.bin / _exe("pg_ctl")), "status", "-D", str(self.pg)])
         return r.returncode == 0
 
+    def _hba_bereinigen(self):
+        """trust-Zeilen eines abgebrochenen zugang_erneuern (Programm beim Erneuern beendet) entfernen. Ergebnis:
+        True, wenn pg_hba.conf geändert wurde."""
+        hba = self.pg / "pg_hba.conf"
+        try:
+            text = hba.read_text(encoding="utf-8")
+        except OSError:
+            return False
+        if HBA_MARKE not in text:
+            return False
+        sauber = "".join(z for z in text.splitlines(keepends=True) if HBA_MARKE not in z)
+        tmp = hba.with_name(hba.name + ".neu")
+        tmp.write_text(sauber, encoding="utf-8")
+        os.replace(tmp, hba)
+        return True
+
     def starten(self, warten_s=30):
         if not self.angelegt:
             self.anlegen()
             return
-        if self.laeuft():
-            return
-        d = self._zugang_lesen() or {}
-        d["port"] = _freier_port()
-        self._zugang_schreiben(d)
+        if self._hba_bereinigen():
+            self.reparaturen.append("Rest eines abgebrochenen Zugang-Erneuerns aus pg_hba.conf entfernt")
+            if self.laeuft():
+                _lauf([str(self.bin / _exe("pg_ctl")), "reload", "-D", str(self.pg)])
+        if not self.laeuft():
+            self._starten(warten_s)
+        if self.zugang_unlesbar is None:
+            self._zugang_lesen()
+        if self.zugang_unlesbar is not None:
+            self.zugang_erneuern()
+
+    def _starten(self, warten_s):
         log = self.daten / "pg_server.log"
+        r = self._start_versuch(warten_s, log)
+        if r != 0:
+            # Windows-Update-Sicherheit 26.11.2026: nach Stromausfall/erzwungenem Neustart bleibt oft eine leere oder
+            # veraltete postmaster.pid liegen; ein Update kann die Rechte am Datenordner zurücksetzen. Beides wird
+            # behoben und einmal neu versucht (Daten werden dabei nicht angefasst).
+            grund = self.reparieren(_ende(log, 4000))
+            if grund:
+                self.reparaturen.append(grund)
+                r = self._start_versuch(warten_s, log)
+        if r != 0:
+            raise RuntimeError("Eingebettete Datenbank startet nicht: " + _ende(log))
+
+    def _port_setzen(self, port):
+        """Nur den Port in der Zugangsdatei ändern (die verschlüsselten Werte bleiben, wie sie sind)."""
+        try:
+            roh = json.loads(self._zugang_datei.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            roh = {}
+        roh["port"] = port
+        self.daten.mkdir(parents=True, exist_ok=True)
+        tmp = self._zugang_datei.with_suffix(".tmp")
+        tmp.write_text(json.dumps(roh), encoding="utf-8")
+        with contextlib.suppress(OSError):
+            os.chmod(tmp, 0o600)
+        os.replace(tmp, self._zugang_datei)
+
+    def _start_versuch(self, warten_s, log):
+        d = {"port": _freier_port()}
+        self._port_setzen(d["port"])
         # Ohne Pipes: der Server erbt sonst unter Windows die Ausgabe-Handles von pg_ctl, und das Warten auf das Ende
         # der Ausgabe hört nie auf (Programm hängt beim Start). Meldungen stehen im Server-Log.
         try:
@@ -274,13 +337,93 @@ class LokalerServer:
         except subprocess.TimeoutExpired:
             raise RuntimeError("Eingebettete Datenbank startet nicht (Zeit abgelaufen): " + _ende(log)) from None
         if r.returncode != 0:
-            raise RuntimeError("Eingebettete Datenbank startet nicht: " + _ende(log))
+            return r.returncode
         ende = time.monotonic() + warten_s
         while time.monotonic() < ende:          # bereit, sobald der Port Verbindungen annimmt
             with contextlib.suppress(OSError), socket.create_connection(("127.0.0.1", d["port"]), timeout=1):
-                return
+                return 0
             time.sleep(0.1)
         raise RuntimeError("Eingebettete Datenbank antwortet nicht.")
+
+    # -------- Selbstheilung (Windows-Update-Sicherheit 26.11.2026)
+    def reparieren(self, log_text=""):
+        """Bekannte Startfehler beheben, ohne Daten anzufassen. Ergebnis: was getan wurde (Text) oder None.
+        1. postmaster.pid leer, unlesbar oder von einem Prozess, der kein PostgreSQL mehr ist: die Sperrdatei kommt
+           als postmaster.pid.alt beiseite (nur wenn pg_ctl keinen laufenden Server sieht).
+        2. Windows meldet fehlende Rechte am Datenordner: der angemeldete Benutzer bekommt sie wieder (icacls)."""
+        pid_datei = self.pg / "postmaster.pid"
+        if pid_datei.is_file() and not self.laeuft():
+            pid = _pid_aus(pid_datei)
+            if pid is None or not _postgres_prozess(pid):
+                alt = pid_datei.with_name("postmaster.pid.alt")
+                with contextlib.suppress(OSError):
+                    os.replace(pid_datei, alt)
+                    return (f"veraltete Sperrdatei postmaster.pid beiseitegelegt (Prozess {pid or 'unbekannt'} läuft "
+                            "nicht mehr)")
+        text = (log_text or "").lower()
+        if os.name == "nt" and any(w in text for w in ("permission denied", "zugriff verweigert",
+                                                        "keine berechtigung", "access is denied")):
+            _windows_zugriff(self.daten)
+            return "Rechte am Datenordner für den angemeldeten Benutzer erneuert"
+        return None
+
+    def zugang_erneuern(self):
+        """Zugangsdatei nicht lesbar (DPAPI: anderer PC, Windows neu aufgesetzt, Datei beschädigt): neue Passwörter
+        setzen. Dafür nimmt der Server kurz Verbindungen des Verwalters von 127.0.0.1 ohne Passwort an (eigene Zeile
+        vorn in pg_hba.conf), danach gilt sofort wieder die alte pg_hba.conf. Die Daten bleiben unberührt; wer den
+        Datenordner beschreiben darf, hatte ohnehin vollen Zugriff. Ergebnis: True."""
+        import psycopg
+        grund = self.zugang_unlesbar
+        d = self._zugang_lesen() or {}
+        try:
+            roh = json.loads(self._zugang_datei.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            roh = {}
+        benutzer = roh.get("benutzer") or d.get("benutzer") or ALT_BENUTZER
+        verwalter_kandidaten = [n for n in dict.fromkeys((roh.get("admin_benutzer"), VERWALTER, ALT_BENUTZER)) if n]
+        hba = self.pg / "pg_hba.conf"
+        self._hba_bereinigen()          # Rest eines abgebrochenen Versuchs nie als „Original“ übernehmen
+        original = hba.read_text(encoding="utf-8")
+        namen = ",".join(f'"{n}"' for n in verwalter_kandidaten)
+        hba.write_text(f"host all {namen} 127.0.0.1/32 trust   {HBA_MARKE}\n" + original, encoding="utf-8")
+        try:
+            if self.laeuft():
+                _lauf([str(self.bin / _exe("pg_ctl")), "reload", "-D", str(self.pg)])
+                time.sleep(0.5)
+            else:
+                self._starten(30)
+            port = (self._zugang_lesen() or {}).get("port")
+            verwalter = con = None
+            for name in verwalter_kandidaten:
+                try:
+                    con = psycopg.connect(host="127.0.0.1", port=port, user=name, dbname="postgres",
+                                          autocommit=True, application_name="Rohrlaser-Kalkulation (Wartung)")
+                except psycopg.Error:
+                    continue
+                if con.execute("SELECT rolsuper FROM pg_roles WHERE rolname = current_user").fetchone()[0]:
+                    verwalter = name
+                    break
+                con.close()
+                con = None
+            if con is None:
+                raise RuntimeError("Zugang zur eingebetteten Datenbank ließ sich nicht erneuern (kein Verwalter)")
+            neu_verwalter, neu_programm = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
+            with con:
+                con.execute(_mit_passwort(f'ALTER ROLE "{verwalter}" PASSWORD {{}}', neu_verwalter))
+                if benutzer != verwalter:
+                    con.execute(_mit_passwort(f'ALTER ROLE "{benutzer}" PASSWORD {{}}', neu_programm))
+                else:
+                    neu_programm = neu_verwalter
+        finally:
+            hba.write_text(original, encoding="utf-8")
+            if self.laeuft():
+                _lauf([str(self.bin / _exe("pg_ctl")), "reload", "-D", str(self.pg)])
+        neu = {k: v for k, v in d.items() if k not in ("neu_passwort",)}
+        neu.update(benutzer=benutzer, passwort=neu_programm, admin_benutzer=verwalter, admin_passwort=neu_verwalter)
+        self._zugang_schreiben(neu)
+        self.zugang_unlesbar = None
+        self.reparaturen.append(f"Zugangsdaten der Datenbank neu gesetzt (alte Zugangsdatei nicht lesbar: {grund})")
+        return True
 
     def stoppen(self, art="fast"):
         if self.laeuft():
@@ -311,6 +454,32 @@ BEGIN
   END LOOP;
 END $$
 """
+
+
+def _pid_aus(pfad):
+    """Prozessnummer aus der ersten Zeile von postmaster.pid oder None (leer, unlesbar)."""
+    try:
+        zeile = Path(pfad).read_text(encoding="ascii", errors="replace").splitlines()[0].strip()
+        return int(zeile) if zeile.isdigit() and int(zeile) > 0 else None
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def _postgres_prozess(pid):
+    """True, wenn pid ein laufender PostgreSQL-Prozess ist (oder sich das nicht sicher ausschließen lässt)."""
+    from . import update
+    pfad = update.prozess_pfad(pid)
+    if pfad is not None:
+        return pfad.name.lower().startswith("postgres")
+    if os.name == "nt":
+        return False            # Prozess beendet (oder gehört einem anderen Benutzer: nicht unser Server)
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
 
 
 def _mit_passwort(befehl, passwort):
