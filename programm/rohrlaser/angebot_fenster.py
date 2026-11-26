@@ -2328,7 +2328,9 @@ class AngebotReiter(QTabWidget):
             return
         reiter = self.tabBar().sizeHint().width() + 12
         stufe = next((s for s in (0, 1, 2) if reiter + ecke.breite_bei(s) <= self.width()), 2)
-        if stufe != ecke.stufe:
+        # neu einsetzen auch bei gleicher Stufe, wenn der Text länger wurde („Weiter: Angebot (PDF) ▸“): die Ecke
+        # behält sonst ihre alte Breite und der Knopf wird gequetscht (seit Phase 3 ist die Übersicht ab Werk aus)
+        if stufe != ecke.stufe or ecke.sizeHint().width() > ecke.width():
             ecke.kompakt(stufe)
             ecke.updateGeometry()
             QTimer.singleShot(0, self, lambda: (self.setCornerWidget(ecke, Qt.TopRightCorner), ecke.show()))
