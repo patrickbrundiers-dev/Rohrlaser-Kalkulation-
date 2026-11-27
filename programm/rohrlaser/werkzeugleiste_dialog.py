@@ -304,8 +304,10 @@ class KonfiguratorDialog(QDialog):
         for r, titel in rollen.ROLLEN:
             self.rolle_wahl.addItem(titel, r)
         admin = self._admin()
-        self.rolle_wahl.setVisible(admin)
-        self.rolle_knopf.setVisible(admin)
+        if not admin:  # nur ausblenden (geister.py)
+            self.rolle_wahl.hide()
+        if not admin:  # nur ausblenden (geister.py)
+            self.rolle_knopf.hide()
         unten.addWidget(self.rolle_wahl)
         unten.addWidget(self.rolle_knopf)
         unten.addStretch(1)

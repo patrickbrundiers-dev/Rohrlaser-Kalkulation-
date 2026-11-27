@@ -554,7 +554,8 @@ class StepPruefDialog(QDialog):
         self.alle_zusatz.setToolTip("Zusatzarbeit (z. B. Feuerverzinken) mit „Für markierte“ bzw. „Für alle“ an die "
                                     "Teile hängen; sie kommt beim Übernehmen in jede Position (Preis aus den "
                                     "Stammdaten). Die Spalte Zusatzarbeiten zeigt die Wahl, Rechtsklick entfernt sie.")
-        self.alle_zusatz.setVisible(bool(zusatzarbeiten))
+        if not zusatzarbeiten:  # nur ausblenden (geister.py)
+            self.alle_zusatz.hide()
         alle.addWidget(self.alle_zusatz)
         # L6: Art und Profil für mehrere Teile auf einmal
         self.alle_art = QComboBox()
@@ -639,7 +640,8 @@ class StepPruefDialog(QDialog):
         self.anbau_weg.setToolTip("Eigene Körper (Bleche, Bolzen …), die an ein Rohr geschweißt sind, werden nicht "
                                   "als Positionen übernommen; das Rohr bekommt nur ihre Gravur. Aus = sie werden wie "
                                   "andere Teile übernommen.")
-        self.anbau_weg.setVisible(bool(self.anbau_von))
+        if not self.anbau_von:  # nur ausblenden (geister.py)
+            self.anbau_weg.hide()
         self.anbau_weg.toggled.connect(self.anbau_weglassen_setzen)
         zeile_3d.addWidget(self.anbau_weg)
         # Paket 1 (Patrick 12.11.2026): Zukaufteile als Liste, per Klick ins Angebot; in der Baugruppe ausblenden
@@ -800,7 +802,8 @@ class StepPruefDialog(QDialog):
         self.kopieren_haken.setToolTip("Beim Übernehmen werden die gewählten STEP-Dateien in den Unterordner „STEP“ "
                                        "im Ordner des Angebots kopiert. Vorgabe: Einstellungen → STEP-Import.")
         self.kopieren_haken.setChecked(bool(step_kopieren))
-        self.kopieren_haken.setVisible(step_kopieren is not None)
+        if step_kopieren is None:  # nur ausblenden (geister.py)
+            self.kopieren_haken.hide()
         unten = QHBoxLayout()
         unten.addWidget(self.kopieren_haken)
         unten.addStretch(1)

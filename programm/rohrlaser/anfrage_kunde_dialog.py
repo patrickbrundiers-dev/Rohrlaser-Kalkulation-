@@ -100,7 +100,8 @@ class KundeAusMailDialog(QDialog):
         dom = adresse.rpartition("@")[2] if "@" in (adresse or "") else ""
         self.domain = QCheckBox(f"… auch für alle Adressen @{dom}")
         from . import mail
-        self.domain.setVisible(bool(dom) and dom not in mail.FREEMAIL)
+        if not (bool(dom) and dom not in mail.FREEMAIL):  # nur ausblenden (geister.py)
+            self.domain.hide()
         self.grund_text = QLineEdit()
         self.grund_text.setPlaceholderText("Grund (für das Protokoll, freiwillig)")
         regeln.addWidget(self.regel)

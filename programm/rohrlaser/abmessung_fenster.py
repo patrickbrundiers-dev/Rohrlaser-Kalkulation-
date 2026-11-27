@@ -108,7 +108,8 @@ class AbmessungFenster(QDialog):
             self.warnung.setText("Noch nicht optimiert: Stangenbild, Schnittmuster und Bilanz folgen nach dem Optimieren.")
         elif material.veraltet:
             self.warnung.setText("Der Schnittplan passt nicht mehr zu den Positionen – bitte neu optimieren.")
-        self.warnung.setVisible(bool(self.warnung.text()))
+        if not self.warnung.text():  # nur ausblenden (geister.py)
+            self.warnung.hide()
         lay.addWidget(self.warnung)
 
         teiler = QSplitter(Qt.Vertical)

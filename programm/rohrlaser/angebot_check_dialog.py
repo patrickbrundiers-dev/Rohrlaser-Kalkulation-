@@ -88,7 +88,8 @@ class CheckDialog(QDialog):
         lay.addWidget(rahmen)
         self.begruendung = QLineEdit()
         self.begruendung.setPlaceholderText("Begründung (Pflicht bei FEHLER, steht im Versandverlauf)")
-        self.begruendung.setVisible(bool(weiter) and gesperrt)
+        if not (bool(weiter) and gesperrt):  # nur ausblenden (geister.py)
+            self.begruendung.hide()
         lay.addWidget(self.begruendung)
         knoepfe = QDialogButtonBox()
         if weiter:

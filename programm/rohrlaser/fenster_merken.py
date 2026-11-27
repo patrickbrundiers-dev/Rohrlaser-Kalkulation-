@@ -24,6 +24,8 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (QAbstractScrollArea, QApplication, QDialog, QFileDialog, QInputDialog, QLayout,
                                QMainWindow, QMessageBox, QProgressDialog, QSplitter, QTabWidget, QWidget)
 
+from .geister import losgeloest
+
 GEOMETRIE = "fenster_geometrie"     # {"Kürzel|Fensterart": {"g": Geometrie, "t": [Teiler], "m": maximiert}} (base64)
 VORGABE = "fenster_maximiert_vorgabe"   # Fenster mit Inhalt ohne gemerkten Stand maximiert öffnen (Vorgabe: ja)
 INHALT_BREITE, INHALT_HOEHE = 560, 420  # ab dieser Größe (oder Wunschgröße) gilt ein Fenster mit Inhalt als groß
@@ -127,6 +129,8 @@ class FensterMerker(QObject):
         """Dialoge und eigene Fenster (z. B. Viewer), nicht das Hauptfenster, Popups, Werkzeugfenster und die
         Standarddialoge von Qt (Meldung, Datei, Eingabe, Fortschritt)."""
         if not isinstance(w, QWidget) or not w.isWindow() or isinstance(w, OHNE) or w.property("fenster_nicht_merken"):
+            return False
+        if losgeloest(w):           # Knopf/Haken ohne Fenster (noch nicht im Layout): kein Fenster (27.11.2026)
             return False
         if isinstance(w, QDialog):
             return True

@@ -641,7 +641,105 @@ def anwenden(app, name="Hell", schrift=100, dichte="normal"):
         app.setFont(f)
     global _dichte
     _dichte = dichte if dichte in DICHTEN else "normal"
+    tipps_einrichten(app)
+    from . import geister           # losgelöste Bedienelemente nie als eigenes Fenster (Supportpaket 27.11.2026)
+    geister.einrichten(app)
     return _thema
+
+
+# ---------------------------------------------------------------- Tooltips (Supportpaket 27.11.2026)
+# Unter Windows erzeugt Qt jeden Tooltip OHNE Elternfenster (sonst käme das Fenster beim Zeigen nach vorn). Das
+# Stylesheet des Hauptfensters (fenster_stil) erreicht ihn deshalb nicht: Tooltips und die Hilfe im Modus „nur
+# Tooltip“ standen ohne Rand und Innenabstand in der Fensterfarbe da und zeigten oft nur die erste Zeile, der Rest
+# fehlte bzw. der Text lag über der Tabelle (Bildschirmfotos Patrick). Unter Linux hat der Tooltip ein Elternfenster,
+# deshalb fiel es in den Bildern der Tests nicht auf. Jetzt gelten die Tooltip-Regeln an der ganzen Anwendung,
+# Schrift und Farben wie im Programm, und jeder Tooltip wird nach dem Zeigen auf seine volle Größe gebracht (auf dem
+# Bildschirm, auf dem er wirklich steht); lange Texte brechen um statt einer bildschirmbreiten Zeile.
+_TIPP_REGEL = _re.compile(r"QToolTip\s*\{[^}]*\}")
+TIPP_BREITE = 560           # breiter (logische Pixel) bricht ein Tooltip-Text um (etwa 80 Zeichen)
+_tipp_filter = None
+
+
+def tipp_regeln(name=None, dichte=None):
+    """Nur die Tooltip-Regeln des Stylesheets (Theme), für das Stylesheet der Anwendung."""
+    return "\n".join(_TIPP_REGEL.findall(stylesheet(name or _thema, dichte or _dichte)))
+
+
+def tipp_anpassen(tipp):
+    """Tooltip (QTipLabel) auf seine volle Größe bringen: langer Text bricht um, Höhe für alle Zeilen, ganz auf dem
+    Bildschirm. Ergebnis: True bei Änderung."""
+    try:
+        if not tipp.isVisible():
+            return False
+        geaendert = False
+        if not tipp.wordWrap() and tipp.sizeHint().width() > TIPP_BREITE:
+            tipp.setWordWrap(True)
+            geaendert = True
+        soll = tipp.sizeHint()
+        if tipp.wordWrap() and tipp.hasHeightForWidth():
+            soll.setHeight(max(soll.height(), tipp.heightForWidth(soll.width())))
+        if geaendert or tipp.width() < soll.width() or tipp.height() < soll.height():
+            tipp.resize(soll if geaendert else tipp.size().expandedTo(soll))
+            geaendert = True
+        bild = tipp.screen()
+        if geaendert and bild is not None:
+            r, g = bild.availableGeometry(), tipp.geometry()
+            x = max(r.left(), min(g.x(), r.right() + 1 - g.width()))
+            y = max(r.top(), min(g.y(), r.bottom() + 1 - g.height()))
+            if (x, y) != (g.x(), g.y()):
+                tipp.move(x, y)
+        return geaendert
+    except RuntimeError:            # Tooltip schon wieder weg
+        return False
+
+
+def _ist_tipp(obj):
+    return obj.isWidgetType() and obj.isWindow() and obj.metaObject().className() == "QTipLabel"
+
+
+def _tipp_filter_neu():
+    from PySide6.QtCore import QEvent, QObject, QTimer
+
+    zeigen, groesse = QEvent.Show, QEvent.Resize
+
+    class TippFilter(QObject):
+        """An der Anwendung (nur Show): ein neuer Tooltip bekommt diesen Filter auch selbst (Resize), denn Qt setzt
+        die Größe beim Wechsel des Textes (Tabellen: anderes Feld) neu."""
+
+        def eventFilter(self, obj, ereignis):
+            art = ereignis.type()
+            if art == zeigen and _ist_tipp(obj):
+                if not obj.property("_tipp_filter"):
+                    obj.setProperty("_tipp_filter", True)
+                    obj.installEventFilter(self)
+                QTimer.singleShot(0, lambda o=obj: tipp_anpassen(o))
+            elif art == groesse and _ist_tipp(obj):
+                QTimer.singleShot(0, lambda o=obj: tipp_anpassen(o))
+            return False
+    return TippFilter()
+
+
+def tipps_einrichten(app):
+    """Tooltips wie im Programm: Regeln des Themes an der Anwendung, Schrift der Anwendung, Farben des Themes,
+    volle Größe nach dem Zeigen (siehe oben). Wird von anwenden() bei Start und Themewechsel aufgerufen."""
+    global _tipp_filter
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QColor, QPalette
+    from PySide6.QtWidgets import QApplication, QToolTip
+    regeln = tipp_regeln()
+    if app.styleSheet() != regeln:
+        app.setStyleSheet(regeln)
+    QApplication.setFont(app.font(), "QTipLabel")
+    p = QPalette(QToolTip.palette())
+    grund = "#2A3240" if _thema == "Dunkel" else umsetzen("#FFFFFF")
+    for gruppe in (QPalette.Active, QPalette.Inactive):
+        p.setColor(gruppe, QPalette.ToolTipBase, QColor(grund))
+        p.setColor(gruppe, QPalette.ToolTipText, QColor(umsetzen(TEXT)))
+    QToolTip.setPalette(p)
+    if _tipp_filter is None:
+        from . import ereignis_verteiler
+        _tipp_filter = _tipp_filter_neu()
+        ereignis_verteiler.anmelden(_tipp_filter, (QEvent.Show,), app)
 
 
 def _schrift_merken(app):

@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.550", "<b>Hilfe und Tooltips unter Windows repariert</b> ([[vorgaben]]): Tooltips und die Hilfe im Modus "
+                "<i>nur Tooltip</i> standen ohne Rand in der Fensterfarbe da und zeigten oft nur die erste Zeile, "
+                "Reste blieben über Tabellen stehen. Jetzt mit Rand und Innenabstand im Theme, immer ganz, lange Texte "
+                "umgebrochen; ein Klick auf <b>Hilfe</b> zeigt den Text sofort. Knöpfe, Haken und Auswahlfelder "
+                "(z. B. <i>＋ Neue Zusatzarbeit …</i>, <i>STEP-Dateien in den Ordner des Angebots kopieren</i>) "
+                "erscheinen nicht mehr losgelöst über dem Hauptfenster.",
+     "Hilfe/Tooltips vollständig, keine losgelösten Knöpfe mehr über dem Fenster."],
     ["0.9.549", "<b>Zusatzarbeiten: Zeit aus dem Preis</b> ([[zusatz_global]]): Eigene Zusatzarbeiten an der Position "
                 "ohne Zeitaufwand in der Verwaltung bekommen ihre Zeit aus Preis ÷ Stundensatz (Einstellung "
                 "<i>Zusatzarbeiten: Stundensatz für die Zeit</i>, Vorgabe 60 €/h). Die Zeit steht unter Zeiten und im "

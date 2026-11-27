@@ -13283,7 +13283,8 @@ def kapitel_einstellungen(i):
          "Vorgabe 1; 2; 5: Stufen, die der Knopf <b>Standard-Staffeln</b> anlegt ([[staffeln]])."],
         ["Ansicht", "Hilfetexte über Tabellen und Seiten",
          "<i>aufklappbar</i> (Vorgabe): erster Satz, <b>mehr</b> (mit i-Symbol) zeigt den ganzen Text; "
-         "<i>nur Tooltip</i>: nur <b>Hilfe</b>, der Text erscheint beim Zeigen mit der Maus. Gilt sofort für alle Tabellen, auch für "
+         "<i>nur Tooltip</i>: nur <b>Hilfe</b>, der Text erscheint beim Zeigen mit der Maus und beim Klick auf "
+         "<b>Hilfe</b>; lange Texte brechen nach etwa 80 Zeichen um. Gilt sofort für alle Tabellen, auch für "
          "die Hinweise in den Dialogen STEP prüfen, Bohrungen prüfen und Blech-Editor "
          "([[stammdaten]]) und die Staffeln."],
         ["Angebots-PDF", "Angebots-PDF: Hinweis zu Musterteilen (leer = keiner) und Angebots-PDF: Frist für die "
@@ -14165,7 +14166,9 @@ def kapitel_stammdaten(i):
             "müssen; rechts daneben steht, wie viele Zeilen FEHLER und WARNUNG haben.",
             "Hilfetexte: unter <i>Mein Arbeitsplatz</i>, Abschnitt Ansicht, <i>Hilfetexte über Tabellen und Seiten</i> = "
             "<i>aufklappbar</i> (erster Satz und <b>mehr</b>) oder <i>nur Tooltip</i> (nur <b>Hilfe</b>, der Text "
-            "erscheint beim Zeigen mit der Maus) ([[vorgaben]]).",
+            "erscheint beim Zeigen mit der Maus oder per Klick auf <b>Hilfe</b>) ([[vorgaben]]). Tooltips haben in "
+            "jedem Theme Rand und Innenabstand und zeigen immer den ganzen Text, auch unter Windows auf einem zweiten "
+            "Bildschirm.",
             "Sortieren: auf den Spaltenkopf klicken. Spaltenbreite und Zeilenhöhe passen sich dem Inhalt an "
             "([[angebot]]); von Hand ändern: Trennlinie im Kopf ziehen.",
             "Wird eine Profil-, Werkstoff- oder Maschinen-ID umbenannt, ändern sich die Verweise in Preisen und "

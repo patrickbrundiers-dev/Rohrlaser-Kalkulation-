@@ -225,7 +225,8 @@ class ZusatzDialog(QDialog):
         self.neu_knopf.setToolTip("Kurzformular: Name, Abrechnung, Preis, Fremdleistung, Kategorie, Erkennungswörter. "
                                   "Gilt erst nur in diesem Angebot; ein Admin übernimmt sie in die Einstellungen.")
         self.neu_knopf.clicked.connect(self.neu_anlegen)
-        self.neu_knopf.setVisible(neu is not None)
+        if neu is None:  # nur ausblenden (geister.py)
+            self.neu_knopf.hide()
         ll.addWidget(self.neu_knopf)
         rechts = QWidget()
         rl = QVBoxLayout(rechts)
@@ -234,7 +235,8 @@ class ZusatzDialog(QDialog):
         self.satz_info.setWordWrap(True)
         self.satz_info.setStyleSheet(stil.umsetzen("background: #E4EEFA; color: #285F9E; padding: 4px 8px; "
                                                    "border-radius: 3px;"))
-        self.satz_info.setVisible(bool(satz))
+        if not satz:  # nur ausblenden (geister.py)
+            self.satz_info.hide()
         if satz:
             from . import satz_flaeche
             m = satz["mengen"]
@@ -298,7 +300,8 @@ class ZusatzDialog(QDialog):
         self.automatisch = QLabel(automatisch_text(p, k, tabellen, kopf) if anzahl == 1 else "")
         self.automatisch.setWordWrap(True)
         self.automatisch.setStyleSheet(f"background: {GELB_FLAECHE}; color: {GELB_TEXT}; padding: 4px;")
-        self.automatisch.setVisible(bool(self.automatisch.text()))
+        if not self.automatisch.text():  # nur ausblenden (geister.py)
+            self.automatisch.hide()
         lay.addWidget(self.automatisch)
         text = ("Links anhaken = eintragen. Menge und Preis leer lassen = automatisch: Menge aus der Position "
                 "(Gewicht, Außenfläche, Länge oder 1 Stück), Preis aus den Stammdaten. € je Teil ohne Zuschläge und "

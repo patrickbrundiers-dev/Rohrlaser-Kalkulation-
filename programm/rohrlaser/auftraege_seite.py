@@ -148,7 +148,8 @@ class UebernahmeDialog(QDialog):
         self.summe.setWordWrap(True)
         self.hinweise = QLabel("<br>".join("⚠ " + h for h in self.z["hinweise"]))
         self.hinweise.setWordWrap(True)
-        self.hinweise.setVisible(bool(self.z["hinweise"]))
+        if not self.z["hinweise"]:  # nur ausblenden (geister.py)
+            self.hinweise.hide()
         self.hinweise.setStyleSheet("background:#FFF6DB; padding:6px; border-radius:4px;")
         info = QLabel("Der Stand der Angebote wird eingefroren: die Kalkulation bleibt unverändert, Ergänzungen "
                       "macht man im Auftrag (mit Historie).")

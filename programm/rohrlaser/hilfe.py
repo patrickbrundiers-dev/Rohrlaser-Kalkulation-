@@ -2,7 +2,8 @@
 
 aufklappbar (Vorgabe): nur der erste Satz steht da, 'mehr' (mit i-Symbol) zeigt den ganzen Text. Ob ein Hinweis offen
 ist, merkt sich das Programm je Seite (Einstellung 'ansicht_hilfe_offen', über alle Angebote und Neustarts).
-nur Tooltip: statt des Textes steht nur 'Hilfe' (mit i-Symbol), der ganze Text erscheint beim Zeigen mit der Maus.
+nur Tooltip: statt des Textes steht nur 'Hilfe' (mit i-Symbol), der ganze Text erscheint beim Zeigen mit der Maus
+und beim Klick auf 'Hilfe' (umgebrochen, volle Höhe: stil.tipps_einrichten).
 
 Das i-Symbol ist gezeichnet statt des Zeichens ⓘ: Schriften ohne dieses Zeichen (z. B. Liberation Sans der
 Bildschirmfotos) zeigten ein leeres Kästchen (Design-Prüfung 28.10.2026).
@@ -146,7 +147,7 @@ class Hinweis(QWidget):
         self.knopf.setStyleSheet("QToolButton { color: #1F4E78; border: none; padding: 0 2px; }")
         self.knopf.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.knopf.setIconSize(QSize(SYMBOL_GROESSE, SYMBOL_GROESSE))
-        self.knopf.clicked.connect(lambda: self.aufklappen(not self.offen, merken=True))
+        self.knopf.clicked.connect(self._geklickt)
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(4)
@@ -171,6 +172,20 @@ class Hinweis(QWidget):
         self.tooltip = art(self.db) == "nur Tooltip"
         self.offen = self._gemerkt()
         self._zeigen()
+
+    def _geklickt(self):
+        """Klick auf den Knopf: aufklappbar 'mehr'/'weniger'; im Modus 'nur Tooltip' zeigt 'Hilfe' den ganzen Text
+        sofort (bis 0.9.549 tat der Klick dort nichts, Supportpaket 27.11.2026)."""
+        if self.tooltip:
+            self.tipp_zeigen()
+        else:
+            self.aufklappen(not self.offen, merken=True)
+
+    def tipp_zeigen(self):
+        from PySide6.QtCore import QPoint, QRect
+        from PySide6.QtWidgets import QToolTip
+        k = self.knopf
+        QToolTip.showText(k.mapToGlobal(QPoint(0, k.height() + 2)), self.text, k, QRect(), 30000)
 
     def aufklappen(self, offen, merken=False):
         self.offen = bool(offen)
