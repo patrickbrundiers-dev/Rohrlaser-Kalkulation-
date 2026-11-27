@@ -164,12 +164,16 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           ROHRLASER_PG_BIN: /usr/lib/postgresql/16/bin
         run: /usr/bin/python3 werkzeuge/mit_pg.py -- /usr/bin/python3 anleitung/erzeuge_anleitung.py --ziel Bedienungsanleitung.pdf --kurz Kurzanleitung.pdf
+      # IT-Handbuch des Servers (Patrick 27.11.2026): entsteht bei jedem Bau neu, Werte direkt aus dem Programm.
+      - name: IT-Handbuch Server erzeugen
+        run: /usr/bin/python3 anleitung/erzeuge_it_handbuch.py --ziel IT-Handbuch_Server.pdf
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: Bedienungsanleitung
           path: |
             Bedienungsanleitung.pdf
             Kurzanleitung.pdf
+            IT-Handbuch_Server.pdf
           retention-days: ${{ github.event_name == 'pull_request' && 7 || 30 }}
 
   windows:
@@ -444,6 +448,7 @@ jobs:
           Copy-Item -Recurse dist/STEP-Import dist/Rohrlaser-Angebotskalkulation/STEP-Import
           Copy-Item Bedienungsanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
           Copy-Item Kurzanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
+          Copy-Item IT-Handbuch_Server.pdf dist/Rohrlaser-Angebotskalkulation/
           Copy-Item Windows-Vertrauen-einrichten.cmd dist/Rohrlaser-Angebotskalkulation/
           # tests/step_selbsttest: Stutzen-Durchbruch (0.9.231 fehlte numpy im Paket)
           $step = (Get-ChildItem tests/step/*.step, tests/step_selbsttest/*.step | ForEach-Object { '"' + $_.FullName + '"' })
@@ -652,7 +657,7 @@ jobs:
             Rohrlaser-Angebotskalkulation.zip: dieselbe Version portabel ohne Installation (Angebote, STEP-Import,
             Optimierung, Staffelpreise, PDF, CSV-Export). Entpacken, Rohrlaser-Angebotskalkulation.exe starten; die
             Daten liegen im Ordner Daten neben dem Programm.
-            Bedienungsanleitung.pdf und Kurzanleitung.pdf liegen im Programmordner (auch im Programm unter Hilfe, F1).
+            Bedienungsanleitung.pdf, Kurzanleitung.pdf und IT-Handbuch_Server.pdf (für die IT: zentraler Server) liegen im Programmordner (Anleitungen auch im Programm unter Hilfe, F1).
             Umziehen zwischen beiden: Datei → Daten exportieren … / Daten importieren …
             Vor dem ersten Start bzw. Entpacken: Rechtsklick auf Setup.exe bzw. ZIP → Eigenschaften → „Zulassen“ → OK.
             Dann warnt Windows nicht und prüft beim Entpacken nicht jede Datei einzeln. Windows-Vertrauen-einrichten.cmd
@@ -674,6 +679,7 @@ jobs:
             update_dateien/Update.json
             Bedienungsanleitung.pdf
             Kurzanleitung.pdf
+            IT-Handbuch_Server.pdf
             Windows-Vertrauen-einrichten.cmd
             Release-Zusammenfassung.md
             Release-Zusammenfassung.json
@@ -795,7 +801,8 @@ jobs:
           Copy-Item programm/rohrlaser/Lizenzbedingungen.txt Lizenzbedingungen.txt
           foreach ($datei in @("Rohrlaser-Angebotskalkulation-Setup.exe", "Rohrlaser-Angebotskalkulation-Setup.exe.sha256",
                                "Rohrlaser-Angebotskalkulation.zip", "Rohrlaser-Angebotskalkulation.zip.sha256",
-                               "Bedienungsanleitung.pdf", "Kurzanleitung.pdf", "Windows-Vertrauen-einrichten.cmd",
+                               "Bedienungsanleitung.pdf", "Kurzanleitung.pdf", "IT-Handbuch_Server.pdf",
+                               "Windows-Vertrauen-einrichten.cmd",
                                "Lizenzbedingungen.txt", "Rohrlaser-Update.rlupdate", "Rohrlaser-Update.rlupdate.sha256")) {
             gh release upload download $datei --repo $repo --clobber
             if ($LASTEXITCODE -ne 0) { throw "Hochladen von $datei nach download fehlgeschlagen" }

@@ -17236,7 +17236,10 @@ def kapitel_admin_datenbank(i):
     i.text("Statt jeder PC mit eigener Datenbank und Abgleich über den gemeinsamen Ordner können alle Arbeitsplätze "
            "mit <b>einer zentralen Datenbank</b> auf einem Server-Rechner im Firmennetz arbeiten (ausgelegt für 10 "
            "bis 25 gleichzeitige Mitarbeiter). Das Programm ist dasselbe; nur die Betriebsart ändert sich. Die "
-           "lokale Betriebsart bleibt unverändert und lässt sich jederzeit wieder wählen.")
+           "lokale Betriebsart bleibt unverändert und lässt sich jederzeit wieder wählen. Für die IT liegt im "
+           "Programmordner das <i>IT-Handbuch_Server.pdf</i> mit allen Voraussetzungen (VM-Größe, Windows, Ports, "
+           "Firewall, Zertifikat, Virenscanner, Sicherung, Überwachung), der Einrichtung Schritt für Schritt und einer "
+           "Abnahme-Checkliste.")
     i.liste("<b>Server einrichten</b> (einmal, auf dem Server-Rechner, in der Eingabeaufforderung): "
             "<i>Rohrlaser-Angebotskalkulation.exe --server einrichten --ordner D:\\RohrlaserServer --admin PB "
             "--name \"Firma\" --adresse SERVERNAME 192.168.1.10</i>. Das Passwort des ersten Administrators wird "
