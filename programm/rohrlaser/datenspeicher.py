@@ -463,6 +463,9 @@ def status(db):
         with contextlib.suppress(Exception):            # S4: wer rechnet lange Rechnungen
             from . import server_rechnen
             zeilen.insert(1, server_rechnen.status_text(db))
+        with contextlib.suppress(Exception):            # S6: letzte Serversicherung und Rücksicherungsprobe
+            from . import server_sicherung
+            zeilen.insert(2, server_sicherung.status_text(db))
         return f"{TITEL[SERVER]}: {db.server.text()}" + ("\n\n" + "\n".join(zeilen) if zeilen else "")
     archiv = f"; alte SQLite-Datendatei archiviert: {m['archiv']}" if m.get("archiv") else ""
     konto = ""

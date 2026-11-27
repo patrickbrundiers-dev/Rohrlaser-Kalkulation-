@@ -17274,6 +17274,26 @@ def kapitel_admin_datenbank(i):
             "<i>--runden N</i>) und zeigt die Antwortzeiten. Bestanden: keine Fehler, 95 % der Aktionen unter 1 "
             "Sekunde. Probe-Zugänge und -Angebote werden danach entfernt, Angebotsnummern nicht verbraucht. Ideal "
             "nach dem Einrichten und nach dem Umzug auf neue Hardware.",
+            "<b>Aufgabenplanung</b> (einmal): <i>… --server aufgaben --ordner D:\\RohrlaserServer</i> trägt unter "
+            "Windows drei Aufgaben ein: Server und Rechner beim Hochfahren starten, täglich um 22:30 Uhr sichern "
+            "(<i>--uhrzeit 03:00</i> für eine andere Zeit). Die Befehlszeilen werden angezeigt.",
+            "<b>Serversicherung</b>: <i>… --server sichern --ordner D:\\RohrlaserServer</i> sichert mit festem Stand "
+            "nach <i>D:\\RohrlaserServer\\Sicherung</i> (Datenbank, Zugänge, Prüfwerte) und macht gleich die "
+            "<b>Rücksicherungsprobe</b>: die Sicherung wird in eine Probe-Datenbank eingespielt und Zeile für Zeile "
+            "verglichen. Nur dann gilt sie als gut. Die 14 neuesten täglichen Sicherungen bleiben (<i>--behalten "
+            "N</i>); vor einem Update <i>--anlass vor_Update</i> (bleibt dauerhaft). <i>--server sicherungen</i> "
+            "listet sie. Den Ordner Sicherung zusätzlich auf ein anderes Laufwerk oder NAS kopieren lassen und "
+            "vor fremdem Zugriff schützen (er enthält die Prüfwerte der Passwörter).",
+            "<b>Zurückholen</b>: <i>… --server zurueckholen --ordner D:\\RohrlaserServer --datei "
+            "D:\\RohrlaserServer\\Sicherung\\server_….pgdump</i>. Erst wird der jetzige Stand gesichert, dann die "
+            "Sicherung in eine neue Datenbank eingespielt und geprüft; erst danach wird getauscht (die Arbeitsplätze "
+            "verbinden sich neu, die bisherige Datenbank bleibt bis zum nächsten Zurückholen). Auf einem neuen "
+            "Server-Rechner: dort <i>einrichten</i> wie oben, dann <i>zurueckholen</i>: alle Daten und die übrigen "
+            "Zugänge mit ihren Passwörtern kommen aus der Sicherung (der beim Einrichten angelegte Administrator "
+            "behält sein neues Passwort); danach die neue Zugangsdatei an den Arbeitsplätzen einlesen.",
+            "<b>Update</b>: erst <i>--server sichern --anlass vor_Update</i>, dann das Programm am Server-Rechner "
+            "und an einem Verwalter-Arbeitsplatz aktualisieren (er stellt den Server auf die neue Version um), "
+            "Rechner am Server neu starten, danach alle Arbeitsplätze aktualisieren.",
             nummeriert=True)
     i.tabelle(["Thema", "Im Serverbetrieb"], [
         ["Sicherheit", "Verbindung nur verschlüsselt (TLS) mit dem eigenen Zertifikat des Servers; ein anderer "
@@ -17302,7 +17322,8 @@ def kapitel_admin_datenbank(i):
          "nicht innerhalb von 30 Sekunden) oder schlägt etwas fehl, misst der Arbeitsplatz selbst. Einstellung "
          "<i>Einstellungen → Mein Arbeitsplatz am Server → Serverbetrieb: lange Rechnungen</i> (gilt nur für diesen Platz): automatisch, am Server (jeder STEP-"
          "Import) oder an diesem Arbeitsplatz. <i>Datei → Datenbank …</i> zeigt, ob ein Rechner bereit ist."],
-        ["Abgleich, Sicherung je PC", "Entfallen: alle arbeiten in derselben Datenbank."],
+        ["Abgleich, Sicherung je PC", "Entfallen: alle arbeiten in derselben Datenbank; gesichert wird am Server "
+         "(täglich, mit Rücksicherungsprobe)."],
     ], [38 * mm, 132 * mm])
     i.text("<b>Zusammenarbeiten am Server</b>")
     i.tabelle(["Thema", "So läuft es"], [
@@ -17341,9 +17362,9 @@ def kapitel_admin_datenbank(i):
     ], [38 * mm, 132 * mm])
     i.hinweis("Ausbaustand: Datenbank, Anmeldung, Rechte, Nummern, Einstellungen, die Zusammenarbeit "
               "(Reservierung, Live, Benutzer, Übergaben, Notizen, Zuweisen), die Dateiablage und lange Rechnungen "
-              "arbeiten zentral; die bisherigen Daten lassen sich verlustfrei übernehmen und der Server mit 25 "
-              "Plätzen prüfen. Die automatische Serversicherung mit Rücksicherungsprobe folgt in der nächsten "
-              "Ausbaustufe; bis dahin vor dem Umstieg zusätzlich die Export-Datei aufheben.")
+              "arbeiten zentral; die bisherigen Daten lassen sich verlustfrei übernehmen, der Server mit 25 Plätzen "
+              "prüfen und täglich mit Rücksicherungsprobe sichern. Datei → Datenbank … zeigt an jedem Arbeitsplatz "
+              "die letzte Serversicherung; Verwalter werden gewarnt, wenn sie älter als 36 Stunden ist.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",

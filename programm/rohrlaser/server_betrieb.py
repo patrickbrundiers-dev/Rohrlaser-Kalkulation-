@@ -804,6 +804,15 @@ HILFE = """Rohrlaser-Server (Serverversion) – Befehle auf dem Server-Rechner:
   lasttest --ordner ORDNER [--plaetze 25] [--runden 10]
       Lastprobe: so viele Arbeitsplätze arbeiten gleichzeitig (Probe-Logins, werden danach entfernt); misst die
       Antwortzeiten und prüft Reservierungen und Verbindungen
+  sichern --ordner ORDNER [--behalten 14] [--anlass vor_Update]
+      Sicherung mit Rücksicherungsprobe nach ORDNER\\Sicherung (täglich per Aufgabenplanung); ältere tägliche
+      Sicherungen über --behalten hinaus werden gelöscht
+  sicherungen --ordner ORDNER    vorhandene Serversicherungen anzeigen
+  zurueckholen --ordner ORDNER --datei SICHERUNG.pgdump
+      Server auf den Stand einer Sicherung setzen (vorher wird der jetzige Stand gesichert, die Sicherung erst
+      eingespielt und geprüft, dann getauscht; auch zum Umzug auf einen neuen Server-Rechner)
+  aufgaben --ordner ORDNER [--uhrzeit 22:30]
+      Windows-Aufgabenplanung: Server und Rechner beim Hochfahren starten, täglich sichern
 """
 
 
@@ -815,7 +824,7 @@ def main(argv=None, eingabe=None, ausgabe=print):
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("befehl", choices=("einrichten", "starten", "stoppen", "status", "benutzer", "zugang", "ablage",
                                          "rechnen", "uebernehmen", "dazunehmen", "vergleichen",
-                                         "lasttest"))
+                                         "lasttest", "sichern", "sicherungen", "zurueckholen", "aufgaben"))
     p.add_argument("--ordner", required=True)
     p.add_argument("--admin")
     p.add_argument("--name", default="")
@@ -832,6 +841,9 @@ def main(argv=None, eingabe=None, ausgabe=print):
     p.add_argument("--ersetzen", action="store_true")
     p.add_argument("--plaetze", type=int, default=25)
     p.add_argument("--runden", type=int, default=10)
+    p.add_argument("--behalten", type=int, default=14)
+    p.add_argument("--uhrzeit", default="22:30")
+    p.add_argument("--anlass", default="taeglich")
     a = p.parse_args(argv)
     lies = eingabe or (lambda frage: getpass.getpass(frage))
 
@@ -867,6 +879,8 @@ def main(argv=None, eingabe=None, ausgabe=print):
             n = con.execute("SELECT count(*) FROM pg_stat_activity WHERE datname = %s", (DATENBANK,)).fetchone()[0]
             ausgabe(f"Server {i.get('name', '')} läuft (Port {s.port}), Programmversion {i.get('programm', '–')}, "
                     f"Schema {i.get('schema', '–')}, {n} Verbindungen")
+            from . import server_sicherung
+            ausgabe(server_sicherung.zustand(i)[0])
             for b in benutzer_liste(con):
                 ausgabe(f"  {b['kuerzel']:<8} {b['recht']:<11} {'gesperrt' if b['gesperrt'] else ''} {b['name']}")
     elif a.befehl == "benutzer":
@@ -915,6 +929,27 @@ def main(argv=None, eingabe=None, ausgabe=print):
         if not s.laeuft():
             s.starten()
         return 0 if server_last.lauf(s, a.plaetze, a.runden, melden=ausgabe)["bestanden"] else 1
+    elif a.befehl in ("sichern", "sicherungen", "zurueckholen", "aufgaben"):
+        from . import server_sicherung as ss
+        if a.befehl != "aufgaben" and not s.laeuft():
+            s.starten()
+        if a.befehl == "sichern":
+            anlass = re.sub(r"[^A-Za-z0-9_]", "", a.anlass) or ss.TAEGLICH
+            ss.sichern(s, anlass=anlass, behalten=a.behalten, melden=ausgabe)
+        elif a.befehl == "sicherungen":
+            liste = ss.sicherungen(s)
+            for x in liste:
+                ausgabe(f"  {x['datei'].name:<52} {x['mb']:>8.1f} MB  {'Probe ok' if x['gut'] else 'PROBE FEHLER'}")
+            ausgabe(f"{len(liste)} Sicherungen in {ss.ordner(s)}")
+        elif a.befehl == "zurueckholen":
+            if not a.datei:
+                raise ServerFehler("Bitte --datei SICHERUNG.pgdump angeben (Liste: sicherungen).")
+            ss.zurueckholen(s, a.datei, melden=ausgabe)
+        else:
+            import sys
+            programm = sys.executable if getattr(sys, "frozen", False) else "Rohrlaser-Angebotskalkulation.exe"
+            for name, zeile in ss.aufgaben(s, programm, a.ordner, a.uhrzeit):
+                ausgabe(f"{name}: {zeile}")
     return 0
 
 
