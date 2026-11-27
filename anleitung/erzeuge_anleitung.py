@@ -17250,7 +17250,10 @@ def kapitel_admin_datenbank(i):
             "Server-Rechner ausführen (Administratorrechte). Es installiert das Programm und startet den "
             "<b>Einrichtungs-Assistenten</b>: Server-Ordner, Firma, Adressen, erster Administrator, Firewall, Freigabe "
             "der Ablage, Sicherungszeiten, zweites Sicherungsziel und Dienstkonto auf fünf Seiten, dann richtet er "
-            "alles in einem Durchgang ein und zeigt Zugangsdatei und Fingerabdruck. Er darf erneut laufen "
+            "alles in einem Durchgang ein und zeigt Zugangsdatei und Fingerabdruck. Der Assistent arbeitet dabei die "
+            "Schritte selbst ab: <b>Firewall-Regel für die Datenbank anlegen</b>, <b>Ablage im Netz freigeben und "
+            "Rechte setzen</b> und <b>gleich die erste Sicherung mit Probe machen</b>. Am Ende kann er "
+            "<i>Server-Ordner öffnen</i> und <i>IT-Handbuch öffnen</i>. Er darf erneut laufen"
             "(Startmenü: <i>NexTube Server einrichten</i>). Ein neues Server-Setup über das alte ausgeführt stoppt "
             "den Server, tauscht das Programm und startet ihn wieder.",
             "<b>Server einrichten von Hand</b> (einmal, auf dem Server-Rechner, in der Eingabeaufforderung): "
