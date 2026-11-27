@@ -67,7 +67,12 @@ class INPUT(ctypes.Structure):
     _fields_ = (("type", wintypes.DWORD), ("u", _U))
 
 
+import faulthandler  # noqa: E402
+
+faulthandler.dump_traceback_later(45, repeat=True)     # hängt etwas: alle 45 s zeigen, wo
+print("Start", flush=True)
 app = QApplication.instance() or QApplication(sys.argv)
+print("QApplication", QApplication.primaryScreen().geometry(), flush=True)
 ORDNER = Path("fenster_windows")
 ORDNER.mkdir(exist_ok=True)
 ZEILEN = []
@@ -106,6 +111,7 @@ def klicken(x, y):
 
 def befund(name, w, klick=True, erwartet_zu=True):
     """Windows-Zustand von w aufschreiben, X klicken (optional) und prüfen, ob es zu ist."""
+    print("Befund", name, flush=True)
     warten(0.5)
     hwnd = int(w.winId())
     stil = u32.GetWindowLongPtrW(hwnd, GWL_STYLE)
@@ -116,11 +122,13 @@ def befund(name, w, klick=True, erwartet_zu=True):
     u32.GetClassNameW(hwnd, puffer, 128)
     vorne = u32.GetForegroundWindow() == hwnd
     pos = x_finden(hwnd)
+    print("  X bei", pos, flush=True)
     app_modal = QApplication.activeModalWidget()
     foto = ORDNER / f"{len(ZEILEN) + 1:02d}_{name.replace(' ', '_').replace('/', '-')}.png"
     QApplication.primaryScreen().grabWindow(0).save(str(foto))
     zu = None
     if klick and pos:
+        print("  klicke", flush=True)
         klicken(*pos)
         warten(0.6)
         zu = not w.isVisible()
