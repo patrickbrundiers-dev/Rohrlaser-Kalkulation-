@@ -58,6 +58,7 @@ EXE = "Rohrlaser-Angebotskalkulation.exe"
 FREIGABE = r"\\ROHRLASER-SRV\Rohrlaser-Ablage"
 DIENSTKONTO = r"FIRMA\svc-rohrlaser"
 GRUPPE = "GG-Rohrlaser-Benutzer"
+NAS = r"\\NAS\Backup\Rohrlaser"
 
 # Größen der VM nach Platzzahl: Schätzwerte (Datenbank klein, CPU vor allem für den Rechner-Dienst), bestätigt
 # durch den eingebauten Lasttest auf der echten Hardware.
@@ -66,6 +67,12 @@ GROESSEN = [
     ("bis 10 (Empfehlung)", "8", "16 GB", "500 GB", "1 TB"),
     ("bis 25", "12–16", "32 GB", "1 TB", "2 TB"),
 ]
+
+
+def _zeiten():
+    """Sicherungszeiten der Aufgabenplanung als Text: „12:30 und 22:30“."""
+    z = ss._uhrzeiten(ss.UHRZEITEN)
+    return " und ".join([", ".join(z[:-1]), z[-1]]) if len(z) > 1 else z[0]
 
 
 def pg_version():
@@ -320,11 +327,11 @@ def aufbau_bild():
            akzent=True)
     kasten(533, 60, 205, 95, "Rechner-Dienst", ["Große STEP-Importe", "Vormessung neuer Anfragen"])
     kasten(312, 175, 205, 95, "Ablage", ["Gemeinsame Dateien", "Windows-Freigabe, Port 445"])
-    kasten(533, 175, 205, 95, "Sicherung", ["täglich 22:30 Uhr", "mit Rücksicherungsprobe"])
+    kasten(533, 175, 205, 95, "Sicherung", [f"täglich {_zeiten()} Uhr", "Datenbank + Ablage, mit Probe"])
     kasten(533, 320, 205, 70, "NAS / zweites Ziel", ["Kopie Sicherung + Ablage"], gestrichelt=True)
     pfeil(220, 100, 312, 100, f"TCP {sb.PORT}, TLS", 226, 92)
     pfeil(220, 205, 312, 205, "SMB, TCP 445", 226, 197)
-    pfeil(635, 270, 635, 320, "täglich, IT", 642, 300)
+    pfeil(635, 270, 635, 320, "SHA-256-geprüft", 642, 300)
     return d
 
 
@@ -475,12 +482,15 @@ def kapitel_vorbereitung(i):
     i.hinweis("Die Ablage selbst weiter scannen lassen: Dort liegen Mail-Anhänge von Kunden.", warnung=True)
     i.abschnitt("Energie und Windows-Updates")
     i.liste("Energieprofil „Höchstleistung“, Ruhezustand und Standby aus.",
-            "Windows-Updates mit Neustart nur im Wartungsfenster, z. B. Sonntag nachts, nicht zwischen 22:30 und "
-            "23:30 Uhr (Sicherung).",
+            f"Windows-Updates mit Neustart nur im Wartungsfenster, z. B. Sonntag nachts, nicht während der "
+            f"Sicherungen ({_zeiten()} Uhr, jeweils rund eine Stunde).",
             "Nach jedem Neustart starten Server und Rechner-Dienst automatisch über die Aufgabenplanung.")
-    i.abschnitt("Sicherungsziel")
-    i.text("Ein Ziel außerhalb der VM festlegen (NAS, anderer Host, Bandsicherung), auf das der Ordner "
-           f"<i>{ss.ORDNER}</i> und die Ablage täglich kopiert werden. Einzelheiten in Abschnitt 7.")
+    i.abschnitt("Zweites Sicherungsziel")
+    i.text(f"Ein Ziel außerhalb der VM bereitstellen, z. B. eine Freigabe <i>{NAS}</i> auf einem NAS oder einem "
+           "anderen Host. Der Server kopiert jede gute Sicherung samt Ablage selbst dorthin und prüft jede Datei per "
+           "SHA-256. Das Dienstkonto braucht dort Ändern-Rechte, normale Mitarbeiter keine. Empfohlen: auf dem NAS "
+           "Snapshots oder eine schreibgeschützte Versionierung aktivieren (Schutz vor Verschlüsselungstrojanern). "
+           "Einzelheiten in Abschnitt 7.")
 
 
 def kapitel_netzwerk(i):
@@ -557,9 +567,11 @@ def kapitel_einrichtung(i):
     i.text("Freigabe wie in 3.3 anlegen, dann den Pfad eintragen, unter dem die Arbeitsplätze sie erreichen:")
     i.code(f"%RL% ablage --ordner {SERVER_ORDNER} --pfad {FREIGABE}")
     i.abschnitt("Automatischen Start und Sicherung einrichten")
-    i.code(f"%RL% aufgaben --ordner {SERVER_ORDNER} --uhrzeit 22:30")
+    i.code(f"%RL% aufgaben --ordner {SERVER_ORDNER} --uhrzeit {ss.UHRZEITEN}")
     i.text("Trägt drei Aufgaben in die Windows-Aufgabenplanung ein: Server beim Hochfahren starten, Rechner-Dienst "
-           "beim Hochfahren starten, täglich sichern. Sie laufen unter dem Konto, das den Server eingerichtet hat, "
+           f"beim Hochfahren starten, sichern um {_zeiten()} Uhr. War der Server zur Sicherungszeit aus, holt "
+           "Windows die Sicherung nach, sobald er wieder läuft; ein Fehlstart wird bis zu dreimal (alle 15 Minuten) "
+           "wiederholt. Sie laufen unter dem Konto, das den Server eingerichtet hat, "
            "auch ohne Anmeldung; sein Windows-Passwort wird dafür einmal abgefragt. <i>--konto DOMÄNE\\NAME</i> "
            "nimmt ein anderes Konto mit Zugriff auf den Ordner.")
     i.abschnitt("Starten und prüfen")
@@ -571,6 +583,10 @@ def kapitel_einrichtung(i):
     i.text("Rechte: <i>bearbeiten</i>, <i>lesen</i> (Werkstatt) oder <i>verwalter</i>. <i>--sperren</i> sperrt einen "
            "Zugang. Später geht das auch im Programm unter <i>Einstellungen → Benutzer und Rollen</i> (nur "
            "Administratoren); ein neuer Benutzer braucht dort gleich ein Passwort.")
+    i.abschnitt("Zweites Sicherungsziel eintragen")
+    i.code(f"%RL% sicherungsziel --ordner {SERVER_ORDNER} --pfad {NAS}")
+    i.text("Prüft, dass das Ziel beschreibbar ist, und trägt es ein. Ab jetzt geht jede gute Sicherung samt Ablage "
+           "auch dorthin. Ohne <i>--pfad</i> zeigt der Befehl das eingetragene Ziel.")
     i.abschnitt("Daten übernehmen")
     i.text("Siehe Abschnitt 6.2.")
     i.abschnitt("Lasttest")
@@ -633,43 +649,69 @@ def kapitel_arbeitsplaetze(i):
 
 def kapitel_sicherung(i):
     i.kapitel("Sicherung, Wiederherstellung und Notfall")
-    i.text("Der Server <b>sichert sich täglich selbst</b> (Vorgabe 22:30 Uhr) und prüft jede Sicherung mit einer "
-           "Probe-Rücksicherung. Aufgabe der IT ist die zweite Kopie außerhalb der VM und ein regelmäßiger "
-           "Wiederherstellungstest.")
+    i.text(f"Der Server <b>sichert sich zweimal täglich selbst</b> (Vorgabe {_zeiten()} Uhr): Datenbank, Ablage "
+           "und Server-Einstellungen. Jede Sicherung wird sofort probeweise eingespielt und geprüft und danach auf "
+           "ein zweites Ziel kopiert. Aufgabe der IT: das zweite Ziel bereitstellen, die Warnungen überwachen und "
+           "einmal im Jahr die Wiederherstellung üben.")
+    i.tabelle(["Risiko", "Abgesichert durch"], [
+        ["Bedienfehler, versehentlich gelöscht", f"{ss.BEHALTEN} tägliche Stände, {ss.WOCHEN} Wochen-, "
+                                                 f"{ss.MONATE} Monatsstände; ältere Dateistände der Ablage 60 Tage"],
+        ["Sicherung unbemerkt kaputt", "Rücksicherungsprobe: jede Sicherung wird probeweise eingespielt und per "
+                                       "Prüfsumme verglichen"],
+        ["Server zur Sicherungszeit aus", "Aufgabenplanung holt die Sicherung nach; Warnung nach "
+                                          f"{ss.WARNEN_H} Stunden"],
+        ["Platte/VM defekt, Trojaner am Server", "zweites Ziel mit SHA-256-Prüfung; dort am besten Snapshots"],
+        ["Neuer Server-Rechner", "zurueckholen --mit-zertifikat: Daten, Zugänge, Ablage und Zertifikat; alte "
+                                 "Zugangsdatei gilt weiter"],
+        ["Fehler bleibt unbemerkt", "Windows-Ereignisprotokoll (Quelle Rohrlaser-Server), Warnung an die Verwalter "
+                                    "im Programm"],
+        ["Datenverlust zwischen zwei Sicherungen", "zwei Sicherungen am Tag: höchstens ein halber Arbeitstag"],
+    ], [34, 66])
     i.abschnitt("Was die Programmsicherung macht")
     i.liste(f"Sicherung mit festem Stand nach <i>{SERVER_ORDNER}\\{ss.ORDNER}</i>: Datenbank (<i>{ss.ENDUNG}</i>), "
-            "Zugänge, Prüfwerte.",
+            f"Zugänge (<i>.rollen.sql</i>), Prüfwerte (<i>.json</i>), Server-Einstellungen (<i>{ss.KONFIG}</i>: "
+            "Zertifikate, Zugangsdatei) und die Liste der Ablage-Dateien.",
+            "Die Ablage wird nach <i>Sicherung\\Dokumente</i> gespiegelt (nur Geänderte werden kopiert, ältere und "
+            "gelöschte Stände bleiben 60 Tage). Die Zwischenspeicher des Rechner-Dienstes bleiben außen vor.",
             "Gleich danach: Einspielen in eine Probe-Datenbank und Zeile-für-Zeile-Vergleich. Nur dann gilt die "
             "Sicherung als gut.",
-            f"Aufbewahrung: die {ss.BEHALTEN} neuesten täglichen Stände (<i>--behalten N</i>). Sicherungen mit "
+            f"Aufbewahrung: die {ss.BEHALTEN} neuesten täglichen Stände (<i>--behalten N</i>), dazu je Woche "
+            f"({ss.WOCHEN} Wochen) und je Monat ({ss.MONATE} Monate) die neueste gute. Sicherungen mit "
             "<i>--anlass vor_Update</i> bleiben dauerhaft.",
-            f"Ist die letzte Sicherung älter als {ss.WARNEN_H} Stunden, warnt das Programm die Verwalter.")
+            f"Ist die letzte gute Sicherung oder die letzte Kopie aufs zweite Ziel älter als {ss.WARNEN_H} Stunden, "
+            "warnt das Programm die Verwalter.",
+            f"Jedes Ergebnis steht im Windows-Ereignisprotokoll: Anwendung, Quelle <i>{ss.EREIGNIS_QUELLE}</i>, "
+            "ID 200 = gut, ID 201 = Fehler.")
     i.code(f"%RL% sichern     --ordner {SERVER_ORDNER}\n%RL% sicherungen --ordner {SERVER_ORDNER}")
-    i.abschnitt("Was die IT zusätzlich sichert")
-    i.tabelle(["Was", "Wann", "Wohin"], [
-        [f"{SERVER_ORDNER}\\{ss.ORDNER}", "täglich nach 23:30 Uhr", "NAS / anderer Host / Band"],
-        [f"{SERVER_ORDNER}\\Ablage", "täglich, inkrementell", "NAS / anderer Host / Band"],
-        [f"Zugangsdatei {sb.ZUGANG_DATEI} und Fingerabdruck", "einmal nach der Einrichtung", "IT-Dokumentation"],
-    ], [42, 28, 30])
-    i.text("Beispiel mit Robocopy als geplante Aufgabe:")
-    i.code(f"robocopy {SERVER_ORDNER}\\{ss.ORDNER} \\\\NAS\\Backup\\Rohrlaser\\{ss.ORDNER} /MIR /R:2 /W:30 ^\n"
-           f"  /LOG:{SERVER_ORDNER}\\robocopy.log")
-    i.hinweis("Die Kopie vor fremdem Zugriff schützen: sie enthält die Prüfwerte der Passwörter. <b>Den Ordner pg "
-              "nicht direkt kopieren</b>, solange der Server läuft; maßgeblich ist die geprüfte Sicherung.",
-              warnung=True)
+    i.abschnitt("Zweites Ziel")
+    i.code(f"%RL% sicherungsziel --ordner {SERVER_ORDNER} --pfad {NAS}")
+    i.liste("Nach jeder guten Sicherung kopiert der Server Abbild und Begleitdateien dorthin und prüft jede Datei per "
+            "SHA-256. Die Ablage wird dort ein zweites Mal gespiegelt. Alte Stände werden dort wie am Server "
+            "aufgeräumt.",
+            "Schlägt die Kopie fehl (NAS aus, voll, keine Rechte), bleibt die Sicherung am Server gut. Der Befehl "
+            "endet aber mit Fehler, das Ereignisprotokoll bekommt ID 201 und die Verwalter eine Warnung.",
+            "Zusätzliche Sicherung der VM oder des NAS (Band, Cloud-Backup der IT) bleibt sinnvoll, ist aber nicht "
+            "mehr Voraussetzung.")
+    i.hinweis("Das zweite Ziel vor fremdem Zugriff schützen: es enthält die Prüfwerte der Passwörter und den "
+              "Schlüssel der Zertifizierungsstelle. <b>Den Ordner pg nie direkt kopieren</b>, solange der Server "
+              "läuft; maßgeblich ist die geprüfte Sicherung.", warnung=True)
     i.abschnitt("Wiederherstellen")
     i.code(f"%RL% zurueckholen --ordner {SERVER_ORDNER} --datei {SERVER_ORDNER}\\{ss.ORDNER}\\server_….pgdump")
     i.text("Erst wird der jetzige Stand gesichert, dann die Sicherung in eine neue Datenbank eingespielt und geprüft, "
            "erst danach getauscht. Die Arbeitsplätze verbinden sich von selbst neu; die bisherige Datenbank bleibt "
-           "bis zum nächsten Zurückholen erhalten.")
+           "bis zum nächsten Zurückholen erhalten. Die Ablage kommt mit zurück: fehlende Dateien zurück, "
+           "abweichende ersetzt (der abweichende Stand liegt danach in <i>_vor_Wiederherstellung</i>), später "
+           "entstandene bleiben. <i>--ohne-ablage</i> lässt die Ablage unverändert.")
     i.abschnitt("Notfall: Server-Rechner defekt")
-    i.liste("Neue VM nach Abschnitt 2 bis 4 vorbereiten, möglichst mit gleicher IP und gleichem DNS-Namen.",
+    i.liste("Neue VM nach Abschnitt 2 bis 4 vorbereiten, <b>mit gleicher IP und gleichem DNS-Namen</b>.",
             "Programm in derselben Version ablegen und <i>einrichten</i> wie in 5.2.",
-            "Letzte Sicherung vom NAS holen und <i>zurueckholen</i> ausführen. Alle Daten und Zugänge mit Passwörtern "
-            "kommen zurück; nur der neu angelegte Administrator behält sein neues Passwort.",
-            "Ablage vom NAS zurückkopieren, <i>ablage</i> und <i>aufgaben</i> neu eintragen.",
-            "Die neue Zugangsdatei an allen Arbeitsplätzen einlesen (neues Zertifikat, neuer Fingerabdruck).",
+            "Direkt vom zweiten Ziel zurückholen (Befehl unten). Daten, Zugänge mit Passwörtern, Ablage und "
+            "Zertifikate kommen zurück; nur der neu angelegte Administrator behält sein neues Passwort.",
+            "Freigabe der Ablage anlegen, <i>ablage</i>, <i>sicherungsziel</i> und <i>aufgaben</i> neu eintragen.",
+            "Die Arbeitsplätze verbinden sich mit der bisherigen Zugangsdatei. Nur bei anderem Namen/IP: mit "
+            "<i>zugang</i> eine neue Zugangsdatei schreiben und überall einlesen.",
             nummeriert=True)
+    i.code(f"%RL% zurueckholen --ordner {SERVER_ORDNER} --datei {NAS}\\server_….pgdump --mit-zertifikat")
     i.text("Während der Server ausfällt, können Mitarbeiter mit <i>Lokal arbeiten</i> auf ihren alten lokalen "
            "Datenstand zugreifen. Diese Änderungen kommen nicht automatisch in den Server zurück.")
 
@@ -692,7 +734,7 @@ def kapitel_betrieb(i):
            "nur, wenn Port 443 zu GitHub freigegeben ist (Abschnitt 4.1). Gesperrte Lizenzen erfährt ein Rechner nur "
            "bei der Update-Suche.")
     i.abschnitt("Windows-Updates und Neustarts")
-    i.liste("Im Wartungsfenster einspielen, nicht während der Sicherung (22:30 bis 23:30 Uhr).",
+    i.liste(f"Im Wartungsfenster einspielen, nicht während der Sicherungen ({_zeiten()} Uhr).",
             "Beim Herunterfahren beendet sich PostgreSQL sauber. Nach dem Neustart starten Server und Rechner-Dienst "
             "automatisch.",
             "Arbeitsplätze verbinden sich selbst neu; Eingaben, die gerade nicht gespeichert werden konnten, werden "
@@ -705,6 +747,8 @@ def kapitel_betrieb(i):
         ["Freier Plattenplatz D:", "Monitoring der VM", "Warnung unter 20 %"],
         ["CPU / RAM der VM", "Monitoring der VM", "dauerhaft über 80 %: VM vergrößern"],
         ["Geplante Aufgaben", "Windows-Aufgabenplanung, letztes Ergebnis", "Ergebnis ungleich 0 prüfen"],
+        ["Sicherung + zweites Ziel", f"Ereignisprotokoll Anwendung, Quelle {ss.EREIGNIS_QUELLE}",
+         "ID 201 = Fehler: Alarm; keine ID 200 seit 24 h: Alarm"],
         ["Rechner-Dienst", "Programm: Datei → Datenbank … („Rechner bereit“)",
          f"meldet sich alle {sr.LEBENSZEICHEN_S} s; fehlt er, rechnen die Plätze selbst"],
     ], [24, 40, 36])
@@ -712,7 +756,7 @@ def kapitel_betrieb(i):
            "die Verbindungen, wartende Sperren, Abfragen über 5 Sekunden und die letzten langsamen Abfragen. Das "
            "Fenster <i>Kollegen am Server</i> zeigt, wer mit welcher Version an welchem Arbeitsplatz angemeldet ist.")
     i.abschnitt("Regelmäßige Aufgaben der IT")
-    i.haken("Wöchentlich: Ergebnis der geplanten Aufgaben und der Kopie auf das NAS prüfen",
+    i.haken("Wöchentlich: Ereignisprotokoll (Quelle Rohrlaser-Server) und freien Platz auf dem NAS prüfen",
             "Monatlich: freier Plattenplatz, Windows-Updates",
             "Nach Änderungen an der VM oder neuer Hardware: Lasttest wiederholen",
             "Jährlich: Wiederherstellung auf einer Test-VM üben (Abschnitt 7.4)",
@@ -734,6 +778,8 @@ def kapitel_stoerungen(i):
          "Ausnahmen (3.4) prüfen, Platz schaffen, Dienstkonto Vollzugriff auf den Server-Ordner"],
         [f"Sicherung älter als {ss.WARNEN_H} Stunden", "Aufgabe fehlgeschlagen, Passwort des Dienstkontos geändert",
          "Aufgabenplanung prüfen; bei neuem Passwort %RL% aufgaben erneut; %RL% sichern von Hand"],
+        ["Zweites Ziel fehlgeschlagen (ID 201)", "NAS aus, voll, Freigabe oder Rechte des Dienstkontos",
+         "NAS prüfen; %RL% sicherungsziel zeigt das Ziel; danach %RL% sichern von Hand"],
         ["Rücksicherungsprobe misslungen", "Sicherungslaufwerk voll oder defekt",
          "Platz prüfen, %RL% sichern wiederholen; bleibt es, Support-Bericht senden"],
         ["Große STEP-Importe langsam", "Rechner-Dienst läuft nicht oder VM zu klein",
@@ -760,7 +806,9 @@ def kapitel_abnahme(i):
             "Mitarbeiter angelegt, Rechte geprüft",
             "Daten übernommen, vergleichen ohne Abweichung",
             "lasttest bestanden (95 % unter 1 Sekunde)",
-            "erste Sicherung mit erfolgreicher Probe, Kopie auf dem NAS vorhanden",
+            "sicherungsziel eingetragen; erste Sicherung mit erfolgreicher Probe, Kopie auf dem NAS vorhanden",
+            "Ereignisprotokoll zeigt ID 200 (Quelle Rohrlaser-Server)",
+            "Wiederherstellung einmal auf einer Test-VM vom NAS geübt (zurueckholen --mit-zertifikat)",
             "ein Arbeitsplatz verbunden, Angebot angelegt, an einem zweiten Arbeitsplatz sichtbar",
             "ein Angebot an zwei Plätzen gleichzeitig geöffnet: der zweite Platz sieht nur ansehen")
     i.abschnitt("Befehlsreferenz")
