@@ -43,7 +43,8 @@ fremd = [n for n, *_ in a.pure if n.startswith("rohrlaser.") and n not in (
     "rohrlaser.pg_lokal", "rohrlaser.db_kopie",
     "rohrlaser.zugangsschutz",                                      # pg_lokal: Zugang zur lokalen PostgreSQL
     "rohrlaser.protokoll",                                          # datenspeicher.server: Selbstheilung ins Protokoll
-    "rohrlaser.ereignis_verteiler", "rohrlaser.leerhinweis")]       # stil/mausrad: ein Ereignisfilter, Leerhinweise
+    "rohrlaser.ereignis_verteiler", "rohrlaser.leerhinweis",        # stil/mausrad: ein Ereignisfilter, Leerhinweise
+    "rohrlaser.geister")]                                           # stil: losgelöste Knöpfe, Tooltip-Reste (27.11.)
 if fremd:
     raise SystemExit("auslastung.spec: das Programm zieht Module der Kalkulation mit: " + ", ".join(fremd))
 pyz = PYZ(a.pure)
