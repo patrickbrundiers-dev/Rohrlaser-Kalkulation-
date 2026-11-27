@@ -23,7 +23,8 @@ def als_html(neuerungen=None):
 NEUERUNGEN = [
     ["0.9.547", "<b>Rohrlaser Auslastung 3.14.0 heißt jetzt NexTube Auslastung</b>: eigenes Icon, Name im Fenster, "
                 "Lizenzprotokoll und Prüfung des Moduls Auslastung aus Lizenz 2.0 (ohne das Modul nur ansehen). "
-                "Programmdatei, Datenordner und Online-Update bleiben gleich."],
+                "Programmdatei, Datenordner und Online-Update bleiben gleich.",
+     "Auslastung 3.14.0 heißt NexTube Auslastung (Icon, Lizenzprotokoll, Modul Auslastung)"],
     ["0.9.546", "<b>Serverversion (Stufe 6): Serversicherung mit Rücksicherungsprobe</b>: <i>--server sichern</i> "
                 "(täglich per Aufgabenplanung) sichert den Server mit festem Stand und spielt jede Sicherung zur Probe "
                 "wieder ein; nur eine Sicherung, die Zeile für Zeile gleich zurückkommt, gilt als gut. Jeder "
