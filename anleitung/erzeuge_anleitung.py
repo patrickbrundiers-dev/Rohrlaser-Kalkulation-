@@ -17256,6 +17256,24 @@ def kapitel_admin_datenbank(i):
             "startet den Rechner für große STEP-Importe und die Vormessung neuer Anfragen. Am besten wie den Server "
             "selbst per Aufgabenplanung beim Hochfahren starten. Er braucht dieselbe Programmversion wie die "
             "Arbeitsplätze; <i>--prozesse N</i> begrenzt die Rechenkerne.",
+            "<b>Bisherige Daten übernehmen</b> (einmal beim Umstieg): Am Haupt-PC abgleichen und unter <i>Datei → "
+            "Daten exportieren …</i> eine Export-Datei schreiben (oder eine Sicherung .db nehmen), dann am Server "
+            "<i>… --server uebernehmen --ordner D:\\RohrlaserServer --datei D:\\Export.zip</i>. Alles kommt in einer "
+            "Transaktion in den Server; danach wird jede Tabelle Zeile für Zeile mit der Datei verglichen. Weicht "
+            "etwas ab, kommt der vorherige Stand zurück und das Programm nennt die Tabellen. Kopien der Angebote "
+            "von Kollegen werden deren Angebote (Bearbeiter = Kürzel). Stehen schon Angebote am Server, geht es nur "
+            "mit <i>--ersetzen</i>; vorher sichert der Server seinen Stand in <i>D:\\RohrlaserServer\\Sicherung</i>. "
+            "Die Datei muss von derselben Programmversion sein wie der Server.",
+            "<b>Weitere PCs dazunehmen</b> (nur wenn dort seit dem letzten Abgleich noch gearbeitet wurde): dort "
+            "exportieren, am Server <i>… --server dazunehmen --ordner … --datei Export_AB.zip --kuerzel AB</i>. Die "
+            "eigenen Angebote dieses Mitarbeiters ersetzen den Stand am Server, neue kommen dazu, jedes wird danach "
+            "geprüft; Angebote anderer bleiben unberührt. <i>… --server vergleichen --ordner … --datei …</i> "
+            "vergleicht nur (ändert nichts).",
+            "<b>Lastprobe</b>: <i>… --server lasttest --ordner D:\\RohrlaserServer</i> lässt 25 Arbeitsplätze "
+            "gleichzeitig arbeiten (Anlegen, Reservieren, Positionen, Liste, Notizen; <i>--plaetze N</i>, "
+            "<i>--runden N</i>) und zeigt die Antwortzeiten. Bestanden: keine Fehler, 95 % der Aktionen unter 1 "
+            "Sekunde. Probe-Zugänge und -Angebote werden danach entfernt, Angebotsnummern nicht verbraucht. Ideal "
+            "nach dem Einrichten und nach dem Umzug auf neue Hardware.",
             nummeriert=True)
     i.tabelle(["Thema", "Im Serverbetrieb"], [
         ["Sicherheit", "Verbindung nur verschlüsselt (TLS) mit dem eigenen Zertifikat des Servers; ein anderer "
@@ -17323,9 +17341,9 @@ def kapitel_admin_datenbank(i):
     ], [38 * mm, 132 * mm])
     i.hinweis("Ausbaustand: Datenbank, Anmeldung, Rechte, Nummern, Einstellungen, die Zusammenarbeit "
               "(Reservierung, Live, Benutzer, Übergaben, Notizen, Zuweisen), die Dateiablage und lange Rechnungen "
-              "arbeiten zentral. Die Übernahme der bisherigen Daten im großen Stil, der Lasttest mit 25 Plätzen und "
-              "die automatische Serversicherung folgen in den nächsten Ausbaustufen. Bis dahin den "
-              "Serverbetrieb nur zum Erproben nutzen.")
+              "arbeiten zentral; die bisherigen Daten lassen sich verlustfrei übernehmen und der Server mit 25 "
+              "Plätzen prüfen. Die automatische Serversicherung mit Rücksicherungsprobe folgt in der nächsten "
+              "Ausbaustufe; bis dahin vor dem Umstieg zusätzlich die Export-Datei aufheben.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",

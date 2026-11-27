@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.545", "<b>Serverversion (Stufe 5): bisherige Daten verlustfrei in den Server, Lastprobe</b>: Am "
+                "Server-Rechner übernimmt <i>--server uebernehmen</i> eine Export-Datei oder Sicherung des Haupt-PCs "
+                "in einer Transaktion und vergleicht danach jede Tabelle Zeile für Zeile mit der Datei; weicht etwas "
+                "ab, kommt der vorherige Stand zurück. Kopien der Angebote von Kollegen werden deren Angebote, der "
+                "Server sichert seinen Stand vorher. <i>--server dazunehmen</i> holt die eigenen Angebote weiterer "
+                "PCs dazu, <i>--server vergleichen</i> prüft nur. <i>--server lasttest</i> lässt 25 Arbeitsplätze "
+                "gleichzeitig arbeiten und zeigt die Antwortzeiten ([[admin_server]]).",
+     "Serverversion Stufe 5: Übernahme der bisherigen Daten mit Zeilenvergleich, Lastprobe mit 25 Plätzen"],
     ["0.9.544", "<b>Serverversion (Stufe 4b): Zusammenarbeit am Server</b>: <i>An Kollegen übergeben</i>, "
                 "<i>Übernahme anfragen</i> und <i>Notiz an Kollegen</i> laufen im Serverbetrieb direkt über die "
                 "Datenbank: der Kollege ist sofort der Bearbeiter, Meldungen und Rückfragen kommen innerhalb von 15 "
