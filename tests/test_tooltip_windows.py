@@ -155,15 +155,12 @@ warten(50)
 # W9
 import ast  # noqa: E402
 
-WIDGETS = {"QPushButton", "QToolButton", "QCheckBox", "QRadioButton", "QLabel", "QComboBox", "QLineEdit", "QSpinBox",
-           "QDoubleSpinBox", "QProgressBar", "QSlider", "QWidget", "QFrame", "QGroupBox", "QTableWidget", "QListWidget",
-           "QTextEdit", "QPlainTextEdit", "QTreeWidget", "QTextBrowser", "QDateEdit"}
 EINSETZEN = {"addWidget", "addRow", "setCellWidget", "addTab", "insertWidget", "setWidget", "addPermanentWidget",
              "setCornerWidget", "setIndexWidget", "setItemWidget", "setParent"}
 
 
 def frueh_gezeigt(datei):
-    """Stellen: Bedienelement ohne Eltern erzeugt, eingeblendet (setVisible/show, nicht False) vor dem Einsetzen."""
+    """Stellen: Bedienelement (jede Klasse, auch eigene wie KurzZeile) ohne Eltern erzeugt, eingeblendet (setVisible/show, nicht False) vor dem Einsetzen."""
     funde_ = []
     for fn in ast.walk(ast.parse(datei.read_text(encoding="utf-8"))):
         if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -173,7 +170,7 @@ def frueh_gezeigt(datei):
             if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call):
                 c = n.value.func
                 name = c.id if isinstance(c, ast.Name) else getattr(c, "attr", "")
-                if name in WIDGETS and not n.value.keywords and not any(
+                if name[:1].isupper() and not n.value.keywords and not any(
                         isinstance(a, ast.Name) and a.id in ("self", "parent") for a in n.value.args):
                     for z in n.targets:
                         erzeugt.setdefault(ast.unparse(z), n.lineno)
