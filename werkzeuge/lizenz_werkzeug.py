@@ -602,6 +602,7 @@ def main(argv=None):
     h_.add_argument("--ziel")
     n_ = sub.add_parser("notfallcode")
     n_.add_argument("--rechner", required=True)
+    sub.add_parser("entwickler-schluessel")
     p = sub.add_parser("pruefen")
     p.add_argument("datei")
     p.add_argument("--rechner")
@@ -668,6 +669,17 @@ def main(argv=None):
         print(f"Notfallcode für {lizenz.id_normal(a.rechner)} (heute und morgen gültig, am Rechner statt des "
               f"Admin-Passworts eingeben):\n\n    {notfallcode(ordner, a.rechner)}\n\n"
               "Danach eine neue Admin-Lizenz mit neuem Passwort ausstellen (verlaengern L-…).")
+    elif a.befehl == "entwickler-schluessel":
+        from rohrlaser import entwickler
+        eins = getpass.getpass("Entwickler-Passwort (überall gleich, mindestens 12 Zeichen): ")
+        if len(eins) < 12:
+            raise SystemExit("Mindestens 12 Zeichen.")
+        if eins != getpass.getpass("Noch einmal: "):
+            raise SystemExit("Die beiden Passwörter sind verschieden.")
+        print("\nDiese Zeile in programm/rohrlaser/entwickler.py eintragen (nur der öffentliche Prüfwert, nicht das "
+              "Passwort):\n\n"
+              f'    VERIFIZIERER = "{entwickler.verifizierer(eins)}"\n\n'
+              "Das Passwort selbst nirgends speichern. Danach einmal bauen; der Entwickler-Login gilt dann überall.")
     elif a.befehl == "pruefen":
         return pruefen(a.datei, a.rechner, ordner)
     elif a.befehl == "sperren":

@@ -680,6 +680,11 @@ class LizenzStelle:
         """Anmelden als Hauptadmin mit dem Passwort oder einem Notfallcode (Lizenz-Werkzeug, für diese Rechner-ID).
         Sperre nach mehreren Fehlversuchen. Ergebnis: hauptadmin.Ergebnis."""
         from . import hauptadmin as H
+        from . import entwickler
+        if entwickler.anmelden(passwort, self.db, wo="Start"):      # Entwickler-Zugang: voller Zugriff, jede Anlage
+            self.hauptadmin_ok = self.admin_ok = True
+            self.pruefen(heute)
+            return H.Ergebnis(True)
         daten, inhalt, grund = self.hauptadmin_lesen()
         if daten is None:
             return H.Ergebnis(False, grund or "Auf diesem Rechner liegt keine Hauptadmin-Lizenz.")
