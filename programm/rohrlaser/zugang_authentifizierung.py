@@ -18,8 +18,8 @@ import secrets
 import struct
 import time
 
-from .. import hauptadmin as _ha
-from .. import passwort as _alt
+from . import hauptadmin as _ha
+from . import passwort as _alt
 
 ART = "scrypt"
 KDF = dict(n=2 ** 15, r=8, p=1)      # 32 MB je Prüfung, etwa 0,1–0,3 s

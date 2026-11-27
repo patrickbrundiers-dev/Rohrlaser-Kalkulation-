@@ -1,4 +1,4 @@
-"""Zugangssystem Paket A (programm/rohrlaser/zugang/): Kern, Entwickler-Ausweis, Prüfstelle. Fälle Z1–Z45.
+"""Zugangssystem Paket A (programm/rohrlaser/zugang_*.py): Kern, Entwickler-Ausweis, Prüfstelle. Fälle Z1–Z45.
 
 Deckt aus dem Auftrag (Abschnitt 10) die Teile von Test 4 (Entwicklerzugang), 5 (Berechtigungen) und 7 (Sicherheit)
 ab, die ohne Oberfläche und Datenbank prüfbar sind; die übrigen folgen mit den Paketen B–F.
@@ -24,12 +24,12 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 import lizenz_werkzeug as W  # noqa: E402
 
 from rohrlaser import lizenz, passwort  # noqa: E402
-from rohrlaser.zugang import authentifizierung as A  # noqa: E402
-from rohrlaser.zugang import ausweis as AW  # noqa: E402
-from rohrlaser.zugang import berechtigung as B  # noqa: E402
-from rohrlaser.zugang import protokoll as P  # noqa: E402
-from rohrlaser.zugang import pruefstelle as PS  # noqa: E402
-from rohrlaser.zugang.sitzungen import Sitzungen  # noqa: E402
+from rohrlaser import zugang_authentifizierung as A  # noqa: E402
+from rohrlaser import zugang_ausweis as AW  # noqa: E402
+from rohrlaser import zugang_berechtigung as B  # noqa: E402
+from rohrlaser import zugang_protokoll as P  # noqa: E402
+from rohrlaser import zugang_pruefstelle as PS  # noqa: E402
+from rohrlaser.zugang_sitzungen import Sitzungen  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp(prefix="zugang_"))
 fehler = []

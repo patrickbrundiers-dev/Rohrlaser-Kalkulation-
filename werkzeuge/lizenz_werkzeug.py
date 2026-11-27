@@ -64,7 +64,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "programm"))
 from rohrlaser import hauptadmin, lizenz  # noqa: E402
-from rohrlaser.zugang import ausweis as entwickler_ausweis  # noqa: E402
+from rohrlaser import zugang_ausweis as entwickler_ausweis  # noqa: E402
 from rohrlaser.passwort import hash_bilden  # noqa: E402
 from rl_auslastung import lizenzen  # noqa: E402  Art „auslastung“ (Plan 2.4)
 

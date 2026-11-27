@@ -1,4 +1,13 @@
-"""Prüfstelle: die einzige Stelle, die Zugriffe entscheidet (Paket A; angeschlossen an Oberfläche und Kern ab C/D).
+"""Zugangssystem (Auftrag Patrick 27.11.2026, Pakete A–F, Freigabe E1a–E6a): Prüfstelle.
+
+Das Zugangssystem besteht aus den Modulen zugang_* (flach im Paket, damit kompilieren.py sie übersetzt), alle ohne Qt:
+zugang_authentifizierung (Passwort-Hash scrypt, Regeln, Einmalcode TOTP, Sperre), zugang_ausweis (Entwickler-
+Identität, signiert, ohne Rechnerbindung, ohne eingebautes Passwort), zugang_berechtigung (Einzelrechte, Rollen,
+keine Rechte-Ausweitung), zugang_sitzungen (Token, Inaktivität), zugang_protokoll (Sicherheitsprotokoll ohne
+Geheimnisse) und diese Prüfstelle. Ab Paket B/E kommen Arbeitsplätze, Lizenzierung und Verwaltung mit den Tabellen
+zg_* dazu.
+
+Die Prüfstelle ist die einzige Stelle, die Zugriffe entscheidet (Paket A; angeschlossen an Oberfläche und Kern ab C/D).
 
 darf(recht) ist nur wahr, wenn alle drei Ebenen zustimmen:
 1. Sitzung: angemeldet, nicht abgemeldet, nicht wegen Inaktivität gesperrt.
@@ -20,12 +29,12 @@ ohne Anmeldung), erlauben darf()/verlangen() alles wie bisher – so bleibt jede
 import datetime
 from dataclasses import dataclass
 
-from .. import module as _module
-from . import authentifizierung as auth
-from . import ausweis as aw
-from . import berechtigung as B
-from . import protokoll as P
-from .sitzungen import SitzungFehler, Sitzungen
+from . import module as _module
+from . import zugang_authentifizierung as auth
+from . import zugang_ausweis as aw
+from . import zugang_berechtigung as B
+from . import zugang_protokoll as P
+from .zugang_sitzungen import SitzungFehler, Sitzungen
 
 AKTUELL = None
 FALSCH = "Benutzername oder Passwort falsch."

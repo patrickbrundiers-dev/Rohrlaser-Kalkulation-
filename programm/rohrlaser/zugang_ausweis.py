@@ -36,7 +36,7 @@ import os
 import secrets
 from pathlib import Path
 
-from .. import lizenz as L
+from . import lizenz as L
 
 ART = "entwickler_ausweis"
 ART_ANFRAGE = "entwickler_anmeldung"

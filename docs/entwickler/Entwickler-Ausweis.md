@@ -2,7 +2,7 @@
 
 Der Entwicklerzugang von NexTube beruht auf einem signierten **Entwickler-Ausweis**. Im Programm steht kein Passwort
 und kein Prüfwert, nur der öffentliche Lizenzschlüssel (`programm/rohrlaser/lizenz_schluessel.py`). Code:
-`programm/rohrlaser/zugang/ausweis.py`, Prüfung in `zugang/pruefstelle.py`, Tests `tests/test_zugang_kern.py`.
+`programm/rohrlaser/zugang_ausweis.py`, Prüfung in `zugang_pruefstelle.py`, Tests `tests/test_zugang_kern.py`.
 
 ## Ausweis ausstellen (nur Patrick, Lizenz-Werkzeug)
 
