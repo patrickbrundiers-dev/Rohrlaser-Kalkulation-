@@ -460,6 +460,9 @@ def status(db):
         with contextlib.suppress(Exception):            # S3: wo die gemeinsamen Dateien liegen
             from . import teilen
             zeilen = [teilen.ablage_zustand(db)[2]] + list(zeilen)
+        with contextlib.suppress(Exception):            # S4: wer rechnet lange Rechnungen
+            from . import server_rechnen
+            zeilen.insert(1, server_rechnen.status_text(db))
         return f"{TITEL[SERVER]}: {db.server.text()}" + ("\n\n" + "\n".join(zeilen) if zeilen else "")
     archiv = f"; alte SQLite-Datendatei archiviert: {m['archiv']}" if m.get("archiv") else ""
     konto = ""

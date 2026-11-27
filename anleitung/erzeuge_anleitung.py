@@ -17250,8 +17250,12 @@ def kapitel_admin_datenbank(i):
             "Freigabe eintragen: am Server <i>… --server ablage --ordner D:\\RohrlaserServer --pfad "
             "\\\\SERVERNAME\\Rohrlaser-Ablage</i> oder im Programm als Verwalter unter <i>Datei → Datenbank … → "
             "Ablage am Server …</i>. Ein Arbeitsplatz, der die Freigabe unter einem anderen Pfad erreicht "
-            "(Laufwerksbuchstabe), trägt ihn unter <i>Einstellungen → Benutzer → Serverbetrieb: Ablage am Server von "
+            "(Laufwerksbuchstabe), trägt ihn unter <i>Einstellungen → Mein Arbeitsplatz am Server → Serverbetrieb: Ablage am Server von "
             "diesem Arbeitsplatz aus</i> ein.",
+            "<b>Rechner am Server</b> (lange Rechnungen): <i>… --server rechnen --ordner D:\\RohrlaserServer</i> "
+            "startet den Rechner für große STEP-Importe und die Vormessung neuer Anfragen. Am besten wie den Server "
+            "selbst per Aufgabenplanung beim Hochfahren starten. Er braucht dieselbe Programmversion wie die "
+            "Arbeitsplätze; <i>--prozesse N</i> begrenzt die Rechenkerne.",
             nummeriert=True)
     i.tabelle(["Thema", "Im Serverbetrieb"], [
         ["Sicherheit", "Verbindung nur verschlüsselt (TLS) mit dem eigenen Zertifikat des Servers; ein anderer "
@@ -17272,6 +17276,14 @@ def kapitel_admin_datenbank(i):
          "<i>Austausch</i> nur an."],
         ["Einstellungen", "Firmenwerte (Preise, Zuschläge, Regeln, Admin-Vorgaben) gelten für alle. Ordner, "
          "Geräte und Fensteransicht gelten je Arbeitsplatz; Name, Signatur und Darstellung je Mitarbeiter."],
+        ["Rechnen", "Große STEP-Importe (ab 5 MB oder 10 Dateien) und die Vormessung neuer Anfragen übernimmt der "
+         "Rechner am Server; das Fenster <i>Rechnen am Server</i> zeigt den Fortschritt, <i>Abbrechen</i> beendet "
+         "den Import. Das Ergebnis liegt im gemeinsamen Zwischenspeicher der Messung in der Ablage am Server: was "
+         "einmal gemessen ist, ist an jedem Platz sofort da. Gerechnet wird mit demselben Messprogramm und denselben "
+         "Einstellungen, das Ergebnis ist also gleich. Ist kein Rechner da, ist er ausgelastet (Auftrag startet "
+         "nicht innerhalb von 30 Sekunden) oder schlägt etwas fehl, misst der Arbeitsplatz selbst. Einstellung "
+         "<i>Einstellungen → Mein Arbeitsplatz am Server → Serverbetrieb: lange Rechnungen</i> (gilt nur für diesen Platz): automatisch, am Server (jeder STEP-"
+         "Import) oder an diesem Arbeitsplatz. <i>Datei → Datenbank …</i> zeigt, ob ein Rechner bereit ist."],
         ["Abgleich, Sicherung je PC", "Entfallen: alle arbeiten in derselben Datenbank."],
     ], [38 * mm, 132 * mm])
     i.text("<b>Zusammenarbeiten am Server</b>")
@@ -17297,8 +17309,8 @@ def kapitel_admin_datenbank(i):
          "stehen im Serverprotokoll."],
     ], [38 * mm, 132 * mm])
     i.hinweis("Ausbaustand: Datenbank, Anmeldung, Rechte, Nummern, Einstellungen, die Zusammenarbeit "
-              "(Reservierung, Live, Benutzer) und die Dateiablage arbeiten zentral. Hintergrundberechnungen am "
-              "Server und die automatische Serversicherung folgen in den nächsten Ausbaustufen. Bis dahin den "
+              "(Reservierung, Live, Benutzer), die Dateiablage und lange Rechnungen arbeiten zentral. Übergaben und "
+              "Zuweisungen an Kollegen und die automatische Serversicherung folgen in den nächsten Ausbaustufen. Bis dahin den "
               "Serverbetrieb nur zum Erproben nutzen.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "

@@ -678,6 +678,8 @@ def pflege_fertig(con, programm, schema):
     info_einrichten(con)
     from . import server_mehrplatz
     server_mehrplatz.einrichten(con)        # Anwesenheit, Reservierungen, Live-Meldungen, Protokoll (S2)
+    from . import server_rechnen
+    server_rechnen.einrichten(con)          # Rechenaufträge (S4)
     info_setzen(con, programm=programm, schema=schema, pflege=programm, gehoben=_jetzt(),
                 gehoben_von=angemeldet())
 
@@ -787,6 +789,9 @@ HILFE = """Rohrlaser-Server (Serverversion) – Befehle auf dem Server-Rechner:
   ablage --ordner ORDNER [--pfad \\\\SERVER\\FREIGABE]
       Ablage für die gemeinsamen Dateien (Angebotsordner, Anfrage-Akten, Austausch, Updates): ohne --pfad
       anzeigen, mit --pfad eintragen (so, wie die Arbeitsplätze den Ordner <ORDNER>\\Ablage im Netz erreichen)
+  rechnen --ordner ORDNER [--prozesse N] [--einmal]
+      Rechner für lange Rechnungen der Arbeitsplätze (STEP-Messung, Vormessung) starten, z. B. per Aufgabenplanung
+      beim Hochfahren; läuft, bis er beendet wird (--einmal: nur die wartenden Aufträge)
 """
 
 
@@ -796,7 +801,8 @@ def main(argv=None, eingabe=None, ausgabe=print):
     import getpass
     p = argparse.ArgumentParser(prog="rohrlaser-server", description=HILFE,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("befehl", choices=("einrichten", "starten", "stoppen", "status", "benutzer", "zugang", "ablage"))
+    p.add_argument("befehl", choices=("einrichten", "starten", "stoppen", "status", "benutzer", "zugang", "ablage",
+                                         "rechnen"))
     p.add_argument("--ordner", required=True)
     p.add_argument("--admin")
     p.add_argument("--name", default="")
@@ -807,6 +813,8 @@ def main(argv=None, eingabe=None, ausgabe=print):
     p.add_argument("--sperren", action="store_true")
     p.add_argument("--bin")
     p.add_argument("--pfad")
+    p.add_argument("--prozesse", type=int, default=0)
+    p.add_argument("--einmal", action="store_true")
     a = p.parse_args(argv)
     lies = eingabe or (lambda frage: getpass.getpass(frage))
 
@@ -865,7 +873,36 @@ def main(argv=None, eingabe=None, ausgabe=print):
             p_ = info_lesen(con).get("ablage") or ""
             con.execute("RESET ROLE")
         ausgabe(f"Ablage am Server: {p_ or '(keine eingetragen)'}\nOrdner auf diesem Rechner: {s.ablage_ordner()}")
+    elif a.befehl == "rechnen":
+        r = rechner(s, prozesse=a.prozesse, ausgabe=ausgabe)
+        ausgabe(f"Rechner {r.name} (Version {r.version}) rechnet mit der Ablage {r.ablage}.")
+        if a.einmal:
+            ausgabe(f"{r.einmal()} Auftrag/Aufträge gerechnet.")
+            r.abmelden()
+        else:
+            r.laufen()
     return 0
+
+
+def rechner(s, prozesse=0, ausgabe=print, programmordner=None):
+    """Rechner für Rechenaufträge auf dem Server-Rechner (server_rechnen.Rechner) zum ZentralerServer s: Ablage wie
+    eingetragen, wenn sie hier erreichbar ist, sonst <Server-Ordner>/Ablage."""
+    import sys
+
+    from . import VERSION, server_rechnen, step
+
+    def verbinden():
+        c = s.verwalter_verbinden(DATENBANK)
+        c.execute(f'SET ROLE "{ROLLE_APP}"')
+        return c
+    with verbinden() as c:
+        eingetragen = str(info_lesen(c).get("ablage") or "").strip()
+    ablage_ = Path(eingetragen) if eingetragen and Path(eingetragen).is_dir() else s.ablage_ordner()
+    ablage_.mkdir(parents=True, exist_ok=True)
+    befehl = step.messprogramm(programmordner or Path(sys.executable).parent)
+    if befehl is None:
+        raise ServerFehler("Messprogramm STEP-Import fehlt auf diesem Rechner (Ordner STEP-Import im Programmordner).")
+    return server_rechnen.Rechner(verbinden, ablage_, befehl, VERSION, prozesse=prozesse, ausgabe=ausgabe)
 
 
 def konsole_main(argv):

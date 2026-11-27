@@ -41,6 +41,11 @@ SEITEN = (
            _a("Gemeinsamer Ordner", "teilen_ordner teilen_takt teilen_meldung nummern_vorrat"),
            _a("E-Mail-Signatur", "anfrage_outlook_signatur anfrage_signatur"),
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
+    # Serverversion S4 (26.11.2026): eigene Seite, „Mein Arbeitsplatz“ wäre sonst zu lang
+    Seite("e_arbeitsplatz_server", "Mein Arbeitsplatz am Server",
+          "Gilt nur für diesen Arbeitsplatz im Serverbetrieb: unter welchem Pfad er die Ablage am Server sieht und wo "
+          "lange Rechnungen laufen.",
+          (_a("Zentraler Server", "server_ablage_hier rechnen_ort"),)),
     Seite("e_navigation", "3D-Ansicht und Navigation",
           "Gilt nur für diesen Arbeitsplatz: wie die 3D-Ansichten aussehen (Material, Licht, Hintergrund, Schatten), "
           "wie sie sich mit Maus und Tasten drehen, zoomen und verschieben (freie 360°-Drehung) und was das Messen "
@@ -61,7 +66,7 @@ SEITEN = (
                         "ansicht3d_kantenstaerke ansicht3d_kantenwinkel"),
            _a("Durchsicht", "ansicht3d_deckkraft"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
-          (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung austausch_aktiv server_ablage_hier"),
+          (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung austausch_aktiv"),
            _a("Anfragen", "anfragen_ohne_step anfragen_nachfassen_tage"),
            _a("PPEASE-Ablage (Dokumente je PPEASE-Angebotsnummer)", "ppease_ordner ppease_jahresordner ppease_ordnername "
                                                                     "ppease_praefix ppease_nummer_muster ppease_kategorien"),
@@ -302,7 +307,7 @@ EBENE_TEXT = {GRUND: "Die wichtigsten Einstellungen für den täglichen Betrieb"
               EXPERTE: "Dazu technische Parameter, Sonderfunktionen und detaillierte Berechnungseinstellungen"}
 SEITEN_EBENE = {
     # Grundeinstellungen: täglicher Betrieb
-    "e_favoriten": GRUND, "e_bedienmodus": GRUND, "e_firma": GRUND, "e_arbeitsplatz": GRUND, "e_ablage": GRUND,
+    "e_favoriten": GRUND, "e_bedienmodus": GRUND, "e_firma": GRUND, "e_arbeitsplatz": GRUND, "e_arbeitsplatz_server": ERWEITERT, "e_ablage": GRUND,
     "e_zuschlaege": GRUND, "e_neue_angebote": GRUND, "e_pdf_texte": GRUND, "e_angebot_mail": GRUND,
     "e_materialanfrage": GRUND, "zeitvorgaben": GRUND, "zusatzarbeiten": GRUND, "profile": GRUND, "werkstoffe": GRUND,
     "oberflaechen": GRUND, "preise": GRUND, "maschinen": GRUND, "kundenvorgaben": GRUND,

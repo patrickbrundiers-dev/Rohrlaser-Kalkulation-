@@ -131,7 +131,12 @@ def auftrag(db, programmordner, anfrage):
     args = step_einstellungen.mess_argumente(db)
     if "--prozesse" in args:            # im Hintergrund nur ein Prozess, damit das Programm flüssig bleibt
         args[args.index("--prozesse") + 1] = "1"
-    return dict(befehl=befehl, args=args + ["--flachstahl-bis", str(step_einstellungen.flach_bis(db, anfrage.kunde))])
+    job = dict(befehl=befehl, args=args + ["--flachstahl-bis", str(step_einstellungen.flach_bis(db, anfrage.kunde))])
+    from . import server_rechnen
+    z = server_rechnen.zugang(db)       # S4: im Serverbetrieb misst der Rechner am Server einmal für alle Plätze
+    if z is not None and z["ort"] != server_rechnen.ORT_WAHL[2]:
+        job["server"] = z
+    return job
 
 
 def vorschau_argumente(db, kundennr=None):
@@ -215,6 +220,10 @@ def messen(job, anfrage):
         dateien = step_quellen(anfrage, tmp / "step")
         if not dateien:
             return None
+        if job.get("server"):           # erst am Server (gleiche Anfrage an allen Plätzen: ein Auftrag), dann hier
+            from . import server_rechnen    # aus dem gemeinsamen Zwischenspeicher
+            server_rechnen.am_server_rechnen(job["server"], dateien, job["args"], True, entscheiden_=False,
+                                             warten_start_s=ZEITLIMIT_S, zeitlimit_s=ZEITLIMIT_S)
         liste, ausgabe = tmp / "liste.txt", tmp / "messwerte.txt"
         liste.write_text("\n".join(map(str, dateien)), encoding="utf-8")
         befehl = job["befehl"] + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(tmp / "netze")] \

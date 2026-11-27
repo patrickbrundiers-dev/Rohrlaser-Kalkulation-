@@ -1609,7 +1609,7 @@ class EinstellungenSeite(QScrollArea):
         self._formulare = {}        # id(Karte) -> (Formular links, rechts, [(Einstellung, Titel, Eingabe)])
         self._box_ebene = {}        # id(Karte) -> Ebene des Abschnitts (26.11.2026)
         lokal = ordnung.lokal() if seite is not None and seite.schluessel not in ("e_arbeitsplatz", "e_navigation",
-                                                                                  "e_kanten3d") \
+                                                                                  "e_kanten3d", "e_arbeitsplatz_server") \
             else ()
         for titel_karte, liste, experte in abschnitte:
             box = QGroupBox(f"{titel_karte} (Experte)" if experte else titel_karte)

@@ -441,6 +441,51 @@ def ablage_einstellen(fenster, pfad=None):
     return erg
 
 
+def vorrechnen(fenster, eltern, dateien, args, netze=True):
+    """S4: lange STEP-Messung vom Rechner am Server vorrechnen lassen (Fortschrittsanzeige, Abbrechen). Danach misst
+    der Platz wie immer und findet alles im gemeinsamen Zwischenspeicher. Ergebnis: None (Platz rechnet selbst, auch
+    ohne Serverbetrieb), True (am Server gerechnet) oder False (abgebrochen: Import beenden)."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QProgressDialog
+
+    from . import server_rechnen
+    db = fenster.db
+    if getattr(db, "server", None) is None:
+        return None
+    z = server_rechnen.zugang(db)
+    ja, grund = server_rechnen.entscheiden(z, dateien)
+    if not ja:
+        return None
+    dlg = None
+    if not fenster.stumm:
+        dlg = QProgressDialog("STEP-Dateien werden am Server gemessen …", "Abbrechen", 0, max(1, len(dateien)), eltern)
+        dlg.setWindowTitle("Rechnen am Server")
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setMinimumDuration(300)
+
+    def melden(fertig, gesamt, text):
+        if dlg is not None:
+            dlg.setMaximum(max(1, gesamt))
+            dlg.setValue(min(fertig, max(0, gesamt - 1)))
+            dlg.setLabelText("STEP-Dateien werden am Server gemessen …" + (f"\n{text}" if text else ""))
+        QApplication.processEvents()
+
+    def abbruch():
+        QApplication.processEvents()
+        return dlg is not None and dlg.wasCanceled()
+    try:
+        ok, grund = server_rechnen.am_server_rechnen(z, dateien, args, netze, melden, abbruch, entscheiden_=False)
+    finally:
+        if dlg is not None:
+            dlg.close()
+    if grund == "abgebrochen":
+        fenster.meldung("STEP-Import abgebrochen.")
+        return False
+    fenster.meldung(f"Rechnen am Server: {grund}" if ok else f"Rechnen am Server nicht möglich ({grund}); dieser "
+                    "Arbeitsplatz misst selbst.")
+    return True if ok else None
+
+
 def sm_eigene(db):
     return _sm().eigene(db)
 

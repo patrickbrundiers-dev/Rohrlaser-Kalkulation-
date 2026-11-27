@@ -2340,6 +2340,9 @@ EINSTELLUNGEN = (
     # wenn dieser Arbeitsplatz die Freigabe unter einem anderen Pfad erreicht
     Einstellung("server_ablage_hier", "Serverbetrieb: Ablage am Server von diesem Arbeitsplatz aus (leer = wie am "
                 "Server eingetragen)", "Benutzer", "ordner", ""),
+    # Serverversion S4: wo lange Rechnungen laufen (server_rechnen.ORT_WAHL, gleiche Reihenfolge)
+    Einstellung("rechnen_ort", "Serverbetrieb: lange Rechnungen (große STEP-Importe, Vormessung)", "Benutzer",
+                "auswahl", "automatisch", auswahl="rechnenort"),
 ) + tuple(
     # Funktionen ein/aus (funktionen.py, Patrick 29.10.2026): ja = sichtbar, nein = ausgeblendet, Daten bleiben
     Einstellung(f.name, f.titel, "Funktionen", "auswahl", f.vorgabe, auswahl="janein") for f in funktionen.FUNKTIONEN)
@@ -2568,7 +2571,7 @@ class Kontext:
                          "regelmerkmal": list(REGEL_MERKMALE), "regelmenge": list(REGEL_MENGEN), "formelgroesse": ["L", "A", "B", "W", "Q", "U", "G", "F", "N", "I", "S"],
                          "regelzuordnung": list(REGEL_ZUORDNUNGEN), "angebotswirkung": list(ANGEBOTSREGEL_WIRKUNGEN), "anfragensortierung": ["Dringlichkeit", "Wichtigste zuerst"], "aufpreisbasis": list(AUFPREIS_BASEN),
                          "schweissregelart": list(SCHWEISSREGEL_ARTEN),
-                         "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL),
+                         "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL), "rechnenort": ["automatisch", "am Server", "an diesem Arbeitsplatz"],
                          "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "palettensorten": list(packkern.SORTEN), "palettenmodus": list(packkern.MODI), "abfallart": ["Mikrostege", "Zerschneiden"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
 
 
