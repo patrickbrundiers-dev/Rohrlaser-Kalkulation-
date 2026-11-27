@@ -77,20 +77,33 @@ try:
         assert con.execute("SELECT count(*) FROM angebote").fetchone()[0] == 1
         assert con.execute("SELECT count(*) FROM positionen").fetchone()[0] == 0
         assert con.execute("SELECT count(*) FROM einstellungen WHERE name LIKE '@%%LASTPROBE%%' OR name LIKE "
-                           "'@benutzer:LT%%'").fetchone()[0] == 0
+                           "'@benutzer:X%%'").fetchone()[0] == 0
     ok("danach: Probe-Logins, -Angebote und -Einstellungen entfernt, echtes Angebot bleibt")
 
+    # ein echter Mitarbeiter mit einem Kürzel wie die Probe wird nie benutzt oder aufgeräumt
+    with server.verwalter_verbinden(sb.DATENBANK) as con:
+        sb.benutzer_anlegen(con, "XAB01", "Geheim-XAB-123", sb.RECHT_BEARBEITEN, name="Echt")
+        con.execute("INSERT INTO angebote (nummer, kunde, bearbeiter) VALUES ('2026-ECHT', 'echt', 'XAB01')")
+    merk_buchstaben = server_last._BUCHSTABEN
+    server_last._BUCHSTABEN = "AB"
     aus = []
-    assert sb.main(["lasttest", "--ordner", str(tmp / "Server"), "--port", str(server.port), "--plaetze", "3",
-                    "--runden", "2"], ausgabe=aus.append) == 0, aus
+    try:
+        assert sb.main(["lasttest", "--ordner", str(tmp / "Server"), "--port", str(server.port), "--plaetze", "3",
+                        "--runden", "2"], ausgabe=aus.append) == 0, aus
+    finally:
+        server_last._BUCHSTABEN = merk_buchstaben
     assert any("bestanden" in z for z in aus), aus
+    with server.verwalter_verbinden(sb.DATENBANK) as con:
+        assert [b["kuerzel"] for b in sb.benutzer_liste(con) if b["kuerzel"].startswith("X")] == ["XAB01"]
+        assert con.execute("SELECT count(*) FROM angebote WHERE bearbeiter='XAB01'").fetchone()[0] == 1
     sb.anmelden("PB", "Geheim-PB-123")
     os.environ["ROHRLASER_ARBEITSPLATZ"] = "PC-EINS"
     db = Datenbank(merk)
     neu = db.angebot(db.angebot_neu(dict(kunde="danach")))["nummer"]
     assert neu != nr_vorher and not neu.startswith(server_last.NUMMER_PRAEFIX)
-    assert db.con.execute("SELECT count(*) FROM angebote").fetchone()[0] == 2
-    ok("Befehlszeile lasttest: läuft, verbraucht keine Firmennummern, Programm arbeitet danach normal")
+    assert db.con.execute("SELECT count(*) FROM angebote").fetchone()[0] == 3
+    ok("Befehlszeile lasttest: läuft, eigene Probe-Kürzel je Lauf (echter Zugang XAB01 unberührt), verbraucht "
+       "keine Firmennummern, Programm arbeitet danach normal")
 finally:
     if db is not None:
         db.schliessen()

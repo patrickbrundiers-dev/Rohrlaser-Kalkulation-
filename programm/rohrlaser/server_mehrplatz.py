@@ -288,10 +288,20 @@ def objekt_angebot(angebot_id):
 def reservieren(db, objekt, titel=""):
     """Objekt (z. B. angebot:17) für diesen Arbeitsplatz reservieren. Ergebnis: None = reserviert (auch schon vorher),
     sonst der Inhaber dict(kuerzel, platz, seit, vor_s, titel). Eine Reservierung ohne Puls seit FRISCH_S Sekunden
-    gilt als frei."""
+    gilt als frei. Gibt der Inhaber genau zwischen dem Versuch und der Rückfrage frei, wird erneut versucht (sonst
+    hieße None „reserviert“, obwohl niemand das Objekt hält; Lastprobe S5)."""
     s = _s(db)
     if s.nur_lesen:
         return None
+    for _versuch in range(5):
+        wer = _reservieren_versuch(db, s, objekt, titel)
+        if wer is not False:
+            return wer
+    return inhaber(db, objekt)
+
+
+def _reservieren_versuch(db, s, objekt, titel):
+    """None = reserviert, dict = Inhaber, False = inzwischen frei (noch einmal versuchen)."""
     with db.con:
         r = db.con.execute(
             f"INSERT INTO {SPERREN} (objekt, kuerzel, platz, titel, seit, zeit) VALUES (?, ?, ?, ?, now(), now()) "
@@ -303,7 +313,8 @@ def reservieren(db, objekt, titel=""):
             (objekt, s.kuerzel, s.platz, str(titel or ""), FRISCH_S)).fetchone()
     if r is not None:
         return None
-    return inhaber(db, objekt)
+    wer = inhaber(db, objekt)
+    return False if wer is None else wer
 
 
 def inhaber(db, objekt):

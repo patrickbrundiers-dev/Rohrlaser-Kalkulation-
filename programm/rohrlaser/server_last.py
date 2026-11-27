@@ -22,21 +22,34 @@ from pathlib import Path
 
 from . import server_betrieb as sb
 
-PRAEFIX = "LT"
+PRAEFIX = "X"              # Probe-Kürzel X<Lauf><nn>, je Lauf neu und nur, wenn es keinen solchen Zugang gibt
 NUMMER_PRAEFIX = "LAST-"
 PLATZ_PRAEFIX = "LASTPROBE-"
+_BUCHSTABEN = "ABCDEFGHJKLMNPQRSTUVWYZ"
 GRENZE_P95_S = 1.0          # 95 % aller Aktionen schneller als 1 s (Arbeitsplätze im Firmennetz)
 
 
-def _kuerzel(i):
-    return f"{PRAEFIX}{i + 1:02d}"
+def _lauf_kennung(con, plaetze):
+    """Zwei Buchstaben für diesen Lauf, so dass keines der Probe-Kürzel schon als Zugang am Server existiert (ein
+    echter Mitarbeiter wird nie berührt)."""
+    vorhanden = {b["kuerzel"] for b in sb.benutzer_liste(con)}
+    for _ in range(200):
+        lauf = "".join(secrets.choice(_BUCHSTABEN) for _ in range(2))
+        if not vorhanden & {_kuerzel(lauf, i) for i in range(plaetze)}:
+            return lauf
+    raise sb.ServerFehler("Kein freies Probe-Kürzel gefunden.")
 
 
-def _probe_aufraeumen(con, kuerzel):
+def _kuerzel(lauf, i):
+    return f"{PRAEFIX}{lauf}{i + 1:02d}"
+
+
+def _probe_aufraeumen(con, kuerzel, lauf):
+    """Nur, was dieser Lauf angelegt hat: seine Probe-Zugänge (eigens für den Lauf angelegt) und ihre Daten."""
     from . import server_mehrplatz, server_zusammenarbeit
     with con.transaction():
         ids = [r[0] for r in con.execute("SELECT id FROM angebote WHERE nummer LIKE %s OR bearbeiter = ANY(%s)",
-                                         (NUMMER_PRAEFIX + "%", list(kuerzel)))]
+                                         (f"{NUMMER_PRAEFIX}{lauf}-%", list(kuerzel)))]
         if ids:
             for (t,) in con.execute("SELECT table_name FROM information_schema.columns WHERE table_schema = "
                                     "current_schema() AND column_name = 'angebot_id' AND table_name <> 'netze'"
@@ -50,7 +63,7 @@ def _probe_aufraeumen(con, kuerzel):
             con.execute(f"DELETE FROM {t} WHERE kuerzel = ANY(%s)", (list(kuerzel),))
         con.execute(f"DELETE FROM {server_zusammenarbeit.VORGAENGE} WHERE von = ANY(%s) OR an = ANY(%s)",
                     (list(kuerzel), list(kuerzel)))
-        muster = [f"{sb.BENUTZER_PRAEFIX}{k}:%" for k in kuerzel] + [f"{sb.PLATZ_PRAEFIX}{PLATZ_PRAEFIX}%"]
+        muster = [f"{sb.BENUTZER_PRAEFIX}{k}:%" for k in kuerzel] + [f"{sb.PLATZ_PRAEFIX}{PLATZ_PRAEFIX}{lauf}-%"]
         con.execute("DELETE FROM einstellungen WHERE name LIKE ANY(%s)", (muster,))
     for k in kuerzel:
         with contextlib.suppress(Exception):
@@ -76,7 +89,7 @@ class _Platz:
             self.zeiten.setdefault(name, []).append(time.perf_counter() - t)
 
 
-def _runde(p, i, gemeinsam, kollege, nummern, start):
+def _runde(p, i, gemeinsam, kollege, nummern, start, lauf):
     from . import server_mehrplatz as sm, server_zusammenarbeit as sz, teilen
     db = p.db
     p.mess("puls", sm.puls, db, {})
@@ -84,7 +97,7 @@ def _runde(p, i, gemeinsam, kollege, nummern, start):
         "SELECT id, nummer, kunde, bearbeiter, geaendert FROM angebote ORDER BY geaendert DESC LIMIT 200").fetchall())
     kopf = dict(kunde=f"Lastprobe {p.nr}/{i}")
     if not nummern:
-        kopf["nummer"] = f"{NUMMER_PRAEFIX}{_kuerzel(p.nr)}-{i}"
+        kopf["nummer"] = f"{NUMMER_PRAEFIX}{lauf}-{p.nr + 1:02d}-{i}"
     aid = p.mess("angebot_neu", db.angebot_neu, kopf, zaehler=nummern)
     if aid is not None:
         p.nummern.append(db.angebot(aid)["nummer"])
@@ -112,8 +125,6 @@ def lauf(server, plaetze=25, runden=10, nummern=False, melden=print, adresse="12
     melden = melden or (lambda _t: None)
     if plaetze > sb.MAX_VERBINDUNGEN // 3:
         raise sb.ServerFehler(f"Höchstens {sb.MAX_VERBINDUNGEN // 3} Probe-Plätze.")
-    kuerzel = [_kuerzel(i) for i in range(plaetze)]
-    pw = {k: secrets.token_urlsafe(12) for k in kuerzel}
     zugang_datei = server.daten / sb.ZUGANG_DATEI
     if not zugang_datei.exists():
         server.zugang_schreiben()
@@ -122,13 +133,16 @@ def lauf(server, plaetze=25, runden=10, nummern=False, melden=print, adresse="12
     merk_platz = os.environ.get("ROHRLASER_ARBEITSPLATZ")
     dbs, bericht = [], {}
     with server.verwalter_verbinden(sb.DATENBANK) as con:
-        _probe_aufraeumen(con, kuerzel)
-        for k in kuerzel:
-            sb.benutzer_anlegen(con, k, pw[k], sb.RECHT_BEARBEITEN, name=f"Lastprobe {k}")
+        lauf = _lauf_kennung(con, plaetze)
+        kuerzel = [_kuerzel(lauf, i) for i in range(plaetze)]
+    pw = {k: secrets.token_urlsafe(12) for k in kuerzel}
     try:
+        with server.verwalter_verbinden(sb.DATENBANK) as con:
+            for k in kuerzel:
+                sb.benutzer_anlegen(con, k, pw[k], sb.RECHT_BEARBEITEN, name=f"Lastprobe {k}")
         t0 = time.perf_counter()
         for i, k in enumerate(kuerzel):
-            os.environ["ROHRLASER_ARBEITSPLATZ"] = f"{PLATZ_PRAEFIX}{i + 1:02d}"
+            os.environ["ROHRLASER_ARBEITSPLATZ"] = f"{PLATZ_PRAEFIX}{lauf}-{i + 1:02d}"
             merk = tmp / f"p{i}" / "Daten" / "rohrlaser.db"
             merk.parent.mkdir(parents=True, exist_ok=True)
             sb.verbinden_einrichten(merk, zugang, adresse=adresse)
@@ -136,7 +150,7 @@ def lauf(server, plaetze=25, runden=10, nummern=False, melden=print, adresse="12
             dbs.append(Datenbank(merk))
         oeffnen_s = (time.perf_counter() - t0) / plaetze
         melden(f"{plaetze} Probe-Plätze angemeldet (je {oeffnen_s:.2f} s beim Öffnen).")
-        gemeinsam = dbs[0].angebot_neu(dict(kunde="Lastprobe gemeinsam", nummer=f"{NUMMER_PRAEFIX}GEMEINSAM"),
+        gemeinsam = dbs[0].angebot_neu(dict(kunde="Lastprobe gemeinsam", nummer=f"{NUMMER_PRAEFIX}{lauf}-GEMEINSAM"),
                                        zaehler=False)
         ps = [_Platz(i, d) for i, d in enumerate(dbs)]
         verbindungen = []
@@ -144,7 +158,7 @@ def lauf(server, plaetze=25, runden=10, nummern=False, melden=print, adresse="12
         for i in range(runden):
             start = threading.Barrier(plaetze)
             fs = [threading.Thread(target=_runde, args=(p, i, gemeinsam, kuerzel[(p.nr + 1) % plaetze], nummern,
-                                                         start), daemon=True) for p in ps]
+                                                         start, lauf), daemon=True) for p in ps]
             for f in fs:
                 f.start()
             for f in fs:
@@ -191,6 +205,6 @@ def lauf(server, plaetze=25, runden=10, nummern=False, melden=print, adresse="12
         else:
             os.environ["ROHRLASER_ARBEITSPLATZ"] = merk_platz
         with server.verwalter_verbinden(sb.DATENBANK) as con:
-            _probe_aufraeumen(con, kuerzel)
+            _probe_aufraeumen(con, kuerzel, lauf)
         import shutil
         shutil.rmtree(tmp, ignore_errors=True)

@@ -163,12 +163,18 @@ try:
     with pc.con:
         pc.con.execute("UPDATE angebote SET bearbeiter='AB' WHERE id=?", (a4,))
     nr4 = pc.angebot(a4)["nummer"]
+    # gleiche Nummer, aber ein anderes Angebot (vorläufige Nummer an zwei PCs): nie überschreiben
+    db1.angebot_neu(dict(kunde="am Server", nummer="2099-DOPPELT"), zaehler=False)
+    a5 = pc.angebot_neu(dict(kunde="am PC von AB", nummer="2099-DOPPELT"), zaehler=False)
+    with pc.con:
+        pc.con.execute("UPDATE angebote SET bearbeiter='AB' WHERE id=?", (a5,))
     export_ab = tmp / "Export_AB.zip"
     pc.exportieren(export_ab)
     aus = []
     assert sb.main(["dazunehmen", "--ordner", str(tmp / "Server"), "--port", str(server.port), "--datei",
                     str(export_ab), "--kuerzel", "ab"], ausgabe=aus.append) == 0
     assert any("1 neu, 1 ersetzt" in z for z in aus), aus
+    assert any("NICHT übernommen" in z and "2099-DOPPELT" in z for z in aus), aus
     with su.verbinden(server) as con:
         r = con.execute("SELECT kunde, bearbeiter, fremd FROM angebote WHERE nummer=?", (nummern[a3],)).fetchone()
         assert tuple(r) == ("AB hat geändert", "AB", None), r
@@ -177,11 +183,14 @@ try:
         assert con.execute("SELECT bearbeiter FROM angebote WHERE nummer=?", (nr4,)).fetchone()[0] == "AB"
         assert con.execute("SELECT kunde FROM angebote WHERE nummer=?", (nummern[a1],)).fetchone()[0] == \
             "Müller GmbH", "Angebot von PB bleibt"
+        assert [tuple(r) for r in con.execute("SELECT kunde FROM angebote WHERE nummer='2099-DOPPELT'")] == \
+            [("am Server",)], "fremdes Angebot mit gleicher Nummer bleibt"
     b2 = su.dazunehmen(server, export_ab, "AB", melden=None)
     assert b2["gleich"] == sorted([nummern[a3], nr4]) or set(b2["gleich"]) == {nummern[a3], nr4}, b2
-    assert not b2["neu"] and not b2["ersetzt"] and not b2["fehler"], b2
+    assert not b2["neu"] and not b2["ersetzt"] and not b2["fehler"] and b2["konflikt"] == ["2099-DOPPELT"], b2
     assert "--kuerzel" in fehler(su.dazunehmen, server, export_ab, "", melden=None)
-    ok("Dazunehmen: eigene Angebote von AB ersetzt/neu und geprüft, fremde nicht, zweites Mal alles gleich")
+    ok("Dazunehmen: eigene Angebote von AB ersetzt/neu und geprüft, fremde nicht, gleiche Nummer eines anderen "
+       "Angebots nie überschrieben, zweites Mal alles gleich")
 
     # ------------------------------------------------------------------ Befehlszeile übernehmen mit --ersetzen
     aus = []

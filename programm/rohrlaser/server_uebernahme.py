@@ -245,7 +245,9 @@ def _andere_verbindungen(con):
 
 def dazunehmen(server, datei, kuerzel, melden=print):
     """Eigene Angebote eines weiteren PCs (fremd leer; Bearbeiter kuerzel oder leer) in den Server: vorhandene
-    (gleiche Nummer) ersetzt, neue angelegt, jedes danach mit der Quelle verglichen. Ergebnis: Bericht."""
+    (dasselbe Angebot = gleiche Kennung uid) ersetzt, neue angelegt, jedes danach mit der Quelle verglichen. Trägt
+    am Server ein ANDERES Angebot dieselbe Nummer (z. B. vorläufige Nummer ohne erreichbaren Ordner an zwei PCs),
+    wird nichts überschrieben: es steht unter konflikt und muss von Hand geklärt werden. Ergebnis: Bericht."""
     from . import teilen
     melden = melden or (lambda _t: None)
     kuerzel = teilen.kuerzel_sauber(kuerzel)
@@ -254,19 +256,24 @@ def dazunehmen(server, datei, kuerzel, melden=print):
     with quelle_oeffnen(datei) as (quelle, info), verbinden(server) as con:
         _schema_pruefen(con, info)
         eigene = [r for r in quelle.execute(
-            "SELECT id, nummer FROM angebote WHERE (fremd IS NULL OR fremd = '') AND (bearbeiter IS NULL OR "
+            "SELECT id, nummer, uid FROM angebote WHERE (fremd IS NULL OR fremd = '') AND (bearbeiter IS NULL OR "
             "bearbeiter = '' OR upper(bearbeiter) = ?) ORDER BY id", (kuerzel,))]
         sicherung = sichern(server, con, f"Dazunehmen_{kuerzel}")
         melden(f"Stand des Servers gesichert: {sicherung}")
         arten = db_kopie._pg_arten(con.v)
         quell_karte = teilen._uid_karte(quelle, "zukauf_artikel")
         ziel_karte = {u: i for i, u in teilen._uid_karte(con, "zukauf_artikel").items()}
-        neu, ersetzt, gleich, fehler = [], [], [], []
-        for qid, nummer in eigene:
+        neu, ersetzt, gleich, fehler, konflikt = [], [], [], [], []
+        for qid, nummer, uid in eigene:
             inhalt, netze = teilen.angebot_inhalt(quelle, qid, quell_karte)
             geaendert = quelle.execute("SELECT geaendert FROM angebote WHERE id=?", (qid,)).fetchone()[0]
-            r = con.execute("SELECT id FROM angebote WHERE nummer=?", (nummer,)).fetchone()
+            r = con.execute("SELECT id FROM angebote WHERE uid=?", (uid,)).fetchone() if uid is not None else None
             sid = r[0] if r else None
+            andere = con.execute("SELECT id FROM angebote WHERE nummer=? AND id IS DISTINCT FROM ?",
+                                 (nummer, sid)).fetchone()
+            if andere is not None:          # gleiche Nummer, anderes Angebot: nie überschreiben
+                konflikt.append(nummer)
+                continue
             if sid is not None:
                 am_server, _n = teilen.angebot_inhalt(con, sid)
                 if _vergleichbar(am_server, arten) == _vergleichbar(inhalt, arten):
@@ -285,11 +292,15 @@ def dazunehmen(server, datei, kuerzel, melden=print):
         if neu or ersetzt:
             _neu_laden_melden(con)
         _protokoll(con, "dazunehmen", f"{Path(datei).name} ({kuerzel}): {len(neu)} neu, {len(ersetzt)} ersetzt, "
-                   f"{len(gleich)} gleich" + (f", {len(fehler)} abweichend" if fehler else ""))
+                   f"{len(gleich)} gleich" + (f", {len(fehler)} abweichend" if fehler else "")
+                   + (f", {len(konflikt)} Nummer schon vergeben" if konflikt else ""))
         melden(f"Eigene Angebote von {kuerzel}: {len(neu)} neu, {len(ersetzt)} ersetzt, {len(gleich)} schon gleich.")
+        if konflikt:
+            melden("NICHT übernommen, Nummer am Server gehört einem anderen Angebot: " + ", ".join(konflikt[:10])
+                   + ". Bitte am PC eine neue Fassung/Nummer anlegen, neu exportieren und wieder dazunehmen.")
         if fehler:
             melden("ABWEICHUNG nach dem Einlesen bei: " + ", ".join(fehler[:10]) + f" (Sicherung: {sicherung})")
-        return dict(neu=neu, ersetzt=ersetzt, gleich=gleich, fehler=fehler, sicherung=sicherung)
+        return dict(neu=neu, ersetzt=ersetzt, gleich=gleich, fehler=fehler, konflikt=konflikt, sicherung=sicherung)
 
 
 def _neu_laden_melden(con):
