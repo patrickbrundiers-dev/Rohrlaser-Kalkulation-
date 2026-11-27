@@ -143,8 +143,8 @@ def einrichten(app=None):
 
 
 def fenster_bericht():
-    """Text für das Support-Paket (fenster.txt): alle sichtbaren Fenster der Anwendung mit Art, Knöpfen der Titelleiste,
-    Sperre (modal) und welches Fenster/Menü gerade aktiv ist. Hilft bei „X zum Schließen ohne Funktion“ (27.11.2026):
+    """Text für das Support-Paket (fenster.txt, ohne Fenstertitel und Kundendaten): alle sichtbaren Fenster mit Art,
+    Knöpfen der Titelleiste, Sperre (modal) und welches Fenster/Menü gerade aktiv ist. Hilft bei „X zum Schließen ohne Funktion“ (27.11.2026):
     ein aktives Menü/Fenster, das Klicks abfängt, steht hier mit „aktiv“ bzw. „Popup“."""
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance()
@@ -155,8 +155,8 @@ def fenster_bericht():
     def name(w):
         if w is None:
             return "–"
-        titel = w.windowTitle() or (w.title() if hasattr(w, "title") else "") or w.objectName() or ""
-        return f"{type(w).__name__} „{titel.replace('&', '')[:60]}“"
+        # nur Klasse und Objektname, nie der Fenstertitel (kann Kunde oder Angebotsnummer enthalten)
+        return f"{type(w).__name__}" + (f" ({w.objectName()[:40]})" if w.objectName() else "")
     zeilen = [f"Aktives Fenster: {name(aktiv)}", f"Offenes Menü/Popup: {name(popup)}", f"Sperrendes Fenster: {name(modal)}",
               "", "Sichtbare Fenster (Art | Titelleiste | Sperre | Größe)"]
     for w in QApplication.topLevelWidgets():
