@@ -167,7 +167,7 @@ with zipfile.ZipFile(e["pfad"]) as zf:
     info = zf.read("info.txt").decode()
 assert Path(e["pfad"]).name == "Support_2026-11-02_1630.zip" and Path(e["pfad"]).parent == tmp / "Support"
 assert set(namen) == {"fehler.log", "info.txt", "systempruefung.txt", "einstellungen.json", "verweise.json",
-                      "diagnose.txt"}       # diagnose.txt seit Stabilität Paket C (18.11.2026)
+                      "diagnose.txt", "fenster.txt"}   # diagnose.txt seit 18.11.2026, fenster.txt seit 27.11.2026
 assert es["passwort"] == "(entfernt)" and "geheim123" not in json.dumps(es) and "Testlizenz" in info
 e2 = support.erstellen(db, system=[], angebot_id=a, jetzt=datetime.datetime(2026, 11, 2, 16, 31))
 assert "angebot.json" in e2["dateien"] and "beigelegten Angebot" in support.text(e2)
