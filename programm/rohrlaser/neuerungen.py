@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.553", "<b>Grundlage für das neue Anmelde- und Berechtigungssystem</b> (Paket A): Kern für Anmeldung, "
+                "Sitzungen, Rollen mit Einzelrechten, Sicherheitsprotokoll und den Entwickler-Ausweis (signiert, "
+                "ohne Rechnerbindung, ohne eingebautes Passwort). Im Programm ändert sich dadurch noch nichts "
+                "Sichtbares; das neue Loginfenster folgt mit einer der nächsten Versionen.",
+     "Grundlage für das neue Anmelde- und Berechtigungssystem (noch unsichtbar)."],
     ["0.9.552", "<b>Neues Logo auch in Windows</b>: Nach dem Update zeigte Windows in den Eigenschaften der "
                 "Programmdatei, im Explorer und in der Taskleiste noch das alte Symbol, weil Windows Symbole je Datei "
                 "zwischenspeichert. Beim ersten Start einer neuen Version meldet NexTube Windows die geänderte "
