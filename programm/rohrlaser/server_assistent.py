@@ -44,7 +44,7 @@ class AssistentFehler(Exception):
 
 @dataclass
 class Angaben:
-    ordner: str = r"D:\RohrlaserServer"
+    ordner: str = ""                                     # Vorschlag: <Systemlaufwerk>\RohrlaserServer
     firma: str = ""
     admin: str = ""
     admin_name: str = ""
@@ -82,8 +82,10 @@ def vorschlag():
     except OSError:
         pass
     a.adressen = adressen
-    if os.name == "nt" and not Path("D:\\").exists():
-        a.ordner = r"C:\RohrlaserServer"
+    if os.name == "nt":     # Laufwerk der Daten wählt die IT im Assistenten (IT-Handbuch: eigenes Datenlaufwerk)
+        a.ordner = os.environ.get("SystemDrive", "C:") + "\\RohrlaserServer"
+    else:
+        a.ordner = str(Path.home() / "RohrlaserServer")
     a.konto = ss.konto_vorgabe()
     return a
 

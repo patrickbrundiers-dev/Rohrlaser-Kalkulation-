@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QFileDialog, QFormLayout
                                QVBoxLayout, QWidget, QWizard, QWizardPage)
 
 from . import server_assistent as sa
+from . import stil
 
 ZEICHEN = {"läuft": "◐", "gut": "✓", "Warnung": "!", "übersprungen": "–", "Fehler": "✗", "offen": "○"}
 
@@ -84,7 +85,7 @@ class Assistent(QWizard):
             "Server-Ordner vorhanden, feste IP und DNS-Name. Ein schon eingerichteter Server bleibt erhalten; der "
             "Assistent darf erneut laufen."))
         if not sa.ist_admin():
-            p.form.addRow(_hinweis("<span style='color:#b00020'><b>Nicht als Administrator gestartet.</b> Bitte "
+            p.form.addRow(_hinweis(f"<span style='color:{stil.ROT}'><b>Nicht als Administrator gestartet.</b> Bitte "
                                    "schließen und mit Rechtsklick → „Als Administrator ausführen“ neu starten."
                                    "</span>"))
         self.addPage(p)
@@ -291,14 +292,14 @@ class LaufSeite(QWizardPage):
                 f"<b>Zugangsdatei für die Arbeitsplätze:</b> {erg['zugang']}<br>"
                 f"<b>Fingerabdruck</b> (in der IT-Dokumentation notieren): <tt>{erg['fingerabdruck']}</tt><br>"
                 f"Ablage: {erg['ablage']}<br>Protokoll: {erg.get('protokoll') or '–'}"
-                + (f"<br><span style='color:#b26a00'><b>Bitte von Hand nachholen:</b><ul>{warn}</ul></span>"
+                + (f"<br><span style='color:{stil.ORANGE}'><b>Bitte von Hand nachholen:</b><ul>{warn}</ul></span>"
                    if warn else "")
                 + "<br>Nächste Schritte: Server-Lizenz im Programm aktivieren, Mitarbeiter anlegen, Arbeitsplätze "
                   "verbinden (IT-Handbuch Kapitel 6).")
         else:
             self.setTitle("Einrichtung abgebrochen")
             self.setSubTitle("Fertige Schritte bleiben erhalten. Fehler beheben und den Assistenten erneut starten.")
-            self.ergebnis.setText("<span style='color:#b00020'>Details stehen oben und im Protokoll "
+            self.ergebnis.setText(f"<span style='color:{stil.ROT}'>Details stehen oben und im Protokoll "
                                   f"{erg.get('protokoll') or ''}.</span>")
         self.completeChanged.emit()
 
