@@ -36,6 +36,7 @@ from rohrlaser import server_betrieb as sb  # noqa: E402
 from rohrlaser import server_mehrplatz as sm  # noqa: E402
 from rohrlaser import server_rechnen as sr  # noqa: E402
 from rohrlaser import server_sicherung as ss  # noqa: E402
+from rohrlaser import server_assistent as sa  # noqa: E402
 
 SEITE = A4
 RAND = 18 * mm
@@ -59,6 +60,7 @@ FREIGABE = r"\\ROHRLASER-SRV\Rohrlaser-Ablage"
 DIENSTKONTO = r"FIRMA\svc-rohrlaser"
 GRUPPE = "GG-Rohrlaser-Benutzer"
 NAS = r"\\NAS\Backup\Rohrlaser"
+SETUP_ORDNER = r"C:\Program Files\NexTube Server"
 
 # Größen der VM nach Platzzahl: Schätzwerte (Datenbank klein, CPU vor allem für den Rechner-Dienst), bestätigt
 # durch den eingebauten Lasttest auf der echten Hardware.
@@ -465,7 +467,7 @@ def kapitel_vorbereitung(i):
     i.text("Den Server-Ordner und seine Unterordner legt das Programm beim Einrichten selbst an und setzt die Rechte. "
            "Die IT legt nur das Laufwerk an und gibt dem Dienstkonto dort Vollzugriff.")
     i.abschnitt("Netzwerkfreigabe für die Ablage")
-    i.liste(f"Nach der Einrichtung (Schritt 5.3) den Ordner <i>{SERVER_ORDNER}\\Ablage</i> freigeben, z. B. als "
+    i.liste(f"Nach der Einrichtung (Schritt 5.4; der Assistent aus 5.1 macht das selbst) den Ordner <i>{SERVER_ORDNER}\\Ablage</i> freigeben, z. B. als "
             f"<i>{FREIGABE}</i>.",
             f"Freigabe- und NTFS-Rechte: eine Gruppe, z. B. <i>{GRUPPE}</i>, mit Ändern; Dienstkonto Vollzugriff.",
             "SMB 3 verwenden, SMB 1 deaktiviert lassen. Keine Offline-Dateien für diese Freigabe.",
@@ -549,9 +551,41 @@ def kapitel_netzwerk(i):
 
 def kapitel_einrichtung(i):
     i.kapitel("Einrichtung Schritt für Schritt")
-    i.text("Die Einrichtung dauert rund eine Stunde und läuft in der Eingabeaufforderung des Servers, angemeldet als "
+    i.abschnitt("Empfohlen: Server-Setup mit Assistent")
+    i.text("<b>NexTube-Server-Setup.exe</b> (im Download neben dem normalen Setup) installiert das Programm für alle "
+           f"Benutzer nach <i>{SETUP_ORDNER}</i> und startet danach den <b>Einrichtungs-Assistenten</b>. Er fragt "
+           "auf fünf Seiten alles ab und erledigt die Schritte 5.4 bis 5.12 in einem Durchgang (außer Mitarbeiter, Daten und Lasttest):")
+    i.tabelle(["Seite", "Angaben", "Vorgabe"], [
+        ["Server", "Server-Ordner, Firmenname, DNS-Name und feste IP, Port",
+         f"D:\\RohrlaserServer, Rechnername und IP, {sb.PORT}"],
+        ["Erster Administrator", "Kürzel und Passwort (mindestens 8 Zeichen)", "–"],
+        ["Netzwerk", "Firewall-Regel (erlaubte Quelle), Freigabe der Ablage, Windows-Gruppe der Mitarbeiter",
+         f"LocalSubnet, {sa.FREIGABE_NAME}, {sa.GRUPPE_VORGABE}"],
+        ["Sicherung", "Uhrzeiten, zweites Ziel (NAS), Dienstkonto und sein Windows-Passwort",
+         f"{_zeiten()} Uhr, angemeldetes Konto"],
+        ["Zusammenfassung", "alle Schritte zum Nachlesen, dann „Einrichten“", "–"],
+    ], [20, 50, 30])
+    i.liste("Setup <b>als Dienstkonto angemeldet</b> starten (Administratorrechte werden abgefragt). Dem Konto, das "
+            "einrichtet, gehört danach der Server-Ordner.",
+            "Der Assistent zeigt jeden Schritt mit Haken. Misslingt die Firewall-Regel, ist das nur eine Warnung "
+            "(von Hand nachholen, Abschnitt 4.1); bei jedem anderen Fehler hält er an. Fertige Schritte bleiben, "
+            "der Assistent darf einfach erneut laufen (Startmenü: <i>NexTube Server einrichten</i>).",
+            "Am Ende stehen Zugangsdatei und <b>Fingerabdruck</b> auf dem Bildschirm; das Protokoll steht in "
+            f"<i>{SERVER_ORDNER}\\{sa.PROTOKOLL}</i> (ohne Passwörter).",
+            "Danach bleibt nur: Server-Lizenz im Programm aktivieren (Startmenü: <i>NexTube Server – Programm "
+            "(Lizenz)</i>), Mitarbeiter anlegen (5.8), Daten übernehmen (6.2), Lasttest (5.11).",
+            "<b>Update des Servers</b>: neues NexTube-Server-Setup.exe einfach ausführen. Es stoppt den Server, "
+            "tauscht die Programmdateien und startet ihn über die Aufgabenplanung wieder; Daten und Einstellungen "
+            "bleiben.")
+    i.text("Für Skripte gibt es denselben Ablauf ohne Fenster mit einer Antwortdatei (JSON mit den Feldern "
+           "ordner, firma, admin, adressen, port, firewall, freigabe, freigabe_name, gruppe, nas, uhrzeiten, konto; "
+           "fehlende Passwörter werden abgefragt):")
+    i.code(f'"{SETUP_ORDNER}\\{EXE}" --server-assistent D:\\antworten.json')
+    i.abschnitt("Von Hand: die Befehle einzeln")
+    i.text("Wer lieber jeden Schritt selbst ausführt, macht das in der Eingabeaufforderung des Servers, angemeldet als "
            f"Dienstkonto. Alle Befehle beginnen mit <i>{PROGRAMM_ORDNER}\\{EXE} --server</i>; unten steht dafür "
-           "kurz <i>%RL%</i>:")
+           "kurz <i>%RL%</i>. Nach dem Server-Setup geht es kürzer: Startmenü <i>NexTube Server – Befehle</i>, dann "
+           "<i>Server status --ordner …</i> statt <i>%RL% status --ordner …</i>.")
     i.code(f"set RL={PROGRAMM_ORDNER}\\{EXE} --server")
     i.abschnitt("Programm ablegen und Lizenz aktivieren")
     i.text(f"Portable ZIP in genau der Version der Arbeitsplätze nach <i>{PROGRAMM_ORDNER}</i> entpacken. Programm "
@@ -704,7 +738,7 @@ def kapitel_sicherung(i):
            "entstandene bleiben. <i>--ohne-ablage</i> lässt die Ablage unverändert.")
     i.abschnitt("Notfall: Server-Rechner defekt")
     i.liste("Neue VM nach Abschnitt 2 bis 4 vorbereiten, <b>mit gleicher IP und gleichem DNS-Namen</b>.",
-            "Programm in derselben Version ablegen und <i>einrichten</i> wie in 5.2.",
+            "Programm in derselben Version ablegen und <i>einrichten</i> wie in 5.4, oder mit dem Server-Setup (5.1).",
             "Direkt vom zweiten Ziel zurückholen (Befehl unten). Daten, Zugänge mit Passwörtern, Ablage und "
             "Zertifikate kommen zurück; nur der neu angelegte Administrator behält sein neues Passwort.",
             "Freigabe der Ablage anlegen, <i>ablage</i>, <i>sicherungsziel</i> und <i>aufgaben</i> neu eintragen.",
@@ -800,7 +834,7 @@ def kapitel_abnahme(i):
             "Virenscanner-Ausnahmen eingetragen",
             f"Firewall: {sb.PORT} und 445 nur aus dem Arbeitsplatz-Subnetz, sonst nichts eingehend",
             "Server-Lizenz aktiviert",
-            "einrichten ausgeführt, Fingerabdruck in der IT-Dokumentation notiert",
+            "Server-Setup mit Assistent (oder einrichten von Hand) ausgeführt, Fingerabdruck in der IT-Dokumentation notiert",
             "Ablage freigegeben und mit ablage eingetragen",
             "aufgaben eingetragen; nach einem Neustart läuft der Server von selbst",
             "Mitarbeiter angelegt, Rechte geprüft",

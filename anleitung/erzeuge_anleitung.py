@@ -17244,7 +17244,14 @@ def kapitel_admin_datenbank(i):
            "Programmordner das <i>IT-Handbuch_Server.pdf</i> mit allen Voraussetzungen (VM-Größe, Windows, Ports, "
            "Firewall, Zertifikat, Virenscanner, Sicherung, Überwachung), der Einrichtung Schritt für Schritt und einer "
            "Abnahme-Checkliste.")
-    i.liste("<b>Server einrichten</b> (einmal, auf dem Server-Rechner, in der Eingabeaufforderung): "
+    i.liste("<b>Server einrichten mit dem Server-Setup</b> (empfohlen): <i>NexTube-Server-Setup.exe</i> auf dem "
+            "Server-Rechner ausführen (Administratorrechte). Es installiert das Programm und startet den "
+            "<b>Einrichtungs-Assistenten</b>: Server-Ordner, Firma, Adressen, erster Administrator, Firewall, Freigabe "
+            "der Ablage, Sicherungszeiten, zweites Sicherungsziel und Dienstkonto auf fünf Seiten, dann richtet er "
+            "alles in einem Durchgang ein und zeigt Zugangsdatei und Fingerabdruck. Er darf erneut laufen "
+            "(Startmenü: <i>NexTube Server einrichten</i>). Ein neues Server-Setup über das alte ausgeführt stoppt "
+            "den Server, tauscht das Programm und startet ihn wieder.",
+            "<b>Server einrichten von Hand</b> (einmal, auf dem Server-Rechner, in der Eingabeaufforderung): "
             "<i>Rohrlaser-Angebotskalkulation.exe --server einrichten --ordner D:\\RohrlaserServer --admin PB "
             "--name \"Firma\" --adresse SERVERNAME 192.168.1.10</i>. Das Passwort des ersten Administrators wird "
             "abgefragt. Es entstehen der Datenordner, ein eigenes Zertifikat und die Zugangsdatei "

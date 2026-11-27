@@ -507,6 +507,32 @@ jobs:
           & $iscc "/DVersion=$v.${{ github.run_number }}" "/DQuelle=$PWD\dist\Rohrlaser-Angebotskalkulation" "/DAusgabe=$PWD" @signieren programm\installer\rohrlaser.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC Rückgabewert $LASTEXITCODE" }
           "{0:N0} MB" -f ((Get-Item Rohrlaser-Angebotskalkulation-Setup.exe).Length / 1MB)
+      # Server-Setup (Patrick 27.11.2026): dieselben Programmdateien, installiert mit Adminrechten für alle Benutzer,
+      # startet am Ende den Einrichtungs-Assistenten (server_assistent.py); vor einem Update stoppt es den Server.
+      - name: Server-Setup bauen und testen (NexTube-Server-Setup.exe, Inno Setup, Adminrechte)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          $v = python -c "import sys; sys.path.insert(0, 'programm'); from versionsinfo import version; print(version())"
+          $signieren = @()
+          if ($env:SIGNIERT) {
+            $signieren = @("/DSignieren", "/Ssignieren=`$q$env:SIGNTOOL`$q sign /f `$q$env:SIGNATUR_DATEI`$q /p `$q$env:PFX_KENNWORT`$q /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d `$qNexTube Server Setup`$q `$f")
+          }
+          & $iscc "/DVersion=$v.${{ github.run_number }}" "/DQuelle=$PWD\dist\Rohrlaser-Angebotskalkulation" "/DAusgabe=$PWD" @signieren programm\installer\server.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC (Server) Rückgabewert $LASTEXITCODE" }
+          "{0:N0} MB" -f ((Get-Item NexTube-Server-Setup.exe).Length / 1MB)
+          # still installieren (ohne Assistent), Dateien prüfen, deinstallieren
+          $p = Start-Process -Wait -PassThru -FilePath "$PWD\NexTube-Server-Setup.exe" -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$PWD\server_setup.log")
+          if ($p.ExitCode -ne 0) { Get-Content server_setup.log; throw "Server-Setup Rückgabewert $($p.ExitCode)" }
+          $app = "$env:ProgramFiles\NexTube Server"
+          foreach ($d in @("Rohrlaser-Angebotskalkulation.exe", "Server.cmd", "IT-Handbuch_Server.pdf", "pgsql\bin\postgres.exe")) {
+            if (-not (Test-Path "$app\$d")) { throw "$d fehlt nach dem Server-Setup" }
+          }
+          $p = Start-Process -Wait -PassThru -FilePath "$app\unins000.exe" -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")
+          for ($i = 0; $i -lt 120 -and (Test-Path "$app\unins000.exe"); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path "$app\Rohrlaser-Angebotskalkulation.exe") { throw "Server-Deinstallation unvollständig" }
+          $h = (Get-FileHash -Algorithm SHA256 NexTube-Server-Setup.exe).Hash
+          "$h  NexTube-Server-Setup.exe" | Set-Content -Encoding ascii NexTube-Server-Setup.exe.sha256
       - name: Installation und portable Version testen (Datenort, gleiche Dateien und Ergebnisse, Deinstallation behält Daten)
         shell: pwsh
         run: |
@@ -657,6 +683,8 @@ jobs:
             Rohrlaser-Angebotskalkulation.zip: dieselbe Version portabel ohne Installation (Angebote, STEP-Import,
             Optimierung, Staffelpreise, PDF, CSV-Export). Entpacken, Rohrlaser-Angebotskalkulation.exe starten; die
             Daten liegen im Ordner Daten neben dem Programm.
+            NexTube-Server-Setup.exe: nur für den Server-Rechner der Serverversion (Adminrechte); installiert das Programm und
+            startet den Einrichtungs-Assistenten. Details im IT-Handbuch_Server.pdf.
             Bedienungsanleitung.pdf, Kurzanleitung.pdf und IT-Handbuch_Server.pdf (für die IT: zentraler Server) liegen im Programmordner (Anleitungen auch im Programm unter Hilfe, F1).
             Umziehen zwischen beiden: Datei → Daten exportieren … / Daten importieren …
             Vor dem ersten Start bzw. Entpacken: Rechtsklick auf Setup.exe bzw. ZIP → Eigenschaften → „Zulassen“ → OK.
@@ -674,6 +702,8 @@ jobs:
           files: |
             Rohrlaser-Angebotskalkulation-Setup.exe
             Rohrlaser-Angebotskalkulation-Setup.exe.sha256
+            NexTube-Server-Setup.exe
+            NexTube-Server-Setup.exe.sha256
             Rohrlaser-Angebotskalkulation.zip
             Rohrlaser-Angebotskalkulation.zip.sha256
             update_dateien/Update.json
@@ -782,6 +812,7 @@ jobs:
           $text = "Rohrlaser Angebotskalkulation $version (Stand $env:RL_STAND).`n`n" +
                   "Rohrlaser-Angebotskalkulation-Setup.exe: Installation für den angemeldeten Benutzer (keine Adminrechte).`n" +
                   "Rohrlaser-Angebotskalkulation.zip: dieselbe Version portabel ohne Installation.`n" +
+                  "NexTube-Server-Setup.exe: nur für den Server-Rechner (Adminrechte), mit Einrichtungs-Assistent; siehe IT-Handbuch_Server.pdf.`n" +
                   "Vorher: Rechtsklick → Eigenschaften → Zulassen, oder Windows-Vertrauen-einrichten.cmd in denselben Ordner laden und doppelklicken.`n" +
                   "Danach kommen Updates automatisch (Hilfe → Nach Updates suchen). Nutzung nur mit Lizenz, siehe Lizenzbedingungen.txt.`n" +
                   "Rohrlaser-Update.rlupdate: dasselbe Update als eine Datei für Rechner ohne Internet (USB-Stick, Netzwerkordner): Hilfe → Update-Center → Update-Datei einspielen.`n`n" +
@@ -801,6 +832,7 @@ jobs:
           Copy-Item programm/rohrlaser/Lizenzbedingungen.txt Lizenzbedingungen.txt
           foreach ($datei in @("Rohrlaser-Angebotskalkulation-Setup.exe", "Rohrlaser-Angebotskalkulation-Setup.exe.sha256",
                                "Rohrlaser-Angebotskalkulation.zip", "Rohrlaser-Angebotskalkulation.zip.sha256",
+                               "NexTube-Server-Setup.exe", "NexTube-Server-Setup.exe.sha256",
                                "Bedienungsanleitung.pdf", "Kurzanleitung.pdf", "IT-Handbuch_Server.pdf",
                                "Windows-Vertrauen-einrichten.cmd",
                                "Lizenzbedingungen.txt", "Rohrlaser-Update.rlupdate", "Rohrlaser-Update.rlupdate.sha256")) {

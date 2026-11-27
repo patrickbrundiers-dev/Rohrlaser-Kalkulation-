@@ -6,6 +6,10 @@ if len(sys.argv) == 4 and sys.argv[1] == "--optimierer":     # Hilfsprozess für
     from rohrlaser.parallel import dienst
     sys.exit(dienst(sys.argv[2], sys.argv[3]))
 
+if len(sys.argv) > 1 and sys.argv[1] == "--server-assistent":   # Server-Setup: Einrichtungs-Assistent
+    from rohrlaser.server_assistent import main as assistent
+    sys.exit(assistent(sys.argv[2:]))
+
 if len(sys.argv) > 1 and sys.argv[1] == "--server":       # Serverversion: Befehle auf dem Server-Rechner
     from rohrlaser.server_betrieb import konsole_main
     sys.exit(konsole_main(sys.argv[2:]))

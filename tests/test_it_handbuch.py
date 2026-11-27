@@ -57,7 +57,8 @@ with tempfile.TemporaryDirectory() as tmp:
         text = re.sub(r"\s+", " ", text)
         for erwartet in (VERSION, f"TCP {sb.PORT}", str(sb.MAX_VERBINDUNGEN), f"{sb.ZERT_JAHRE} Jahre",
                          f"{ss.BEHALTEN} neuesten", f"{ss.WARNEN_H} Stunden", sb.ZUGANG_DATEI,
-                         f"PostgreSQL {it.pg_version()}"):
+                         f"PostgreSQL {it.pg_version()}", "NexTube-Server-Setup.exe", "--server-assistent",
+                         "12:30 und 22:30", "sicherungsziel", "--mit-zertifikat"):
             assert erwartet in text, f"fehlt im PDF: {erwartet}"
         for befehl in sorted(choices):
             assert befehl in text, f"Befehl fehlt im PDF: {befehl}"

@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.554", "<b>Server-Setup mit Einrichtungs-Assistent</b> (Serverversion): <i>NexTube-Server-Setup.exe</i> "
+                "installiert das Programm auf dem Server-Rechner und startet einen Assistenten. Er fragt Server-Ordner, "
+                "Firma, Adressen, ersten Administrator, Firewall, Freigabe der Ablage, Sicherungszeiten, NAS-Ziel und "
+                "Dienstkonto ab und richtet alles in einem Durchgang ein, inklusive erster Sicherung mit Probe. Am Ende "
+                "zeigt er Zugangsdatei und Fingerabdruck. Ein neues Server-Setup stoppt den Server, tauscht das "
+                "Programm und startet ihn wieder.",
+     "Server-Einrichtung ohne Befehle in der Eingabeaufforderung."],
     ["0.9.553", "<b>Serversicherung lückenlos</b> (Serverversion): Jede Sicherung enthält jetzt auch die Ablage und die "
                 "Server-Einstellungen (Zertifikate, Zugangsdatei). Mit <i>sicherungsziel --pfad</i> geht jede gute "
                 "Sicherung zusätzlich auf ein NAS, Datei für Datei per SHA-256 geprüft. Gesichert wird um 12:30 und "
