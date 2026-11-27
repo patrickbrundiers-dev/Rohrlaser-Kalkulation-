@@ -13062,8 +13062,10 @@ def kapitel_einstellungen(i):
             "Felder lassen den Zugang wie er ist.",
             "<b>Sperren / Entsperren</b>: ein gesperrter Benutzer kann sich nicht anmelden und darf nur sehen. "
             "<b>Entfernen</b> löscht den Benutzer.",
-            "<b>Beim Start anmelden (Kürzel und Passwort oder PIN)</b>: das Programm fragt beim Start danach. "
-            "Ohne Haken gilt der Benutzer dieses Arbeitsplatzes (Mein Arbeitsplatz).",
+            "<b>Beim Start anmelden (Kürzel und Passwort oder PIN)</b>: das Programm fragt beim Start danach. Der "
+            "Mitarbeiter wird aus einer Liste gewählt (Name und Kürzel, der Mitarbeiter dieses Arbeitsplatzes schon "
+            "vorausgewählt); eingeben muss man nur Passwort oder PIN. Ohne Haken gilt der Benutzer dieses "
+            "Arbeitsplatzes (Mein Arbeitsplatz).",
             "<b>Rechte der Rollen</b>: Tabelle Rolle × Bereich (Angebote, Aufträge, Arbeitsvorbereitung, "
             "Produktion, Qualitätskontrolle, Auslieferung, Auswertungen) mit <i>–</i>, <i>sehen</i> oder "
             "<i>bearbeiten</i>; wirkt sofort. <b>Vorgabe wiederherstellen</b> setzt die Tabelle zurück. Der "
