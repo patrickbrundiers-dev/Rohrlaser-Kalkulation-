@@ -680,6 +680,8 @@ def pflege_fertig(con, programm, schema):
     server_mehrplatz.einrichten(con)        # Anwesenheit, Reservierungen, Live-Meldungen, Protokoll (S2)
     from . import server_rechnen
     server_rechnen.einrichten(con)          # Rechenaufträge (S4)
+    from . import server_zusammenarbeit
+    server_zusammenarbeit.einrichten(con)   # Übergaben, Anfragen, Notizen (S4b)
     info_setzen(con, programm=programm, schema=schema, pflege=programm, gehoben=_jetzt(),
                 gehoben_von=angemeldet())
 

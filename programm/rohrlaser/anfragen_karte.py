@@ -276,7 +276,7 @@ class AnfragenKarte:
         offenen Anfragen. Nur mit gemeinsamem Ordner; Einstellung 'anfrage_zuweisen' = nein schaltet es aus."""
         from . import automatik, teilen
         db = self.f.db
-        if db.nur_lesen or not teilen.aktiv(db) or (db.einstellung("anfrage_zuweisen") or "ja") != "ja":
+        if db.nur_lesen or not teilen.zusammenarbeit(db) or (db.einstellung("anfrage_zuweisen") or "ja") != "ja":
             return 0
         n = 0
         for a, an in anfragen.zuweisung_vorschlag(liste, kunden, teilen.kollegen(db), teilen.kuerzel(db)):
@@ -501,7 +501,7 @@ class AnfragenKarte:
         self.knopf_oeffnen.setEnabled(n == 1 or (n == 0 and bool(self.anfragen)))
         self.knopf_zusammen.setEnabled(n > 1)
         from . import teilen
-        self.knopf_zuweisen.setVisible(teilen.aktiv(self.f.db))
+        self.knopf_zuweisen.setVisible(teilen.zusammenarbeit(self.f.db))
         self.knopf_zuweisen.setEnabled(n == 1)
 
     def zuweisen(self, auswahl, an=None, notiz=""):

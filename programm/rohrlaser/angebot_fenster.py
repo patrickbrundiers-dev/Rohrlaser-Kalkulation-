@@ -574,14 +574,17 @@ class AngeboteSeite(QWidget):
         # Zusammenarbeit (Patrick 28.10.2026): eigenes Angebot an einen Kollegen abgeben
         self.uebergeben_aktion = menue.addAction("An Kollegen übergeben …", lambda: self.uebergeben())
         self.notiz_aktion = menue.addAction("Notiz an Kollegen …", lambda: self.notiz())
+        # Serverbetrieb (S4b): Angebot eines Kollegen – den Bearbeiter fragen, ob er es übergibt
+        self.anfragen_aktion = menue.addAction("Übernahme anfragen …", lambda: self.uebernahme_anfragen())
         # Änderungsverlauf (Patrick 01.11.2026, Paket D): wer hat wann was geändert
         self.verlauf_aktion = menue.addAction("Verlauf (wer hat was geändert) …", lambda: self.verlauf_zeigen())
         trenner = menue.addSeparator()  # Plan Palettenbegleitschein (ausgeblendet, wenn Versand aus)
         ps = menue.addAction("Palettenbegleitschein …", lambda: self._gewaehlt() and self.f.palettenschein(self._gewaehlt()))
         self.palettenschein_aktionen = (trenner, ps)
         menue.aboutToShow.connect(lambda: [a.setVisible(self.f.versand_an()) for a in self.palettenschein_aktionen])
-        menue.aboutToShow.connect(lambda: [a.setVisible(teilen.aktiv(self.db))
+        menue.aboutToShow.connect(lambda: [a.setVisible(teilen.zusammenarbeit(self.db))
                                            for a in (self.uebergeben_aktion, self.notiz_aktion, self.verlauf_aktion)])
+        menue.aboutToShow.connect(lambda: self.anfragen_aktion.setVisible(teilen.server(self.db)))
         self.vorgang_knopf.setMenu(menue)
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
@@ -668,6 +671,8 @@ class AngeboteSeite(QWidget):
         self._zeitraum_hinweis_setzen(self.db.angebote_anzahl() - len(alle) if seit and not such else 0)
         zeilen = []
         geteilt = teilen.aktiv(self.db)
+        # Serverbetrieb (S4b): „Meine Angebote“ = ich bin Bearbeiter (alte ohne Bearbeiter zählen mit)
+        ich_server = teilen.kuerzel(self.db) if teilen.server(self.db) else ""
         in_arbeit = {}
         if teilen.server(self.db):     # Serverbetrieb (S2): Angebote, die Kollegen gerade bearbeiten
             from . import server_mehrplatz
@@ -683,7 +688,8 @@ class AngeboteSeite(QWidget):
             z["_gueltig"], z["_abgelaufen"] = gueltig_bis(z, tage), abgelaufen(z, tage)
             if not passt(vorgang(z), z["_abgelaufen"], z):
                 continue
-            if wer == MEINE and z.get("fremd") or wer not in (MEINE, ALLE) and bearbeiter(z) != wer:
+            if wer == MEINE and (z.get("fremd") or ich_server and bearbeiter(z) not in ("", ich_server)) \
+                    or wer not in (MEINE, ALLE) and bearbeiter(z) != wer:
                 continue
             zeilen.append(z)
         self.modell.setzen(zeilen)
@@ -722,8 +728,9 @@ class AngeboteSeite(QWidget):
 
     def _wer_fuellen(self, alle):
         """Auswahl Meine/Alle/Kürzel nur, wenn geteilt wird oder Angebote anderer da sind. Ergebnis: Auswahl."""
-        kuerzel = sorted({bearbeiter(z) for z in alle if z.get("fremd")} - {None, ""})
-        eintraege = [MEINE, ALLE] + kuerzel if (kuerzel or teilen.aktiv(self.db)) else []
+        server = teilen.server(self.db)
+        kuerzel = sorted({bearbeiter(z) for z in alle if z.get("fremd") or server} - {None, "", teilen.kuerzel(self.db)})
+        eintraege = [MEINE, ALLE] + kuerzel if (kuerzel or teilen.zusammenarbeit(self.db)) else []
         sichtbar_jetzt = bool(eintraege)
         self.wer_filter.setVisible(sichtbar_jetzt)
         self.abgleich_knopf.setVisible(teilen.aktiv(self.db))
@@ -743,6 +750,14 @@ class AngeboteSeite(QWidget):
         if i is None or self._fremd(i, "Übergeben"):
             return False
         return teilen_fenster.uebergeben(self.f, i, an, notiz)
+
+    def uebernahme_anfragen(self, angebot_id=None, notiz=None):
+        """Vorgang → Übernahme anfragen (Serverbetrieb): den Bearbeiter des gewählten Angebots fragen."""
+        from . import teilen_fenster
+        i = angebot_id or self._gewaehlt()
+        if i is None:
+            return False
+        return teilen_fenster.anfragen(self.f, i, notiz)
 
     def notiz(self, angebot_id=None, an=None, text="", faellig=None):
         """Vorgang → Notiz an Kollegen: zum gewählten Angebot (auch eines Kollegen), wahlweise mit Wiedervorlage."""

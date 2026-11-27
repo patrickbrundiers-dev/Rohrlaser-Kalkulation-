@@ -458,10 +458,26 @@ def installation(db):
     return i
 
 
+def _sz():
+    """Zusammenarbeit am zentralen Server (S4b): Übergaben, Anfragen, Notizen und Kollegen in der Datenbank."""
+    from . import server_zusammenarbeit
+    return server_zusammenarbeit
+
+
+def zusammenarbeit(db):
+    """Übergeben, Notizen und Zuweisen möglich: gemeinsamer Ordner oder zentraler Server."""
+    return mehrplatz(db)
+
+
 def mitarbeiter(db, k=None):
     """{Kürzel: {name, email, telefon, stand, version}} aller bekannten Mitarbeiter (eigener Eintrag aus den
     Einstellungen); mit k nur dieser Eintrag (oder {})."""
     alle = dict(db.einstellung("teilen_mitarbeiter") or {})
+    if server(db):
+        try:
+            alle.update({kk: dict(alle.get(kk) or {}, name=n) for kk, n in _sz().kollegen(db).items()})
+        except db_verbindung.DbFehler as e:
+            fehlerprotokoll.warnung(f"Serverbetrieb: Kollegen nicht lesbar: {e}")
     ich = kuerzel(db)
     if ich:
         alle[ich] = dict(alle.get(ich) or {}, name=db.einstellung("benutzer_name") or "",
@@ -2116,14 +2132,19 @@ def _vorgang_neu(db, **werte):
 
 def vorgang_offen(db, nummer, art):
     """Eigener noch nicht umgesetzter Vorgang (Übergabe oder Anfrage) zu einer Nummer: dict mit id oder None."""
+    if server(db):
+        return _sz().vorgang_offen(db, nummer, art)
     for i, v in _vorgaenge(db).items():
         if v.get("nummer") == nummer and v.get("art") == art:
             return dict(v, id=i)
     return None
 
 
-def kollegen(db):
-    """{Kürzel: Name} der anderen Mitarbeiter (aus dem letzten Lesen)."""
+def kollegen(db, bearbeiten=False):
+    """{Kürzel: Name} der anderen Mitarbeiter (aus dem letzten Lesen; im Serverbetrieb: die Logins am Server,
+    bearbeiten: nur wer Angebote ändern darf)."""
+    if server(db):
+        return _sz().kollegen(db, bearbeiten)
     ich = kuerzel(db)
     return {k: (m or {}).get("name") or "" for k, m in sorted((db.einstellung("teilen_mitarbeiter") or {}).items())
             if k != ich}
@@ -2131,7 +2152,10 @@ def kollegen(db):
 
 def uebergeben(db, angebot_id, an, notiz="", bezug=None):
     """Eigenes Angebot an den Kollegen an übergeben: hier gleich nur noch zum Ansehen (fremd = an), der Kollege
-    übernimmt es beim nächsten Abgleich als eigenes. bezug: beantwortete Anfrage. Ergebnis: Kennung des Vorgangs."""
+    übernimmt es beim nächsten Abgleich als eigenes. bezug: beantwortete Anfrage. Ergebnis: Kennung des Vorgangs.
+    Serverbetrieb: der Kollege ist sofort der Bearbeiter (server_zusammenarbeit)."""
+    if server(db):
+        return _sz().uebergeben(db, angebot_id, an, notiz, bezug)
     from . import nummern
     a = db.angebot(angebot_id) or {}
     an = kuerzel_sauber(an)
@@ -2152,6 +2176,8 @@ def uebergeben(db, angebot_id, an, notiz="", bezug=None):
 def zuruecknehmen(db, angebot_id):
     """Übergabe, die der Kollege noch nicht übernommen hat, zurücknehmen: das Angebot ist wieder eigenes.
     Ergebnis: True, wenn eine offene Übergabe zurückgenommen wurde."""
+    if server(db):          # am Server gilt die Übergabe sofort: zurückgeben kann der Kollege
+        return False
     a = db.angebot(angebot_id) or {}
     v = vorgang_offen(db, a.get("nummer"), UEBERGABE)
     if v is None or a.get("fremd") != v.get("an"):
@@ -2168,6 +2194,8 @@ def zuruecknehmen(db, angebot_id):
 def anfragen(db, angebot_id, notiz=""):
     """Angebot eines Kollegen übernehmen wollen: Anfrage an den Bearbeiter (der wird beim Abgleich gefragt).
     Ergebnis: Kennung der Anfrage (eine schon offene bleibt)."""
+    if server(db):
+        return _sz().anfragen(db, angebot_id, notiz)
     a = db.angebot(angebot_id) or {}
     if not a.get("fremd"):
         raise TeilenFehler("Das Angebot gehört schon Ihnen.")
@@ -2180,6 +2208,8 @@ def anfragen(db, angebot_id, notiz=""):
 
 def beantworten(db, anfrage, ja, notiz=""):
     """Anfrage eines Kollegen (aus bericht['anfragen']) beantworten: ja = Angebot übergeben, sonst ablehnen."""
+    if server(db):
+        return _sz().beantworten(db, anfrage, ja, notiz)
     if ja:
         i = uebergeben(db, anfrage["angebot_id"], anfrage["von"], notiz or "auf Ihre Anfrage", bezug=anfrage["id"])
     else:
@@ -2307,7 +2337,9 @@ def dateien_stand(db):
 # ------------------------------------------------------------------ Notizen an Kollegen
 def notiz_senden(db, an, text, nummer=None, faellig=None):
     """Notiz an den Kollegen an (wahlweise zu einem Angebot, faellig = ISO-Datum der Wiedervorlage). Sie geht mit dem
-    nächsten Abgleich hinaus. Ergebnis: Kennung."""
+    nächsten Abgleich hinaus (im Serverbetrieb sofort). Ergebnis: Kennung."""
+    if server(db):
+        return _sz().notiz_senden(db, an, text, nummer, faellig)
     an, text = kuerzel_sauber(an), " ".join(str(text or "").split())
     if not an or an == kuerzel(db):
         raise TeilenFehler("Bitte einen Kollegen wählen.")
@@ -2320,6 +2352,8 @@ def notiz_senden(db, an, text, nummer=None, faellig=None):
 def notizen(db, offen_nur=False, heute=None):
     """Erhaltene Notizen, neueste zuerst; offen_nur: nicht erledigte. Jede bekommt 'faellig_jetzt' (ohne Datum oder
     Datum erreicht)."""
+    if server(db):
+        return _sz().notizen(db, offen_nur, heute)
     heute = (heute or datetime.date.today()).isoformat()
     out = []
     for n in db.einstellung(NOTIZEN) or []:
@@ -2330,6 +2364,8 @@ def notizen(db, offen_nur=False, heute=None):
 
 
 def notiz_erledigt(db, nid):
+    if server(db):
+        return _sz().notiz_erledigt(db, nid)
     alle = list(db.einstellung(NOTIZEN) or [])
     for n in alle:
         if n.get("id") == nid:
