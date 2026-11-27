@@ -485,6 +485,7 @@ def main(argv=None):
     app.setApplicationName(NAME)
     from . import marke
     app.setWindowIcon(marke.icon())     # Marke NexTube: Fenster und Taskleiste
+    marke.symbol_auffrischen(version=VERSION)   # Windows: neues Symbol auch in Eigenschaften/Taskleiste (27.11.2026)
     app.setStyle("Fusion")
     from .stil import ziffern_tabellarisch
     ziffern_tabellarisch(app)
