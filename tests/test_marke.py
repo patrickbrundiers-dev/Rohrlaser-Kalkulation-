@@ -1,4 +1,4 @@
-"""Marke NexTube (Branding B-1, Patrick 26.11.2026): Name an einer Stelle, Icon, nichts bricht. Fälle B1–B10.
+"""Marke NexTube (Branding B-1, Patrick 26.11.2026): Name an einer Stelle, Icon, nichts bricht. Fälle B1–B11.
 
 Aufruf: python tests/test_marke.py
 """
@@ -57,6 +57,28 @@ pruefe("lizenz_werkzeug:" in paket and "default: false" in paket.split("lizenz_w
        and "if: github.event_name == 'workflow_dispatch' && inputs.lizenz_werkzeug" in paket
        and "if: env.VEROEFFENTLICHEN && inputs.lizenz_werkzeug" in paket,
        "B10 Lizenz-Werkzeug.exe nur auf Wunsch gebaut (Haken beim Start von Hand, Vorgabe aus; Patrick 27.11.)")
+
+# B11 Windows-Symbol-Zwischenspeicher nach Update auffrischen (Patrick 27.11.: altes Logo in Eigenschaften/Taskleiste)
+import tempfile  # noqa: E402
+import types  # noqa: E402
+from unittest import mock  # noqa: E402
+
+aufrufe = []
+shell = types.SimpleNamespace(SHChangeNotify=lambda *a: aufrufe.append(a[0]))
+merker = Path(tempfile.mkdtemp()) / "symbol.txt"
+with mock.patch.object(sys, "platform", "win32"), \
+        mock.patch("ctypes.windll", types.SimpleNamespace(shell32=shell), create=True), \
+        mock.patch("subprocess.Popen") as popen:
+    erst = marke.symbol_auffrischen(exe="C:/NexTube/Rohrlaser-Angebotskalkulation.exe", version="0.9.552", merker=merker)
+    zweit = marke.symbol_auffrischen(exe="C:/NexTube/Rohrlaser-Angebotskalkulation.exe", version="0.9.552",
+                                     merker=merker)
+    neu = marke.symbol_auffrischen(exe="C:/NexTube/Rohrlaser-Angebotskalkulation.exe", version="0.9.553", merker=merker)
+pruefe(erst and not zweit and neu and aufrufe.count(0x08000000) == 2 and aufrufe.count(0x00002000) == 2,
+       f"B11 Symbol einmal je Version auffrischen ({aufrufe})")
+haupt = (PROGRAMM / "rohrlaser" / "__main__.py").read_text(encoding="utf-8")
+ausl = (PROGRAMM / "rl_auslastung" / "__main__.py").read_text(encoding="utf-8")
+pruefe("marke.symbol_auffrischen(" in haupt and "marke.symbol_auffrischen(" in ausl
+       and not marke.symbol_auffrischen(), "B11 beim Start beider Programme, außerhalb Windows ohne Wirkung")
 
 print()
 if fehler:

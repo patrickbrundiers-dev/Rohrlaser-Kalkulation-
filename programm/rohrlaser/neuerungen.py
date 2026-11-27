@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.552", "<b>Neues Logo auch in Windows</b>: Nach dem Update zeigte Windows in den Eigenschaften der "
+                "Programmdatei, im Explorer und in der Taskleiste noch das alte Symbol, weil Windows Symbole je Datei "
+                "zwischenspeichert. Beim ersten Start einer neuen Version meldet NexTube Windows die geänderte "
+                "Programmdatei und lässt die Symbole neu einlesen (ohne Adminrechte). Eine angeheftete Verknüpfung "
+                "zeigt das neue Logo spätestens nach dem nächsten Anmelden.",
+     "Logo NexTube auch in Eigenschaften und Taskleiste."],
     ["0.9.551", "<b>Menü › Hilfe und Ansicht bleiben vollständig</b>: Nach dem ersten Öffnen von <i>Menü › Hilfe</i> "
                 "waren alle Hilfe-Punkte weg und das Untermenü verschwand; dabei gingen auch Punkte aus <i>Ansicht</i> "
                 "verloren (z. B. <i>Einfacher Modus</i>), und der Knopf <i>⇄ Experten-Pro-Modus</i> meldete einen "

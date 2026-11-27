@@ -46,3 +46,44 @@ def pixmap(px):
     from PySide6.QtGui import QPixmap
     bild = QPixmap(str(ICON_PNG)) if ICON_PNG.is_file() else QPixmap()
     return bild.scaled(px, px, Qt.KeepAspectRatio, Qt.SmoothTransformation) if not bild.isNull() else bild
+
+
+def symbol_auffrischen(exe=None, version=None, merker=None):
+    """Windows zeigt nach einem Update oft weiter das alte Programmsymbol (Eigenschaften, Explorer, Taskleiste,
+    angeheftete Verknüpfungen): der Symbol-Zwischenspeicher von Windows merkt sich das Bild je Dateipfad, und die .exe
+    behält beim Update ihren Namen. Einmal je Version: Windows die geänderte .exe melden und den Zwischenspeicher neu
+    einlesen lassen (ie4uinit -show, ohne Adminrechte). Ergebnis: True, wenn aufgefrischt wurde (Patrick 27.11.2026)."""
+    import os
+    import subprocess
+    import sys
+    import tempfile
+    if sys.platform != "win32" or not getattr(sys, "frozen", False) and exe is None:
+        return False
+    exe = str(exe or sys.executable)
+    merker = Path(merker or Path(tempfile.gettempdir()) / f"NexTube_symbol_{Path(exe).stem}.txt")
+    stand = f"{version or ''}|{exe}"
+    try:
+        if merker.is_file() and merker.read_text(encoding="utf-8").strip() == stand:
+            return False
+    except OSError:
+        pass
+    try:
+        import ctypes
+        shell = ctypes.windll.shell32
+        shell.SHChangeNotify(0x00002000, 0x0005, ctypes.c_wchar_p(exe), None)    # SHCNE_UPDATEITEM, SHCNF_PATHW
+        shell.SHChangeNotify(0x08000000, 0x0000, None, None)                     # SHCNE_ASSOCCHANGED
+        windows = os.environ.get("SystemRoot") or os.environ.get("windir")
+        ie4 = Path(windows) / "System32" / "ie4uinit.exe" if windows else None
+        if ie4 is not None and ie4.is_file():
+            subprocess.Popen([str(ie4), "-show"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:      # noqa: BLE001 – nur Kosmetik, darf den Start nie stören
+        from . import protokoll
+        protokoll.warnung(f"Programmsymbol auffrischen: {type(e).__name__}: {e}")
+        return False
+    try:
+        merker.write_text(stand, encoding="utf-8")
+    except OSError as e:
+        from . import protokoll
+        protokoll.warnung(f"Programmsymbol: Merker nicht geschrieben ({e})")
+    return True

@@ -928,6 +928,10 @@ def kapitel_start(i):
            "Startmenü- und Desktop-Verknüpfungen durch <i>NexTube</i>. Nach einem reinen Online-Update behält eine "
            "alte Verknüpfung ihren bisherigen Namen und startet dasselbe Programm. Ab Version 3.14.0 heißt auch die "
            "Rohrlaser Auslastung <b>NexTube Auslastung</b> (gleiche Programmdatei <i>Rohrlaser-Auslastung.exe</i>, Update wie bisher über den Knopf <i>Nach Updates suchen</i>).")
+    i.text("Seit 0.9.552 lässt das Programm beim ersten Start einer neuen Version Windows die Symbole neu einlesen, "
+           "damit Eigenschaften der Programmdatei, Explorer und Taskleiste das Logo <i>NexTube</i> zeigen. Zeigt eine "
+           "angeheftete Verknüpfung danach noch das alte Bild: einmal ab- und wieder anmelden oder die Verknüpfung "
+           "lösen und neu anheften.")
     i.text("Deinstallieren: <i>Einstellungen → Apps → NexTube → Deinstallieren</i>. Entfernt "
            "werden nur die Programmdateien. Datendatei, Sicherungen und PDF bleiben, eine spätere Installation findet "
            "sie wieder.")
