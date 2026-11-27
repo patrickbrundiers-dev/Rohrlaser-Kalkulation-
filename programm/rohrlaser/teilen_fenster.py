@@ -263,7 +263,9 @@ def _vorgaenge_zeigen(fenster, bericht, leise):
             beantwortet = True
         except teilen.TeilenFehler as e:
             fenster.meldung(str(e), fehler=True)
-    if beantwortet:
+    if beantwortet and teilen.server(db):      # am Server gilt die Antwort sofort
+        fenster.alles_neu_laden()
+    elif beantwortet:
         try:
             teilen.schreiben(db, offen=offen_nummern(fenster))
         except (teilen.TeilenFehler, OSError) as e:
@@ -434,8 +436,9 @@ def notiz_senden(fenster, angebot_id=None, an=None, text="", faellig=None, vorsc
     """Notiz an einen Kollegen (ohne an: Dialog), gleich in den gemeinsamen Ordner. Ergebnis: True = gesendet."""
     db = fenster.db
     nummer = (db.angebot(angebot_id) or {}).get("nummer") if angebot_id else None
-    if not teilen.aktiv(db) or not teilen.kollegen(db):
-        fenster.meldung("Notizen gehen nur mit gemeinsamem Ordner und Kollegen darin.", fehler=True)
+    if not teilen.zusammenarbeit(db) or not teilen.kollegen(db):
+        fenster.meldung("Notizen gehen nur mit gemeinsamem Ordner oder zentralem Server und Kollegen darin.",
+                        fehler=True)
         return False
     if an is None:
         d = NotizDialog(fenster, nummer)
@@ -450,21 +453,48 @@ def notiz_senden(fenster, angebot_id=None, an=None, text="", faellig=None, vorsc
         fenster.meldung(str(e), fehler=True)
         return False
     fenster.meldung(f"Notiz an {an} gesendet" + (f" (Angebot {nummer})." if nummer else "."))
-    abgleichen(fenster, lesen=False, leise=True)
+    _senden(fenster)
     return True
+
+
+def _senden(fenster):
+    """Nach einem Vorgang: im Ordnerbetrieb gleich in den gemeinsamen Ordner schreiben; am Server ist er schon da."""
+    if not teilen.server(fenster.db):
+        abgleichen(fenster, lesen=False, leise=True)
+
+
+def server_vorgaenge(fenster):
+    """Serverbetrieb (S4b, beim Puls): Übergaben, Notizen, Absagen und Anfragen der Kollegen zeigen wie nach einem
+    Abgleich. Eine Anfrage wird je Sitzung einmal gefragt („Später“: beim nächsten Start wieder). Ergebnis: Bericht."""
+    from . import server_zusammenarbeit
+    db = fenster.db
+    bericht = server_zusammenarbeit.abholen(db)
+    gefragt = fenster.__dict__.setdefault("_server_anfragen_gefragt", set())
+    bericht["anfragen"] = [a for a in bericht["anfragen"] if a["id"] not in gefragt]
+    gefragt.update(a["id"] for a in bericht["anfragen"])
+    if not any(bericht[n] for n in ("uebernommen", "notizen", "abgelehnt", "anfragen")):
+        return bericht
+    if bericht["uebernommen"]:
+        fenster.alles_neu_laden()
+    if QApplication.activeModalWidget() is not None:        # nie in einen offenen Dialog fragen
+        gefragt.difference_update(a["id"] for a in bericht["anfragen"])
+        bericht["anfragen"] = []
+    _vorgaenge_zeigen(fenster, bericht, leise=True)
+    return bericht
 
 
 def uebergeben(fenster, angebot_id, an=None, notiz=""):
     """Angebot an einen Kollegen übergeben (ohne an: Dialog) und gleich abgleichen. Ergebnis: True = übergeben."""
     db = fenster.db
     a = db.angebot(angebot_id) or {}
-    if not teilen.aktiv(db):
-        fenster.meldung("Übergeben geht nur mit gemeinsamem Ordner (Datei → Benutzer und gemeinsamer Ordner …).",
-                        fehler=True)
+    if not teilen.zusammenarbeit(db):
+        fenster.meldung("Übergeben geht nur mit gemeinsamem Ordner (Datei → Benutzer und gemeinsamer Ordner …) oder "
+                        "am zentralen Server.", fehler=True)
         return False
     if an is None:
         if not teilen.kollegen(db):
-            fenster.meldung("Im gemeinsamen Ordner gibt es noch keine Kollegen.", fehler=True)
+            fenster.meldung("Am Server hat noch kein Kollege einen Zugang." if teilen.server(db) else
+                            "Im gemeinsamen Ordner gibt es noch keine Kollegen.", fehler=True)
             return False
         d = UebergebenDialog(fenster, a.get("nummer"))
         if fenster.stumm or d.exec() != QDialog.Accepted:
@@ -476,7 +506,7 @@ def uebergeben(fenster, angebot_id, an=None, notiz=""):
         fenster.meldung(str(e), fehler=True)
         return False
     fenster.meldung(f"Angebot {a.get('nummer')} an {an} übergeben.")
-    abgleichen(fenster, lesen=False, leise=True)
+    _senden(fenster)
     fenster.alles_neu_laden()
     return True
 
@@ -486,7 +516,7 @@ def zuruecknehmen(fenster, angebot_id):
         fenster.meldung("Der Kollege hat das Angebot schon übernommen.", fehler=True)
         return False
     fenster.meldung("Übergabe zurückgenommen: das Angebot gehört wieder Ihnen.")
-    abgleichen(fenster, lesen=False, leise=True)
+    _senden(fenster)
     fenster.alles_neu_laden()
     return True
 
@@ -494,14 +524,15 @@ def zuruecknehmen(fenster, angebot_id):
 def anfragen(fenster, angebot_id, notiz=None):
     """Übernahme eines Angebots beim Bearbeiter anfragen (ohne notiz: Eingabe) und gleich abgleichen."""
     a = fenster.db.angebot(angebot_id) or {}
+    wer = a.get("fremd") or a.get("bearbeiter") or ""
     if notiz is None:
         if fenster.stumm:
             notiz = ""
         else:
+            wann = "gleich" if teilen.server(fenster.db) else "beim nächsten Abgleich"
             notiz, gut = QInputDialog.getText(fenster, "Übernahme anfragen",
-                                              f"{_name(fenster.db, a.get('fremd'))} wird beim nächsten Abgleich "
-                                              f"gefragt, ob er Ihnen Angebot {a.get('nummer')} übergibt.\n\n"
-                                              "Notiz (darf leer sein):")
+                                              f"{_name(fenster.db, wer)} wird {wann} gefragt, ob er Ihnen Angebot "
+                                              f"{a.get('nummer')} übergibt.\n\nNotiz (darf leer sein):")
             if not gut:
                 return False
     try:
@@ -509,8 +540,8 @@ def anfragen(fenster, angebot_id, notiz=None):
     except teilen.TeilenFehler as e:
         fenster.meldung(str(e), fehler=True)
         return False
-    fenster.meldung(f"Übernahme von Angebot {a.get('nummer')} bei {a.get('fremd')} angefragt.")
-    abgleichen(fenster, lesen=False, leise=True)
+    fenster.meldung(f"Übernahme von Angebot {a.get('nummer')} bei {wer} angefragt.")
+    _senden(fenster)
     for seite in fenster.offen.values():
         if getattr(seite, "id", None) == angebot_id:
             seite._fremd_anzeigen()

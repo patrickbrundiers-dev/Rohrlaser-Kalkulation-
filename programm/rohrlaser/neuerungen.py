@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.544", "<b>Serverversion (Stufe 4b): Zusammenarbeit am Server</b>: <i>An Kollegen übergeben</i>, "
+                "<i>Übernahme anfragen</i> und <i>Notiz an Kollegen</i> laufen im Serverbetrieb direkt über die "
+                "Datenbank: der Kollege ist sofort der Bearbeiter, Meldungen und Rückfragen kommen innerhalb von 15 "
+                "Sekunden an, Notizen sind an jedem Arbeitsplatz des Empfängers gleich erledigt. <i>Meine Angebote</i> "
+                "zeigt die Angebote, deren Bearbeiter man ist; die Kollegen sind die Zugänge am Server. Anfragen aus "
+                "E-Mails lassen sich wie im Ordnerbetrieb zuweisen ([[admin_server]]).",
+     "Serverversion Stufe 4b: Übergeben, Übernahme anfragen, Notizen, Meine Angebote und Zuweisen am Server"],
     ["0.9.543", "<b>Serverversion (Stufe 4): Rechnen am Server</b>: Große STEP-Importe und die Vormessung neuer "
                 "Anfragen rechnet im Serverbetrieb der Rechner am Server (am Server-Rechner mit <i>--server rechnen"
                 "</i> starten). Das Ergebnis liegt im gemeinsamen Zwischenspeicher der Messung in der Ablage am "

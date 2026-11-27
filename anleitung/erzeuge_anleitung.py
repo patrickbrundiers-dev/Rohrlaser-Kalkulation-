@@ -13163,7 +13163,7 @@ def kapitel_einstellungen(i):
            "([[erp_preise]]) ist ab Werk aus. Die schon vorhandenen Schalter (Versand, Fertigung, "
            "Lager, Reststücke, PDF-Zeichnungen) stehen zusätzlich oben auf der Seite Funktionen; sie gelten an beiden "
            "Stellen gleich. Die Zusammenarbeit mit Kollegen (Übergeben, Notiz) erscheint ohnehin nur mit gemeinsamem "
-           "Ordner. Ein reiner Rohrbetrieb schaltet zum Beispiel <b>Bleche und Kantteile</b> ab; wer nie Preise "
+           "Ordner oder zentralem Server. Ein reiner Rohrbetrieb schaltet zum Beispiel <b>Bleche und Kantteile</b> ab; wer nie Preise "
            "durchspielt, auch <b>Preis-Simulator und Varianten</b>.")
     i.tabelle(["Funktion", "Was beim Ausschalten verschwindet"],
               [[f.titel, f.text] for f in funktionen.FUNKTIONEN], [55 * mm, BREITE - 55 * mm])
@@ -17304,13 +17304,27 @@ def kapitel_admin_datenbank(i):
          "Zeichen; eine PIN gibt es am Server nicht). Rolle <i>Administrator</i> = Verwalter am Server; eine Rolle "
          "mit <i>bearbeiten</i> in irgendeinem Bereich = bearbeiten; sonst nur lesen. <i>Sperren</i> sperrt auch "
          "die Anmeldung am Server. Der eigene Zugang und der letzte Verwalter sind geschützt."],
+        ["Meine Angebote", "Im Reiter Angebote zeigt <i>Meine Angebote</i> die Angebote, deren Bearbeiter man "
+         "selbst ist (alte ohne Bearbeiter zählen mit); die Auswahl nennt dazu jedes Kürzel einzeln. Wer ein "
+         "Angebot anlegt, ist sein Bearbeiter."],
+        ["Übergeben", "<i>Vorgang ▾ → An Kollegen übergeben …</i>: der Kollege ist sofort der Bearbeiter und bekommt "
+         "innerhalb von 15 Sekunden die Meldung (mit Notiz, auch als Windows-Meldung). Übergeben kann der Bearbeiter "
+         "(ein Verwalter jedes Angebot). Eine Rücknahme gibt es am Server nicht: der Kollege kann zurückgeben."],
+        ["Übernahme anfragen", "<i>Vorgang ▾ → Übernahme anfragen …</i> beim Angebot eines Kollegen: er wird "
+         "gleich gefragt (Fenster <i>Angebot übergeben?</i>: <b>Übergeben</b>, <b>Ablehnen</b> mit Begründung oder "
+         "<b>Später</b>, dann beim nächsten Start wieder). Die Absage kommt als Meldung zurück."],
+        ["Notizen, Zuweisen", "<i>Vorgang ▾ → Notiz an Kollegen …</i> (wahlweise mit Wiedervorlage) kommt innerhalb "
+         "von 15 Sekunden an; <i>erledigt</i> gilt an jedem Arbeitsplatz des Empfängers. Anfragen aus E-Mails "
+         "lassen sich wie im Ordnerbetrieb einem Kollegen zuweisen (auch automatisch). Wer nur <i>lesen</i> darf, "
+         "bekommt Notizen, sendet aber nichts."],
         ["Verlauf", "Änderungen an Angeboten (beim Schließen und alle 15 Sekunden) und in den Stammdaten-Tabellen "
-         "kommen mit dem Kürzel in den Änderungsverlauf. Anmelden, Abmelden, Übernahmen und Benutzeränderungen "
-         "stehen im Serverprotokoll."],
+         "kommen mit dem Kürzel in den Änderungsverlauf. Anmelden, Abmelden, Übernahmen, Übergaben und "
+         "Benutzeränderungen stehen im Serverprotokoll."],
     ], [38 * mm, 132 * mm])
     i.hinweis("Ausbaustand: Datenbank, Anmeldung, Rechte, Nummern, Einstellungen, die Zusammenarbeit "
-              "(Reservierung, Live, Benutzer), die Dateiablage und lange Rechnungen arbeiten zentral. Übergaben und "
-              "Zuweisungen an Kollegen und die automatische Serversicherung folgen in den nächsten Ausbaustufen. Bis dahin den "
+              "(Reservierung, Live, Benutzer, Übergaben, Notizen, Zuweisen), die Dateiablage und lange Rechnungen "
+              "arbeiten zentral. Die Übernahme der bisherigen Daten im großen Stil, der Lasttest mit 25 Plätzen und "
+              "die automatische Serversicherung folgen in den nächsten Ausbaustufen. Bis dahin den "
               "Serverbetrieb nur zum Erproben nutzen.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "

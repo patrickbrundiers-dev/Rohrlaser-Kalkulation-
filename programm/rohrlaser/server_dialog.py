@@ -361,6 +361,12 @@ def puls(fenster):
     if stand != merk.get("stand"):
         merk["stand"] = stand
         _liste_neu(fenster)
+    from . import teilen_fenster       # Übergaben, Notizen, Anfragen der Kollegen (S4b)
+    try:
+        teilen_fenster.server_vorgaenge(fenster)
+        teilen_fenster.wiedervorlagen_melden(fenster)
+    except db_verbindung.DbFehler as e:
+        fenster.meldung(f"Vorgänge der Kollegen nicht lesbar: {fehler_text(e)}", fehler=True)
     return halte
 
 
