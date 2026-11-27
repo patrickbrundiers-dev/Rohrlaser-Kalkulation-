@@ -3367,7 +3367,12 @@ def zusatz_werte(p, k, tabellen, kopf=None):
         if not arbeit_s and kz.get("fremd") != "ja" and art not in ("s/Stück", "€/Angebot", "€/h") and satz_zeit > 0:
             # Patrick 27.11.2026: eigene Zusatzarbeit ohne Zeitaufwand: Zeit = Preis ÷ Stundensatz (Einstellung
             # zusatz_stundensatz); ändert keinen Preis, nur Zeiten und Personalzeit
-            arbeit_s = wert / satz_zeit * 3600
+            basis = wert
+            if vk_fest(e):      # Preis = Verkauf: Zeit aus den internen Kosten, nicht aus dem Verkaufspreis
+                ke = float(e["kosten"]) if isinstance(e.get("kosten"), (int, float)) else (
+                    _n(kz.get("preis")) if stand else zusatz_preis(kz, saetze)["preis"])
+                basis = _n(menge) * ke
+            arbeit_s = basis / satz_zeit * 3600
         out.append(dict(name=e["name"], art=art, einheit=ZUSATZ_EINHEIT.get(art, ""), menge=menge, preis=preis,
                         betrag=0.0 if art in ("s/Stück", "€/Angebot") else wert,
                         pauschal=wert if art == "€/Angebot" else 0.0, zeit=wert if art == "s/Stück" else 0.0,

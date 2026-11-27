@@ -130,6 +130,9 @@ pz = dict(s.positionen[0], zusatz=json.dumps([dict(name="Test Festpreis eigen", 
 w = {z["name"]: z for z in rechnen.zusatz_werte(pz, s.k, tab, s.kopf)}
 assert nah(w["Test Festpreis eigen"]["betrag"], 6.0) and nah(w["Test Festpreis eigen"]["arbeit_s"], 360.0), w
 assert w["Test Festpreis fremd"]["arbeit_s"] == 0.0                     # Fremdleistung ohne Zeit
+pv = dict(pz, zusatz=json.dumps([dict(name="Test Festpreis eigen", menge=2, preis=5.0, vk="ja", kosten=2.0)]))
+wv = rechnen.zusatz_werte(pv, s.k, tab, s.kopf)[0]
+assert nah(wv["arbeit_s"], 240.0), wv["arbeit_s"]      # Preis = Verkauf: Zeit aus Kosten 2 × 2 €, nicht 2 × 5 €
 w0 = {z["name"]: z for z in rechnen.zusatz_werte(pz, s.k, dict(tab, einstellungen=dict(
     tab["einstellungen"], zusatz_stundensatz=0)), s.kopf)}
 assert w0["Test Festpreis eigen"]["arbeit_s"] == 0.0 and nah(w0["Test Festpreis eigen"]["betrag"], 6.0)   # 0 = aus
