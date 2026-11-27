@@ -377,13 +377,15 @@ class UebergebenDialog(QDialog):
         super().__init__(fenster)
         self.setWindowTitle(f"Angebot {nummer} übergeben")
         form = QFormLayout(self)
-        text = QLabel("Das Angebot gehört danach dem Kollegen; er übernimmt es beim nächsten Abgleich (spätestens "
+        text = QLabel("Das Angebot gehört danach sofort dem Kollegen; er bekommt gleich eine Meldung. Sie können es "
+                      "weiter ansehen." if teilen.server(fenster.db) else
+                      "Das Angebot gehört danach dem Kollegen; er übernimmt es beim nächsten Abgleich (spätestens "
                       "nach ein paar Minuten). Sie können es weiter ansehen und, solange er es noch nicht übernommen "
                       "hat, zurücknehmen.")
         text.setWordWrap(True)
         form.addRow(text)
         self.wer = QComboBox()
-        for k, name in teilen.kollegen(fenster.db).items():
+        for k, name in teilen.kollegen(fenster.db, bearbeiten=True).items():
             self.wer.addItem(f"{k} – {name}" if name else k, k)
         self.notiz = QLineEdit()
         self.notiz.setPlaceholderText("z. B. bitte fertig rechnen, Kunde ruft morgen an")
@@ -492,8 +494,8 @@ def uebergeben(fenster, angebot_id, an=None, notiz=""):
                         "am zentralen Server.", fehler=True)
         return False
     if an is None:
-        if not teilen.kollegen(db):
-            fenster.meldung("Am Server hat noch kein Kollege einen Zugang." if teilen.server(db) else
+        if not teilen.kollegen(db, bearbeiten=True):
+            fenster.meldung("Am Server hat noch kein Kollege einen Zugang, der Angebote bearbeiten darf." if teilen.server(db) else
                             "Im gemeinsamen Ordner gibt es noch keine Kollegen.", fehler=True)
             return False
         d = UebergebenDialog(fenster, a.get("nummer"))

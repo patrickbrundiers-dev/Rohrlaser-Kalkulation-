@@ -107,12 +107,13 @@ try:
     assert b["uebernommen"] == [dict(nummer=nr1, von="PB", notiz="bitte fertig machen", id=a1)], b
     assert sz.abholen(db2)["uebernommen"] == [], "Meldung nur einmal"
     a0 = db1.angebot_neu(dict(kunde="Kunde Null"))
-    assert "übergeben kann nur der Bearbeiter" in fehler(teilen.uebergeben, db2, a0, "LL")
+    assert "übergeben kann nur der Bearbeiter" in fehler(teilen.uebergeben, db2, a0, "PB")
     a2 = db2.angebot_neu(dict(kunde="Kunde Zwei"))
     assert db2.angebot(a2)["bearbeiter"] == "AB"
-    teilen.uebergeben(db1, a2, "LL")                    # Verwalter darf fremde Angebote übergeben
-    assert db1.angebot(a2)["bearbeiter"] == "LL"
-    teilen.uebergeben(db1, a2, "AB")
+    assert "bearbeiten darf" in fehler(teilen.uebergeben, db1, a2, "LL"), "nie an einen Nur-Lesen-Zugang"
+    assert set(teilen.kollegen(db1, bearbeiten=True)) == {"AB"}
+    teilen.uebergeben(db1, a2, "AB")    # Verwalter darf fremde Angebote übergeben
+    assert db1.angebot(a2)["bearbeiter"] == "AB"
     ok("Übergabe: Bearbeiter wechselt sofort, Meldung einmal beim Empfänger, Verwalter darf auch fremde")
 
     # ------------------------------------------------------------------ Übernahme anfragen
@@ -150,6 +151,24 @@ try:
     teilen.notiz_erledigt(db2b, n[0]["id"])
     assert [x["notiz"] for x in teilen.notizen(db2, offen_nur=True)] == ["Bitte Kunde anrufen"]
     assert teilen.notizen(db1) == [], "fremde Notizen sieht niemand"
+    # Nur-Lesen: bekommt Notizen und hakt sie ab, ändert aber keine Zeile eines Kollegen
+    teilen.notiz_senden(db1, "LL", "Säge prüfen")
+    nl = teilen.notizen(db3, offen_nur=True)
+    assert [x["notiz"] for x in nl] == ["Säge prüfen"]
+    teilen.notiz_erledigt(db3, nl[0]["id"])
+    assert teilen.notizen(db3, offen_nur=True) == []
+    sz.notiz_erledigt(db3, n[1]["id"])                  # Notiz an AB: bleibt offen
+    assert [x["notiz"] for x in teilen.notizen(db2, offen_nur=True)] == ["Bitte Kunde anrufen"]
+    from rohrlaser import db_verbindung
+    db_verbindung.nur_lesen(db3.con, False)             # auch ohne den Lesemodus des Programms: der Server verbietet es
+    try:
+        with db3.con:
+            db3.con.execute(f"UPDATE {sz.VORGAENGE} SET notiz='weg', an='LL'")
+        raise AssertionError("Nur-Lesen ändert Vorgänge")
+    except db_verbindung.DbFehler as e:
+        assert "permission denied" in str(e.__cause__ or e).lower(), repr(e.__cause__ or e)
+    finally:
+        db_verbindung.nur_lesen(db3.con, True)
     ok("Notizen mit Wiedervorlage; erledigt am Server gilt an jedem Platz; Nur-Lesen sendet nichts")
 
     # ------------------------------------------------------------------ Oberfläche

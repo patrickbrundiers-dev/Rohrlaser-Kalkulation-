@@ -17309,7 +17309,7 @@ def kapitel_admin_datenbank(i):
          "Angebot anlegt, ist sein Bearbeiter."],
         ["Übergeben", "<i>Vorgang ▾ → An Kollegen übergeben …</i>: der Kollege ist sofort der Bearbeiter und bekommt "
          "innerhalb von 15 Sekunden die Meldung (mit Notiz, auch als Windows-Meldung). Übergeben kann der Bearbeiter "
-         "(ein Verwalter jedes Angebot). Eine Rücknahme gibt es am Server nicht: der Kollege kann zurückgeben."],
+         "(ein Verwalter jedes Angebot), und zwar an Kollegen, die Angebote bearbeiten dürfen. Eine Rücknahme gibt es am Server nicht: der Kollege kann zurückgeben."],
         ["Übernahme anfragen", "<i>Vorgang ▾ → Übernahme anfragen …</i> beim Angebot eines Kollegen: er wird "
          "gleich gefragt (Fenster <i>Angebot übergeben?</i>: <b>Übergeben</b>, <b>Ablehnen</b> mit Begründung oder "
          "<b>Später</b>, dann beim nächsten Start wieder). Die Absage kommt als Meldung zurück."],

@@ -21,6 +21,7 @@ from . import server_betrieb as sb
 from .teilen import TeilenFehler as Fehler
 
 VORGAENGE = "server_vorgaenge"
+FUNKTION_QUITTIEREN = "rl_vorgang_quittieren"
 UEBERGABE, ANFRAGE, ABGELEHNT, NOTIZ = "uebergabe", "anfrage", "abgelehnt", "notiz"     # wie teilen.py
 NOTIZEN_MAX = 200
 _SPALTEN = ("id", "art", "nummer", "angebot_id", "von", "an", "notiz", "faellig", "bezug", "zeit", "gesehen",
@@ -34,8 +35,23 @@ def einrichten(con):
                 "angebot_id BIGINT, von TEXT NOT NULL, an TEXT NOT NULL, notiz TEXT, faellig TEXT, bezug BIGINT, "
                 "zeit TIMESTAMPTZ DEFAULT now(), gesehen BOOLEAN DEFAULT false, erledigt BOOLEAN DEFAULT false)")
     con.execute(f"CREATE INDEX IF NOT EXISTS {VORGAENGE}_an ON {VORGAENGE} (an, erledigt, id)")
-    # wer nur ansehen darf, liest seine Notizen und hakt sie ab (schickt aber nichts)
-    con.execute(f'GRANT SELECT, UPDATE ON {VORGAENGE} TO "{sb.ROLLE_LESEN}"')
+    # Quittieren (gesehen/erledigt) nur eigener Zeilen über eine Serverfunktion: wer nur ansehen darf, liest seine
+    # Notizen und hakt sie ab, kann aber keine Zeile eines Kollegen ändern (kein UPDATE-Recht auf die Tabelle)
+    con.execute(f"""CREATE OR REPLACE FUNCTION {FUNKTION_QUITTIEREN}(ids bigint[], fertig boolean)
+        RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $f$
+        DECLARE n integer;
+        BEGIN
+          UPDATE {VORGAENGE} SET gesehen = true, erledigt = erledigt OR fertig
+           WHERE id = ANY(ids) AND (lower('{sb.LOGIN_PRAEFIX}' || an) = session_user::text
+                                    OR upper(substr(session_user::text, {len(sb.LOGIN_PRAEFIX) + 1})) = an);
+          GET DIAGNOSTICS n = ROW_COUNT;
+          RETURN n;
+        END $f$""")
+    con.execute(f"REVOKE ALL ON FUNCTION {FUNKTION_QUITTIEREN}(bigint[], boolean) FROM PUBLIC")
+    con.execute(f'REVOKE UPDATE ON {VORGAENGE} FROM "{sb.ROLLE_LESEN}"')
+    con.execute(f'GRANT SELECT ON {VORGAENGE} TO "{sb.ROLLE_LESEN}"')
+    for rolle in (sb.ROLLE_LESEN, sb.ROLLE_APP):
+        con.execute(f'GRANT EXECUTE ON FUNCTION {FUNKTION_QUITTIEREN}(bigint[], boolean) TO "{rolle}"')
 
 
 def _s(db):
@@ -61,12 +77,31 @@ def _schreiben_pruefen(db):
         raise Fehler("Mit dem Zugang „nur ansehen“ lassen sich keine Angebote übergeben und keine Notizen senden.")
 
 
+def _quittieren(db, ids, fertig=False):
+    """Eigene Vorgänge als gesehen (fertig: erledigt) vermerken; nur Zeilen an den angemeldeten Mitarbeiter."""
+    if not ids:
+        return
+    from . import db_verbindung
+    lesen = bool(db.nur_lesen) and not db.con.in_transaction
+    if lesen:       # Lesemodus: nur dieser Aufruf schreibt; was er darf, entscheidet der Server (nur eigene Zeilen)
+        db_verbindung.nur_lesen(db.con, False)
+    try:
+        with db.con:
+            db.con.execute(f"SELECT {FUNKTION_QUITTIEREN}(?::bigint[], ?)", (list(map(int, ids)), bool(fertig)))
+    finally:
+        if lesen:
+            db_verbindung.nur_lesen(db.con, True)
+
+
 # ------------------------------------------------------------------------------------------------ Kollegen
-def kollegen(db):
-    """{Kürzel: Name} der anderen Mitarbeiter mit Login am Server (gesperrte nicht)."""
+def kollegen(db, bearbeiten=False):
+    """{Kürzel: Name} der anderen Mitarbeiter mit Login am Server (gesperrte nicht); bearbeiten: nur wer Angebote
+    ändern darf (Ziel einer Übergabe; wer nur ansehen darf, bekommt nur Notizen)."""
     ich = _s(db).kuerzel
+    rechte = (sb.RECHT_BEARBEITEN, sb.RECHT_VERWALTER) if bearbeiten else (sb.RECHT_BEARBEITEN, sb.RECHT_VERWALTER,
+                                                                           sb.RECHT_LESEN)
     return {b["kuerzel"]: b.get("name") or "" for b in sb.benutzer_liste(db.con.v.con)
-            if b["kuerzel"] and b["kuerzel"] != ich and not b.get("gesperrt") and b.get("recht")}
+            if b["kuerzel"] and b["kuerzel"] != ich and not b.get("gesperrt") and b.get("recht") in rechte}
 
 
 def name(db, k):
@@ -91,8 +126,9 @@ def uebergeben(db, angebot_id, an, notiz="", bezug=None):
     an = teilen.kuerzel_sauber(an)
     if not an or an == s.kuerzel:
         raise Fehler("Bitte einen Kollegen wählen.")
-    if an not in kollegen(db):
-        raise Fehler(f"{an} hat keinen Zugang am Server (Einstellungen → Benutzer und Rollen).")
+    if an not in kollegen(db, bearbeiten=True):
+        raise Fehler(f"{an} hat keinen Zugang am Server, der Angebote bearbeiten darf (Einstellungen → Benutzer "
+                     "und Rollen).")
     if a["bearbeiter"] and a["bearbeiter"] != s.kuerzel and not s.verwalter:
         raise Fehler(f"Angebot {a['nummer']} bearbeitet {a['bearbeiter']}: übergeben kann nur der Bearbeiter. "
                      "„Übernahme anfragen …“ fragt ihn.")
@@ -129,8 +165,7 @@ def beantworten(db, anfrage, ja, notiz=""):
         with db.con:
             i = _neu(db, ABGELEHNT, anfrage["von"], anfrage["nummer"], anfrage["angebot_id"], notiz,
                      bezug=anfrage["id"])
-    with db.con:
-        db.con.execute(f"UPDATE {VORGAENGE} SET erledigt=true, gesehen=true WHERE id=?", (anfrage["id"],))
+    _quittieren(db, [anfrage["id"]], fertig=True)
     return i
 
 
@@ -172,9 +207,7 @@ def notizen(db, offen_nur=False, heute=None):
 
 
 def notiz_erledigt(db, nid):
-    with db.con:
-        db.con.execute(f"UPDATE {VORGAENGE} SET erledigt=true, gesehen=true WHERE id=? AND an=?",
-                       (nid, _s(db).kuerzel))
+    _quittieren(db, [nid], fertig=True)
 
 
 def abholen(db):
@@ -206,11 +239,8 @@ def abholen(db):
         else:
             erledigt.append(v["id"])            # gehört (inzwischen) nicht mehr mir: nichts zu fragen
     if (gesehen or erledigt) and not db.con.in_transaction:
-        with db.con:
-            for i in gesehen:
-                db.con.execute(f"UPDATE {VORGAENGE} SET gesehen=true WHERE id=?", (i,))
-            for i in erledigt:
-                db.con.execute(f"UPDATE {VORGAENGE} SET erledigt=true, gesehen=true WHERE id=?", (i,))
+        _quittieren(db, gesehen)
+        _quittieren(db, erledigt, fertig=True)
     return out
 
 

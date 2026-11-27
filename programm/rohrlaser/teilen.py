@@ -2140,10 +2140,11 @@ def vorgang_offen(db, nummer, art):
     return None
 
 
-def kollegen(db):
-    """{Kürzel: Name} der anderen Mitarbeiter (aus dem letzten Lesen; im Serverbetrieb: die Logins am Server)."""
+def kollegen(db, bearbeiten=False):
+    """{Kürzel: Name} der anderen Mitarbeiter (aus dem letzten Lesen; im Serverbetrieb: die Logins am Server,
+    bearbeiten: nur wer Angebote ändern darf)."""
     if server(db):
-        return _sz().kollegen(db)
+        return _sz().kollegen(db, bearbeiten)
     ich = kuerzel(db)
     return {k: (m or {}).get("name") or "" for k, m in sorted((db.einstellung("teilen_mitarbeiter") or {}).items())
             if k != ich}
