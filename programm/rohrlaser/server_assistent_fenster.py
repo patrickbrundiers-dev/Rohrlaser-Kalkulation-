@@ -1,6 +1,7 @@
 """Fenster des Server-Einrichtungs-Assistenten (server_assistent): fünf Seiten Angaben, eine Seite Ausführen mit
 Fortschritt je Schritt, Ergebnis mit Zugangsdatei und Fingerabdruck. Die Arbeit macht server_assistent.ausfuehren
 in einem eigenen Faden, das Fenster bleibt dabei bedienbar."""
+import logging
 import os
 import threading
 from pathlib import Path
@@ -317,7 +318,7 @@ def starten():
         from . import marke
         app.setWindowIcon(marke.icon())
     except Exception:       # noqa: BLE001 - ohne Symbol geht es auch
-        pass
+        logging.getLogger(__name__).debug("Server-Assistent: Fenstersymbol nicht gesetzt", exc_info=True)
     w = Assistent()
     w.show()
     app.exec()

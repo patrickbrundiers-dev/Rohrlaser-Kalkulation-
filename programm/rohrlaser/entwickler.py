@@ -90,7 +90,7 @@ def anmelden(passwort, db=None, wo=""):
         from . import protokoll
         protokoll.warnung("Entwickler-Zugang genutzt" + (f" – {wo}" if wo else ""))
     except Exception:       # noqa: BLE001 - ohne Protokoll weiterarbeiten
-        pass
+        logging.getLogger(__name__).debug("Entwickler-Zugang: Protokolleintrag nicht möglich", exc_info=True)
     return True
 
 
