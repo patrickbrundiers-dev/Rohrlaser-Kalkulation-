@@ -101,6 +101,12 @@ def erstellen(db, ziel_ordner=None, protokoll_ordner=None, lizenz_text=None, sys
         except Exception as e:      # noqa: BLE001 – Support-Paket entsteht auch ohne Diagnose
             from . import protokoll
             protokoll.warnung(f"Diagnose für das Support-Paket: {type(e).__name__}: {e}")
+        try:                                    # Fenster und Menüs, die gerade offen sind (27.11.2026)
+            from . import geister
+            z.writestr("fenster.txt", geister.fenster_bericht())
+            dateien.append("fenster.txt")
+        except Exception:           # noqa: BLE001 – ohne Oberfläche (Auslastung, Tests): ohne fenster.txt
+            pass
         for name, inhalt in (("info.txt", info_text(db, lizenz_text)), ("systempruefung.txt", system_text(system)),
                              ("einstellungen.json", json.dumps(einstellungen_sauber(db), ensure_ascii=False,
                                                                indent=1, default=str))):

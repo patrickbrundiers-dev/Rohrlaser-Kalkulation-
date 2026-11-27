@@ -1615,9 +1615,12 @@ def anwenden(f, neu):
     f.modus_knopf.setText(f"⇄ {bm.TITEL[neu]}")
     aktion = getattr(f, "modus_aktion", None)
     if aktion is not None:
-        aktion.blockSignals(True)
-        aktion.setChecked(neu == bm.EINFACH)
-        aktion.blockSignals(False)
+        try:                            # Menüpunkt kann fehlen (Menü neu aufgebaut): Umschalten geht trotzdem
+            aktion.blockSignals(True)
+            aktion.setChecked(neu == bm.EINFACH)
+            aktion.blockSignals(False)
+        except RuntimeError:
+            f.modus_aktion = None
     if alt is not None and alt != neu:
         f.meldung(f"{bm.TITEL[neu]} – gilt für Sie an diesem Arbeitsplatz. Umschalten: {TASTE.replace('Ctrl', 'Strg')} "
                   "oder unten rechts.")

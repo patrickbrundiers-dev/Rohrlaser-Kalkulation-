@@ -733,6 +733,9 @@ def kapitel_start(i):
            "<i>Daten/Support</i> eine ZIP-Datei an mit Fehlerprotokoll, Version, Lizenzstand, Systemprüfung und "
            "Einstellungen, ohne Kunden, Preise und Passwörter, und öffnet den Ordner. Die Datei schickt man selbst "
            "per Mail an den Support.", kurz=True)
+    i.text("Seit 0.9.551 liegt auch <i>fenster.txt</i> bei: welche Fenster gerade offen sind, welches aktiv ist, ob ein "
+           "Menü offen steht und welche Knöpfe (Schließen, Minimieren, Maximieren) die Titelleiste hat. Lässt sich ein "
+           "Fenster nicht schließen, das Paket erstellen, solange das Problem zu sehen ist.")
     i.liste("Haken <i>Offenes Angebot beilegen</i> (Vorgabe aus): Kopf und Positionen des gerade offenen Angebots "
             "kommen als angebot.json dazu, wenn der Fehler nur bei diesem Angebot auftritt.",
             "<b>Prüfsammlung (seit 0.9.272):</b> stellt man im STEP-Prüfdialog die Art eines Teils von Hand um (z. B. "

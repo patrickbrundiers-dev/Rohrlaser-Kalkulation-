@@ -47,6 +47,18 @@ def thema(text):
     return "Datei"
 
 
+def leeren(menue):
+    """Menü leeren, ohne fremde Menüpunkte zu zerstören. Nie QMenu.clear() auf Menüs mit geliehenen QAction-Objekten:
+    PySide6 gibt beim clear() den Besitz der Punkte an Python ab und löscht sie gleich danach (Supportpaket 27.11.2026:
+    nach dem ersten Öffnen von Menü › Hilfe waren alle Hilfe-Punkte und „Einfacher Modus“ weg, das leere Untermenü
+    verschwand, ein leeres Menü blieb offen und schluckte Klicks). Eigene Trenner des Menüs werden gelöscht."""
+    for a in list(menue.actions()):
+        menue.removeAction(a)
+        if a.parent() is menue:
+            a.deleteLater()
+    return menue
+
+
 def _name(menue_aktion):
     return menue_aktion.text().replace("&", "").strip()
 
@@ -82,7 +94,7 @@ class Kopfleiste:
 
     def aufbauen(self):
         """Menü neu zusammenstellen (bei jedem Öffnen: Menüs anderer Teile, z. B. Hauptadmin, kommen später dazu)."""
-        self.menue.clear()
+        leeren(self.menue)
         for m in self._themen.values():
             m.deleteLater()
         self._themen = {}
@@ -126,7 +138,7 @@ class Kopfleiste:
 
         def fuellen():
             original.aboutToShow.emit()
-            m.clear()
+            leeren(m)
             for a in original.actions():
                 m.addAction(a)
         m.aboutToShow.connect(fuellen)

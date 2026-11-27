@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.551", "<b>Menü › Hilfe und Ansicht bleiben vollständig</b>: Nach dem ersten Öffnen von <i>Menü › Hilfe</i> "
+                "waren alle Hilfe-Punkte weg und das Untermenü verschwand; dabei gingen auch Punkte aus <i>Ansicht</i> "
+                "verloren (z. B. <i>Einfacher Modus</i>), und der Knopf <i>⇄ Experten-Pro-Modus</i> meldete einen "
+                "unerwarteten Fehler. Das Menü baut jetzt um, ohne Punkte zu löschen. Das Support-Paket enthält neu "
+                "<i>fenster.txt</i> (offene Fenster, aktives Menü, Knöpfe der Titelleiste).",
+     "Menü › Hilfe funktioniert dauerhaft; Umschalten Einfach/Experte ohne Fehler."],
     ["0.9.550", "<b>Hilfe und Tooltips unter Windows repariert</b> ([[vorgaben]]): Tooltips und die Hilfe im Modus "
                 "<i>nur Tooltip</i> standen ohne Rand in der Fensterfarbe da und zeigten oft nur die erste Zeile, "
                 "Reste blieben über Tabellen stehen. Jetzt mit Rand und Innenabstand im Theme, immer ganz, lange Texte "

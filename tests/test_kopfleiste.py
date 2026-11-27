@@ -6,7 +6,8 @@ K2 Tastenkürzel der Menüpunkte lösen im kompakten Modus aus; Alt+Buchstabe is
 K3 Ansicht → Klassische Menüleiste zeigt die alten Menüs (gemerkt in leiste_menue), zurück auf kompakt;
 K4 Hauptadmin-Menü bleibt bis zur Anmeldung verborgen, auch im Knopf;
 K5 Zähler in der Seitenleiste (setzen, ausblenden, 99+); Werkzeugleiste ist ab Werk aus;
-K6 Startseite: Begrüßung nach Tageszeit, Hinweisband bei Beispiel-Stammdaten; Befehlssuche nennt das Thema.
+K6 Startseite: Begrüßung nach Tageszeit, Hinweisband bei Beispiel-Stammdaten; Befehlssuche nennt das Thema;
+K7 Untermenüs öffnen beliebig oft, ohne Punkte zu löschen (Supportpaket 27.11.2026: Hilfe leer, Einfacher Modus weg).
 Aufruf: python tests/test_kopfleiste.py (mit PostgreSQL wie die übrigen Fenster-Tests)
 """
 import datetime
@@ -144,5 +145,35 @@ pruefe(any(n == "Daten und Abgleich" and b.text() == "Mit den Kollegen abgleiche
        and not any(n == "Datei" and b.text().startswith("KI-") for n, b in eintraege), "K6 Befehlssuche nennt das Thema")
 
 f.close()
+# K7 Spiegel-Untermenüs (Hilfe, Ansicht) mehrfach öffnen: Punkte bleiben, Umschalten Einfach/Experte geht
+import gc  # noqa: E402
+
+from rohrlaser import einfach_seite  # noqa: E402
+
+hilfe_orig = next(a.menu() for n, a in k.originale() if n == "Hilfe")
+anzahl = len(hilfe_orig.actions())
+for _ in range(3):
+    m = k.aufbauen()
+    for a in m.actions():
+        if a.text() in ("Hilfe", "Ansicht") and a.menu() is not None:
+            a.menu().aboutToShow.emit()
+    gc.collect()
+    QTest.qWait(20)
+m = k.aufbauen()
+spiegel = next(a for a in m.actions() if a.text() == "Hilfe")
+pruefe(len(hilfe_orig.actions()) == anzahl and anzahl > 5 and spiegel.isVisible()
+       and len(spiegel.menu().actions()) == anzahl, f"K7 Hilfe nach 3× Öffnen vollständig ({len(hilfe_orig.actions())}/{anzahl})")
+try:
+    f.modus_aktion.text()
+    lebt = True
+except RuntimeError:
+    lebt = False
+pruefe(lebt, "K7 Menüpunkt Einfacher Modus besteht noch")
+einfach_seite.umschalten(f)
+einfach_seite.umschalten(f)
+pruefe(f.modus is not None, "K7 Umschalten Einfach/Experte ohne Fehler")
+probe = kopfleiste.leeren(m)
+pruefe(not probe.actions() and len(hilfe_orig.actions()) == anzahl, "K7 leeren() lässt fremde Punkte bestehen")
+
 print("\n" + ("ALLE PRÜFUNGEN OK" if not fehler else f"{len(fehler)} FEHLER"))
 sys.exit(1 if fehler else 0)

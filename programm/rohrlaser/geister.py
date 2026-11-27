@@ -140,3 +140,37 @@ def einrichten(app=None):
             atexit.register(_ausgeben)
         ereignis_verteiler.anmelden(_wache, (QEvent.Show, QEvent.Hide, QEvent.Move, QEvent.ParentChange), app)
     return _wache
+
+
+def fenster_bericht():
+    """Text für das Support-Paket (fenster.txt): alle sichtbaren Fenster der Anwendung mit Art, Knöpfen der Titelleiste,
+    Sperre (modal) und welches Fenster/Menü gerade aktiv ist. Hilft bei „X zum Schließen ohne Funktion“ (27.11.2026):
+    ein aktives Menü/Fenster, das Klicks abfängt, steht hier mit „aktiv“ bzw. „Popup“."""
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance()
+    if app is None:
+        return "Keine Oberfläche.\n"
+    aktiv, popup, modal = app.activeWindow(), app.activePopupWidget(), app.activeModalWidget()
+
+    def name(w):
+        if w is None:
+            return "–"
+        titel = w.windowTitle() or (w.title() if hasattr(w, "title") else "") or w.objectName() or ""
+        return f"{type(w).__name__} „{titel.replace('&', '')[:60]}“"
+    zeilen = [f"Aktives Fenster: {name(aktiv)}", f"Offenes Menü/Popup: {name(popup)}", f"Sperrendes Fenster: {name(modal)}",
+              "", "Sichtbare Fenster (Art | Titelleiste | Sperre | Größe)"]
+    for w in QApplication.topLevelWidgets():
+        try:
+            if not w.isVisible():
+                continue
+            fl = w.windowFlags()
+            knoepfe = "".join(z for z, h in (("X", Qt.WindowCloseButtonHint), ("_", Qt.WindowMinimizeButtonHint),
+                                             ("□", Qt.WindowMaximizeButtonHint), ("T", Qt.WindowTitleHint),
+                                             ("M", Qt.WindowSystemMenuHint), ("C", Qt.CustomizeWindowHint),
+                                             ("F", Qt.FramelessWindowHint)) if fl & h)
+            g = w.geometry()
+            zeilen.append(f"  {name(w)} | {w.windowType().name} | {knoepfe} | {w.windowModality().name}"
+                          f"{' | gesperrt' if not w.isEnabled() else ''} | {g.width()}×{g.height()} bei {g.x()},{g.y()}")
+        except RuntimeError:
+            continue
+    return "\n".join(zeilen) + "\n"
