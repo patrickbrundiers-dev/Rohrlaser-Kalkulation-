@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.553", "<b>Serversicherung lückenlos</b> (Serverversion): Jede Sicherung enthält jetzt auch die Ablage und die "
+                "Server-Einstellungen (Zertifikate, Zugangsdatei). Mit <i>sicherungsziel --pfad</i> geht jede gute "
+                "Sicherung zusätzlich auf ein NAS, Datei für Datei per SHA-256 geprüft. Gesichert wird um 12:30 und "
+                "22:30 Uhr; war der Server aus, wird nachgeholt. Aufbewahrt werden 14 Tage, 8 Wochen und 12 Monate. "
+                "<i>zurueckholen</i> holt die Ablage mit zurück, <i>--mit-zertifikat</i> stellt einen neuen Server "
+                "komplett her. Ergebnisse stehen im Windows-Ereignisprotokoll. Neu: <i>IT-Handbuch_Server.pdf</i>.",
+     "Sicherung übersteht Bedienfehler, Plattenausfall und neuen Server-Rechner."],
     ["0.9.552", "<b>Neues Logo auch in Windows</b>: Nach dem Update zeigte Windows in den Eigenschaften der "
                 "Programmdatei, im Explorer und in der Taskleiste noch das alte Symbol, weil Windows Symbole je Datei "
                 "zwischenspeichert. Beim ersten Start einer neuen Version meldet NexTube Windows die geänderte "
