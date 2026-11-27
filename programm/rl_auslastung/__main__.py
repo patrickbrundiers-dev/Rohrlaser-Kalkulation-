@@ -149,6 +149,8 @@ def main(argv=None):
     app.setApplicationName(NAME)
     from rohrlaser import marke
     app.setWindowIcon(marke.icon())     # Marke NexTube
+    from . import VERSION as _version
+    marke.symbol_auffrischen(version=_version)   # Windows: neues Symbol auch in Eigenschaften/Taskleiste
     mausrad.einrichten(app)        # das Mausrad rollt die Seite und ändert nie einen Wert (Patrick 11.11.2026)
     try:
         db = daten.Daten(ort.datenbank())
