@@ -6,7 +6,7 @@ Laufzeit; dazu frei anlegbare Zusatzfelder. Eigene Datenbankdatei (daten.py), Re
 wochen, feiertage, stil (mit design), auslastung_grafik und mausrad gebraucht, für das Online-Update (aktualisierung.py)
 zusätzlich update und update_schluessel, für den Datenspeicher je PC (speicher.py: SQLite-Datei oder PostgreSQL auf
 diesem PC) db_verbindung, datenspeicher, pg_lokal und db_kopie."""
-VERSION = "3.13.0"
+VERSION = "3.14.0"
 from rohrlaser.marke import NAME_AUSLASTUNG as NAME  # noqa: E402,F401  (Marke NexTube, B-1)
 from rohrlaser.marke import PROGRAMM_ID_AUSLASTUNG as PROGRAMM_ID  # noqa: E402,F401  Update.json, nie ändern
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
