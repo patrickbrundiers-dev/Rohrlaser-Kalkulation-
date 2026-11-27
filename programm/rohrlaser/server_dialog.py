@@ -367,7 +367,27 @@ def puls(fenster):
         teilen_fenster.wiedervorlagen_melden(fenster)
     except db_verbindung.DbFehler as e:
         fenster.meldung(f"Vorgänge der Kollegen nicht lesbar: {fehler_text(e)}", fehler=True)
+    sicherung_warnen(fenster)
     return halte
+
+
+def sicherung_warnen(fenster):
+    """S6: Verwalter einmal je Sitzung warnen, wenn die letzte gute Serversicherung fehlt oder älter als 36 h ist
+    (oder die Rücksicherungsprobe fehlschlug). Ergebnis: Text der Warnung oder None."""
+    db = fenster.db
+    s = getattr(db, "server", None)
+    if s is None or not s.verwalter or fenster.__dict__.get("_sicherung_gewarnt"):
+        return None
+    from . import server_betrieb, server_sicherung
+    try:
+        text, warnen = server_sicherung.zustand(server_betrieb.info_lesen(db.con))
+    except db_verbindung.DbFehler:
+        return None
+    fenster._sicherung_gewarnt = True
+    if not warnen:
+        return None
+    fenster.meldung(text, fehler=True)
+    return text
 
 
 def _reservierungen_pruefen(fenster, halte=None):

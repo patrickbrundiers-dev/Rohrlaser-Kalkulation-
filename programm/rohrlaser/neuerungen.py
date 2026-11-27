@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.546", "<b>Serverversion (Stufe 6): Serversicherung mit Rücksicherungsprobe</b>: <i>--server sichern</i> "
+                "(täglich per Aufgabenplanung) sichert den Server mit festem Stand und spielt jede Sicherung zur Probe "
+                "wieder ein; nur eine Sicherung, die Zeile für Zeile gleich zurückkommt, gilt als gut. Jeder "
+                "Arbeitsplatz zeigt unter <i>Datei → Datenbank …</i> die letzte Sicherung, Verwalter werden gewarnt, "
+                "wenn sie fehlt, älter als 36 Stunden ist oder die Probe fehlschlug. <i>--server zurueckholen</i> "
+                "setzt den Server geprüft auf eine Sicherung zurück (auch auf einen neuen Server-Rechner, mit allen "
+                "Zugängen); <i>--server aufgaben</i> richtet Start, Rechner und tägliche Sicherung in der "
+                "Windows-Aufgabenplanung ein ([[admin_server]]).",
+     "Serverversion Stufe 6: Serversicherung mit Rücksicherungsprobe, Zurückholen, Aufgabenplanung"],
     ["0.9.545", "<b>Serverversion (Stufe 5): bisherige Daten verlustfrei in den Server, Lastprobe</b>: Am "
                 "Server-Rechner übernimmt <i>--server uebernehmen</i> eine Export-Datei oder Sicherung des Haupt-PCs "
                 "in einer Transaktion und vergleicht danach jede Tabelle Zeile für Zeile mit der Datei; weicht etwas "
