@@ -72,8 +72,9 @@ def symbol_auffrischen(exe=None, version=None, merker=None):
         shell = ctypes.windll.shell32
         shell.SHChangeNotify(0x00002000, 0x0005, ctypes.c_wchar_p(exe), None)    # SHCNE_UPDATEITEM, SHCNF_PATHW
         shell.SHChangeNotify(0x08000000, 0x0000, None, None)                     # SHCNE_ASSOCCHANGED
-        ie4 = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "ie4uinit.exe"
-        if ie4.is_file():
+        windows = os.environ.get("SystemRoot") or os.environ.get("windir")
+        ie4 = Path(windows) / "System32" / "ie4uinit.exe" if windows else None
+        if ie4 is not None and ie4.is_file():
             subprocess.Popen([str(ie4), "-show"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception as e:      # noqa: BLE001 – nur Kosmetik, darf den Start nie stören
