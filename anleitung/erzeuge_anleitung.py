@@ -17276,7 +17276,9 @@ def kapitel_admin_datenbank(i):
             "nach dem Einrichten und nach dem Umzug auf neue Hardware.",
             "<b>Aufgabenplanung</b> (einmal): <i>… --server aufgaben --ordner D:\\RohrlaserServer</i> trägt unter "
             "Windows drei Aufgaben ein: Server und Rechner beim Hochfahren starten, täglich um 22:30 Uhr sichern "
-            "(<i>--uhrzeit 03:00</i> für eine andere Zeit). Die Befehlszeilen werden angezeigt.",
+            "(<i>--uhrzeit 03:00</i> für eine andere Zeit). Sie laufen unter dem Windows-Konto, das den Server "
+            "eingerichtet hat (ihm gehört der Datenordner), auch ohne Anmeldung; sein Windows-Passwort wird dafür "
+            "einmal abgefragt (<i>--konto DOMÄNE\\NAME</i> für ein anderes Konto mit Zugriff auf den Ordner).",
             "<b>Serversicherung</b>: <i>… --server sichern --ordner D:\\RohrlaserServer</i> sichert mit festem Stand "
             "nach <i>D:\\RohrlaserServer\\Sicherung</i> (Datenbank, Zugänge, Prüfwerte) und macht gleich die "
             "<b>Rücksicherungsprobe</b>: die Sicherung wird in eine Probe-Datenbank eingespielt und Zeile für Zeile "

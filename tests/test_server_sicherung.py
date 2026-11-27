@@ -72,6 +72,14 @@ def cli(*args, srv=None):
     return code, aus
 
 
+def ss_fehler(f, *args):
+    try:
+        f(*args, melden=None)
+    except ss.SicherungFehler as e:
+        return str(e)
+    raise AssertionError(f"kein Fehler: {f.__name__}")
+
+
 class Fenster:                       # genug vom Hauptfenster für die Warnung
     def __init__(self, db):
         self.db, self.meldungen = db, []
@@ -104,6 +112,10 @@ try:
     d1 = s1[0]["datei"]
     assert d1.parent == server.daten / "Sicherung" and d1.with_suffix(".rollen.sql").exists()
     assert "rl_ab" in d1.with_suffix(".rollen.sql").read_text(encoding="utf-8")
+    if os.name != "nt":                 # nur der Eigentümer liest Daten und Prüfwerte der Passwörter
+        assert (d1.parent.stat().st_mode & 0o077) == 0
+        for endung in (".pgdump", ".rollen.sql", ".json"):
+            assert (d1.with_suffix(endung).stat().st_mode & 0o077) == 0, endung
     with server.verwalter_verbinden() as con:
         assert not con.execute("SELECT datname FROM pg_database WHERE datname LIKE 'rl_probe%'").fetchall()
     i = sb.info_lesen(db.con)
@@ -146,6 +158,9 @@ try:
 
     # ------------------------------------------------------------------ Zurückholen
     stand = taeglich[0]["datei"]        # neueste: mit Angebot nr1
+    ohne = tmp / "ohne_pruefwerte.pgdump"
+    ohne.write_bytes(stand.read_bytes())
+    assert "Prüfwerte" in ss_fehler(ss.zurueckholen, server, ohne), "ohne Prüfwerte nie einspielen"
     with db.con:
         db.con.execute("UPDATE angebote SET kunde='nach der Sicherung geändert' WHERE id=?", (a1,))
     a2 = db.angebot_neu(dict(kunde="nach der Sicherung neu"))
@@ -182,10 +197,12 @@ try:
     code, aus = cli("sicherungen")
     assert code == 0 and any("Probe ok" in z for z in aus) and "Sicherungen in" in aus[-1], aus
     liste = ss.aufgaben(server, r"C:\Rohrlaser\Rohrlaser-Angebotskalkulation.exe", r"D:\RohrlaserServer",
-                        anlegen=False)
+                        anlegen=False, konto=r"FIRMA\pb")
     assert [n for n, _z in liste] == ["Rohrlaser-Server starten", "Rohrlaser-Server Rechner",
                                       "Rohrlaser-Server Sicherung"]
     assert "DAILY" in liste[2][1] and "22:30" in liste[2][1] and "sichern" in liste[2][1], liste[2]
+    assert all("/RU FIRMA\\pb" in z and "SYSTEM" not in z for _n, z in liste), liste
+    assert ss.konto_vorgabe(), "Vorgabe: dieses Konto (Eigentümer des Datenordners)"
     ok("Befehlszeile sicherungen; Aufgaben für die Aufgabenplanung (Start, Rechner, tägliche Sicherung)")
 finally:
     for d in offen:

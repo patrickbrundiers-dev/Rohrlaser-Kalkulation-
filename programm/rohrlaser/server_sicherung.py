@@ -44,6 +44,14 @@ def ordner(server):
     return Path(server.daten) / ORDNER
 
 
+def _schuetzen(pfad, ordner_=False):
+    """Nur der Eigentümer darf lesen (Sicherungen enthalten Geschäftsdaten und Prüfwerte der Passwörter). Unter
+    Windows erbt der Ordner die Rechte des Server-Ordners."""
+    import os
+    if os.name != "nt":
+        os.chmod(pfad, 0o700 if ordner_ else 0o600)
+
+
 def _programm(server, name):
     exe = Path(server.bin) / pg_lokal._exe(name)
     if not exe.exists():
@@ -70,8 +78,16 @@ def _lauf(server, befehl, pw, timeout=3600):
     return r
 
 
+# Textform der Werte unabhängig von den Einstellungen des Servers (Zeitzone, Datumsform …): sonst unterschieden sich
+# die Prüfsummen derselben Daten auf einem anders eingestellten neuen Server-Rechner
+_GLEICHE_TEXTFORM = ("SET TIME ZONE 'UTC'", "SET DateStyle = 'ISO, YMD'", "SET IntervalStyle = 'postgres'",
+                     "SET extra_float_digits = 1", "SET bytea_output = 'hex'")
+
+
 def pruefwerte(con):
     """{Tabelle: [Anzahl, Prüfsumme]} aller Tabellen im Schema public (psycopg-Verbindung, im laufenden Stand)."""
+    for befehl in _GLEICHE_TEXTFORM:
+        con.execute(befehl)
     out = {}
     for (t,) in con.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' "
                             "AND table_type = 'BASE TABLE' ORDER BY table_name").fetchall():
@@ -135,6 +151,7 @@ def sichern(server, anlass=TAEGLICH, behalten=BEHALTEN, melden=print):
     melden = melden or (lambda _t: None)
     ziel = ordner(server)
     ziel.mkdir(parents=True, exist_ok=True)
+    _schuetzen(ziel, ordner_=True)
     stamm = ziel / f"server_{datetime.datetime.now():%Y-%m-%d_%H%M%S}_{anlass}"
     datei, neu = stamm.with_suffix(ENDUNG), stamm.with_suffix(ENDUNG + ".neu")
     benutzer, pw = server._verwalter()
@@ -146,9 +163,11 @@ def sichern(server, anlass=TAEGLICH, behalten=BEHALTEN, melden=print):
         _lauf(server, [_programm(server, "pg_dump"), *_ziel(server, benutzer, sb.DATENBANK), "-Fc", "-Z", "6",
                        f"--snapshot={snapshot}", "-f", str(neu)], pw)
     neu.replace(datei)
+    _schuetzen(datei)
     rollen = stamm.with_suffix(".rollen.sql")
     _lauf(server, [_programm(server, "pg_dumpall"), "-h", "127.0.0.1", "-p", str(server.port), "-U", benutzer,
                    "--roles-only", "-f", str(rollen)], pw)
+    _schuetzen(rollen)
     abweichung = probe(server, datei, soll)
     dauer = time.monotonic() - t0
     gut = not abweichung
@@ -157,6 +176,7 @@ def sichern(server, anlass=TAEGLICH, behalten=BEHALTEN, melden=print):
     stamm.with_suffix(".json").write_text(json.dumps(dict(
         zeit=datetime.datetime.now().isoformat(timespec="seconds"), anlass=anlass, datei=datei.name, gut=gut,
         abweichung=abweichung, tabellen=soll), indent=1, ensure_ascii=False), encoding="utf-8")
+    _schuetzen(stamm.with_suffix(".json"))
     with server.verwalter_verbinden(sb.DATENBANK) as con:
         werte = dict(sicherung_zeit=datetime.datetime.now().isoformat(timespec="seconds"), sicherung_datei=str(datei),
                      sicherung_probe="ok" if gut else "FEHLER: " + "; ".join(abweichung[:5]),
@@ -239,9 +259,16 @@ def zurueckholen(server, datei, melden=print):
     if not datei.exists() or datei.suffix != ENDUNG:
         raise SicherungFehler(f"{datei} ist keine Serversicherung ({ENDUNG}).")
     try:
-        soll = json.loads(datei.with_suffix(".json").read_text(encoding="utf-8")).get("tabellen")
-    except (OSError, ValueError):
-        soll = None
+        merk = json.loads(datei.with_suffix(".json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise SicherungFehler(f"Zu {datei.name} fehlen die Prüfwerte ({datei.with_suffix('.json').name}): ohne sie "
+                              f"lässt sich der eingespielte Stand nicht prüfen ({e}).") from e
+    soll = merk.get("tabellen") if isinstance(merk, dict) else None
+    if not soll:
+        raise SicherungFehler(f"{datei.with_suffix('.json').name} enthält keine Prüfwerte.")
+    if not merk.get("gut"):
+        raise SicherungFehler(f"{datei.name} hat die Rücksicherungsprobe nicht bestanden; bitte eine andere "
+                              "Sicherung wählen (Liste: sicherungen).")
     neu_rollen = rollen_ergaenzen(server, datei)
     if neu_rollen:
         melden(f"Zugänge aus der Sicherung angelegt: {', '.join(neu_rollen)}")
@@ -255,10 +282,9 @@ def zurueckholen(server, datei, melden=print):
         _neue_datenbank(con, name)
     try:
         _einspielen(server, datei, name)
-        if soll:
-            abweichung = _vergleich(soll, _pruefwerte_in(server, name))
-            if abweichung:
-                raise SicherungFehler("Eingespielter Stand weicht von der Sicherung ab: " + "; ".join(abweichung[:5]))
+        abweichung = _vergleich(soll, _pruefwerte_in(server, name))
+        if abweichung:
+            raise SicherungFehler("Eingespielter Stand weicht von der Sicherung ab: " + "; ".join(abweichung[:5]))
     except BaseException:
         with server.verwalter_verbinden() as con:
             _probe_loeschen(con, name)
@@ -276,10 +302,10 @@ def zurueckholen(server, datei, melden=print):
             _probe_loeschen(con, d)
     with server.verwalter_verbinden(sb.DATENBANK) as con:
         sb.rollen_einrichten(con)       # Verbindungsrecht auf die neue Datenbank, Serverfunktionen
-    melden(f"Server auf den Stand von {datei.name} gesetzt" + (f" (geprüft: {len(soll)} Tabellen gleich)" if soll
-                                                               else "") + ". Die Arbeitsplätze verbinden sich neu."
+    melden(f"Server auf den Stand von {datei.name} gesetzt (geprüft: {len(soll)} Tabellen gleich). Die "
+           "Arbeitsplätze verbinden sich neu."
            + (f" Bisheriger Stand: Datenbank {alt}, Sicherung {vorher.name}." if vorher else ""))
-    return dict(vorher=vorher, alt=alt if da else None, rollen=neu_rollen, geprueft=bool(soll))
+    return dict(vorher=vorher, alt=alt if da else None, rollen=neu_rollen, geprueft=True)
 
 
 # ------------------------------------------------------------------------------------------------ Anzeige
@@ -310,11 +336,23 @@ def status_text(db):
 
 
 # ------------------------------------------------------------------------------------------------ Aufgaben
-def aufgaben(server, programm, ordner_, uhrzeit="22:30", anlegen=None):
-    """Aufgaben für die Windows-Aufgabenplanung: Server beim Hochfahren starten, Rechner starten, täglich sichern.
-    Ergebnis: Liste (Name, Befehlszeile). anlegen (Vorgabe: unter Windows) trägt sie mit schtasks ein."""
+def konto_vorgabe():
+    """Windows-Konto, unter dem die Aufgaben laufen: das Konto, das den Server eingerichtet hat (ihm gehört der
+    Datenordner; SYSTEM dürfte ihn nicht lesen)."""
+    import getpass
+    import os
+    dom = os.environ.get("USERDOMAIN", "")
+    return f"{dom}\\{getpass.getuser()}" if dom else getpass.getuser()
+
+
+def aufgaben(server, programm, ordner_, uhrzeit="22:30", anlegen=None, konto=None, passwort=None):
+    """Aufgaben für die Windows-Aufgabenplanung: Server beim Hochfahren starten, Rechner starten, täglich sichern;
+    sie laufen unter konto (Vorgabe: dieses Konto, dem der Datenordner gehört), auch ohne Anmeldung (dafür das
+    Windows-Passwort des Kontos). Ergebnis: Liste (Name, Befehlszeile ohne Passwort). anlegen (Vorgabe: unter
+    Windows) trägt sie mit schtasks ein."""
     import os
     import subprocess
+    konto = konto or konto_vorgabe()
     basis = f'"{programm}" --server {{}} --ordner "{ordner_}" --port {server.port}'
     liste = [("Rohrlaser-Server starten", "ONSTART", None, basis.format("starten")),
              ("Rohrlaser-Server Rechner", "ONSTART", None, basis.format("rechnen")),
@@ -323,13 +361,11 @@ def aufgaben(server, programm, ordner_, uhrzeit="22:30", anlegen=None):
         anlegen = os.name == "nt"
     out = []
     for name, art, zeit, befehl in liste:
-        args = ["schtasks", "/Create", "/F", "/RU", "SYSTEM", "/RL", "HIGHEST", "/TN", name, "/SC", art,
-                "/TR", befehl] + (["/ST", zeit] if zeit else []) + (["/DELAY", "0001:00"] if art == "ONSTART" and
-                                                                     "rechnen" in befehl else [])
+        args = ["schtasks", "/Create", "/F", "/RU", konto, "/RL", "HIGHEST", "/TN", name, "/SC", art, "/TR", befehl]
+        args += (["/ST", zeit] if zeit else []) + (["/DELAY", "0001:00"] if "rechnen" in befehl else [])
         if anlegen:
-            r = subprocess.run(args, capture_output=True, text=True)
+            r = subprocess.run(args + (["/RP", passwort] if passwort else []), capture_output=True, text=True)
             if r.returncode != 0:
                 raise SicherungFehler(f"Aufgabe {name}: {(r.stderr or r.stdout).strip()[:300]}")
-        out.append((name, " ".join(a if " " not in a and '"' not in a else f'"{a}"' if '"' not in a else
-                                   "'" + a + "'" for a in args)))
+        out.append((name, " ".join(f'"{a}"' if " " in a and '"' not in a else a for a in args)))
     return out

@@ -811,8 +811,9 @@ HILFE = """Rohrlaser-Server (Serverversion) – Befehle auf dem Server-Rechner:
   zurueckholen --ordner ORDNER --datei SICHERUNG.pgdump
       Server auf den Stand einer Sicherung setzen (vorher wird der jetzige Stand gesichert, die Sicherung erst
       eingespielt und geprüft, dann getauscht; auch zum Umzug auf einen neuen Server-Rechner)
-  aufgaben --ordner ORDNER [--uhrzeit 22:30]
-      Windows-Aufgabenplanung: Server und Rechner beim Hochfahren starten, täglich sichern
+  aufgaben --ordner ORDNER [--uhrzeit 22:30] [--konto DOMÄNE\\NAME]
+      Windows-Aufgabenplanung: Server und Rechner beim Hochfahren starten, täglich sichern (unter dem Konto, das
+      den Server eingerichtet hat; sein Windows-Passwort wird abgefragt)
 """
 
 
@@ -844,6 +845,7 @@ def main(argv=None, eingabe=None, ausgabe=print):
     p.add_argument("--behalten", type=int, default=14)
     p.add_argument("--uhrzeit", default="22:30")
     p.add_argument("--anlass", default="taeglich")
+    p.add_argument("--konto")
     a = p.parse_args(argv)
     lies = eingabe or (lambda frage: getpass.getpass(frage))
 
@@ -948,7 +950,10 @@ def main(argv=None, eingabe=None, ausgabe=print):
         else:
             import sys
             programm = sys.executable if getattr(sys, "frozen", False) else "Rohrlaser-Angebotskalkulation.exe"
-            for name, zeile in ss.aufgaben(s, programm, a.ordner, a.uhrzeit):
+            konto = a.konto or ss.konto_vorgabe()
+            pw = lies(f"Windows-Passwort von {konto} (die Aufgaben laufen auch ohne Anmeldung): ") \
+                if os.name == "nt" else None
+            for name, zeile in ss.aufgaben(s, programm, a.ordner, a.uhrzeit, konto=konto, passwort=pw):
                 ausgabe(f"{name}: {zeile}")
     return 0
 
