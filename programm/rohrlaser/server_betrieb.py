@@ -794,6 +794,16 @@ HILFE = """Rohrlaser-Server (Serverversion) – Befehle auf dem Server-Rechner:
   rechnen --ordner ORDNER [--prozesse N] [--einmal]
       Rechner für lange Rechnungen der Arbeitsplätze (STEP-Messung, Vormessung) starten, z. B. per Aufgabenplanung
       beim Hochfahren; läuft, bis er beendet wird (--einmal: nur die wartenden Aufträge)
+  uebernehmen --ordner ORDNER --datei EXPORT.zip|SICHERUNG.db [--ersetzen]
+      bisherige Daten (Export oder Sicherung des Haupt-PCs nach dem letzten Abgleich) verlustfrei in den Server:
+      alles in einer Transaktion, danach jede Tabelle Zeile für Zeile mit der Quelle verglichen; Kopien der
+      Angebote der Kollegen werden deren Angebote. Stehen schon Angebote am Server, nur mit --ersetzen
+  dazunehmen --ordner ORDNER --datei EXPORT.zip --kuerzel KÜRZEL
+      eigene Angebote eines weiteren PCs dazu (neuere Fassung des Bearbeiters ersetzt, neue kommen dazu, geprüft)
+  vergleichen --ordner ORDNER --datei EXPORT.zip   Server und Quelle Zeile für Zeile vergleichen (nur lesen)
+  lasttest --ordner ORDNER [--plaetze 25] [--runden 10]
+      Lastprobe: so viele Arbeitsplätze arbeiten gleichzeitig (Probe-Logins, werden danach entfernt); misst die
+      Antwortzeiten und prüft Reservierungen und Verbindungen
 """
 
 
@@ -804,7 +814,8 @@ def main(argv=None, eingabe=None, ausgabe=print):
     p = argparse.ArgumentParser(prog="rohrlaser-server", description=HILFE,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("befehl", choices=("einrichten", "starten", "stoppen", "status", "benutzer", "zugang", "ablage",
-                                         "rechnen"))
+                                         "rechnen", "uebernehmen", "dazunehmen", "vergleichen",
+                                         "lasttest"))
     p.add_argument("--ordner", required=True)
     p.add_argument("--admin")
     p.add_argument("--name", default="")
@@ -817,6 +828,10 @@ def main(argv=None, eingabe=None, ausgabe=print):
     p.add_argument("--pfad")
     p.add_argument("--prozesse", type=int, default=0)
     p.add_argument("--einmal", action="store_true")
+    p.add_argument("--datei")
+    p.add_argument("--ersetzen", action="store_true")
+    p.add_argument("--plaetze", type=int, default=25)
+    p.add_argument("--runden", type=int, default=10)
     a = p.parse_args(argv)
     lies = eingabe or (lambda frage: getpass.getpass(frage))
 
@@ -883,6 +898,23 @@ def main(argv=None, eingabe=None, ausgabe=print):
             r.abmelden()
         else:
             r.laufen()
+    elif a.befehl in ("uebernehmen", "dazunehmen", "vergleichen"):
+        from . import server_uebernahme as su
+        if not a.datei:
+            raise ServerFehler("Bitte --datei angeben (Export-Datei .zip oder Sicherung .db).")
+        if not s.laeuft():
+            s.starten()
+        if a.befehl == "uebernehmen":
+            su.uebernehmen(s, a.datei, ersetzen=a.ersetzen, melden=ausgabe)
+        elif a.befehl == "dazunehmen":
+            su.dazunehmen(s, a.datei, a.kuerzel, melden=ausgabe)
+        else:
+            return 0 if su.vergleich_ausgeben(s, a.datei, ausgabe) else 1
+    elif a.befehl == "lasttest":
+        from . import server_last
+        if not s.laeuft():
+            s.starten()
+        return 0 if server_last.lauf(s, a.plaetze, a.runden, melden=ausgabe)["bestanden"] else 1
     return 0
 
 
