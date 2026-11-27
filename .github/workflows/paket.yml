@@ -33,6 +33,10 @@ on:
         type: choice
         options: [produktiv, test]
         default: produktiv
+      lizenz_werkzeug:
+        description: "Lizenz-Werkzeug.exe mitbauen (nur für Patrick, liegt dann 30 Tage als Artefakt am Lauf)"
+        type: boolean
+        default: false
 
 # PR: neuer Push bricht den alten Lauf ab. Von Hand: Läufe nacheinander, damit Dateiliste und Pakete zusammenpassen.
 concurrency:
@@ -361,6 +365,8 @@ jobs:
           Remove-Item -Recurse -Force pg_probe
           "{0:N0} MB PostgreSQL" -f ((Get-ChildItem -Recurse $ziel | Measure-Object Length -Sum).Sum / 1MB)
       - name: Lizenz-Werkzeug.exe bauen und prüfen (nur für Patrick; eigener Ordner, nicht im Programm und im Update)
+        # Patrick 27.11.2026: nur auf Wunsch (Haken „Lizenz-Werkzeug.exe mitbauen“ beim Start von Hand)
+        if: github.event_name == 'workflow_dispatch' && inputs.lizenz_werkzeug
         shell: pwsh
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed --icon programm/rohrlaser/bilder/nextube.ico --name Lizenz-Werkzeug --paths programm --paths werkzeuge `
@@ -614,7 +620,7 @@ jobs:
             Rohrlaser-Angebotskalkulation.zip
             update_dateien/Update.json
       - name: Lizenz-Werkzeug.exe als Artefakt (nur für Patrick, angemeldet unter Actions → Lauf → Artifacts)
-        if: env.VEROEFFENTLICHEN
+        if: env.VEROEFFENTLICHEN && inputs.lizenz_werkzeug
         continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

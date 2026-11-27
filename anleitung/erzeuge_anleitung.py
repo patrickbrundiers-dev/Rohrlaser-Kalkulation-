@@ -924,7 +924,7 @@ def kapitel_start(i):
            "das Online-Update bleiben gleich, es geht also nichts verloren. Das nächste Setup ersetzt die alten "
            "Startmenü- und Desktop-Verknüpfungen durch <i>NexTube</i>. Nach einem reinen Online-Update behält eine "
            "alte Verknüpfung ihren bisherigen Namen und startet dasselbe Programm. Ab Version 3.14.0 heißt auch die "
-           "Rohrlaser Auslastung <b>NexTube Auslastung</b> (gleiche Programmdatei <i>Rohrlaser-Auslastung.exe</i>).")
+           "Rohrlaser Auslastung <b>NexTube Auslastung</b> (gleiche Programmdatei <i>Rohrlaser-Auslastung.exe</i>, Update wie bisher über den Knopf <i>Nach Updates suchen</i>).")
     i.text("Deinstallieren: <i>Einstellungen → Apps → NexTube → Deinstallieren</i>. Entfernt "
            "werden nur die Programmdateien. Datendatei, Sicherungen und PDF bleiben, eine spätere Installation findet "
            "sie wieder.")
