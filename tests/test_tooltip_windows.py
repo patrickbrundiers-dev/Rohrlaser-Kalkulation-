@@ -123,7 +123,7 @@ pruefe(t is not None and farbe(t, t.width() // 2, t.height() - 3) == "#FFFFFF", 
 QToolTip.hideText()
 
 # W7
-from PySide6.QtWidgets import QCheckBox, QDialog, QPushButton, QVBoxLayout  # noqa: E402
+from PySide6.QtWidgets import QCheckBox, QDialog, QHBoxLayout, QPushButton, QVBoxLayout  # noqa: E402
 
 from rohrlaser import fenster_merken, fenster_platz, geister  # noqa: E402
 
@@ -143,6 +143,20 @@ d.show()
 warten(50)
 pruefe(knopf.isVisible() and not knopf.isWindow(), "W7 eingesetzt: Knopf normal im Dialog")
 d.close()
+zeile = QHBoxLayout()                       # Layout noch an keinem Fenster (z. B. Seitenkopf, BG-Kostenfeld)
+spaet = QPushButton("Spiegeln")
+spaet.hide()
+zeile.addWidget(spaet)
+geister.sichtbar(spaet, True)
+pruefe(not spaet.isVisible(), "W7 sichtbar() ohne Fenster: nicht als eigenes Fenster gezeigt")
+d2 = QDialog()
+QVBoxLayout(d2).addLayout(zeile)
+d2.show()
+warten(50)
+pruefe(spaet.isVisible() and spaet.parent() is not None, "W7 sichtbar(): beim Einsetzen gezeigt")
+geister.sichtbar(spaet, False)
+pruefe(not spaet.isVisible(), "W7 sichtbar(False) blendet aus")
+d2.close()
 
 # W8
 fenster.raise_()

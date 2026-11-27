@@ -21,6 +21,7 @@ from . import anfrage_vorab, anfragen, angebotsordner
 from . import anfragen_akten as akte_text
 from . import stil
 from .klartext import fehler_text
+from . import geister  # noqa: E402
 
 ANFRAGEN_S = 30             # Sekunden zwischen zwei Blicken in den Ordner
 
@@ -109,7 +110,7 @@ class AnfragenKarte:
 
     def neu_laden(self, erzwingen=False):
         o = self.ordner()
-        self.karte.setVisible(bool(o))
+        geister.sichtbar(self.karte, bool(o))     # nie als eigenes Fenster (Supportpaket 27.11.2026)
         if not o:
             self.anfragen = []
             return

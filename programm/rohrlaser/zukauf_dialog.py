@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
 from . import funktionen, stil, zukauf
 from .stammdaten import zahl_als_text, zahl_aus_text
 from .zukauf_schnell import SchnellDialog
+from . import geister  # noqa: E402
 
 SPALTEN = ("Bezeichnung", "Menge", "je", "Einheit", "Artikelnr.", "EK [€/Einh.]", "EK gesamt [€]", "Aufschlag [%]",
            "VK [€/Einh.]", "Gesamt je Teil", "Herkunft")
@@ -163,7 +164,7 @@ class ZukaufDialog(QDialog):
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
             self.knoepfe_leiste[text] = b
-        self.knoepfe_leiste["Aus Stammdaten aktualisieren …"].setVisible(self.stamm)
+        geister.sichtbar(self.knoepfe_leiste["Aus Stammdaten aktualisieren …"], self.stamm)     # nie eigenes Fenster
         leiste.addStretch(1)
         self.details_knopf = QToolButton()
         self.details_knopf.setText("Details ▸")

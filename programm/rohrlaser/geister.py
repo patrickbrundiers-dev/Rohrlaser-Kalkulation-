@@ -35,6 +35,18 @@ def losgeloest(w):
         return False
 
 
+def sichtbar(w, an):
+    """w.setVisible(an) ohne Fenster-Gefahr: steckt w noch in keinem Fenster (Layout noch nicht am Fenster), wird es
+    nur ausgeblendet bzw. beim Einsetzen gezeigt (Wache, ParentChange), nie als eigenes Fenster."""
+    if an and w.parent() is None:
+        if w.isHidden():
+            w.setProperty("_spaeter_zeigen", True)
+        return
+    if w.property("_spaeter_zeigen"):
+        w.setProperty("_spaeter_zeigen", None)
+    w.setVisible(bool(an))
+
+
 def _stelle():
     for f in reversed(traceback.extract_stack()[:-3]):
         if "geister.py" not in f.filename and "ereignis_verteiler" not in f.filename:
@@ -77,6 +89,11 @@ def _klein(w):
 class Wache(QObject):
     def eventFilter(self, w, e):
         art = e.type()
+        if art == QEvent.ParentChange:
+            if w.isWidgetType() and w.property("_spaeter_zeigen") and w.parent() is not None:
+                w.setProperty("_spaeter_zeigen", None)
+                w.setVisible(True)
+            return False
         if art in (QEvent.Hide, QEvent.Move):
             if w.isWidgetType() and w.isWindow() and _klein(w):
                 if art == QEvent.Move:
@@ -121,5 +138,5 @@ def einrichten(app=None):
         import os
         if os.environ.get("ROHRLASER_GEISTER"):
             atexit.register(_ausgeben)
-        ereignis_verteiler.anmelden(_wache, (QEvent.Show, QEvent.Hide, QEvent.Move), app)
+        ereignis_verteiler.anmelden(_wache, (QEvent.Show, QEvent.Hide, QEvent.Move, QEvent.ParentChange), app)
     return _wache
