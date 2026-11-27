@@ -24,7 +24,7 @@ if sys.platform != "win32":
     sys.exit(0)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "programm"))
-from PySide6.QtCore import QPoint, Qt, QTimer  # noqa: E402
+from PySide6.QtCore import QPoint, QTimer  # noqa: E402
 from PySide6.QtWidgets import (QApplication, QDialog, QLabel, QMainWindow, QMenu, QPushButton,  # noqa: E402
                                QTableWidget, QToolTip, QVBoxLayout)
 
