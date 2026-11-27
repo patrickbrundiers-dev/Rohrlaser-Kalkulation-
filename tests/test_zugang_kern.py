@@ -127,6 +127,11 @@ pruefe(AW.stand(neu) == 2 and AW.tresor_oeffnen(neu, "Neues-Entwickler-PW-27") i
        and AW.tresor_oeffnen(neu, EPW) is None and not wirft(AW.pruefen, neu, SCH, HEUTE),
        "Z24 Passwort ändern: neuer Tresor, Signatur bleibt gültig")
 
+hoch = json.loads(json.dumps(neu))
+hoch["tresor"]["stand"] = 99
+pruefe(AW.tresor_oeffnen(hoch, "Neues-Entwickler-PW-27") is None,
+       "Z24b Stand ohne Passwort erhöht: Tresor geht nicht mehr auf (Stand ist mitgeschützt)")
+
 # Anmeldenachweis (wie gegenüber einem Server)
 seed = AW.tresor_oeffnen(d, EPW)
 jetzt = datetime.datetime(2026, 11, 27, 12, 0, tzinfo=datetime.timezone.utc)

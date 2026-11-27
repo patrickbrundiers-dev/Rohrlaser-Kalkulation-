@@ -67,8 +67,12 @@ def _kdf(passwort, salz, n, r, p):
     return Scrypt(salt=salz, length=32, n=n, r=r, p=p).derive(str(passwort).encode("utf-8"))
 
 
-def _aad(inhalt):
-    return L.kanonisch(dict(ausweis_id=inhalt.get("ausweis_id"), anmelde_schluessel=inhalt.get("anmelde_schluessel")))
+def _aad(inhalt, stand):
+    """Zusatzdaten der Verschlüsselung: Tresor gehört zu genau diesem Ausweis UND diesem Stand. Wer stand in der Datei
+    erhöht, ohne das Passwort zu kennen, macht den Tresor unbrauchbar (sonst könnte eine gefälschte Kopie mit hohem
+    Stand die echten Kopien an einer Installation aussperren)."""
+    return L.kanonisch(dict(ausweis_id=inhalt.get("ausweis_id"), anmelde_schluessel=inhalt.get("anmelde_schluessel"),
+                            stand=int(stand)))
 
 
 def _privat(seed):
@@ -91,7 +95,7 @@ def tresor_bilden(seed, passwort, inhalt, stand=1, kdf=None, heute=None):
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     k = dict(KDF, **(kdf or {}))
     salz, nonce = os.urandom(16), os.urandom(12)
-    daten = AESGCM(_kdf(passwort, salz, k["n"], k["r"], k["p"])).encrypt(nonce, bytes(seed), _aad(inhalt))
+    daten = AESGCM(_kdf(passwort, salz, k["n"], k["r"], k["p"])).encrypt(nonce, bytes(seed), _aad(inhalt, stand))
     return dict(kdf="scrypt", n=k["n"], r=k["r"], p=k["p"], salz=salz.hex(), nonce=nonce.hex(), daten=_b64(daten),
                 stand=int(stand), geaendert=(heute or datetime.date.today()).isoformat())
 
@@ -108,7 +112,7 @@ def tresor_oeffnen(daten, passwort):
         if not (KDF_MIN_N <= n <= KDF_MAX_N and n & (n - 1) == 0 and 1 <= r <= 16 and 1 <= p <= 4):
             return None
         seed = AESGCM(_kdf(passwort, bytes.fromhex(t["salz"]), n, r, p)).decrypt(
-            bytes.fromhex(t["nonce"]), base64.b64decode(t["daten"]), _aad(inhalt))
+            bytes.fromhex(t["nonce"]), base64.b64decode(t["daten"]), _aad(inhalt, t["stand"]))
     except (InvalidTag, KeyError, TypeError, ValueError):
         return None
     if len(seed) != 32:
