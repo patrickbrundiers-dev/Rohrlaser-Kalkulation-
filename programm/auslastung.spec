@@ -20,9 +20,12 @@ vi.PRODUKT = "NexTube Auslastung"
 
 a = Analysis([os.path.join(SPECPATH, "start_auslastung.py")], pathex=[SPECPATH], binaries=[], datas=[(os.path.join(SPECPATH, "rohrlaser", "bilder"), "rohrlaser/bilder")],
              # rohrlaser.auslastung / etiketten / qt_slots: nur in Funktionen der Kalkulation nachgeladen, hier nie;
-             # rohrlaser.datenbank: nur in datenspeicher.umstellen/zurueck der Kalkulation nachgeladen, hier nie
+             # rohrlaser.datenbank: nur in datenspeicher.umstellen/zurueck der Kalkulation nachgeladen, hier nie;
+             # rechnen, teilen, server_*, verbindung_waechter, pruef_wiederherstellung, dokumente_sicherung, pg_abbild:
+             # nur in Funktionen von datenspeicher, die allein die Kalkulation aufruft (kalkulationen, bereitstellen
+             # im Serverbetrieb, status, status_werte, letzte_sicherung), hier nie
              hiddenimports=["rohrlaser.update_schluessel", "rohrlaser.lizenz_schluessel", "rohrlaser.pg_lokal",
-                            "rohrlaser.db_kopie", "psycopg", "psycopg_binary"], excludes=["rohrlaser.auslastung", "rohrlaser.datenbank", "rohrlaser.etiketten", "rohrlaser.qt_slots", "tkinter", "matplotlib", "numpy", "reportlab", "pypdfium2",
+                            "rohrlaser.db_kopie", "psycopg", "psycopg_binary"], excludes=["rohrlaser.auslastung", "rohrlaser.datenbank", "rohrlaser.rechnen", "rohrlaser.teilen", "rohrlaser.server_betrieb", "rohrlaser.server_rechnen", "rohrlaser.server_sicherung", "rohrlaser.verbindung_waechter", "rohrlaser.pruef_wiederherstellung", "rohrlaser.dokumente_sicherung", "rohrlaser.pg_abbild", "rohrlaser.etiketten", "rohrlaser.qt_slots", "tkinter", "matplotlib", "numpy", "reportlab", "pypdfium2",
                                          "PySide6.QtWebEngineCore", "PySide6.QtQml", "PySide6.QtQuick",
                                          "PySide6.Qt3DCore", "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets"],
              noarchive=False)
@@ -37,7 +40,10 @@ fremd = [n for n, *_ in a.pure if n.startswith("rohrlaser.") and n not in (
     "rohrlaser.passwort", "rohrlaser.klartext",
     "rohrlaser.hauptadmin", "rohrlaser.anmelde_fenster",        # Hauptadmin-Anmeldung beim Start
     "rohrlaser.db_verbindung", "rohrlaser.datenspeicher",           # Datenspeicher je PC: SQLite oder PostgreSQL
-    "rohrlaser.pg_lokal", "rohrlaser.db_kopie")]
+    "rohrlaser.pg_lokal", "rohrlaser.db_kopie",
+    "rohrlaser.zugangsschutz",                                      # pg_lokal: Zugang zur lokalen PostgreSQL
+    "rohrlaser.protokoll",                                          # datenspeicher.server: Selbstheilung ins Protokoll
+    "rohrlaser.ereignis_verteiler", "rohrlaser.leerhinweis")]       # stil/mausrad: ein Ereignisfilter, Leerhinweise
 if fremd:
     raise SystemExit("auslastung.spec: das Programm zieht Module der Kalkulation mit: " + ", ".join(fremd))
 pyz = PYZ(a.pure)

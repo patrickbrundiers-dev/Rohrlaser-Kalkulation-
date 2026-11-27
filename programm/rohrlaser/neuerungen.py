@@ -21,11 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.548", "<b>Zusatzarbeiten: Zeit aus dem Preis</b> ([[zusatz_global]]): Eigene Zusatzarbeiten an der Position "
+    ["0.9.549", "<b>Zusatzarbeiten: Zeit aus dem Preis</b> ([[zusatz_global]]): Eigene Zusatzarbeiten an der Position "
                 "ohne Zeitaufwand in der Verwaltung bekommen ihre Zeit aus Preis ÷ Stundensatz (Einstellung "
                 "<i>Zusatzarbeiten: Stundensatz für die Zeit</i>, Vorgabe 60 €/h). Die Zeit steht unter Zeiten und im "
                 "Arbeitsplan; Fremdleistungen bleiben ohne Zeit, Preise ändern sich nicht.",
      "Eigene Zusatzarbeiten: Zeit aus Preis ÷ Stundensatz."],
+    ["0.9.548", "<b>NexTube Auslastung 3.14.0 baut wieder</b>: Das eigene Programm Rohrlaser-Auslastung.exe nimmt aus "
+                "der Kalkulation nur noch die Teile mit, die es braucht (Datenspeicher, Lizenz, Design, Update); "
+                "Server- und Rechenteile der Kalkulation bleiben draußen.",
+     "Auslastung-Paket wieder schlank (nur benötigte Teile der Kalkulation)"],
     ["0.9.547", "<b>Rohrlaser Auslastung 3.14.0 heißt jetzt NexTube Auslastung</b>: eigenes Icon, Name im Fenster, "
                 "Lizenzprotokoll und Prüfung des Moduls Auslastung aus Lizenz 2.0 (ohne das Modul nur ansehen). "
                 "Programmdatei, Datenordner und Online-Update bleiben gleich.",

@@ -1,4 +1,4 @@
-"""Marke NexTube (Branding B-1, Patrick 26.11.2026): Name an einer Stelle, Icon, nichts bricht. Fälle B1–B9.
+"""Marke NexTube (Branding B-1, Patrick 26.11.2026): Name an einer Stelle, Icon, nichts bricht. Fälle B1–B10.
 
 Aufruf: python tests/test_marke.py
 """
@@ -52,6 +52,11 @@ pruefe(all("nextube.ico" in t and '"rohrlaser/bilder"' in t for t in specs.value
        and re.search(r"--icon programm/rohrlaser/bilder/nextube.ico --name Lizenz-Werkzeug",
                      (WURZEL / ".github" / "workflows" / "paket.yml").read_text("utf-8")),
        "B9 Programmdateien und Lizenz-Werkzeug bekommen das Icon, Bilder liegen bei")
+paket = (WURZEL / ".github" / "workflows" / "paket.yml").read_text("utf-8")
+pruefe("lizenz_werkzeug:" in paket and "default: false" in paket.split("lizenz_werkzeug:")[1][:300]
+       and "if: github.event_name == 'workflow_dispatch' && inputs.lizenz_werkzeug" in paket
+       and "if: env.VEROEFFENTLICHEN && inputs.lizenz_werkzeug" in paket,
+       "B10 Lizenz-Werkzeug.exe nur auf Wunsch gebaut (Haken beim Start von Hand, Vorgabe aus; Patrick 27.11.)")
 
 print()
 if fehler:

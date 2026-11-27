@@ -101,7 +101,7 @@ Preise, Vorgabe 60 €/h, 0 = aus): Kosten je Einheit ÷ Stundensatz × 60 min, 
 Stundensatz × 60 min (`zusatz_global.zeit_je_einheit`). Anzeige grau in der Spalte Zeit, eigene Zeit überschreibt,
 leer machen rechnet wieder. Die Zeit geht nur in die Summe Zeit, kein Preis ändert sich.
 
-## Nachtrag 0.9.548: Zeit eigener Zusatzarbeiten an der Position (Patrick 27.11.2026)
+## Nachtrag 0.9.549: Zeit eigener Zusatzarbeiten an der Position (Patrick 27.11.2026)
 
 `rechnen.zusatz_werte`: eigene Zusatzarbeiten (nicht Fremdleistung, nicht s/Stück, €/Angebot, €/h) ohne Zeitaufwand
 in Stammdaten bzw. Preisstand bekommen `arbeit_s` = Betrag je Teil ÷ `zusatz_stundensatz` × 3600. Wirkt nur auf
