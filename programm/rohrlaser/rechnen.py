@@ -3291,8 +3291,8 @@ def zusatz_werte(p, k, tabellen, kopf=None):
     """Zusatzarbeiten einer Position je Teil: [{name, art, einheit, menge, preis, betrag, zeit, fremd, text,
     angebotstext, mindest, arbeit_s, auto, regel, quelle}]. betrag = € je Teil (ohne Mindestbetrag je Angebot, mit
     Mindestbetrag je Teil), zeit = s je Teil (Art s/Stück, kommt zur Laserzeit), arbeit_s = eigene Arbeitszeit je Teil
-    für die Zeiten (€/h: die Zeit; sonst Zeitaufwand der Stammdaten × Menge; Fremdleistungen, s/Stück und €/Angebot
-    0). Bei €/h ist menge die Zeit je Teil in s (von Hand, sonst Vorgabezeit), preis der Stundensatz, betrag = s / 3600
+    für die Zeiten (€/h: die Zeit; sonst Zeitaufwand der Stammdaten × Menge, ohne Zeitaufwand Betrag ÷ Stundensatz
+    der Einstellung zusatz_stundensatz; Fremdleistungen, s/Stück und €/Angebot 0). Bei €/h ist menge die Zeit je Teil in s (von Hand, sonst Vorgabezeit), preis der Stundensatz, betrag = s / 3600
     × €/h. Unbekannte Namen werden ausgelassen (Status zeigt eine Warnung).
     Arbeitsgang-Regeln (zusatz_regeln.py, Plan Abrechnungsregeln): automatische Zusatzarbeiten kommen dazu (auto =
     True); eine passende Regel mit Preis setzt Abrechnung, Preis, Menge aus, Faktor und Mindestbetrag je Teil, aber
@@ -3303,6 +3303,7 @@ def zusatz_werte(p, k, tabellen, kopf=None):
     saetze = stundensaetze(tabellen)
     regeln = [r for r in tabellen.get("arbeitsgang_regeln") or () if zr.aktiv(r)]
     gewinde = tabellen.get("gewinde") or ()
+    satz_zeit = _n((tabellen.get("einstellungen") or {}).get("zusatz_stundensatz"))
     liste = zusatz_liste(p)
     if regeln and not ist_baugruppe(p):
         liste = liste + zr.automatische(p, kopf, k, tabellen, {e["name"] for e in liste})
@@ -3363,6 +3364,10 @@ def zusatz_werte(p, k, tabellen, kopf=None):
         else:   # Stammdaten (auch für Preisstände ohne Zeitaufwand, die Zeit ändert den Preis nicht)
             kat = katalog.get(e["name"])
             arbeit_s = _n(zusatz_preis(kat, saetze)["zeit_s"]) * _n(menge) if kat else 0.0
+        if not arbeit_s and kz.get("fremd") != "ja" and art not in ("s/Stück", "€/Angebot", "€/h") and satz_zeit > 0:
+            # Patrick 27.11.2026: eigene Zusatzarbeit ohne Zeitaufwand: Zeit = Preis ÷ Stundensatz (Einstellung
+            # zusatz_stundensatz); ändert keinen Preis, nur Zeiten und Personalzeit
+            arbeit_s = wert / satz_zeit * 3600
         out.append(dict(name=e["name"], art=art, einheit=ZUSATZ_EINHEIT.get(art, ""), menge=menge, preis=preis,
                         betrag=0.0 if art in ("s/Stück", "€/Angebot") else wert,
                         pauschal=wert if art == "€/Angebot" else 0.0, zeit=wert if art == "s/Stück" else 0.0,
