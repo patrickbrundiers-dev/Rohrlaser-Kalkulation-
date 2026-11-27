@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFormLayout, QHBox
 
 from . import vollmaterial, zukauf
 from .stammdaten import zahl_als_text, zahl_aus_text
+from . import geister  # noqa: E402
 
 HERKUNFT = "Schnellanlage"
 
@@ -110,7 +111,7 @@ class SchnellDialog(QDialog):
         form.setRowVisible(self.art, not blech)
         form.addRow("Aufschlag [%]", self.aufschlag)
         form.addRow("Stückzahl" if ohne_je else "Menge", menge)
-        self.je.setVisible(not ohne_je)
+        geister.sichtbar(self.je, not ohne_je)     # nie eigenes Fenster (Supportpaket 27.11.2026)
         self.stamm = QCheckBox("auch im Artikelstamm speichern")
         self.stamm.setToolTip("Aus (Vorgabe): der Artikel gehört nur zu dieser Position und wird mit dem Angebot "
                               "gespeichert. An: zusätzlich im Artikelstamm anlegen (dann Lieferant und EK Pflicht).")

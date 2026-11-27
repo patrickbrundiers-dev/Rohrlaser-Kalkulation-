@@ -40,7 +40,8 @@ def kopf(titel, erklaerung=""):
     rahmen.untertitel.setObjectName("nebentext")
     rahmen.untertitel.setText(erklaerung)
     rahmen.untertitel.setToolTip(erklaerung)
-    rahmen.untertitel.setVisible(bool(erklaerung))
+    if not erklaerung:  # nur ausblenden (geister.py): eingeblendet ohne Fenster = schwarzer Balken unter Windows
+        rahmen.untertitel.hide()
     zeile.addWidget(rahmen.titel)
     zeile.addWidget(rahmen.untertitel, 1)
     return rahmen

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLine
 from . import rechnen, stil
 from . import schneidweg as sw
 from .editor_eigenschaften import BLECH_SPALTEN, ROHR_SPALTEN
+from . import geister  # noqa: E402
 
 NICHT_AENDERN = "(nicht ändern)"
 
@@ -98,7 +99,7 @@ class MehrfachTafel(QWidget):
         self.mehr_knopf.setMenu(editor_konturwerkzeuge.menue(rahmen, self))
         for k in (self.duplizieren_knopf, self.spiegeln_knopf, self.entfernen_knopf, self.mehr_knopf):
             knoepfe.addWidget(k)
-        self.spiegeln_knopf.setVisible(rahmen.art == "rohr")
+        geister.sichtbar(self.spiegeln_knopf, rahmen.art == "rohr")     # nie eigenes Fenster (27.11.2026)
         lay.addLayout(knoepfe)
         lay.addStretch(1)
         self.felder = {}

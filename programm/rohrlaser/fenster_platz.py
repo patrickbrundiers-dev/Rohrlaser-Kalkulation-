@@ -13,6 +13,8 @@ Merker erst die gemerkte Größe und dieser Filter passt sie danach an.
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget
 
+from .geister import losgeloest
+
 RAND = 8            # Abstand zum Bildschirmrand [px]
 TITEL = 32          # Titelleiste und Rahmen, die Qt vor dem ersten Zeigen noch nicht kennt [px]
 
@@ -58,7 +60,7 @@ class FensterPlatz(QObject):
     @staticmethod
     def _fenster(w):
         return isinstance(w, QWidget) and w.isWindow() and w.windowType() in (Qt.Window, Qt.Dialog) \
-            and not isinstance(w, QMainWindow)
+            and not isinstance(w, QMainWindow) and not losgeloest(w)
 
     def eventFilter(self, w, e):
         if e.type() == QEvent.Show and self._fenster(w) and id(w) not in self.gesehen:

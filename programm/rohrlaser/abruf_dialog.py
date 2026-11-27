@@ -75,7 +75,8 @@ class AbrufDialog(QDialog):
         self.los = QLabel(f"Wirtschaftliche Abrufmenge (Andler): {losgroesse} Stk." if losgroesse else "")
         self.los.setToolTip("√(2 × Jahresmenge × Rüsten und Fracht je Abruf ÷ (Stückkosten × Lagerzins)); nur ein "
                             "Richtwert, die Abrufmenge legen Sie fest.")
-        self.los.setVisible(bool(losgroesse))
+        if not losgroesse:  # nur ausblenden (geister.py)
+            self.los.hide()
         lay.addWidget(self.los)
         lay.addWidget(hinweis)
         self.auswerten_fn, self.auswertung = auswerten, None

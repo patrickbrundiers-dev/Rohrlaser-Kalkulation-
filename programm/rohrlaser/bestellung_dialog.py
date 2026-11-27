@@ -73,7 +73,8 @@ class BestellungDialog(QDialog):
         lay.addWidget(tab, 1)
         mengen = [z for z in abgleich if z["bestellt"] is not None and z["bestellt"] != z["stueck"]]
         self.mengen = QCheckBox(f"Bestellte Mengen ins Angebot übernehmen ({len(mengen)} Position(en))")
-        self.mengen.setVisible(bool(mengen))
+        if not mengen:  # nur ausblenden (geister.py)
+            self.mengen.hide()
         lay.addWidget(self.mengen)
         lay.addWidget(QLabel("<b>Danach gleich erledigen</b> (gesendet wird nur in Outlook):"))
         self.schritte = {}

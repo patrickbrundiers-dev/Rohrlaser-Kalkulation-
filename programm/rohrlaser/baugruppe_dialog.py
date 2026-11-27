@@ -33,6 +33,7 @@ from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
 from .stammdaten import KATEGORIEN, NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
 from .stil import BLAU_FLAECHE, GELB_FLAECHE, GELB_TEXT
+from . import geister  # noqa: E402
 
 FEHLER_FARBE = "#B42318"
 GRAU = "#5F6B7A"
@@ -2939,8 +2940,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         tr = getattr(self, "vorrichtung_frueher", None)
         offen = vorrichtung.wieder_offen(self.bg, tr)
         self.wieder_text.setText("HINWEIS: " + vorrichtung.hinweis_wieder(tr) if offen else "")
-        self.wieder_text.setVisible(offen)
-        self.wieder_knopf.setVisible(offen)
+        geister.sichtbar(self.wieder_text, offen)     # nie als eigenes Fenster (Supportpaket 27.11.2026)
+        geister.sichtbar(self.wieder_knopf, offen)
         self.wieder_knopf.setEnabled(not self.nur_lesen)
 
     def vorrichtung_vorschlag_uebernehmen(self):
@@ -3798,7 +3799,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.kopf_rechts.setObjectName("bg_kopf_rechts")
         self.kopf_rechts.setTextFormat(Qt.RichText)
         self.preis_zeile = self.kosten_feld.preis_zeile()
-        self.preis_zeile.setVisible(not self.kosten_feld.felder["preis"][1].isHidden())
+        geister.sichtbar(self.preis_zeile, not self.kosten_feld.felder["preis"][1].isHidden())
         self.zeit_feld.titel.hide()
         self.kosten_feld.titel.hide()
         vg = self.bg.get("vorgabe") if isinstance(self.bg.get("vorgabe"), dict) else None

@@ -190,7 +190,8 @@ class SchneidwegDialog(QDialog):
         self.stege_ab.setToolTip("Je ein Steg bzw. Ring 2 mm an Ende A und B hält das Teil beim Lasern (virtuelles "
                                  "Bauteil). Aus = die Stege bleiben am Teil. An = danach abtrennen und entgraten: "
                                  f"Zusatzarbeit „{virtuell.ZUSATZ_STEGE}“ (€/Stück), Gewicht wie gezeichnet.")
-        self.stege_ab.setVisible(virtuell.ist_virtuell(self._mess_extra))
+        if not virtuell.ist_virtuell(self._mess_extra):  # nur ausblenden (geister.py)
+            self.stege_ab.hide()
         zeile_3d.addWidget(self.stege_ab)
         lay.addLayout(zeile_3d)
 
@@ -2003,7 +2004,8 @@ class NeuEinlesenVorschau(QDialog):
             w_.setVisible(bool(profil_datei))
         self.hand = QCheckBox("Von Hand gesetzte Werte behalten: " + ", ".join(behalten))
         self.hand.setChecked(True)
-        self.hand.setVisible(bool(behalten))
+        if not behalten:  # nur ausblenden (geister.py)
+            self.hand.hide()
         lay.addWidget(self.hand)
         hinweis = QLabel("Naht, Zusatzarbeiten, Stückzahl und Preise der Position bleiben unverändert. "
                          "Gespeichert wird erst mit „In Position übernehmen“.")

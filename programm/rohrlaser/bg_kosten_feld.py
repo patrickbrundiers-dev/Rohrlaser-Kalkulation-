@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QFrame, QGridLayout, QHeaderVi
 
 from . import bg_vorgabe, stil
 from .stammdaten import zahl_als_text, zahl_aus_text
+from . import geister  # noqa: E402
 
 
 def euro(w):
@@ -93,7 +94,7 @@ class KostenFeld(QFrame):
             g.addWidget(b, r, 2)
             self.felder[n] = (k, f, b)
             for w in (k, f, b):
-                w.setVisible(mit_angebot if n != "preis" else mit_preis)
+                geister.sichtbar(w, mit_angebot if n != "preis" else mit_preis)     # nie eigenes Fenster (27.11.)
         lay.addLayout(g)
         self._gitter = g
         self.hand_info = QLabel()
