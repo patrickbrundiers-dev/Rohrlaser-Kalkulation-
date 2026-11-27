@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (QAbstractButton, QAbstractSlider, QAbstractSpinBo
 
 EINZELTEILE = (QAbstractButton, QLabel, QComboBox, QLineEdit, QAbstractSpinBox, QProgressBar, QAbstractSlider)
 funde = []          # [(Klasse, Text, Stelle)] dieses Laufs (Tests, Diagnose)
+RAND = 24           # neu zeichnen auch rund um das Fenster: Schatten der kleinen Fenster unter Windows [px]
 
 
 def losgeloest(w):
@@ -59,7 +60,7 @@ def neu_zeichnen_unter(rahmen, ausser=None):
         try:
             if f is ausser or not f.isVisible() or f.isMinimized():
                 continue
-            r = rahmen.translated(-f.mapToGlobal(f.rect().topLeft())).adjusted(-3, -3, 3, 3) & f.rect()
+            r = rahmen.translated(-f.mapToGlobal(f.rect().topLeft())).adjusted(-RAND, -RAND, RAND, RAND) & f.rect()
             if not r.isEmpty():
                 f.update(r)
                 n += 1
