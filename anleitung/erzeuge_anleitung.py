@@ -3195,7 +3195,10 @@ def kapitel_angebot(i):
             "<i>Zusatzarbeiten: Stundensatz für die Zeit [€/h]</i>, Vorgabe 60 €/h): interne Kosten je Einheit ÷ "
             "Stundensatz, ohne Kosten Preis je Einheit ÷ Stundensatz (z. B. 45 € pauschal bei 60 €/h = 45 min). "
             "Die Zahl steht grau in der Spalte Zeit; eine eigene Zeit überschreibt sie, leer machen rechnet wieder. "
-            "Die Zeit ändert keinen Preis.",
+            "Die Zeit ändert keinen Preis. Ebenso bekommen <b>eigene Zusatzarbeiten an der Position</b> ohne "
+            "Zeitaufwand in der Verwaltung ihre Zeit aus Preis ÷ Stundensatz (z. B. 2 × 3 € bei 60 €/h = 6 min je "
+            "Teil); sie steht unter Zeiten bei <i>Zusatzarbeiten mit Zeit</i> und im Arbeitsplan. Fremdleistungen "
+            "bleiben ohne Zeit.",
             "Die Summen unten: Positionen, allgemeine Zusatzarbeiten, Angebot netto, MwSt, brutto und intern Kosten, "
             "Zeit und Deckungsbeitrag. Die allgemeinen Zusatzarbeiten zählen zum Verkaufspreis (Angebotsliste, "
             "Marge), aber nicht zum Mindestauftragswert, zu Rabatt und Skonto und nicht zu den Staffelpreisen.",
