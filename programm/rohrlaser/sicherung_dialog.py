@@ -46,6 +46,7 @@ def sicherungen_lesen(ordner_liste):
 class WiederherstellenDialog(QDialog):
     def __init__(self, fenster):
         super().__init__(fenster)
+        self.setProperty("dialog_rahmen", True)       # freigegebener Dialog-Rahmen (Variante B, 28.11.2026)
         self.f = fenster
         self.gewaehlt = None
         self.dokumente = False

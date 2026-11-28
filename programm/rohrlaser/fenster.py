@@ -4228,6 +4228,7 @@ class Hauptfenster(QMainWindow):
             return erg
         d = QDialog(self)
         d.setWindowTitle("Referenzangebote prüfen")
+        d.setProperty("dialog_rahmen", True)       # freigegebener Dialog-Rahmen (Variante B, 28.11.2026)
         lay = QVBoxLayout(d)
         kopf = QLabel(referenzangebote.text(erg))
         kopf.setWordWrap(True)
@@ -5343,6 +5344,7 @@ class Hauptfenster(QMainWindow):
             QApplication.restoreOverrideCursor()
         d = QDialog(self)
         d.setWindowTitle("Kostentreiber")
+        d.setProperty("dialog_rahmen", True)       # freigegebener Dialog-Rahmen (Variante B, 28.11.2026)
         d.ergebnis = r
         lay = QVBoxLayout(d)
         lay.addWidget(QLabel(

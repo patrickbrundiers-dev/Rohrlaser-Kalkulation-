@@ -117,6 +117,7 @@ class DiagnoseFenster(QDialog):
     def __init__(self, eltern=None):
         super().__init__(eltern)
         self.setWindowTitle("Diagnose: Rechenzähler")
+        self.setProperty("dialog_rahmen", True)       # freigegebener Dialog-Rahmen (Variante B, 28.11.2026)
         self.resize(860, 560)
         lay = QVBoxLayout(self)
         lay.addWidget(QLabel("Zähler seit dem Programmstart. „doppelt“ zeigt Rechnungen, die mit genau denselben "

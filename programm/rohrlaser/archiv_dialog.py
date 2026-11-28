@@ -46,6 +46,7 @@ class ArchivDialog(QDialog):
 
     def __init__(self, fenster):
         super().__init__(fenster)
+        self.setProperty("dialog_rahmen", True)       # freigegebener Dialog-Rahmen (Variante B, 28.11.2026)
         self.f = fenster
         self.zurueckgeholt = None
         self.setWindowTitle("Archiv durchsuchen")

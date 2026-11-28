@@ -147,6 +147,9 @@ class FensterMerker(QObject):
             knoepfe_setzen(w)
         elif t == QEvent.Show and self._passt(w) and id(w) not in self.gesetzt:
             self.gesetzt.add(id(w))
+            if w.property("dialog_rahmen"):     # freigegebener Dialog-Rahmen (Variante B, 28.11.2026)
+                from . import dialog_rahmen
+                dialog_rahmen.anwenden(w)
             w.destroyed.connect(lambda *_a, i=id(w): self.gesetzt.discard(i))
             self.setzen(w)
         elif t in (QEvent.Hide, QEvent.Close) and self._passt(w) and id(w) in self.gesetzt:

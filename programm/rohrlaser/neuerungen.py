@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.558", "<b>Dialoge einheitlich aufgebaut</b> ([[dialog_rahmen]]): Lernzentrale, Angebots-Cache, "
+                "Automatik-Protokoll, Preis-Simulator, Diagnose, Sicherung wiederherstellen, Archiv, Referenzangebote "
+                "und Kostentreiber haben oben Titel und Erklärung, darüber die Aktionen für markierte Zeilen "
+                "(höchstens drei, der Rest unter <i>Weitere Aktionen</i>, Folgenreiches abgesetzt am Ende) und unten "
+                "rechts Schließen bzw. die Hauptaktion. Keine Aktion fällt weg.",
+     "Dialoge mit Titelkopf, Aktionen über der Tabelle, Schließen unten rechts."],
     ["0.9.555", "<b>X in Dialogen schließt wieder</b> ([[support_paket]]): Unter Windows war das Schließen-X in fast "
                 "allen Dialogen grau und ohne Wirkung. Beim Entfernen des ?-Knopfs fiel der Schließen-Knopf mit weg. "
                 "Jetzt hat jeder Dialog wieder ein aktives X, Minimieren und Maximieren bleiben. Außerdem gibt das "

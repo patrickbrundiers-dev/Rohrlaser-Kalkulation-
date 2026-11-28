@@ -104,6 +104,10 @@ QScrollBar::add-page, QScrollBar::sub-page { background: none; }
 QLabel#seitentitel { font-size: 15pt; font-weight: bold; color: #1F2937; }
 QLabel#abschnitt { font-weight: bold; color: #1F2937; }
 QLabel#nebentext { color: #5F6B7A; }
+QFrame#dialogkopf { background: #FFFFFF; border: none; border-bottom: 1px solid #E3E7EC; }
+QLabel#dialogtitel { font-size: 13pt; font-weight: bold; color: #1F2937; }
+QFrame#dialogfuss { background: #F7F9FB; border: none; border-top: 1px solid #E3E7EC; }
+QPushButton#weitere { padding-right: 18px; }
 QLabel#kennzahl_gross { font-size: 16pt; font-weight: bold; color: #1F2937; }
 QFrame#kennzahl_hervor { background: #1F4E78; border: 1px solid #1F4E78; border-radius: 8px; }
 QFrame#kennzahl_hervor QLabel { color: #FFFFFF; }
