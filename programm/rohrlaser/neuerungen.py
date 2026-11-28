@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.555", "<b>Neues Anmeldefenster und Benutzer wechseln</b> ([[benutzer_rollen]]): Sobald ein Benutzer ein "
+    ["0.9.556", "<b>Neues Anmeldefenster und Benutzer wechseln</b> ([[benutzer_rollen]]): Sobald ein Benutzer ein "
                 "Passwort oder eine PIN hat, meldet sich beim Start jeder an. Der zuletzt angemeldete Benutzer ist "
                 "vorgewählt (gemerkt wird nur sein Kürzel), niemand wird automatisch angemeldet. Auf Wunsch fragt das "
                 "Programm zusätzlich einen Einmalcode aus der Authenticator-App ab. <i>Datei › Benutzer wechseln</i> "
