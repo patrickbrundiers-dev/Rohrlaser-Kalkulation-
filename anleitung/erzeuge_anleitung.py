@@ -13062,7 +13062,8 @@ def kapitel_einstellungen(i):
             "Felder lassen den Zugang wie er ist.",
             "<b>Sperren / Entsperren</b>: ein gesperrter Benutzer kann sich nicht anmelden und darf nur sehen. "
             "<b>Entfernen</b> löscht den Benutzer.",
-            "<b>Anmelden beim Start</b> (seit 0.9.556 Pflicht, sobald ein Benutzer Passwort oder PIN hat): das "
+            "<b>Beim Start anmelden (Kürzel und Passwort oder PIN)</b>: seit 0.9.556 Pflicht, sobald ein Benutzer "
+            "Passwort oder PIN hat. Das "
             "Anmeldefenster zeigt die Benutzer als Liste (Name und Kürzel), der zuletzt an diesem Platz angemeldete "
             "ist vorgewählt. Gemerkt wird nur sein Kürzel, nie ein Passwort; niemand wird automatisch angemeldet. "
             "Eingeben muss man nur Passwort oder PIN, bei eingerichteter Zwei-Faktor-Anmeldung danach den "
