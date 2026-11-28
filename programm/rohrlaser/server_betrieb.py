@@ -805,15 +805,22 @@ HILFE = """Rohrlaser-Server (Serverversion) – Befehle auf dem Server-Rechner:
       Lastprobe: so viele Arbeitsplätze arbeiten gleichzeitig (Probe-Logins, werden danach entfernt); misst die
       Antwortzeiten und prüft Reservierungen und Verbindungen
   sichern --ordner ORDNER [--behalten 14] [--anlass vor_Update]
-      Sicherung mit Rücksicherungsprobe nach ORDNER\\Sicherung (täglich per Aufgabenplanung); ältere tägliche
-      Sicherungen über --behalten hinaus werden gelöscht
+      Sicherung mit Rücksicherungsprobe nach ORDNER\\Sicherung (per Aufgabenplanung mittags und abends), mit der
+      Ablage und den Server-Einstellungen, danach Kopie aufs zweite Ziel; ältere tägliche Sicherungen über
+      --behalten hinaus werden gelöscht (je Woche und Monat bleibt eine); Ergebnis im Windows-Ereignisprotokoll
+  sicherungsziel --ordner ORDNER [--pfad \\\\NAS\\FREIGABE]
+      zweites Ziel für jede Sicherung (NAS, anderer Rechner): ohne --pfad anzeigen, mit --pfad eintragen,
+      --pfad "" entfernt es
   sicherungen --ordner ORDNER    vorhandene Serversicherungen anzeigen
-  zurueckholen --ordner ORDNER --datei SICHERUNG.pgdump
+  zurueckholen --ordner ORDNER --datei SICHERUNG.pgdump [--mit-zertifikat] [--ohne-ablage]
       Server auf den Stand einer Sicherung setzen (vorher wird der jetzige Stand gesichert, die Sicherung erst
-      eingespielt und geprüft, dann getauscht; auch zum Umzug auf einen neuen Server-Rechner)
-  aufgaben --ordner ORDNER [--uhrzeit 22:30] [--konto DOMÄNE\\NAME]
-      Windows-Aufgabenplanung: Server und Rechner beim Hochfahren starten, täglich sichern (unter dem Konto, das
-      den Server eingerichtet hat; sein Windows-Passwort wird abgefragt)
+      eingespielt und geprüft, dann getauscht), die Ablage ebenso; auch zum Umzug auf einen neuen Server-Rechner
+      (--mit-zertifikat: Zertifikate und Zugangsdatei aus der Sicherung, die Arbeitsplätze verbinden sich ohne
+      neue Zugangsdatei)
+  aufgaben --ordner ORDNER [--uhrzeit 12:30,22:30] [--konto DOMÄNE\\NAME]
+      Windows-Aufgabenplanung: Server und Rechner beim Hochfahren starten, zu den Uhrzeiten sichern; verpasste
+      Sicherungen werden nachgeholt (unter dem Konto, das den Server eingerichtet hat; sein Windows-Passwort wird
+      abgefragt)
 """
 
 
@@ -825,7 +832,8 @@ def main(argv=None, eingabe=None, ausgabe=print):
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("befehl", choices=("einrichten", "starten", "stoppen", "status", "benutzer", "zugang", "ablage",
                                          "rechnen", "uebernehmen", "dazunehmen", "vergleichen",
-                                         "lasttest", "sichern", "sicherungen", "zurueckholen", "aufgaben"))
+                                         "lasttest", "sichern", "sicherungen", "zurueckholen", "aufgaben",
+                                         "sicherungsziel"))
     p.add_argument("--ordner", required=True)
     p.add_argument("--admin")
     p.add_argument("--name", default="")
@@ -843,7 +851,9 @@ def main(argv=None, eingabe=None, ausgabe=print):
     p.add_argument("--plaetze", type=int, default=25)
     p.add_argument("--runden", type=int, default=10)
     p.add_argument("--behalten", type=int, default=14)
-    p.add_argument("--uhrzeit", default="22:30")
+    p.add_argument("--uhrzeit", default="12:30,22:30")
+    p.add_argument("--mit-zertifikat", action="store_true")
+    p.add_argument("--ohne-ablage", action="store_true")
     p.add_argument("--anlass", default="taeglich")
     p.add_argument("--konto")
     a = p.parse_args(argv)
@@ -931,13 +941,29 @@ def main(argv=None, eingabe=None, ausgabe=print):
         if not s.laeuft():
             s.starten()
         return 0 if server_last.lauf(s, a.plaetze, a.runden, melden=ausgabe)["bestanden"] else 1
-    elif a.befehl in ("sichern", "sicherungen", "zurueckholen", "aufgaben"):
+    elif a.befehl in ("sichern", "sicherungen", "zurueckholen", "aufgaben", "sicherungsziel"):
         from . import server_sicherung as ss
         if a.befehl != "aufgaben" and not s.laeuft():
             s.starten()
         if a.befehl == "sichern":
             anlass = re.sub(r"[^A-Za-z0-9_]", "", a.anlass) or ss.TAEGLICH
-            ss.sichern(s, anlass=anlass, behalten=a.behalten, melden=ausgabe)
+            zeilen = []
+
+            def melden(t):
+                zeilen.append(t)
+                ausgabe(t)
+            try:
+                ss.sichern(s, anlass=anlass, behalten=a.behalten, melden=melden)
+            except Exception as e:      # noqa: BLE001 - jeder Fehler gehört ins Ereignisprotokoll
+                ss.ereignis("Rohrlaser-Serversicherung FEHLGESCHLAGEN: " + str(e) + "\n" + "\n".join(zeilen),
+                            fehler=True)
+                raise
+            ss.ereignis("Rohrlaser-Serversicherung gut:\n" + "\n".join(zeilen))
+        elif a.befehl == "sicherungsziel":
+            if a.pfad is not None:
+                ss.ziel2_setzen(s, a.pfad)
+            z = ss.ziel2_lesen(s)
+            ausgabe(f"Zweites Ziel der Serversicherung: {z or '(keins eingetragen)'}")
         elif a.befehl == "sicherungen":
             liste = ss.sicherungen(s)
             for x in liste:
@@ -946,7 +972,11 @@ def main(argv=None, eingabe=None, ausgabe=print):
         elif a.befehl == "zurueckholen":
             if not a.datei:
                 raise ServerFehler("Bitte --datei SICHERUNG.pgdump angeben (Liste: sicherungen).")
-            ss.zurueckholen(s, a.datei, melden=ausgabe)
+            bericht = ss.zurueckholen(s, a.datei, melden=ausgabe, mit_ablage=not a.ohne_ablage,
+                                      mit_zertifikat=a.mit_zertifikat)
+            if bericht["zertifikat"]:
+                s.stoppen()
+                s.starten()
         else:
             import sys
             programm = sys.executable if getattr(sys, "frozen", False) else "Rohrlaser-Angebotskalkulation.exe"

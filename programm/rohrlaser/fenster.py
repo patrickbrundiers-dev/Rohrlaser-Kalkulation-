@@ -2633,8 +2633,14 @@ class EinstellungenBereich(QWidget):
         Passwort der Admin-Lizenz, dem Passwort der Einstellungen oder einem Notfallcode; als weiterer Admin mit dem
         eigenen Passwort (Seite Arbeitsplätze und Rechte, nur mit gültiger Lizenz). Ergebnis: freigeschaltet ja/nein."""
         from . import admin_schutz
+        from . import entwickler
         text = self.passwort.text() if passwort is None or isinstance(passwort, bool) else passwort
         self.passwort.clear()
+        if entwickler.anmelden(text, self.db, wo="Einstellungen"):     # Entwickler-Zugang: voller Zugriff
+            self.sitzung.freischalten(admin_schutz.HAUPTADMIN)
+            self.fehler.clear()
+            self.neu_laden()
+            return True
         if self.pruefer(text):
             self.sitzung.freischalten(admin_schutz.HAUPTADMIN, self.schluessel_fuer(text))
         else:

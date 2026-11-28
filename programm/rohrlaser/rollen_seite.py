@@ -333,14 +333,31 @@ class AnmeldenDialog(QDialog):
         self.db = db
         self.setWindowTitle("Benutzer anmelden")
         form = QFormLayout(self)
-        form.addRow(QLabel("Mit Kürzel und Passwort oder PIN anmelden. Die Rechte kommen aus den Rollen des "
+        form.addRow(QLabel("Namen wählen und Passwort oder PIN eingeben. Die Rechte kommen aus den Rollen des "
                            "Benutzers."))
-        self.kuerzel = QLineEdit(rollen.angemeldet(db))
+        # Aktive Benutzer mit Passwort/PIN zur Auswahl (Name, Kürzel); so tippt niemand sein Kürzel.
+        self.leute = sorted(((k, v) for k, v in rollen.benutzer(db).items()
+                             if v.get("aktiv", True) and (v.get("hash") or v.get("pin"))),
+                            key=lambda kv: (kv[1].get("name") or kv[0]).lower())
+        angemeldet = rollen.angemeldet(db)
+        if self.leute:
+            self.auswahl = QComboBox()
+            for k, v in self.leute:
+                self.auswahl.addItem(f"{v.get('name') or k} ({k})", k)
+            if angemeldet:
+                i = self.auswahl.findData(angemeldet)
+                if i >= 0:
+                    self.auswahl.setCurrentIndex(i)
+            self.kuerzel = None
+            form.addRow("Mitarbeiter", self.auswahl)
+        else:               # noch keine Benutzer angelegt: Kürzel von Hand
+            self.auswahl = None
+            self.kuerzel = QLineEdit(angemeldet)
+            form.addRow("Kürzel", self.kuerzel)
         self.geheim = QLineEdit()
         self.geheim.setEchoMode(QLineEdit.Password)
         self.fehler = QLabel()
         self.fehler.setStyleSheet("color: #B42318;")
-        form.addRow("Kürzel", self.kuerzel)
         form.addRow("Passwort / PIN", self.geheim)
         form.addRow(self.fehler)
         k = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -349,10 +366,13 @@ class AnmeldenDialog(QDialog):
         k.accepted.connect(self.pruefen)
         k.rejected.connect(self.reject)
         form.addRow(k)
-        (self.geheim if self.kuerzel.text() else self.kuerzel).setFocus()
+        self.geheim.setFocus() if (self.auswahl or (self.kuerzel and self.kuerzel.text())) else self.kuerzel.setFocus()
+
+    def _kuerzel(self):
+        return self.auswahl.currentData() if self.auswahl else self.kuerzel.text()
 
     def pruefen(self):
-        f = rollen.anmelden(self.db, self.kuerzel.text(), self.geheim.text())
+        f = rollen.anmelden(self.db, self._kuerzel(), self.geheim.text())
         if f:
             self.fehler.setText(f)
             self.geheim.clear()

