@@ -3429,6 +3429,8 @@ class Hauptfenster(QMainWindow):
         self.rollen_sitzung = rollen.Sitzung()
         rollen.SITZUNG = self.rollen_sitzung
         self.lizenz = lizenz        # lizenz.LizenzStelle oder None (voller Zugriff, keine Hinweise)
+        self._anmeldung = None      # zugang_anmeldung.Anmeldung (Zugangssystem Paket C), beim ersten Gebrauch
+        self.waechter = None        # zugang_fenster.Waechter: Sperre nach Inaktivität
         hilfe.einrichten(db)
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
@@ -3853,6 +3855,8 @@ class Hauptfenster(QMainWindow):
                                   (None, None, None),
                                   ("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
                                   ("Benutzer anmelden …", lambda: self.benutzer_anmelden(), None),
+                                  ("Benutzer wechseln …", lambda: self.benutzer_wechseln(), "Ctrl+Alt+W"),
+                                  ("Abmelden und sperren", lambda: self.sitzung_sperren(), "Ctrl+Alt+L"),
                                   ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
                                   ("Abgleich-Konflikte …", self.konflikte_zeigen, None),
                                   ("Gemeinsamen Ordner prüfen …", self.ordner_pruefen, None),
@@ -4987,47 +4991,121 @@ class Hauptfenster(QMainWindow):
             an = rollen.aktiv(self.db)
             k = rollen.angemeldet(self.db)
             e = rollen.benutzer(self.db).get(k) or {}
-            info.setText(f"Benutzer: {e.get('name') or k or '–'} ("
-                         + (", ".join(rollen.ROLLE_TITEL[x] for x in e.get("rollen") or ()) or "nur sehen") + ")")
+            s = self._anmeldung.sitzung if self._anmeldung is not None else None
+            if s is not None and not s.beendet and s.entwickler:      # Entwickler-Ausweis (Paket C)
+                info.setText(f"Benutzer: {self._anmeldung.text()}")
+                an = True
+            else:
+                info.setText(f"Benutzer: {e.get('name') or k or '–'} ("
+                             + (", ".join(rollen.ROLLE_TITEL[x] for x in e.get("rollen") or ()) or "nur sehen")
+                             + ")")
             info.setVisible(an)
 
-    def benutzer_anmelden(self, kuerzel=None, geheim=None):
-        """Datei → Benutzer anmelden …: mit Kürzel und Passwort/PIN anmelden (Rechte aus den Rollen). Ergebnis: ja/nein."""
-        from . import rollen
-        if not rollen.aktiv(self.db):
-            self.meldung("Die Benutzerverwaltung ist aus: Rollen vergibt der Admin unter Einstellungen → Arbeitsplätze "
-                         "und Rechte. Bis dahin gilt das Kürzel dieses Arbeitsplatzes.")
-            return False
+    @property
+    def anmeldung(self):
+        """Anmeldung dieses Programms (Zugangssystem Paket C, zugang_anmeldung)."""
+        if self._anmeldung is None:
+            from . import zugang_anmeldung
+            self._anmeldung = zugang_anmeldung.Anmeldung(self.db, self.lizenz)
+        return self._anmeldung
+
+    def benutzer_anmelden(self, kuerzel=None, geheim=None, totp_code=None):
+        """Datei → Benutzer anmelden …: Benutzer wählen, Passwort/PIN (und Einmalcode) oder Entwickler-Ausweis
+        (zugang_fenster.AnmeldeDialog). Mit kuerzel und geheim ohne Fenster. Ergebnis: ja/nein."""
+        an = self.anmeldung
         if kuerzel is None:
+            if not an.auswahl() and not an.ausweis_finden()[0]:
+                self.meldung("Es gibt noch keine Benutzer mit Passwort oder PIN: Benutzer legt der Admin unter "
+                             "Einstellungen → Arbeitsplätze und Rechte an. Bis dahin gilt das Kürzel dieses "
+                             "Arbeitsplatzes.")
+                return False
             from PySide6.QtWidgets import QDialog
-            from .rollen_seite import AnmeldenDialog
-            if AnmeldenDialog(self, self.db).exec() != QDialog.Accepted:
+            from .zugang_fenster import AnmeldeDialog
+            if AnmeldeDialog(self, an).exec() != QDialog.Accepted:
                 return False
         else:
-            f = rollen.anmelden(self.db, kuerzel, geheim)
-            if f:
-                self.meldung(f, fehler=True)
+            if not an.pflicht():
+                self.meldung("Die Benutzerverwaltung ist aus: Rollen vergibt der Admin unter Einstellungen → "
+                             "Arbeitsplätze und Rechte. Bis dahin gilt das Kürzel dieses Arbeitsplatzes.")
                 return False
-        self.rechte_anwenden()
-        self.meldung(f"Angemeldet: {rollen.name(self.db)}.")
+            e = an.anmelden(kuerzel, geheim, totp_code)
+            if not e.ok:
+                self.meldung(e.text, fehler=True)
+                return False
+        self._nach_anmeldung()
+        self.meldung(f"Angemeldet: {an.text()}.")
         return True
 
+    def _nach_anmeldung(self):
+        self.rechte_anwenden()
+        if self.waechter is None and not self.stumm:
+            from .zugang_fenster import Waechter
+            self.waechter = Waechter(self, self.anmeldung)
+
     def anmeldung_beim_start(self):
-        """Beim Start anmelden, wenn eingeschaltet (rollen.pflicht). Ergebnis: weiter ja/nein (Abbrechen = beenden)."""
+        """Beim Start anmelden, sobald es Benutzer mit Passwort oder PIN gibt (E5a, ohne automatisches Anmelden).
+        Ergebnis: weiter ja/nein (Beenden = Programm zu)."""
         from . import rollen
         if self.db.server is not None:      # Serverbetrieb: schon am Server angemeldet (eigener Login)
             if rollen.SITZUNG is not None:
                 rollen.SITZUNG.kuerzel = self.db.server.kuerzel
             self.rechte_anwenden()
             return True
-        if self.stumm or not rollen.pflicht(self.db):
+        if self.stumm or not self.anmeldung.pflicht():
             return True
         from PySide6.QtWidgets import QDialog
-        from .rollen_seite import AnmeldenDialog
-        if AnmeldenDialog(None, self.db, beim_start=True).exec() != QDialog.Accepted:
+        from .zugang_fenster import AnmeldeDialog
+        d = AnmeldeDialog(None, self.anmeldung, beim_start=True)
+        if d.exec() != QDialog.Accepted:
             return False
-        self.rechte_anwenden()
+        self._nach_anmeldung()
+        if d.ergebnis is not None and d.ergebnis.passwort_aendern:
+            self.meldung("Der Administrator hat ein neues Passwort verlangt: bitte unter Einstellungen → "
+                         "Arbeitsplätze und Rechte ändern lassen.", fehler=True)
         return True
+
+    def benutzer_wechseln(self, frage=True):
+        """Benutzer → Benutzer wechseln: offene Fenster schließen (jedes fragt nach Ungespeichertem), abmelden und
+        das Anmeldefenster zeigen. Abbrechen dort: Programm bleibt gesperrt, bis sich jemand anmeldet."""
+        from . import zugang_fenster
+        if frage and not self.stumm and not zugang_fenster.wechsel_fragen(self):
+            return False
+        if not zugang_fenster.offene_fenster_schliessen(self):
+            self.meldung("Benutzer nicht gewechselt: ein Fenster ist noch offen.", fehler=True)
+            return False
+        self.anmeldung.abmelden(wechsel=True)
+        self.rechte_anwenden()
+        if self.stumm:
+            return True
+        from PySide6.QtWidgets import QDialog
+        while True:
+            d = zugang_fenster.AnmeldeDialog(self, self.anmeldung, beim_start=True, titel="Benutzer wechseln")
+            if d.exec() == QDialog.Accepted:
+                self._nach_anmeldung()
+                self.meldung(f"Angemeldet: {self.anmeldung.text()}.")
+                return True
+            if self.anmeldung.pflicht():    # ohne Anmeldung kein Weiterarbeiten: Beenden schließt das Programm
+                self.close()
+                return False
+            return True
+
+    def sitzung_sperren(self):
+        """Sofort sperren (Strg+Alt+L): weiter nur mit dem eigenen Passwort."""
+        if not self.anmeldung.angemeldet():
+            self.meldung("Niemand angemeldet.")
+            return False
+        self.anmeldung.sperren()
+        self.sitzung_gesperrt()
+        return True
+
+    def sitzung_gesperrt(self):
+        """Sperrbildschirm (Waechter nach Inaktivität oder sitzung_sperren)."""
+        if self.stumm:
+            return
+        from .zugang_fenster import SperrDialog
+        d = SperrDialog(self, self.anmeldung)
+        if d.exec() == SperrDialog.WECHSELN:
+            self.benutzer_wechseln(frage=False)
 
     def versand_anwenden(self):
         """Reiter Versand nach der Einstellung ein- oder ausblenden (Menüeinträge prüfen beim Öffnen selbst)."""
@@ -5212,6 +5290,10 @@ class Hauptfenster(QMainWindow):
                 return
         if getattr(self, "tempo", None) is not None:
             self.tempo.stoppen()
+        if self.waechter is not None:
+            self.waechter.beenden()
+        if self._anmeldung is not None and self._anmeldung.angemeldet():
+            self._anmeldung.ps.abmelden()          # Sitzung endet mit dem Programm (zg_sitzungen, Protokoll)
         super().closeEvent(ereignis)
 
     def datenort_text(self):

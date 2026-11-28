@@ -100,6 +100,15 @@ class Sitzungen:
             return True
         return False
 
+    def sperren(self):
+        """Sofort sperren (Benutzer geht weg: Strg+Alt+L)."""
+        s = self.aktuell
+        if s and s.aktiv:
+            s.gesperrt = True
+            self._melden("gesperrt", s)
+            return True
+        return False
+
     def entsperren(self):
         """Nach erneuter erfolgreicher Prüfung desselben Benutzers (pruefstelle)."""
         s = self.aktuell

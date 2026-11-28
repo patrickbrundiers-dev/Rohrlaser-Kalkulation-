@@ -21,14 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.555", "<b>Grundlage für das neue Anmelde- und Berechtigungssystem</b> (Paket A): Kern für Anmeldung, "
-                "Sitzungen, Rollen mit Einzelrechten, Sicherheitsprotokoll und den Entwickler-Ausweis (signiert, "
-                "ohne Rechnerbindung, ohne eingebautes Passwort). Dazu (Paket B) eigene Datenbanktabellen für "
-                "Arbeitsplätze, Sitzungen, Anmeldeversuche und das Sicherheitsprotokoll; beim ersten Start sichert "
-                "das Programm die Datenbank und schreibt einen Bericht, wie jeder Benutzer ins neue Rollenmodell "
-                "übernommen wird (jeder behält genau seine bisherigen Rechte). Im Programm ändert sich dadurch noch nichts "
-                "Sichtbares; das neue Loginfenster folgt mit einer der nächsten Versionen.",
-     "Grundlage für das neue Anmelde- und Berechtigungssystem (noch unsichtbar)."],
+    ["0.9.555", "<b>Neues Anmeldefenster und Benutzer wechseln</b> ([[benutzer_rollen]]): Sobald ein Benutzer ein "
+                "Passwort oder eine PIN hat, meldet sich beim Start jeder an. Der zuletzt angemeldete Benutzer ist "
+                "vorgewählt (gemerkt wird nur sein Kürzel), niemand wird automatisch angemeldet. Auf Wunsch fragt das "
+                "Programm zusätzlich einen Einmalcode aus der Authenticator-App ab. <i>Datei › Benutzer wechseln</i> "
+                "(Strg+Alt+W) schließt offene Fenster mit Rückfrage und meldet ab; nach 30 Minuten ohne Eingabe "
+                "sperrt das Programm, weiter nur mit dem eigenen Passwort (sofort: Strg+Alt+L). Fehlversuche bremsen "
+                "die Anmeldung auch über einen Neustart hinweg. Der Entwickler meldet sich mit einem signierten "
+                "Ausweis vom USB-Stick an (ohne eingebautes Passwort, ohne Rechnerbindung); der alte Zugang mit "
+                "festem Prüfwert ist entfernt. Im Hintergrund: eigene Tabellen für Sitzungen, Anmeldeversuche, "
+                "Arbeitsplätze und Sicherheitsprotokoll; beim ersten Start sichert das Programm die Datenbank und "
+                "übernimmt jeden Benutzer mit genau seinen bisherigen Rechten ins neue Rollenmodell.",
+     "Neues Anmeldefenster, Benutzer wechseln, Sperre nach 30 Minuten ohne Eingabe."],
     ["0.9.554", "<b>Server-Setup mit Einrichtungs-Assistent</b> (Serverversion): <i>NexTube-Server-Setup.exe</i> "
                 "installiert das Programm auf dem Server-Rechner und startet einen Assistenten. Er fragt Server-Ordner, "
                 "Firma, Adressen, ersten Administrator, Firewall, Freigabe der Ablage, Sicherungszeiten, NAS-Ziel und "

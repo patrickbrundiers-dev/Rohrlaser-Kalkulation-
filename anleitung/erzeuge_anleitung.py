@@ -13062,16 +13062,29 @@ def kapitel_einstellungen(i):
             "Felder lassen den Zugang wie er ist.",
             "<b>Sperren / Entsperren</b>: ein gesperrter Benutzer kann sich nicht anmelden und darf nur sehen. "
             "<b>Entfernen</b> löscht den Benutzer.",
-            "<b>Beim Start anmelden (Kürzel und Passwort oder PIN)</b>: das Programm fragt beim Start danach. Der "
-            "Mitarbeiter wird aus einer Liste gewählt (Name und Kürzel, der Mitarbeiter dieses Arbeitsplatzes schon "
-            "vorausgewählt); eingeben muss man nur Passwort oder PIN. Ohne Haken gilt der Benutzer dieses "
-            "Arbeitsplatzes (Mein Arbeitsplatz).",
+            "<b>Anmelden beim Start</b> (seit 0.9.555 Pflicht, sobald ein Benutzer Passwort oder PIN hat): das "
+            "Anmeldefenster zeigt die Benutzer als Liste (Name und Kürzel), der zuletzt an diesem Platz angemeldete "
+            "ist vorgewählt. Gemerkt wird nur sein Kürzel, nie ein Passwort; niemand wird automatisch angemeldet. "
+            "Eingeben muss man nur Passwort oder PIN, bei eingerichteter Zwei-Faktor-Anmeldung danach den "
+            "Einmalcode aus der Authenticator-App. <i>Beenden</i> schließt das Programm.",
             "<b>Rechte der Rollen</b>: Tabelle Rolle × Bereich (Angebote, Aufträge, Arbeitsvorbereitung, "
             "Produktion, Qualitätskontrolle, Auslieferung, Auswertungen) mit <i>–</i>, <i>sehen</i> oder "
             "<i>bearbeiten</i>; wirkt sofort. <b>Vorgabe wiederherstellen</b> setzt die Tabelle zurück. Der "
             "Administrator darf immer alles.")
-    i.text("<b>Benutzer anmelden …</b> im Menü <i>Datei</i> wechselt den Benutzer, z. B. an einem gemeinsamen "
-           "Werkstatt-Rechner. Nach 5 Fehlversuchen wartet die Anmeldung 30 Sekunden. Unten in der Statuszeile "
+    i.text("<b>Benutzer wechseln …</b> (Menü <i>Datei</i>, Strg+Alt+W) fragt kurz nach, schließt alle offenen "
+           "Fenster und Editoren (jedes fragt dabei selbst nach ungespeicherten Änderungen; bricht man dort ab, wird "
+           "nicht gewechselt), meldet ab und zeigt das Anmeldefenster. <b>Abmelden und sperren</b> (Strg+Alt+L) "
+           "sperrt sofort, z. B. beim Verlassen des Platzes. Nach 30 Minuten ohne Eingabe sperrt das Programm von "
+           "selbst: Die Daten bleiben offen, weiter geht es nur mit dem eigenen Passwort oder über <i>Benutzer "
+           "wechseln</i>. Falsches Passwort und unbekannter Benutzer ergeben dieselbe Meldung; nach 5 Fehlversuchen "
+           "wartet die Anmeldung 1 Minute, jede weitere Fehleingabe verdoppelt das bis 60 Minuten, auch nach einem "
+           "Neustart. Anmeldungen, Fehlversuche, Wechsel und Sperren stehen ohne Passwörter im Sicherheitsprotokoll "
+           "(Datenordner, Unterordner Sicherheit).", kurz=True)
+    i.text("<b>Mit Entwickler-Ausweis …</b> im Anmeldefenster ist nur für den Entwickler: mit dem signierten Ausweis "
+           "vom USB-Stick (Datei entwickler.ausweis) und seinem Passwort hat er an jeder Installation vollen Zugriff, "
+           "ohne Platzlizenz und ohne Bindung an einen Rechner. Im Programm ist dafür kein Passwort eingebaut.")
+    i.text("<b>Benutzer anmelden …</b> im Menü <i>Datei</i> meldet einen anderen Benutzer an, z. B. an einem "
+           "gemeinsamen Werkstatt-Rechner. Unten in der Statuszeile "
            "steht, wer angemeldet ist. Seiten ohne Recht <i>sehen</i> sind ausgeblendet (z. B. Angebote für die "
            "Werkstatt), mit nur <i>sehen</i> sind die Knöpfe gesperrt bzw. Angebote im Lesemodus. Ein Platz, "
            "dessen Benutzer keine Rolle hat, darf nur sehen; ein freigeschalteter Admin darf alles. Wer Angebote "
