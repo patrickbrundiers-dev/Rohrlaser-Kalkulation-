@@ -187,8 +187,7 @@ class CacheFenster(QDialog):
 
 
 def cache_fenster(f, zeigen=True):
-    d = CacheFenster(f)
-    if zeigen:
-        d.show()
-    f._cache_fenster = d
-    return d
+    from . import fenster_wache
+    if zeigen:                      # nur ein Fenster; erneutes Öffnen holt es nach vorn (27.11.2026)
+        return fenster_wache.einmal(f, "_cache_fenster", lambda: CacheFenster(f))
+    return fenster_wache.ersetzen(f, "_cache_fenster", CacheFenster(f))

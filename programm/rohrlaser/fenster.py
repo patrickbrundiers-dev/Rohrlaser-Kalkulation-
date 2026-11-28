@@ -3615,6 +3615,8 @@ class Hauptfenster(QMainWindow):
         from . import symbole
         symbole.versehen(self)          # Symbole an Hauptaktionen und Menüpunkten (Layout-Plan L19)
         self.lizenz_anwenden()
+        from . import fenster_wache         # geschlossene Dialoge freigeben (Speicherleck, Auftrag 27.11.2026)
+        fenster_wache.einrichten()
         self.fenster_merker = None
         if not stumm:
             self.updater.beim_start()
@@ -4251,7 +4253,8 @@ class Hauptfenster(QMainWindow):
         knoepfe.rejected.connect(d.reject)
         lay.addWidget(knoepfe)
         d.resize(680, 320)
-        self.referenz_dialog = d
+        from . import fenster_wache     # das vorige Fenster freigeben statt es im Speicher zu lassen (27.11.2026)
+        fenster_wache.ersetzen(self, "referenz_dialog", d)
         d.open()
         return erg
 

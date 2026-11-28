@@ -79,10 +79,14 @@ def knoepfe_setzen(w):
     """Minimieren, Maximieren und Schließen in der Titelleiste (vor dem ersten Zeigen, sonst blendet Qt das Fenster
     beim Ändern der Flags aus). Fenster mit fester Größe bekommen nur Schließen. Ergebnis: True bei Änderung."""
     alt = w.windowFlags()
-    neu = (alt | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint | Qt.CustomizeWindowHint) \
-        & ~Qt.WindowContextHelpButtonHint
+    neu = alt | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint | Qt.CustomizeWindowHint
     if not feste_groesse(w):
         neu |= Qt.WindowMinMaxButtonsHint
+    # Hilfe-Knopf entfernen OHNE „& ~Qt.WindowContextHelpButtonHint“: unter Python 3.12 (Windows-Paket) liefert das
+    # Umkehren eines Qt-Flags nur die Bits bis 0x01FFFFFF – Schließen-Knopf (0x08000000) und Customize gingen
+    # verloren, das X war in jedem Dialog grau und ohne Funktion (Windows-Probe 28.11.2026).
+    if neu & Qt.WindowContextHelpButtonHint:
+        neu ^= Qt.WindowContextHelpButtonHint
     if neu == alt:
         return False
     w.setWindowFlags(neu)
