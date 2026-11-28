@@ -1,74 +1,81 @@
-"""Einfacher Modus: geführte Kalkulation in sechs Schritten (Patrick 25.11.2026, Master-Auftrag „Vereinfachten
-Bedienmodus implementieren“).
+"""Einfacher Modus: geführte Kalkulation in fünf Schritten (Patrick 25.11.2026, Master-Auftrag „Vereinfachten
+Bedienmodus implementieren“; Einfacher Modus 2.0 vom 27.11.2026: „so einfach wie möglich, aber keinesfalls billig“).
 
 Eine eigenständige Oberfläche neben dem Experten-Pro-Modus, aber KEIN zweites Kalkulationssystem: Jede Kalkulation
 ist ein ganz normales Angebot. Die Seite arbeitet immer auf der Angebotsseite (angebot_fenster.AngebotSeite), die
-auch der Expertenmodus zeigt (Hauptfenster.offen), und ruft deren vorhandene Funktionen auf: STEP-Import mit
-Prüfdialog, CAD-Import, Bauteilbibliothek, Werkstoff setzen, Material und Materialkosten, Zusatzarbeiten,
-Vorschläge, Optimieren, Kunde wählen, Angebots-PDF. Zahlen kommen aus derselben Rechnung (AngebotSeite._rechnung =
+auch der Pro-Modus zeigt (Hauptfenster.offen), und ruft deren vorhandene Funktionen auf: Kunde wählen, STEP-Import
+mit Prüfdialog, CAD-Import, Bauteilbibliothek, Werkstoff setzen, Material und Materialkosten, Zusatzarbeiten,
+Vorschläge, Optimieren, Fracht, Marge, Angebots-PDF. Zahlen kommen aus derselben Rechnung (AngebotSeite._rechnung =
 rechnen.kalkulation), Marge und Ampel wie die Kachel „Gewinn und Marge“ (bedienmodus.ergebnis). Der Moduswechsel
 tauscht nur die sichtbare Oberfläche: die Angebotsseiten, Eingaben und Rechnungen bleiben dieselben Objekte.
 
-Aufbau: Kopf (Titel, Schrittleiste 1–6, Hilfe, Expertenmodus) · Schrittseite · Hilfebereich · Fuß (Zurück, nächster
-Schritt, Weiter). Umschalten: Einstellungen → Darstellung und Bedienoberfläche, Menü Ansicht, Statusleiste oder
-Strg+Alt+M (einrichten, umschalten).
+Aufbau (Designsystem „Klar“, design.py und bausteine.py): Kopf (Angebot und Kunde, Übersicht, Schrittleiste 1–5 mit
+Stand je Schritt, Status-Chip, Hilfe, Pro-Modus) · Hilfe auf Abruf · Schrittseite und Zusammenfassung rechts (auf
+schmalen Bildschirmen als Zeile unter dem Kopf) · Fuß (Zurück, nächster Schritt als Satz, Weiter). Umschalten:
+Einstellungen → Darstellung und Bedienoberfläche, Menü Ansicht, Statusleiste oder Strg+Alt+M (einrichten,
+umschalten).
 """
-from PySide6.QtCore import QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QKeySequence, QPainter, QShortcut
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel,
-                               QLineEdit, QListWidget, QListWidgetItem, QPushButton, QScrollArea,
-                               QSizePolicy, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
-                               QToolButton, QVBoxLayout, QWidget)
+import tempfile
+from pathlib import Path
 
+from PySide6.QtCore import QStringListModel, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QKeySequence, QPixmap, QShortcut
+from PySide6.QtWidgets import (QAbstractItemView, QBoxLayout, QCheckBox, QComboBox, QCompleter, QDoubleSpinBox,
+                               QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton,
+                               QScrollArea, QSizePolicy, QSpinBox, QSplitter, QStackedWidget, QTableWidget,
+                               QTableWidgetItem, QToolButton, QVBoxLayout, QWidget)
+
+from . import bausteine as bs
 from . import bedienmodus as bm
-from . import stil
+from . import design, stil
 
-GRAU, AKZENT = "#5F6B7A", "#1F4E78"
-FARBE_STUFE = {"FEHLER": "#B42318", "WARNUNG": "#B35C00", "HINWEIS": "#1F4E78", "OK": "#1E6B34"}
-FLAECHE_STUFE = {"FEHLER": "#FDECEA", "WARNUNG": "#FFF4CE", "HINWEIS": "#EEF4FB", "OK": "#E3F4E8"}
-AMPEL = {"gut": "#1E6B34", "knapp": "#B35C00", "kritisch": "#B42318"}
-ZEICHEN = {"FEHLER": "●", "WARNUNG": "▲", "HINWEIS": "ℹ", "OK": "✓"}
 PRUEF_TAKT_MS = 1200        # so oft schaut die sichtbare Seite nach, ob sich das Angebot geändert hat (billig)
 TASTE = "Ctrl+Alt+M"        # Moduswechsel (Strg+Umschalt+M ist die Materialanfrage)
+BREIT_AB = 1400             # ab dieser Breite steht die Zusammenfassung als Spalte rechts, darunter als Zeile oben
+SCHMAL_AB = 1360            # darunter zeigt die Schrittleiste nur beim aktuellen Schritt den Namen
+STUFE_CHIP = {"FEHLER": "fehler", "WARNUNG": "warnung", "HINWEIS": "info", "OK": "ok"}
+AMPEL_CHIP = {"gut": "ok", "knapp": "warnung", "kritisch": "fehler"}
+ZEICHEN = {"FEHLER": "✕", "WARNUNG": "!", "HINWEIS": "i", "OK": "✓"}
+GRAU = design.TEXT_GRAU
 
-# Farben nur aus der Hell-Palette mit Dunkel-Entsprechung (stil.UMSETZUNG): setStyleSheet setzt sie um
-STIL = """
-QWidget#einfach { background: #F2F4F7; }
-QFrame#e_kopf, QFrame#e_fuss { background: #FFFFFF; border: none; }
-QFrame#e_kopf { border-bottom: 1px solid #D5DBE3; }
-QFrame#e_fuss { border-top: 1px solid #D5DBE3; }
-QLabel#e_titel { font-size: 15pt; font-weight: 600; color: #1F2937; }
-QLabel#e_seitentitel { font-size: 17pt; font-weight: 600; color: #1F2937; }
-QLabel#e_unter, QLabel#e_klein { color: #5F6B7A; }
-QPushButton#e_schritt { border: 1px solid transparent; border-radius: 15px; padding: 5px 12px; color: #5F6B7A;
-                        background: transparent; font-weight: 600; }
-QPushButton#e_schritt:hover { background: #EEF4FB; }
-QPushButton#e_schritt:checked { background: #1F4E78; color: #FFFFFF; }
-QPushButton#e_schritt[erledigt="true"] { background: #EAF1F8; color: #1F4E78; }
-QPushButton#e_schritt:disabled { color: #9AA3AF; }
-QFrame#e_karte { background: #FFFFFF; border: 1px solid #E3E7EC; border-radius: 10px; }
-QFrame#e_karte_akzent { background: #DDEBF7; border: 1px solid #C9DAEE; border-radius: 10px; }
-QLabel#e_karten_titel { font-size: 11pt; font-weight: 600; color: #1F2937; }
-QLabel#e_wert_titel { color: #5F6B7A; font-weight: 600; }
-QLabel#e_zahl { font-size: 18pt; font-weight: 700; color: #1F2937; }
-QLabel#e_zahl_gross { font-size: 24pt; font-weight: 700; color: #1F4E78; }
-QToolButton#e_kachel { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 12px; padding: 12px;
-                       font-size: 11pt; font-weight: 600; color: #1F2937; text-align: left; }
-QToolButton#e_kachel:hover { border-color: #1F4E78; background: #EEF4FB; }
-QPushButton#primaer, QPushButton#e_gross { min-height: 34px; padding: 6px 16px; font-size: 10.5pt; }
-QPushButton#e_riesig { min-height: 52px; padding: 8px 28px; font-size: 13pt; font-weight: 700;
-                       background: #1F4E78; color: #FFFFFF; border: 1px solid #183E60; border-radius: 8px; }
-QPushButton#e_riesig:hover { background: #183E60; }
-QFrame#e_hilfe { background: #EEF4FB; border: 1px solid #C9DAEE; border-radius: 10px; }
-QTableWidget#e_tabelle { background: #FFFFFF; border: none; gridline-color: #E3E7EC; }
-QTableWidget#e_tabelle::item { padding: 4px 6px; }
-QListWidget#e_liste { background: #FFFFFF; border: 1px solid #E3E7EC; border-radius: 8px; }
-QListWidget#e_liste::item { padding: 8px 6px; border-bottom: 1px solid #E3E7EC; }
-QListWidget#e_liste::item:selected { background: #DDEBF7; color: #1F2937; }
+# Nur Werte aus design.py (Designsystem „Klar“); Farben aus der Hell-Palette, stil.umsetzen setzt sie für Dunkel und
+# Hohen Kontrast um. Karten, Kennzahlleiste, Chips, Hinweisbänder und Knöpfe kommen aus dem gemeinsamen Stylesheet.
+STIL = f"""
+QWidget#einfach {{ background: {design.ARBEITSFLAECHE}; }}
+QFrame#e_kopf {{ background: {design.KARTE}; border: none; border-bottom: 1px solid {design.KARTE_RAHMEN}; }}
+QFrame#e_fuss {{ background: {design.KARTE}; border: none; border-top: 1px solid {design.KARTE_RAHMEN}; }}
+QFrame#e_streifen {{ background: {design.KARTE}; border: none; border-bottom: 1px solid {design.KARTE_RAHMEN}; }}
+QLabel#e_titel {{ font-size: {design.UI_ABSCHNITT}px; font-weight: 600; color: {design.TEXT}; }}
+QLabel#e_unter {{ color: {design.TEXT_GRAU}; }}
+QLabel#e_klein {{ color: {design.TEXT_GRAU}; font-size: {design.UI_KLEIN}px; }}
+QLabel#e_feld {{ color: {design.TEXT_GRAU}; font-size: {design.UI_KLEIN}px; font-weight: 500; }}
+QLabel#e_summe {{ font-size: {design.UI_KENNZAHL}px; font-weight: 600; color: {design.AKZENT}; }}
+QLabel#e_wert {{ color: {design.TEXT}; }}
+QPushButton#e_schritt {{ border: 1px solid transparent; border-radius: {design.ECKE}px; padding: 4px 10px;
+    color: {design.TEXT_GRAU}; background: transparent; font-weight: 500; }}
+QPushButton#e_schritt:hover {{ background: {design.NEUTRAL_FLAECHE}; }}
+QPushButton#e_schritt[zustand="ok"] {{ color: {design.GRUEN}; }}
+QPushButton#e_schritt[zustand="fehlt"] {{ color: {design.GELB_TEXT}; }}
+QPushButton#e_schritt:checked {{ background: {design.AKZENT_FLAECHE}; color: {design.AKZENT}; font-weight: 600; }}
+QPushButton#e_schritt:disabled {{ color: #9AA3AF; }}
+QPushButton#e_link {{ border: none; background: transparent; color: {design.AKZENT}; text-align: left;
+    padding: 1px 0px; }}
+QPushButton#e_link:hover {{ text-decoration: underline; }}
+QToolButton#e_auf {{ border: none; background: transparent; color: {design.AKZENT}; font-weight: 600;
+    padding: 2px 0px; }}
+QFrame#e_zusammen {{ background: {design.KARTE}; border: 1px solid {design.KARTE_RAHMEN};
+    border-radius: {design.ECKE_KARTE}px; }}
+QFrame#e_zusammen QLabel {{ border: none; }}
+QFrame#e_trenn {{ background: {design.KARTE_RAHMEN}; border: none; max-height: 1px; min-height: 1px; }}
+QFrame#e_hilfe {{ background: {design.AKZENT_FLAECHE}; border: none; border-bottom: 1px solid #C9DAEE; }}
+QFrame#e_hilfe QLabel {{ background: transparent; }}
+QLabel#e_vorschau {{ background: {design.KARTE}; border: 1px solid {design.EINGABE_RAHMEN}; }}
+QTableWidget#e_tabelle {{ background: {design.KARTE}; border: none; gridline-color: {design.LINIE}; }}
+QTableWidget#e_tabelle::item {{ padding: 2px 6px; }}
 """
 
 
-# ------------------------------------------------------------------ Bausteine
+# ------------------------------------------------------------------ Bausteine (nur Zusammenbau aus bausteine.py)
 def _label(text="", name=None, umbruch=True):
     lb = QLabel(text)
     if name:
@@ -82,137 +89,42 @@ def _farbe(hell):
     return stil.umsetzen(hell)
 
 
-class Karte(QFrame):
-    """Weiße Fläche mit runden Ecken und optionalem Titel; lay = Inhalt."""
-
-    def __init__(self, titel="", akzent=False, parent=None):
-        super().__init__(parent)
-        self.setObjectName("e_karte_akzent" if akzent else "e_karte")
-        aussen = QVBoxLayout(self)
-        aussen.setContentsMargins(16, 12, 16, 14)
-        aussen.setSpacing(8)
-        self.titel = _label(titel, "e_karten_titel") if titel else None
-        if self.titel is not None:
-            aussen.addWidget(self.titel)
-        self.lay = QVBoxLayout()
-        self.lay.setSpacing(6)
-        aussen.addLayout(self.lay, 1)
+def _knopf(text, aufruf, tipp="", haupt=False):
+    b = bs.knopf(text, haupt=haupt, klick=aufruf)
+    b.setToolTip(tipp)
+    return b
 
 
-class Kennzahl(Karte):
-    """Kennzahl-Kachel: Titel, große Zahl, kurze Erklärung (Tooltip = ausführlich)."""
-
-    def __init__(self, titel, hilfe="", gross=False, akzent=False):
-        super().__init__("", akzent=akzent)
-        self.kopf = _label(titel, "e_wert_titel")
-        self.zahl = _label("–", "e_zahl_gross" if gross else "e_zahl", umbruch=False)
-        self.unter = _label("", "e_klein")
-        for w in (self.kopf, self.zahl, self.unter):
-            self.lay.addWidget(w)
-        self.lay.addStretch(1)
-        self.setToolTip(hilfe)
-        self.setMinimumWidth(170)
-
-    def setzen(self, zahl, unter="", farbe=None, tipp=None):
-        self.zahl.setText(zahl)
-        self.zahl.setStyleSheet(f"color: {farbe};" if farbe else "")
-        self.unter.setText(unter)
-        self.unter.setVisible(bool(unter))
-        if tipp is not None:
-            self.setToolTip(tipp)
-
-
-class Raster(QWidget):
-    """Kacheln in so vielen Spalten, wie in die Breite passen (min_breite je Kachel): passt sich jeder
-    Bildschirmgröße an, ohne waagerechten Rollbalken."""
-
-    def __init__(self, min_breite=230, abstand=12, parent=None):
-        super().__init__(parent)
-        self.min_breite, self.kacheln, self._spalten = min_breite, [], 0
-        self.gitter = QGridLayout(self)
-        self.gitter.setContentsMargins(0, 0, 0, 0)
-        self.gitter.setSpacing(abstand)
-
-    def setzen(self, kacheln):
-        for w in self.kacheln:
-            self.gitter.removeWidget(w)
-            if w not in kacheln:
-                w.setParent(None)
-                w.deleteLater()
-        self.kacheln = list(kacheln)
-        self._spalten = 0
-        self._anordnen()
-
-    def _anordnen(self):
-        n = max(1, min(len(self.kacheln) or 1, max(self.width(), self.min_breite) // self.min_breite))
-        if n == self._spalten:
-            return
-        self._spalten = n
-        for w in self.kacheln:
-            self.gitter.removeWidget(w)
-        for i, w in enumerate(self.kacheln):
-            self.gitter.addWidget(w, i // n, i % n)
-        for c in range(self.gitter.columnCount()):
-            self.gitter.setColumnStretch(c, 1 if c < n else 0)
-
-    def resizeEvent(self, e):
-        super().resizeEvent(e)
-        self._anordnen()
-
-
-class Balken(QWidget):
-    """Kostenaufteilung als ein waagerechter Balken (Anteile der Kostengruppen am Verkaufspreis)."""
-    FARBEN = ("#1F4E78", "#5B8DB8", "#B35C00", "#7F8A99", "#1E6B34", "#B07AA1", "#76B7B2")
-
-    def __init__(self):
-        super().__init__()
-        self.teile = []
-        self.setMinimumHeight(22)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-    def setzen(self, teile):
-        self.teile = [(t, w) for t, w in teile if w > 0]
-        self.setToolTip("\n".join(f"{t}: {bm.euro(w)}" for t, w in self.teile))
-        self.update()
-
-    def paintEvent(self, _):
-        summe = sum(w for _, w in self.teile)
-        if summe <= 0:
-            return
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        x, b = 0.0, self.width()
-        for i, (_, w) in enumerate(self.teile):
-            breite = b * w / summe
-            p.fillRect(int(x), 0, int(breite + 1), self.height(), stil.farbe(self.FARBEN[i % len(self.FARBEN)]))
-            x += breite
-        p.end()
-
-
-def _kachel(titel, text, symbol, aufruf):
-    k = QToolButton()
-    k.setObjectName("e_kachel")
-    k.setText(f"{titel}\n{text}")
-    k.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-    k.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-    k.setMinimumHeight(84)
-    k.setIconSize(QSize(34, 34))
-    k.setToolTip(text)
-    try:
-        from . import symbole
-        k.setIcon(symbole.symbol(symbol, AKZENT))
-    except Exception:           # noqa: BLE001 – ohne Symbol
-        pass
-    k.clicked.connect(aufruf)
-    return k
-
-
-def _knopf(text, aufruf, tipp="", art="e_gross"):
+def _link(text, aufruf, tipp=""):
     b = QPushButton(text)
-    b.setObjectName(art)
+    b.setObjectName("e_link")
+    b.setCursor(Qt.PointingHandCursor)
     b.setToolTip(tipp)
     b.clicked.connect(aufruf)
     return b
+
+
+def _trenner():
+    t = QFrame()
+    t.setObjectName("e_trenn")
+    return t
+
+
+def _feld(titel, widget, pflicht=False, tipp=""):
+    """Eingabefeld mit Bezeichnung darüber; Pflichtfelder mit rotem * (Status nie nur über die Farbe)."""
+    w = QWidget()
+    v = QVBoxLayout(w)
+    v.setContentsMargins(0, 0, 0, 0)
+    v.setSpacing(3)
+    lb = _label(titel + (f" <span style='color:{_farbe(design.ROT)}'>*</span>" if pflicht else ""), "e_feld",
+                umbruch=False)
+    if tipp:
+        lb.setToolTip(tipp)
+        widget.setToolTip(tipp)
+    v.addWidget(lb)
+    v.addWidget(widget)
+    w.feld, w.bezeichnung = widget, lb
+    return w
 
 
 def _scroll(inhalt):
@@ -225,6 +137,19 @@ def _scroll(inhalt):
     return s
 
 
+def _seite(titel, untertitel="", aktionen=()):
+    """Schrittseite: Seitenkopf (bausteine.seitenkopf) und darunter der Inhalt. Ergebnis: (Rollbereich, Layout,
+    Seitenkopf)."""
+    w = QWidget()
+    v = QVBoxLayout(w)
+    v.setContentsMargins(design.ABSTAND_GROSS + 4, design.ABSTAND_GROSS, design.ABSTAND_GROSS + 4,
+                         design.ABSTAND_GROSS)
+    v.setSpacing(design.ABSTAND + 2)
+    kopf = bs.seitenkopf(titel, untertitel, aktionen)
+    v.addWidget(kopf)
+    return _scroll(w), v, kopf
+
+
 def _zelle(text, rechts=False, tipp=""):
     it = QTableWidgetItem(str(text))
     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
@@ -235,64 +160,216 @@ def _zelle(text, rechts=False, tipp=""):
     return it
 
 
-def _tabelle(spalten):
+def _tabelle(spalten, dehnen=1, rechts=()):
+    """Tabelle ohne waagerechten Rollbalken: die Spalte dehnen füllt die Breite, die übrigen nach Inhalt."""
     t = QTableWidget(0, len(spalten))
     t.setObjectName("e_tabelle")
     t.setHorizontalHeaderLabels(spalten)
     t.verticalHeader().setVisible(False)
-    t.verticalHeader().setDefaultSectionSize(40)
+    t.verticalHeader().setDefaultSectionSize(34)
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
     t.setSelectionMode(QAbstractItemView.SingleSelection)
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
-    t.setAlternatingRowColors(False)
     t.setWordWrap(False)
-    t.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    t.horizontalHeader().setStretchLastSection(False)
-    t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+    t.setShowGrid(False)
+    t.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    kopf = t.horizontalHeader()
+    kopf.setStretchLastSection(False)
+    kopf.setSectionResizeMode(QHeaderView.ResizeToContents)
+    kopf.setSectionResizeMode(dehnen, QHeaderView.Stretch)
+    kopf.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+    for c in rechts:
+        t.horizontalHeaderItem(c).setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
     return t
 
 
+def _leeren(lay):
+    """Alle Widgets aus einem Layout nehmen und entfernen (sofort unsichtbar, gelöscht beim nächsten Durchlauf)."""
+    while lay.count():
+        w = lay.takeAt(0).widget()
+        if w is not None:
+            w.hide()
+            w.setParent(None)
+            w.deleteLater()
+
+
+def _zellen_leeren(t):
+    """Eingebettete Felder einer Tabelle sofort ausblenden und entfernen, bevor sie neu gefüllt wird (sonst stünde
+    ein altes Feld bis zum Löschen noch über der neuen Zeile)."""
+    for r in range(t.rowCount()):
+        for c in range(t.columnCount()):
+            w = t.cellWidget(r, c)
+            if w is not None:
+                w.hide()
+                t.removeCellWidget(r, c)
+
+
+def _hoehe_anpassen(t, min_zeilen=3, max_zeilen=14):
+    """Tabelle so hoch wie ihre Zeilen (die Seite rollt, nicht die Tabelle), höchstens max_zeilen."""
+    n = max(min_zeilen, min(max_zeilen, t.rowCount()))
+    t.setFixedHeight(t.horizontalHeader().height() + n * t.verticalHeader().defaultSectionSize() + 4)
+
+
+class Aufklapper(QWidget):
+    """Bereich, der erst bei Bedarf aufgeht (Details, Kostenarten, Weitere Kosten): Knopf „Titel ▸/▾“ und Inhalt."""
+    umgeschaltet = Signal(bool)
+
+    def __init__(self, titel, offen=False):
+        super().__init__()
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(design.ABSTAND_KLEIN)
+        self.titel = titel
+        self.knopf = QToolButton()
+        self.knopf.setObjectName("e_auf")
+        self.knopf.setCheckable(True)
+        self.knopf.setCursor(Qt.PointingHandCursor)
+        self.knopf.toggled.connect(self.zeigen)
+        self.inhalt = QWidget()
+        self.lay = QVBoxLayout(self.inhalt)
+        self.lay.setContentsMargins(0, 0, 0, 0)
+        self.lay.setSpacing(design.ABSTAND_KLEIN)
+        v.addWidget(self.knopf, 0, Qt.AlignLeft)
+        v.addWidget(self.inhalt)
+        self.zeigen(offen)
+
+    def zeigen(self, an):
+        an = bool(an)
+        if self.knopf.isChecked() != an:
+            self.knopf.blockSignals(True)
+            self.knopf.setChecked(an)
+            self.knopf.blockSignals(False)
+        self.knopf.setText(f"{self.titel} {'▾' if an else '▸'}")
+        self.inhalt.setVisible(an)
+        self.umgeschaltet.emit(an)
+
+    def offen(self):
+        return self.knopf.isChecked()
+
+
 class HinweisListe(QWidget):
-    """Hinweise mit Lösung: je Zeile Symbol, verständlicher Text und ein Knopf, der die Lösung öffnet."""
+    """Hinweise mit Lösung: je Hinweis ein Hinweisband (bausteine.hinweisband) mit verständlichem Text und einem
+    Knopf, der die Lösung öffnet."""
     loesen = Signal(str, object)        # Aktion, Zeile
 
     TEXT = {"stueck": "Stück eintragen", "material": "Zum Material", "editor": "Im Editor prüfen",
-            "zukauf": "Preis eintragen", "optimieren": "Neu berechnen", "experte": "Im Expertenmodus öffnen",
+            "zukauf": "Preis eintragen", "optimieren": "Neu berechnen", "experte": "Im Pro-Modus öffnen",
             "kunde": "Kunde wählen", "import": "Bauteil importieren"}
+
+    def __init__(self, ok_text=""):
+        super().__init__()
+        self.ok_text = ok_text
+        self.lay = QVBoxLayout(self)
+        self.lay.setContentsMargins(0, 0, 0, 0)
+        self.lay.setSpacing(design.ABSTAND_KLEIN)
+        self.zeilen = []
+
+    def setzen(self, hinweise, max_anzahl=6):
+        _leeren(self.lay)
+        self.zeilen = list(hinweise)
+        if not hinweise:
+            if self.ok_text:
+                self.lay.addWidget(bs.hinweisband(self.ok_text, "ok"))
+            self.setVisible(bool(self.ok_text))
+            return
+        self.setVisible(True)
+        for st, text, aktion, zeile in hinweise[:max_anzahl]:
+            self.lay.addWidget(bs.hinweisband(text, STUFE_CHIP.get(st, "info"), self.TEXT.get(aktion, ""),
+                                              lambda _=False, a=aktion, r=zeile: self.loesen.emit(a, r)))
+        if len(hinweise) > max_anzahl:
+            self.lay.addWidget(_label(f"… und {len(hinweise) - max_anzahl} weitere.", "e_klein"))
+
+
+class Zusammenfassung(QFrame):
+    """Rechte Spalte ab Schritt 1: Angebotssumme, Kennwerte, Marge mit Ampel und offene Punkte als Links (ersetzt
+    die frühere Hilfespalte; die Hilfe gibt es über „?“). zeile=True: dieselben Angaben als eine Zeile für schmale
+    Bildschirme."""
+    loesen = Signal(str, object)
 
     def __init__(self):
         super().__init__()
-        self.lay = QVBoxLayout(self)
-        self.lay.setContentsMargins(0, 0, 0, 0)
-        self.lay.setSpacing(6)
-        self.zeilen = []
+        self.setObjectName("e_zusammen")
+        self.setFixedWidth(264)
+        v = QVBoxLayout(self)
+        v.setContentsMargins(design.ABSTAND + 4, design.ABSTAND + 2, design.ABSTAND + 4, design.ABSTAND + 2)
+        v.setSpacing(design.ABSTAND_KLEIN + 2)
+        v.addWidget(_label("Angebotssumme netto", "e_klein"))
+        self.summe = _label("–", "e_summe", umbruch=False)
+        v.addWidget(self.summe)
+        self.summe_unter = _label("", "e_klein")
+        v.addWidget(self.summe_unter)
+        v.addWidget(_trenner())
+        self.werte = bs.wertzeilen([("Angebotsnummer", "–"), ("Datum", "–"), ("Bauteile", "–"), ("Stück gesamt", "–"),
+                                    ("Maschinenzeit", "–")])
+        v.addWidget(self.werte)
+        v.addWidget(_trenner())
+        g = QGridLayout()
+        g.setContentsMargins(0, 0, 0, 0)
+        g.setVerticalSpacing(design.ABSTAND_KLEIN)
+        g.addWidget(_label("Marge", "nebentext", umbruch=False), 0, 0)
+        self.marge = bs.chip("–")
+        g.addWidget(self.marge, 0, 1, Qt.AlignRight)
+        g.addWidget(_label("Offene Punkte", "nebentext", umbruch=False), 1, 0)
+        self.offen = bs.chip("–")
+        g.addWidget(self.offen, 1, 1, Qt.AlignRight)
+        v.addLayout(g)
+        self.links = QVBoxLayout()
+        self.links.setSpacing(2)
+        v.addLayout(self.links)
+        v.addStretch(1)
 
-    def setzen(self, hinweise, max_anzahl=8):
-        while self.lay.count():
-            w = self.lay.takeAt(0).widget()
-            if w is not None:
-                w.deleteLater()
-        self.zeilen = list(hinweise)
-        if not hinweise:
-            ok = _label(f"<span style='color:{_farbe(FARBE_STUFE['OK'])}'><b>✓ Alles vollständig.</b></span> "
-                        "Keine fehlenden Angaben.")
-            self.lay.addWidget(ok)
-            return
-        for st, text, aktion, zeile in hinweise[:max_anzahl]:
-            z = QFrame()
-            z.setStyleSheet(f"QFrame {{ background: {FLAECHE_STUFE[st]}; border-radius: 6px; }}")
-            h = QHBoxLayout(z)
-            h.setContentsMargins(10, 6, 6, 6)
-            lb = _label(f"<span style='color:{FARBE_STUFE[st]}'><b>{ZEICHEN[st]}</b></span>&nbsp; {text}")
-            lb.setStyleSheet("background: transparent;")
-            h.addWidget(lb, 1)
-            if aktion in self.TEXT:
-                b = QPushButton(self.TEXT[aktion])
-                b.clicked.connect(lambda _=False, a=aktion, r=zeile: self.loesen.emit(a, r))
-                h.addWidget(b)
-            self.lay.addWidget(z)
-        if len(hinweise) > max_anzahl:
-            self.lay.addWidget(_label(f"… und {len(hinweise) - max_anzahl} weitere.", "e_klein"))
+    def setzen(self, s, d, bereit):
+        k = (s.kopf or {}) if s is not None else {}
+        e = (d or {}).get("ergebnis") or {}
+        bt = (d or {}).get("bauteile") or []
+        gerechnet = bool(bereit and bereit["gerechnet"])
+        self.summe.setText(bm.euro(e.get("verkauf")) if gerechnet and bt else "–")
+        self.summe_unter.setText("" if gerechnet or not bt else "wird beim nächsten Schritt berechnet")
+        self.summe_unter.setVisible(bool(self.summe_unter.text()))
+        stueck = sum(int(b["stueck"] or 0) for b in bt)
+        werte = {"Angebotsnummer": k.get("nummer") or (str(s.id) if s is not None else "–"),
+                 "Datum": _datum(k.get("datum")), "Bauteile": str(len(bt)) if s is not None else "–",
+                 "Stück gesamt": bm.zahl(stueck, 0) if bt else "–",
+                 "Maschinenzeit": bm.minuten_text(e.get("maschine_min")) if gerechnet and bt else "–"}
+        for t, w in werte.items():
+            self.werte.werte[t].setText(w)
+        if gerechnet and e.get("marge") is not None:
+            bs.chip_setzen(self.marge, f"{bm.zahl(100 * e['marge'], 1)} %", AMPEL_CHIP.get(e.get("stufe"), "neutral"))
+            self.marge.setToolTip(e.get("ampel_text") or "")
+        else:
+            bs.chip_setzen(self.marge, "–", "neutral")
+        offen = (bereit or {}).get("offen") or []
+        bs.chip_setzen(self.offen, "keine" if not offen else str(len(offen)), "ok" if not offen else "warnung")
+        _leeren(self.links)
+        for st, text, aktion, zeile in offen[:4]:
+            kurz = text.split(":", 1)[0] if aktion in ("stueck", "editor", "zukauf") and ":" in text else \
+                text.split(".", 1)[0]
+            b = _link(f"{ZEICHEN[st]}  {kurz[:42]}{'…' if len(kurz) > 42 else ''}",
+                      lambda _=False, a=aktion, r=zeile: self.loesen.emit(a, r), text)
+            self.links.addWidget(b)
+        if len(offen) > 4:
+            self.links.addWidget(_label(f"… und {len(offen) - 4} weitere", "e_klein"))
+
+    def zeilentext(self, s, d, bereit):
+        """Dieselben Angaben als ein Satz (schmale Bildschirme)."""
+        e = (d or {}).get("ergebnis") or {}
+        bt = (d or {}).get("bauteile") or []
+        teile = []
+        if bereit and bereit["gerechnet"] and bt:
+            teile.append(f"<b>{bm.euro(e.get('verkauf'))}</b> netto")
+            if e.get("marge") is not None:
+                teile.append(f"Marge {bm.zahl(100 * e['marge'], 1)} %")
+        teile.append(f"{len(bt)} Bauteil(e)")
+        offen = (bereit or {}).get("offen") or []
+        teile.append("keine offenen Punkte" if not offen else f"{len(offen)} offene(r) Punkt(e)")
+        return " · ".join(teile)
+
+
+def _datum(iso):
+    t = str(iso or "")[:10]
+    if len(t) == 10 and t[4] == "-":
+        return f"{t[8:10]}.{t[5:7]}.{t[:4]}"
+    return t or "–"
 
 
 # ------------------------------------------------------------------ Seite
@@ -306,24 +383,42 @@ class EinfachBereich(QWidget):
         self.seite = None
         self.schritt = bm.START
         self.daten = None
+        self.bereit = None
         self._marke = None
         self._gefuellt = set()
+        self._breit = None
         self.setObjectName("einfach")
         self.setStyleSheet(STIL)
+        self.setAcceptDrops(True)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
         lay.addWidget(self._kopf_bauen())
+        lay.addWidget(self._hilfe_bauen())
+        self.streifen = QFrame()
+        self.streifen.setObjectName("e_streifen")
+        sh = QHBoxLayout(self.streifen)
+        sh.setContentsMargins(design.ABSTAND_GROSS + 4, design.ABSTAND_KLEIN, design.ABSTAND_GROSS + 4,
+                              design.ABSTAND_KLEIN)
+        self.streifen_text = _label("", "e_unter", umbruch=False)
+        sh.addWidget(self.streifen_text, 1)
+        lay.addWidget(self.streifen)
         mitte = QHBoxLayout()
         mitte.setContentsMargins(0, 0, 0, 0)
         mitte.setSpacing(0)
         self.stapel = QStackedWidget()
-        self.seiten = [self._start_bauen(), self._bauteile_bauen(), self._material_bauen(), self._bearbeitung_bauen(),
-                       self._ergebnis_bauen(), self._angebot_bauen()]
+        self.seiten = [self._start_bauen(), self._kunde_bauen(), self._bauteile_bauen(), self._material_bauen(),
+                       self._kalkulation_bauen(), self._angebot_bauen()]
         for s in self.seiten:
             self.stapel.addWidget(s)
         mitte.addWidget(self.stapel, 1)
-        mitte.addWidget(self._hilfe_bauen())
+        self.zus = Zusammenfassung()
+        self.zus.loesen.connect(self.loesen)
+        self._zus_aussen = QWidget()
+        za = QVBoxLayout(self._zus_aussen)
+        za.setContentsMargins(0, design.ABSTAND_GROSS, design.ABSTAND_GROSS, design.ABSTAND_GROSS)
+        za.addWidget(self.zus)
+        mitte.addWidget(self._zus_aussen)
         lay.addLayout(mitte, 1)
         lay.addWidget(self._fuss_bauen())
         self.uhr = QTimer(self)
@@ -337,33 +432,56 @@ class EinfachBereich(QWidget):
         kopf = QFrame()
         kopf.setObjectName("e_kopf")
         h = QHBoxLayout(kopf)
-        h.setContentsMargins(16, 8, 12, 8)
-        h.setSpacing(6)
+        h.setContentsMargins(design.ABSTAND_GROSS + 4, design.ABSTAND_KLEIN + 2, design.ABSTAND + 2,
+                             design.ABSTAND_KLEIN + 2)
+        h.setSpacing(design.ABSTAND_KLEIN)
         links = QVBoxLayout()
         links.setSpacing(0)
         self.titel = _label("Kalkulation", "e_titel", umbruch=False)
-        self.untertitel = _label("Einfacher Modus", "e_unter", umbruch=False)
+        self.untertitel = _label("Einfacher Modus", "e_klein", umbruch=False)
         links.addWidget(self.titel)
         links.addWidget(self.untertitel)
-        h.addLayout(links)
+        kopf_links = QWidget()
+        kopf_links.setLayout(links)
+        kopf_links.setMinimumWidth(160)
+        kopf_links.setMaximumWidth(420)
+        h.addWidget(kopf_links)
         h.addStretch(1)
+        self.uebersicht_knopf = QPushButton("Übersicht")
+        self.uebersicht_knopf.setObjectName("e_schritt")
+        self.uebersicht_knopf.setCheckable(True)
+        self.uebersicht_knopf.setToolTip("Zuletzt bearbeitete Kalkulationen, neue Kalkulation anlegen")
+        self.uebersicht_knopf.clicked.connect(lambda: self.zu_schritt(bm.START))
+        h.addWidget(self.uebersicht_knopf)
+        h.addSpacing(design.ABSTAND)
         self.schritt_knoepfe = []
-        for i, (_, titel, kurz, _) in enumerate(bm.SCHRITTE):
-            b = QPushButton(f"{i + 1}  {titel}")
+        for n, (_, titel, kurz, _) in enumerate(bm.SCHRITTE[1:]):
+            b = QPushButton(f"{n + 1}  {titel}")
             b.setObjectName("e_schritt")
             b.setCheckable(True)
-            b.setToolTip(kurz)
-            b.clicked.connect(lambda _=False, i=i: self.zu_schritt(i))
+            b.setToolTip(f"Schritt {n + 1}: {kurz}")
+            b.clicked.connect(lambda _=False, i=n + 1: self.zu_schritt(i))
             self.schritt_knoepfe.append(b)
             h.addWidget(b)
+            if n < len(bm.SCHRITTE) - 2:
+                strich = QFrame()
+                strich.setObjectName("e_trenn")
+                strich.setFixedWidth(10)
+                h.addWidget(strich, 0, Qt.AlignVCenter)
         h.addStretch(1)
-        self.hilfe_knopf = QPushButton("? Hilfe")
+        self.status_chip = bs.chip("", "neutral")
+        self.status_chip.setToolTip("Stand der Kalkulation: bereit zur Ausgabe oder was noch fehlt")
+        h.addWidget(self.status_chip)
+        h.addSpacing(design.ABSTAND_KLEIN)
+        self.hilfe_knopf = QPushButton("?")
         self.hilfe_knopf.setCheckable(True)
-        self.hilfe_knopf.setToolTip("Erklärungen zum aktuellen Schritt ein- oder ausblenden")
+        self.hilfe_knopf.setFixedWidth(30)
+        self.hilfe_knopf.setToolTip("Erklärung zum aktuellen Schritt ein- oder ausblenden")
         self.hilfe_knopf.toggled.connect(lambda an: self.hilfe_zeigen(an, merken=True))
         h.addWidget(self.hilfe_knopf)
-        self.experte_knopf = QPushButton("Expertenmodus")
-        self.experte_knopf.setToolTip(f"Zur vollständigen Arbeitsumgebung wechseln (dieselbe Kalkulation, {TASTE.replace('Ctrl', 'Strg')})")
+        self.experte_knopf = QPushButton("Pro-Modus")
+        self.experte_knopf.setToolTip("Zur vollständigen Arbeitsumgebung wechseln (dieselbe Kalkulation, "
+                                      f"{TASTE.replace('Ctrl', 'Strg')})")
         self.experte_knopf.clicked.connect(lambda: umschalten(self.f, bm.EXPERTE))
         h.addWidget(self.experte_knopf)
         return kopf
@@ -371,32 +489,29 @@ class EinfachBereich(QWidget):
     def _hilfe_bauen(self):
         self.hilfe = QFrame()
         self.hilfe.setObjectName("e_hilfe")
-        self.hilfe.setFixedWidth(280)
-        v = QVBoxLayout(self.hilfe)
-        v.setContentsMargins(14, 12, 14, 12)
-        self.hilfe_titel = _label("", "e_karten_titel")
+        h = QHBoxLayout(self.hilfe)
+        h.setContentsMargins(design.ABSTAND_GROSS + 4, design.ABSTAND, design.ABSTAND_GROSS + 4, design.ABSTAND)
+        h.setSpacing(design.ABSTAND_GROSS)
+        v = QVBoxLayout()
+        v.setSpacing(design.ABSTAND_KLEIN)
+        self.hilfe_titel = _label("", "abschnitt")
         self.hilfe_text = _label("")
-        self.hilfe_text.setStyleSheet("background: transparent;")
         v.addWidget(self.hilfe_titel)
         v.addWidget(self.hilfe_text)
-        v.addSpacing(8)
+        h.addLayout(v, 3)
         self.hilfe_felder = _label("", "e_klein")
-        self.hilfe_felder.setStyleSheet("background: transparent;")
-        v.addWidget(self.hilfe_felder)
-        v.addStretch(1)
+        h.addWidget(self.hilfe_felder, 2)
+        rechts = QVBoxLayout()
         anleitung = QPushButton("Bedienungsanleitung öffnen")
         anleitung.setToolTip("Kapitel „Einfacher Modus“ der Bedienungsanleitung (PDF)")
         anleitung.clicked.connect(lambda: self.f.anleitung_oeffnen() if hasattr(self.f, "anleitung_oeffnen") else None)
-        v.addWidget(anleitung)
-        aussen = QWidget()
-        a = QVBoxLayout(aussen)
-        a.setContentsMargins(0, 12, 12, 12)
-        a.addWidget(self.hilfe)
-        self._hilfe_aussen = aussen
-        return aussen
+        rechts.addWidget(anleitung)
+        rechts.addStretch(1)
+        h.addLayout(rechts)
+        return self.hilfe
 
     def hilfe_zeigen(self, an, merken=False):
-        self._hilfe_aussen.setVisible(bool(an))
+        self.hilfe.setVisible(bool(an))
         if self.hilfe_knopf.isChecked() != bool(an):
             self.hilfe_knopf.blockSignals(True)
             self.hilfe_knopf.setChecked(bool(an))
@@ -404,31 +519,34 @@ class EinfachBereich(QWidget):
         if merken:
             bm.hilfe_setzen(self.db, an)
 
-    FELDER_JE_SCHRITT = {bm.BAUTEILE: ("stueck", "profil", "laenge"), bm.MATERIAL: ("werkstoff", "preis_m", "verfuegbar"),
-                         bm.BEARBEITUNG: ("maschinenzeit", "schnitt", "ruesten", "zusatz", "zukauf", "gemein",
-                                          "fracht"),
-                         bm.ERGEBNIS: ("gesamt", "verkauf", "gewinn", "marge")}
+    FELDER_JE_SCHRITT = {bm.KUNDE: ("kunde", "projekt", "lieferzeit"), bm.BAUTEILE: ("stueck", "profil", "laenge"),
+                         bm.MATERIAL: ("werkstoff", "preis_m", "verfuegbar", "maschine", "zusatz", "fracht"),
+                         bm.KALKULATION: ("verkauf", "gesamt", "gewinn", "marge")}
     FELD_TITEL = {"stueck": "Stück", "profil": "Querschnitt", "laenge": "Länge", "werkstoff": "Werkstoff",
                   "preis_m": "Preis je Meter", "verfuegbar": "Verfügbarkeit", "maschinenzeit": "Maschinenzeit",
                   "schnitt": "Schnittkosten", "ruesten": "Rüstkosten", "zusatz": "Zusatzarbeiten",
-                  "zukauf": "Zukaufteile", "gemein": "Gemeinkosten", "gesamt": "Gesamtkosten",
-                  "verkauf": "Verkaufspreis", "gewinn": "Gewinn und Marge",
-                  "fracht": "Frachtkosten", "marge": "Marge einstellen"}
+                  "zukauf": "Zukaufteile", "gemein": "Gemeinkosten", "gesamt": "Selbstkosten",
+                  "verkauf": "Verkaufspreis", "gewinn": "Gewinn und Marge", "fracht": "Frachtkosten",
+                  "marge": "Marge einstellen", "kunde": "Kunde", "projekt": "Projekt", "lieferzeit": "Lieferzeit",
+                  "maschine": "Maschine"}
 
     def _hilfe_setzen(self):
         _, titel, kurz, lang = bm.SCHRITTE[self.schritt]
-        self.hilfe_titel.setText(f"Schritt {self.schritt + 1}: {titel}")
+        self.hilfe_titel.setText(titel if self.schritt == bm.START else f"Schritt {self.schritt}: {titel}")
         self.hilfe_text.setText(lang)
         felder = self.FELDER_JE_SCHRITT.get(self.schritt, ())
-        self.hilfe_felder.setText("".join(f"<p><b>{self.FELD_TITEL[n]}</b>: {bm.FELD_HILFE[n]}</p>" for n in felder))
+        self.hilfe_felder.setText("".join(f"<p style='margin:0 0 4px 0'><b>{self.FELD_TITEL[n]}</b>: "
+                                          f"{bm.FELD_HILFE[n]}</p>" for n in felder))
 
     def _fuss_bauen(self):
         fuss = QFrame()
         fuss.setObjectName("e_fuss")
         h = QHBoxLayout(fuss)
-        h.setContentsMargins(16, 8, 16, 8)
+        h.setContentsMargins(design.ABSTAND_GROSS + 4, design.ABSTAND_KLEIN + 2, design.ABSTAND_GROSS + 4,
+                             design.ABSTAND_KLEIN + 2)
+        h.setSpacing(design.ABSTAND)
         self.zurueck = _knopf("‹ Zurück", lambda: self.zu_schritt(self.schritt - 1), "Vorheriger Schritt")
-        self.weiter = _knopf("Weiter ›", lambda: self.zu_schritt(self.schritt + 1), "Nächster Schritt", "primaer")
+        self.weiter = _knopf("Weiter ›", lambda: self.zu_schritt(self.schritt + 1), "Nächster Schritt", haupt=True)
         self.fuehrung = _label("", "e_unter")
         h.addWidget(self.zurueck)
         h.addWidget(self.fuehrung, 1)
@@ -441,41 +559,46 @@ class EinfachBereich(QWidget):
         if i > bm.START and self._seite_weg():
             i = bm.START
         self.schritt = i
+        self.uebersicht_knopf.setChecked(i == bm.START)
         for n, b in enumerate(self.schritt_knoepfe):
-            b.setChecked(n == i)
-            b.setEnabled(n == bm.START or self.seite is not None)
-            self._schritt_kennzeichnen(b, n, erledigt=n < i and b.isEnabled())
+            b.setChecked(n + 1 == i)
+            b.setEnabled(self.seite is not None)
         self.stapel.setCurrentIndex(i)
-        if i in (bm.BEARBEITUNG, bm.ERGEBNIS, bm.ANGEBOT):
+        if i in (bm.MATERIAL, bm.KALKULATION, bm.ANGEBOT):
             self.automatisch_rechnen()
         self.aktualisieren(nur_seite=True)
         self._hilfe_setzen()
+        self._breite_anwenden(force=True)
+        if i == bm.ANGEBOT:
+            QTimer.singleShot(0, self._vorschau_spaeter)
         return i
 
     @staticmethod
-    def _schritt_kennzeichnen(b, n, erledigt):
-        """Schritte vor dem aktuellen als erledigt zeigen (✓ und helles Blau, Designsystem „Klar“ Phase 5)."""
-        titel = bm.SCHRITTE[n][1]
-        b.setText(f"✓  {titel}" if erledigt else f"{n + 1}  {titel}")
-        if b.property("erledigt") != erledigt:
-            b.setProperty("erledigt", erledigt)
+    def _schritt_kennzeichnen(b, n, erledigt, fehlt=False, kurz=False):
+        """Stand eines Schrittknopfs (n = 0 … 4): ✓ erledigt (grün), ! es fehlt etwas (gelb), sonst die Nummer;
+        kurz = nur Zeichen bzw. Nummer (schmale Bildschirme, außer beim aktuellen Schritt)."""
+        titel = bm.SCHRITTE[n + 1][1]
+        zeichen = "!" if fehlt else ("✓" if erledigt else str(n + 1))
+        b.setText(zeichen if kurz else f"{zeichen}  {titel}")
+        zustand = "fehlt" if fehlt else ("ok" if erledigt else "offen")
+        if b.property("zustand") != zustand or b.property("erledigt") != bool(erledigt and not fehlt):
+            b.setProperty("zustand", zustand)
+            b.setProperty("erledigt", bool(erledigt and not fehlt))
             b.style().unpolish(b)
             b.style().polish(b)
 
     def _seite_weg(self):
-        """Die bearbeitete Angebotsseite wurde (im Expertenmodus) geschlossen: zurück zum Start."""
+        """Die bearbeitete Angebotsseite wurde (im Pro-Modus) geschlossen: zurück zur Übersicht."""
         if self.seite is not None and self.seite not in getattr(self.f, "offen", {}).values():
             self.seite = None
         return self.seite is None
 
     def seite_setzen(self, seite, schritt=bm.BAUTEILE):
-        """Diese AngebotSeite im einfachen Modus bearbeiten (gleiche Seite wie im Expertenmodus)."""
+        """Diese AngebotSeite im einfachen Modus bearbeiten (gleiche Seite wie im Pro-Modus)."""
         self.seite = seite
         self._marke = None
-        if seite is not None:
-            self.zu_schritt(schritt)
-        else:
-            self.zu_schritt(bm.START)
+        self._vorschau_marke = None
+        self.zu_schritt(schritt if seite is not None else bm.START)
         return seite
 
     def automatisch_rechnen(self):
@@ -496,7 +619,9 @@ class EinfachBereich(QWidget):
         s = self.seite
         if s is None:
             return None
-        return (id(s), id(getattr(s, "positionen", None)), id(getattr(s, "ergebnis", None)), id(getattr(s, "kopf", None)))
+        # die Punkte des Angebots-Checks kommen verzögert (AngebotSeite._check_jetzt) und gehen in die Bereitschaft ein
+        return (id(s), id(getattr(s, "positionen", None)), id(getattr(s, "ergebnis", None)), id(getattr(s, "kopf", None)),
+                tuple(self._punkte()))
 
     def _pruefen(self):
         if self.isVisible() and self._kennung() != self._marke:
@@ -511,6 +636,29 @@ class EinfachBereich(QWidget):
         super().hideEvent(e)
         self.uhr.stop()
 
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._breite_anwenden()
+
+    def _breite_anwenden(self, force=False):
+        """Zusammenfassung als Spalte (breit) oder als Zeile unter dem Kopf (schmal); Schrittleiste kurz unter
+        SCHMAL_AB. Nie ein waagerechter Rollbalken."""
+        b = self.width()
+        breit = b >= BREIT_AB
+        mit_zus = self.seite is not None and self.schritt not in (bm.START, bm.ANGEBOT)
+        self._zus_aussen.setVisible(breit and mit_zus)
+        self.streifen.setVisible(not breit and mit_zus)
+        kurz = b < SCHMAL_AB
+        je = (self.bereit or {}).get("je_schritt") or {}
+        for n, k in enumerate(self.schritt_knoepfe):
+            st = je.get(n + 1, "offen") if self.seite is not None else "offen"
+            self._schritt_kennzeichnen(k, n, erledigt=st == "ok", fehlt=st == "fehlt",
+                                       kurz=kurz and n + 1 != self.schritt)
+        if hasattr(self, "ang_box"):
+            self.ang_box.setDirection(QBoxLayout.LeftToRight if b >= BREIT_AB else QBoxLayout.TopToBottom)
+        self._breit = breit
+
+    # -------------------------------------------------------------- Daten
     def daten_lesen(self):
         """Alles, was die Schritte zeigen, aus der Angebotsseite (eine Kalkulation je Änderung)."""
         s = self.seite
@@ -527,10 +675,15 @@ class EinfachBereich(QWidget):
             unsicher = None
         erg = bm.ergebnis(summen, s.einst, zs, unsicher)
         fehler_einplanen = len((s.ergebnis or {}).get("fehler") or ())
-        hinw = bm.hinweise(bauteile, s.kopf, s.stand_optimierung(), erg, fehler_einplanen)
+        stand = s.stand_optimierung()
+        hinw = bm.hinweise(bauteile, s.kopf, stand, erg, fehler_einplanen)
+        # übrige offene Punkte des Angebots-Checks (wie vor dem PDF im Pro-Modus), z. B. veraltete Staffeln; solange
+        # eigene Hinweise offen sind, nennen die Check-Punkte meist dasselbe noch einmal
+        if not any(h[0] in ("FEHLER", "WARNUNG") for h in hinw):
+            hinw += [(st, text, "experte", None) for st, text in self._punkte() if st in ("FEHLER", "WARNUNG")]
         kosten = list(zip(rechnen.kostenarten(summen, s.einst), rechnen.KOSTENARTEN))
         return dict(bauteile=bauteile, zeilen=zeilen, summen=summen, ergebnis=erg, hinweise=hinw, kosten=kosten,
-                    zeiten=zs, stand=s.stand_optimierung())
+                    zeiten=zs, stand=stand)
 
     def aktualisieren(self, nur_seite=False):
         neu = self._kennung()
@@ -539,112 +692,148 @@ class EinfachBereich(QWidget):
             self._gefuellt = set()
             try:
                 self.daten = self.daten_lesen()
-            except Exception:       # noqa: BLE001 – Anzeige; der Expertenmodus zeigt denselben Stand
+            except Exception:       # noqa: BLE001 – Anzeige; der Pro-Modus zeigt denselben Stand
                 from . import protokoll
                 protokoll.warnung("Einfacher Modus: Daten des Angebots nicht lesbar")
                 self.daten = None
+            d, s = self.daten, self.seite
+            self.bereit = bm.bereitschaft(d["hinweise"], s.kopf, d["bauteile"], d["stand"], d["ergebnis"]) \
+                if d and s is not None else None
         if self.schritt not in self._gefuellt:
             self._gefuellt.add(self.schritt)
-            (self._start_fuellen, self._bauteile_fuellen, self._material_fuellen, self._bearbeitung_fuellen,
-             self._ergebnis_fuellen, self._angebot_fuellen)[self.schritt]()
+            (self._start_fuellen, self._kunde_fuellen, self._bauteile_fuellen, self._material_fuellen,
+             self._kalkulation_fuellen, self._angebot_fuellen)[self.schritt]()
         self._kopf_fuellen()
 
     def _kopf_fuellen(self):
         s = self.seite
+        d = self.daten if s is not None else None
         if s is None:
             self.titel.setText("Kalkulation")
-            self.untertitel.setText("Einfacher Modus · noch keine Kalkulation geöffnet")
+            self.untertitel.setText("Einfacher Modus · keine Kalkulation geöffnet")
+            self.status_chip.setVisible(False)
         else:
             k = s.kopf or {}
-            self.titel.setText(f"Angebot {k.get('nummer') or s.id}")
-            self.untertitel.setText(" · ".join(x for x in (k.get("kunde") or "ohne Kunde",
-                                                            f"{len(s.positionen)} Bauteil(e)") if x))
-        d = self.daten if s is not None else None
+            self.titel.setText(" · ".join(x for x in (f"Angebot {k.get('nummer') or s.id}",
+                                                      k.get("kunde") or "ohne Kunde") if x))
+            bt = d["bauteile"] if d else []
+            stueck = sum(int(b["stueck"] or 0) for b in bt)
+            self.untertitel.setText(" · ".join(x for x in (
+                f"Projekt {k.get('projekt')}" if k.get("projekt") else "",
+                f"{len(bt)} Bauteil(e)", f"{bm.zahl(stueck, 0)} Stück" if stueck else "") if x))
+            b = self.bereit or {"text": "", "stufe": "neutral"}
+            bs.chip_setzen(self.status_chip, b["text"], b["stufe"])
+            self.status_chip.setVisible(bool(b["text"]))
         hinw = d["hinweise"] if d else []
-        self.fuehrung.setText(bm.naechster_schritt(self.schritt, hinw, s is not None))
+        hat_kunde = bool(s is not None and ((s.kopf or {}).get("kundennr") or (s.kopf or {}).get("kunde")))
+        self.fuehrung.setText(bm.naechster_schritt(self.schritt, hinw, s is not None, hat_kunde))
         self.zurueck.setEnabled(self.schritt > bm.START)
-        self.weiter.setVisible(self.schritt < bm.ANGEBOT)
+        self.zurueck.setVisible(self.schritt > bm.START)
+        self.weiter.setVisible(bm.START < self.schritt < bm.ANGEBOT)
         self.weiter.setEnabled(s is not None)
+        if bm.START < self.schritt < bm.ANGEBOT:
+            self.weiter.setText(f"Weiter zu {bm.SCHRITTE[self.schritt + 1][1]} ›")
+        self.zus.setzen(s, d, self.bereit)
+        self.streifen_text.setText(self.zus.zeilentext(s, d, self.bereit) if s is not None else "")
+        self._breite_anwenden(force=True)
 
-    # -------------------------------------------------------------- Schritt 1: Start
+    # -------------------------------------------------------------- Dateien ins Fenster ziehen
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+
+    def dropEvent(self, e):
+        dateien = [u.toLocalFile() for u in e.mimeData().urls() if u.isLocalFile()]
+        if dateien:
+            e.acceptProposedAction()
+            QTimer.singleShot(0, lambda: self.dateien_oeffnen(dateien))
+
+    def dateien_oeffnen(self, dateien):
+        """Hineingezogene Dateien: in der Übersicht eine neue Kalkulation (STEP mit dem STEP-Import, sonst wie
+        CAD-Import), in einer offenen Kalkulation als weitere Bauteile."""
+        if self.seite is None or self.schritt == bm.START:
+            if all(Path(d).suffix.lower() in (".step", ".stp") for d in dateien):
+                return self.neu_aus_step(dateien)
+            return self.neu_aus_cad(dateien)
+        erg = self.importieren(dateien)
+        self.zu_schritt(bm.BAUTEILE)
+        return erg
+
+    # -------------------------------------------------------------- Übersicht (Start)
     def _start_bauen(self):
-        w = QWidget()
-        v = QVBoxLayout(w)
-        v.setContentsMargins(24, 20, 24, 20)
-        v.setSpacing(14)
-        self.willkommen = QFrame()
-        self.willkommen.setObjectName("e_hilfe")
-        wh = QHBoxLayout(self.willkommen)
-        wh.setContentsMargins(14, 10, 10, 10)
-        wl = _label("<b>Willkommen im einfachen Modus.</b> In sechs Schritten zum Angebot: Bauteil importieren → "
-                    "prüfen → Material → Bearbeitung → Ergebnis → Angebot. Unten führt „Weiter“ durch den Ablauf, "
-                    "rechts erklärt die Hilfe jeden Schritt. Alles bleibt auch im Expertenmodus vollständig "
-                    "bearbeitbar.")
-        wl.setStyleSheet("background: transparent;")
-        wh.addWidget(wl, 1)
-        aus = QPushButton("Ausblenden")
-        aus.clicked.connect(self._willkommen_aus)
-        wh.addWidget(aus, 0, Qt.AlignTop)
+        self.neu_knopf = _knopf("＋  Neue Kalkulation", self.neu_anlegen,
+                                "Neues Angebot anlegen und mit dem Kunden beginnen", haupt=True)
+        aktionen = [_knopf("STEP importieren …", lambda: self.neu_aus_step(),
+                           "3D-Modell (STEP, IGES, ZIP) lesen und automatisch erkennen: neue Kalkulation"),
+                    _knopf("Andere CAD-Datei …", lambda: self.neu_aus_cad(),
+                           "DXF, TRUMPF LST, BLM ArTube/BPF: neue Kalkulation"),
+                    _knopf("Aus Bauteilbibliothek …", lambda: self.neu_aus_vorlage(),
+                           "Gespeichertes Bauteil (Positionsvorlage) in eine neue Kalkulation"),
+                    self.neu_knopf]
+        rolle, v, kopf = _seite("Kalkulationen", "Neue Kalkulation anlegen, eine Datei ins Fenster ziehen oder eine "
+                                                 "bestehende Kalkulation öffnen.", aktionen)
+        self.start_kopf = kopf
+        self.willkommen = bs.hinweisband(
+            "<b>Willkommen im Einfachen Modus.</b> In fünf Schritten zum Angebot: Anfrage und Kunde, Bauteile, "
+            "Material und Fertigung, Kalkulation, Angebot. Oben sehen Sie jederzeit, wo Sie sind und was noch fehlt; "
+            "„?“ erklärt jeden Schritt. Alles bleibt im Pro-Modus vollständig bearbeitbar.", "info", "Ausblenden",
+            self._willkommen_aus)
         v.addWidget(self.willkommen)
         self.willkommen.setVisible(bm.willkommen_an(self.db))
-        titel = _label("Was möchten Sie tun?", "e_seitentitel")
-        v.addWidget(titel)
-        self.neu_knopf = _knopf("＋  Neue Kalkulation erstellen", self.neu_zeigen,
-                                "Neue Kalkulation aus einer STEP- oder CAD-Datei oder aus einem gespeicherten "
-                                "Bauteil", "e_riesig")
-        self.neu_knopf.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        v.addWidget(self.neu_knopf)
-        self.wege = Raster(min_breite=260)
-        self.wege.setzen([
-            _kachel("STEP-Datei importieren", "3D-Modell (STEP, IGES, ZIP) lesen und automatisch erkennen", "step",
-                    lambda: self.neu_aus_step()),
-            _kachel("CAD-Datei importieren", "DXF, TRUMPF LST, BLM ArTube/BPF", "kontur", lambda: self.neu_aus_cad()),
-            _kachel("Vorhandenes Bauteil auswählen", "Aus der Bauteilbibliothek (gespeicherte Vorlagen)", "liste",
-                    lambda: self.neu_aus_vorlage()),
-            _kachel("Bestehende Kalkulation öffnen", "Angebot suchen und weiterbearbeiten", "oeffnen",
-                    lambda: self.oeffnen_suchen()),
-        ])
-        self.wege.setVisible(False)
-        v.addWidget(self.wege)
-        self.weiter_karte = Karte("Aktuelle Kalkulation", akzent=True)
+        self.weiter_karte = bs.karte("Aktuelle Kalkulation")
+        zeile = QHBoxLayout()
         self.weiter_text = _label("")
-        self.weiter_text.setStyleSheet("background: transparent;")
-        self.weiter_karte.lay.addWidget(self.weiter_text)
-        self.weiter_karte.lay.addWidget(_knopf("Weiterbearbeiten ›", lambda: self.zu_schritt(bm.BAUTEILE), "",
-                                               "primaer"), 0, Qt.AlignLeft)
+        zeile.addWidget(self.weiter_text, 1)
+        zeile.addWidget(_knopf("Weiterbearbeiten ›", lambda: self.zu_schritt(self._erster_offener()),
+                               "Beim ersten Schritt weitermachen, in dem noch etwas fehlt"))
+        self.weiter_karte.inhalt.addLayout(zeile)
         v.addWidget(self.weiter_karte)
-        liste = Karte("Zuletzt bearbeitet")
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Angebot suchen: Nummer, Kunde, Artikel …")
+        self.suche.setPlaceholderText("Suchen: Angebotsnummer, Kunde, Zeichen, Artikel …")
         self.suche.setClearButtonEnabled(True)
-        self.suche.setMinimumHeight(32)
+        self.suche.setMaximumWidth(380)
         self.suche.textChanged.connect(lambda _: self._liste_fuellen())
         self.suche.returnPressed.connect(self._liste_oeffnen)
-        liste.lay.addWidget(self.suche)
-        self.liste = QListWidget()
-        self.liste.setObjectName("e_liste")
-        self.liste.setMinimumHeight(220)
-        self.liste.itemActivated.connect(lambda it: self.oeffnen(it.data(Qt.UserRole)))
-        liste.lay.addWidget(self.liste, 1)
-        liste.lay.addWidget(_knopf("Öffnen", self._liste_oeffnen, "Gewählte Kalkulation öffnen"), 0, Qt.AlignRight)
+        liste = bs.karte("Zuletzt bearbeitet", rechts=[self.suche])
+        self.liste = _tabelle(["Angebot", "Kunde", "Ihre Anfrage", "Stand", "Summe netto", "Geändert"], dehnen=1,
+                              rechts=(4,))
+        self.liste.setToolTip("Doppelklick oder Enter öffnet die Kalkulation")
+        self.liste.doubleClicked.connect(lambda i: self._liste_oeffnen())
+        self.liste.setMinimumHeight(260)
+        liste.inhalt.addWidget(self.liste, 1)
+        liste.inhalt.addWidget(bs.knopfzeile(_knopf("Öffnen", self._liste_oeffnen, "Gewählte Kalkulation öffnen")))
         v.addWidget(liste, 1)
-        return _scroll(w)
+        return rolle
 
     def _willkommen_aus(self):
         bm.willkommen_aus(self.db)
         self.willkommen.hide()
 
+    def _erster_offener(self):
+        je = (self.bereit or {}).get("je_schritt") or {}
+        return next((n for n in range(bm.KUNDE, bm.ANGEBOT) if je.get(n) != "ok"), bm.ANGEBOT)
+
     def neu_zeigen(self):
-        self.wege.setVisible(True)
+        """Früherer Knopf „Neue Kalkulation erstellen“: zeigt jetzt die Wege im Seitenkopf (immer sichtbar)."""
+        self.zu_schritt(bm.START)
         return True
+
+    def neu_anlegen(self):
+        """Neue, leere Kalkulation: Angebot mit automatischer Nummer, weiter mit Schritt 1 (Anfrage und Kunde)."""
+        seite = self._neues_angebot()
+        if seite is None:
+            return None
+        return self.seite_setzen(seite, bm.KUNDE)
 
     def _start_fuellen(self):
         aktiv = self.seite is not None and not self._seite_weg()
         self.weiter_karte.setVisible(aktiv)
         if aktiv:
             k = self.seite.kopf or {}
+            b = self.bereit or {}
             self.weiter_text.setText(f"<b>Angebot {k.get('nummer') or self.seite.id}</b> · "
-                                     f"{k.get('kunde') or 'ohne Kunde'} · {len(self.seite.positionen)} Bauteil(e)")
+                                     f"{k.get('kunde') or 'ohne Kunde'} · {len(self.seite.positionen)} Bauteil(e)"
+                                     + (f" · {b['text']}" if b.get("text") else ""))
         self._liste_fuellen()
 
     def _liste_fuellen(self):
@@ -654,34 +843,40 @@ class EinfachBereich(QWidget):
         except Exception:           # noqa: BLE001
             zeilen = []
         zeilen = sorted(zeilen, key=lambda z: str(z.get("geaendert") or ""), reverse=True)[:40]
-        self.liste.clear()
-        for z in zeilen:
+        self.liste.setRowCount(len(zeilen))
+        for r, z in enumerate(zeilen):
+            nr = _zelle(z.get("nummer") or f"Angebot {z['id']}")
+            nr.setData(Qt.UserRole, z["id"])
+            self.liste.setItem(r, 0, nr)
+            self.liste.setItem(r, 1, _zelle(z.get("kunde") or "ohne Kunde"))
+            self.liste.setItem(r, 2, _zelle(z.get("kundenreferenz") or ""))
+            self.liste.setItem(r, 3, _zelle(z.get("vorgang") or "Entwurf"))
             vk = z.get("vk_netto")
-            teile = [str(z.get("nummer") or f"Angebot {z['id']}"), z.get("kunde") or "ohne Kunde",
-                     z.get("vorgang") or "Entwurf"]
-            if isinstance(vk, (int, float)):
-                teile.append(bm.euro(vk))
-            it = QListWidgetItem("   ·   ".join(teile))
-            it.setData(Qt.UserRole, z["id"])
-            it.setToolTip(f"Zuletzt geändert: {str(z.get('geaendert') or '')[:16]}")
-            self.liste.addItem(it)
-        if not zeilen:
-            self.liste.addItem(QListWidgetItem("Keine Kalkulation gefunden." if text else "Noch keine Kalkulationen."))
+            self.liste.setItem(r, 4, _zelle(bm.euro(vk) if isinstance(vk, (int, float)) else "–", True))
+            self.liste.setItem(r, 5, _zelle(_datum(z.get("geaendert"))))
+        self.liste.setToolTip("Doppelklick oder Enter öffnet die Kalkulation" if zeilen else
+                              ("Keine Kalkulation gefunden." if text else "Noch keine Kalkulationen."))
+        if len(zeilen) == 1:
+            self.liste.selectRow(0)
 
     def _liste_oeffnen(self):
-        it = self.liste.currentItem() or (self.liste.item(0) if self.liste.count() == 1 else None)
+        r = self.liste.currentRow()
+        if r < 0 and self.liste.rowCount() == 1:
+            r = 0
+        it = self.liste.item(r, 0) if r >= 0 else None
         if it is not None and it.data(Qt.UserRole) is not None:
             return self.oeffnen(it.data(Qt.UserRole))
         self.f.meldung("Bitte eine Kalkulation in der Liste wählen.", fehler=True)
         return None
 
     def oeffnen_suchen(self):
+        self.zu_schritt(bm.START)
         self.suche.setFocus()
         self.suche.selectAll()
         return True
 
     def oeffnen(self, angebot_id, schritt=bm.BAUTEILE):
-        """Bestehende Kalkulation öffnen: dieselbe Angebotsseite wie im Expertenmodus."""
+        """Bestehende Kalkulation öffnen: dieselbe Angebotsseite wie im Pro-Modus."""
         if angebot_id is None:
             return None
         seite = self.f.angebot_oeffnen(angebot_id)
@@ -726,7 +921,7 @@ class EinfachBereich(QWidget):
     def neu_aus_vorlage(self, vorlage_id=None):
         """Vorhandenes Bauteil aus der Bauteilbibliothek (Positionsvorlagen) in eine neue Kalkulation."""
         if not self.db.zeilen("positionsvorlagen"):
-            self.f.meldung("Die Bauteilbibliothek ist noch leer. Ein Bauteil kommt hinein, wenn es im Expertenmodus "
+            self.f.meldung("Die Bauteilbibliothek ist noch leer. Ein Bauteil kommt hinein, wenn es im Pro-Modus "
                            "mit Rechtsklick → „Als Vorlage speichern“ gesichert wird.", fehler=True)
             return None
         seite = self._neues_angebot()
@@ -737,50 +932,308 @@ class EinfachBereich(QWidget):
             return None
         return self.seite_setzen(seite)
 
+    # -------------------------------------------------------------- Schritt 1: Anfrage und Kunde
+    def _kunde_bauen(self):
+        rolle, v, _ = _seite("Anfrage und Kunde", "Für wen ist das Angebot? Angebotsnummer, Datum und Bearbeiter "
+                                                  "vergibt das Programm.")
+        kunde = bs.karte("Kunde")
+        zeile = QHBoxLayout()
+        zeile.setSpacing(design.ABSTAND_KLEIN)
+        self.kd_suche = QLineEdit()
+        self.kd_suche.setPlaceholderText("Kunde suchen: Name, Kundennummer oder Ort")
+        self.kd_suche.setClearButtonEnabled(True)
+        self._kd_modell = QStringListModel()
+        self.kd_vervollst = QCompleter(self._kd_modell, self.kd_suche)
+        self.kd_vervollst.setCaseSensitivity(Qt.CaseInsensitive)
+        self.kd_vervollst.setFilterMode(Qt.MatchContains)
+        self.kd_vervollst.setMaxVisibleItems(10)
+        self.kd_vervollst.activated.connect(self._kunde_aus_text)
+        self.kd_suche.setCompleter(self.kd_vervollst)
+        self.kd_suche.returnPressed.connect(lambda: self._kunde_aus_text(self.kd_suche.text()))
+        zeile.addWidget(_feld("Kunde", self.kd_suche, pflicht=True, tipp=bm.FELD_HILFE["kunde"]), 1)
+        knoepfe = QVBoxLayout()
+        knoepfe.addStretch(1)
+        reihe = QHBoxLayout()
+        reihe.addWidget(_knopf("Kunde suchen …", lambda: self.kunde_waehlen(),
+                               "Kundensuche mit allen Angaben (wie im Pro-Modus)"))
+        self.kd_neu_knopf = _knopf("Neuer Kunde …", lambda: self.kunde_neu_zeigen(True),
+                                   "Neuen Kunden direkt hier anlegen; die Kundennummer tragen Sie von Hand ein")
+        reihe.addWidget(self.kd_neu_knopf)
+        knoepfe.addLayout(reihe)
+        zeile.addLayout(knoepfe)
+        kunde.inhalt.addLayout(zeile)
+        self.kd_text = _label("")
+        self.kd_chip = bs.chip("", "neutral")
+        info = QHBoxLayout()
+        info.addWidget(self.kd_text, 1)
+        info.addWidget(self.kd_chip, 0, Qt.AlignTop)
+        kunde.inhalt.addLayout(info)
+        v.addWidget(kunde)
+        v.addWidget(self._kunde_neu_bauen())
+        anfrage = bs.karte("Anfrage")
+        g = QGridLayout()
+        g.setHorizontalSpacing(design.ABSTAND_GROSS)
+        g.setVerticalSpacing(design.ABSTAND)
+        self.an_ansprech = QComboBox()
+        self.an_ansprech.activated.connect(lambda _i: self.ansprech_setzen(self.an_ansprech.currentData()))
+        self.an_projekt = QLineEdit()
+        self.an_projekt.setPlaceholderText("z. B. Hallentor Nord")
+        self.an_projekt.editingFinished.connect(lambda: self.feld_setzen("projekt", self.an_projekt.text()))
+        self.an_zeichen = QLineEdit()
+        self.an_zeichen.setPlaceholderText("Anfrage-Nr. oder Zeichen des Kunden")
+        self.an_zeichen.editingFinished.connect(lambda: self.feld_setzen("kundenreferenz", self.an_zeichen.text()))
+        self.an_lieferzeit = QLineEdit()
+        self.an_lieferzeit.setPlaceholderText("z. B. 10 AT, 3 Wochen, KW 50, 15.12.2026")
+        self.an_lieferzeit.editingFinished.connect(lambda: self.lieferzeit_setzen(self.an_lieferzeit.text()))
+        g.addWidget(_feld("Ansprechpartner", self.an_ansprech, tipp="Ansprechpartner des Kunden; steht im Angebot "
+                                                                    "als „z. Hd.“"), 0, 0)
+        g.addWidget(_feld("Projekt", self.an_projekt, tipp=bm.FELD_HILFE["projekt"]), 0, 1)
+        g.addWidget(_feld("Ihre Anfrage / Zeichen", self.an_zeichen, tipp="Anfragenummer oder Zeichen des Kunden; "
+                                                                          "steht im Angebot"), 1, 0)
+        g.addWidget(_feld("Lieferzeit", self.an_lieferzeit, tipp=bm.FELD_HILFE["lieferzeit"]), 1, 1)
+        g.setColumnStretch(0, 1)
+        g.setColumnStretch(1, 1)
+        anfrage.inhalt.addLayout(g)
+        self.an_nummer = _label("", "e_klein")
+        anfrage.inhalt.addWidget(self.an_nummer)
+        v.addWidget(anfrage)
+        v.addStretch(1)
+        return rolle
+
+    def _kunde_neu_bauen(self):
+        from . import kunden_daten
+        self.kd_neu = bs.karte("Neuen Kunden anlegen")
+        g = QGridLayout()
+        g.setHorizontalSpacing(design.ABSTAND_GROSS)
+        g.setVerticalSpacing(design.ABSTAND)
+        self.kn = {}
+        for i, (name, titel, pflicht, platz) in enumerate((
+                ("kundennr", "Kundennummer", True, kunden_daten.nummer_hinweis(self.db)),
+                ("name", "Firmenname", True, "z. B. Beispiel GmbH"), ("strasse", "Straße", False, ""),
+                ("plz", "PLZ", False, ""), ("ort", "Ort", False, ""), ("email", "E-Mail", False, ""))):
+            e = QLineEdit()
+            e.setPlaceholderText(platz)
+            self.kn[name] = e
+            g.addWidget(_feld(titel, e, pflicht=pflicht), i // 3, i % 3)
+        for c in range(3):
+            g.setColumnStretch(c, 1)
+        self.kd_neu.inhalt.addLayout(g)
+        self.kn_fehler = _label("", "e_klein")
+        self.kd_neu.inhalt.addWidget(self.kn_fehler)
+        self.kn_trotzdem = _knopf("Trotzdem anlegen", lambda: self.kunde_anlegen(dubletten_ok=True),
+                                  "Es gibt einen ähnlichen Kunden; trotzdem als neuen Kunden anlegen")
+        self.kn_trotzdem.setVisible(False)
+        self.kd_neu.inhalt.addWidget(bs.knopfzeile(
+            self.kn_trotzdem, _knopf("Abbrechen", lambda: self.kunde_neu_zeigen(False), ""),
+            _knopf("Kunde anlegen und übernehmen", lambda: self.kunde_anlegen(),
+                   "Kunden im Kundenstamm anlegen und für dieses Angebot übernehmen")))
+        self.kd_neu.setVisible(False)
+        return self.kd_neu
+
+    def kunde_neu_zeigen(self, an):
+        self.kd_neu.setVisible(bool(an))
+        self.kn_fehler.setText("")
+        self.kn_trotzdem.setVisible(False)
+        if an:
+            from . import kunden_daten
+            self.kn["kundennr"].setPlaceholderText(kunden_daten.nummer_hinweis(self.db))
+            text = self.kd_suche.text().strip()
+            if text and not self.kn["name"].text():
+                self.kn["name"].setText(text)
+            self.kn["kundennr"].setFocus()
+        return bool(an)
+
+    def kunde_anlegen(self, werte=None, dubletten_ok=False):
+        """Neuen Kunden anlegen (kunden_daten.anlegen, Kundennummer immer von Hand) und ins Angebot übernehmen.
+        werte (Tests): statt der Felder. Ergebnis: Kundennummer oder None (Fehlertext unter den Feldern)."""
+        from . import kunden_daten
+        if not self._darf_aendern():
+            return None
+        w = dict(werte) if werte is not None else {n: e.text().strip() for n, e in self.kn.items()}
+        w = {n: x for n, x in w.items() if x not in ("", None)}
+        try:
+            nr = kunden_daten.anlegen(self.db, w, dubletten_ok=dubletten_ok)
+        except kunden_daten.KundenFehler as e:
+            self.kn_fehler.setText(f"<span style='color:{_farbe(design.ROT)}'>{e}</span>")
+            self.kn_trotzdem.setVisible("Dublette" in str(e))
+            return None
+        for e in self.kn.values():
+            e.clear()
+        self.kd_neu.setVisible(False)
+        kunden = getattr(self.f, "kunden", None)
+        if kunden is not None and hasattr(kunden, "neu_laden"):
+            kunden.neu_laden()
+        self.kunde_waehlen(nr)
+        self.f.meldung(f"Kunde {nr} angelegt und übernommen.")
+        return nr
+
+    def _kunden_liste(self):
+        from . import kunden_daten
+        try:
+            zeilen = kunden_daten.uebersicht(self.db)
+        except Exception:           # noqa: BLE001 – ohne Kundenstamm nur die Kundensuche
+            zeilen = []
+        self._kd_map = {}
+        texte = []
+        for z in zeilen:
+            if z.get("status") == kunden_daten.GESPERRT:
+                continue
+            t = " · ".join(str(x) for x in (z.get("name"), z.get("kundennr"), z.get("ort_anzeige")) if x)
+            self._kd_map[t] = z["kundennr"]
+            texte.append(t)
+        self._kd_modell.setStringList(texte)
+        return texte
+
+    def _kunde_aus_text(self, text):
+        """Eintrag aus der Vervollständigung oder Enter im Suchfeld: genau ein Treffer = übernehmen, sonst die
+        Kundensuche (vorbelegt)."""
+        from . import kunden_daten
+        text = str(text or "").strip()
+        if not text:
+            return None
+        nr = getattr(self, "_kd_map", {}).get(text)
+        if nr is None:
+            treffer = kunden_daten.filtern(kunden_daten.uebersicht(self.db), text)
+            if len(treffer) == 1:
+                nr = treffer[0]["kundennr"]
+        if nr is None:
+            return self.kunde_waehlen()
+        return self.kunde_waehlen(nr)
+
+    def _kunde_fuellen(self):
+        from . import kunden_daten
+        from .angebot import lieferzeit_eingabe
+        s = self.seite
+        if s is None:
+            return
+        self._kunden_liste()
+        k = s.kopf or {}
+        darf = self._darf_aendern()
+        for w in (self.kd_suche, self.kd_neu_knopf, self.an_ansprech, self.an_projekt, self.an_zeichen,
+                  self.an_lieferzeit):
+            w.setEnabled(darf)
+        nr = k.get("kundennr")
+        stamm = kunden_daten.kunde(self.db, nr) if nr else None
+        if not self.kd_suche.hasFocus():
+            self.kd_suche.setText("")
+        if k.get("kunde") or nr:
+            zeilen = kunden_daten.anschrift(stamm, k.get("kunde_ansprech")) if stamm else []
+            self.kd_text.setText(f"<b>{k.get('kunde') or (stamm or {}).get('name') or ''}</b> · Kundennr. "
+                                 f"{nr or '–'}" + "".join(f"<br><span style='color:{_farbe(GRAU)}'>{z}</span>"
+                                                          for z in zeilen))
+            bs.chip_setzen(self.kd_chip, "Aus dem Kundenstamm" if stamm else "Nicht im Kundenstamm",
+                           "ok" if stamm else "warnung")
+            self.kd_chip.setVisible(True)
+        else:
+            self.kd_text.setText(f"<span style='color:{_farbe(GRAU)}'>Noch kein Kunde gewählt. Im Feld oben tippen "
+                                 "und aus der Liste wählen.</span>")
+            self.kd_chip.setVisible(False)
+        self.an_ansprech.blockSignals(True)
+        self.an_ansprech.clear()
+        self.an_ansprech.addItem("(ohne Ansprechpartner)", None)
+        if nr and stamm:
+            for uid, text in kunden_daten.fuer_angebot(self.db, nr)["personen"]:
+                self.an_ansprech.addItem(text, uid)
+        i = self.an_ansprech.findData(k.get("kunde_ansprech_uid")) if k.get("kunde_ansprech_uid") else 0
+        self.an_ansprech.setCurrentIndex(max(0, i))
+        self.an_ansprech.setEnabled(darf and self.an_ansprech.count() > 1)
+        self.an_ansprech.blockSignals(False)
+        for feld, name in ((self.an_projekt, "projekt"), (self.an_zeichen, "kundenreferenz")):
+            if not feld.hasFocus():
+                feld.setText(k.get(name) or "")
+        if not self.an_lieferzeit.hasFocus():
+            self.an_lieferzeit.setText(lieferzeit_eingabe(k))
+        bearb = k.get("bearbeiter")
+        self.an_nummer.setText(f"Angebotsnummer {k.get('nummer') or s.id} · Datum {_datum(k.get('datum'))}"
+                               + (f" · Bearbeiter {bearb}" if bearb else ""))
+
+    def feld_setzen(self, name, wert):
+        """Projekt, Ihre Anfrage/Zeichen … in dieselben Angebotsfelder wie im Pro-Modus (Angebotskopf)."""
+        s = self.seite
+        if s is None:
+            return False
+        wert = str(wert or "").strip() or None
+        if wert == ((s.kopf or {}).get(name) or None):
+            return False
+        return self._kopf_wert(name, wert)
+
+    def ansprech_setzen(self, uid):
+        if not self._darf_aendern():
+            return None
+        p = self.seite.ansprech_waehlen(uid)
+        self.aktualisieren()
+        return p
+
+    def lieferzeit_setzen(self, text):
+        from .angebot import lieferzeit_eingabe
+        s = self.seite
+        if not self._darf_aendern() or str(text or "").strip() == lieferzeit_eingabe(s.kopf or {}):
+            return False
+        s.lieferzeit_speichern(text)
+        self.aktualisieren()
+        return True
+
+    def kunde_waehlen(self, kundennr=None):
+        """Kunde übernehmen (kundennr) oder die Kundensuche öffnen (ohne): wie im Pro-Modus mit Name, Konditionen,
+        Ansprechpartner und Lieferadresse."""
+        if self.seite is None:
+            return None
+        nr = self.seite.kunde_suchen(kundennr)
+        self.aktualisieren()
+        return nr
+
     # -------------------------------------------------------------- Schritt 2: Bauteile
     def _bauteile_bauen(self):
-        w = QWidget()
-        v = QVBoxLayout(w)
-        v.setContentsMargins(24, 20, 24, 20)
-        v.setSpacing(12)
-        v.addWidget(_label("Bauteile prüfen", "e_seitentitel"))
+        aktionen = [_knopf("Importieren …", lambda: self.importieren(),
+                           "STEP-, DXF- oder TRUMPF-Dateien in diese Kalkulation holen (oder ins Fenster ziehen)"),
+                    _knopf("Aus Bibliothek …", self.aus_bibliothek, "Gespeichertes Bauteil hinzufügen")]
+        rolle, v, self.bt_kopf = _seite("Bauteile", "", aktionen)
+        self.bt_hinweise = HinweisListe()
+        self.bt_hinweise.loesen.connect(self.loesen)
+        v.addWidget(self.bt_hinweise)
         teiler = QSplitter(Qt.Horizontal)
-        links = Karte("Erkannte Bauteile")
-        self.bt = _tabelle(["", "Bauteil", "Art", "Querschnitt", "Länge", "Werkstoff", "Stück"])
-        self.bt.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.bt.setMinimumHeight(240)
+        teiler.setChildrenCollapsible(False)
+        links = bs.karte("")
+        links.layout().setContentsMargins(0, 0, 0, design.ABSTAND)
+        self.bt = _tabelle(["", "Bauteil", "Profil", "Werkstoff", "Länge", "Stück", "Stückpreis", "Summe"], dehnen=1,
+                           rechts=(4, 5, 6, 7))
         self.bt.itemSelectionChanged.connect(self._bauteil_gewaehlt)
         self.bt.doubleClicked.connect(lambda i: self.loesen("editor", i.row()))
         self.bt.setToolTip("Doppelklick: Bauteil im Editor prüfen. Stück direkt in der Spalte ändern.")
-        links.lay.addWidget(self.bt, 1)
-        self.bt_hinweise = HinweisListe()
-        self.bt_hinweise.loesen.connect(self.loesen)
-        links.lay.addWidget(self.bt_hinweise)
-        zeile = QHBoxLayout()
-        zeile.addWidget(_knopf("Weitere Bauteile importieren …", lambda: self.importieren(),
-                               "STEP-, DXF- oder TRUMPF-Dateien in diese Kalkulation holen"))
-        zeile.addWidget(_knopf("Im Editor prüfen …", lambda: self.loesen("editor", self._bt_zeile()),
+        links.inhalt.addWidget(self.bt)
+        unten = QHBoxLayout()
+        unten.setContentsMargins(design.ABSTAND, 0, design.ABSTAND, 0)
+        unten.addWidget(_knopf("Im Editor prüfen …", lambda: self.loesen("editor", self._bt_zeile()),
                                "Gewähltes Bauteil im Editor öffnen (Konturen, Bohrungen, Länge)"))
-        zeile.addWidget(_knopf("Bauteil entfernen", self.bauteil_entfernen, "Gewähltes Bauteil löschen "
+        unten.addWidget(_knopf("Bauteil entfernen", self.bauteil_entfernen, "Gewähltes Bauteil löschen "
                                "(mit Rückgängig)"))
-        zeile.addStretch(1)
-        links.lay.addLayout(zeile)
-        rechts = Karte("3D-Vorschau")
+        unten.addStretch(1)
+        self.bt_summe = _label("", "e_unter", umbruch=False)
+        unten.addWidget(self.bt_summe)
+        links.inhalt.addLayout(unten)
+        links.inhalt.addStretch(1)
+        self.vorschau_karte = bs.karte("Vorschau")
         self.vorschau_platz = QVBoxLayout()
         self.vorschau = None
-        self.vorschau_titel = _label("Bauteil in der Liste wählen", "e_klein")
-        rechts.lay.addLayout(self.vorschau_platz, 1)
-        rechts.lay.addWidget(self.vorschau_titel)
-        self.erkannt = _label("")
-        rechts.lay.addWidget(self.erkannt)
-        rechts.setMinimumWidth(280)
+        self.vorschau_titel = _label("Bauteil in der Liste wählen.", "e_klein")
+        self.vorschau_karte.inhalt.addLayout(self.vorschau_platz, 1)
+        self.vorschau_karte.inhalt.addWidget(self.vorschau_titel)
+        self.erkannt = bs.wertzeilen([(t, "–") for t in ("Art", "Querschnitt", "Wandstärke", "Länge")])
+        self.vorschau_karte.inhalt.addWidget(self.erkannt)
+        self.details = Aufklapper("Details")
+        self.erkannt_mehr = bs.wertzeilen([(t, "–") for t in ("Abmessung", "Werkstoff", "Schnittkonturen",
+                                                              "Schneidweg")])
+        self.details.lay.addWidget(self.erkannt_mehr)
+        self.bt_status = _label("", "e_klein")
+        self.details.lay.addWidget(self.bt_status)
+        self.vorschau_karte.inhalt.addWidget(self.details)
+        self.vorschau_karte.setMinimumWidth(300)
         teiler.addWidget(links)
-        teiler.addWidget(rechts)
+        teiler.addWidget(self.vorschau_karte)
         teiler.setStretchFactor(0, 3)
         teiler.setStretchFactor(1, 2)
-        teiler.setChildrenCollapsible(False)
         v.addWidget(teiler, 1)
-        return _scroll(w)
+        return rolle
 
     def _bt_zeile(self):
         r = self.bt.currentRow()
@@ -789,32 +1242,49 @@ class EinfachBereich(QWidget):
     def _bauteile_fuellen(self):
         d = self.daten
         bauteile = d["bauteile"] if d else []
+        zeilen = d["zeilen"] if d else []
+        gerechnet = bool(d and d["stand"] == "aktuell")
+        stueck = sum(int(b["stueck"] or 0) for b in bauteile)
+        self.bt_kopf.untertitel.setText(f"{len(bauteile)} Bauteil(e), {bm.zahl(stueck, 0)} Stück. Stückzahl prüfen, "
+                                        "Bauteil anklicken für die Vorschau." if bauteile else
+                                        "Noch keine Bauteile: „Importieren …“ oder Dateien ins Fenster ziehen.")
+        self.bt_kopf.untertitel.show()
+        _zellen_leeren(self.bt)
         self.bt.setRowCount(len(bauteile))
         self.stueck_felder = []
         for r, b in enumerate(bauteile):
             st = b["stufe"]
             z = _zelle(ZEICHEN[st], tipp=b["status"] or "Vollständig")
-            z.setForeground(QColor(_farbe(FARBE_STUFE[st])))
+            z.setForeground(QColor(_farbe(design.CHIPS[STUFE_CHIP[st]][0])))
+            z.setTextAlignment(Qt.AlignCenter)
             self.bt.setItem(r, 0, z)
-            self.bt.setItem(r, 1, _zelle(b["name"], tipp=b["status"]))
-            self.bt.setItem(r, 2, _zelle(b["art_text"]))
-            self.bt.setItem(r, 3, _zelle(" ".join(x for x in (b["form"], b["profil"]) if x) or "–",
+            self.bt.setItem(r, 1, _zelle(b["name"], tipp=b["status"] or b["art_text"]))
+            self.bt.setItem(r, 2, _zelle(" ".join(x for x in (b["form"], b["profil"]) if x) or b["art_text"],
                                          tipp=bm.FELD_HILFE["profil"]))
+            self.bt.setItem(r, 3, _zelle(b["werkstoff"] or "–", tipp=bm.FELD_HILFE["werkstoff"]))
             self.bt.setItem(r, 4, _zelle(f"{bm.zahl(b['laenge'], 1)} mm" if b["laenge"] else "–", True,
                                          bm.FELD_HILFE["laenge"]))
-            self.bt.setItem(r, 5, _zelle(b["werkstoff"] or "–", tipp=bm.FELD_HILFE["werkstoff"]))
             sp = QSpinBox()
             sp.setRange(0, 9_999_999)
             sp.setValue(int(b["stueck"] or 0))
             sp.setToolTip(bm.FELD_HILFE["stueck"])
-            sp.setMinimumWidth(90)
+            sp.setMinimumWidth(80)
+            sp.setAlignment(Qt.AlignRight)
+            sp.setGroupSeparatorShown(True)
             sp.setKeyboardTracking(False)
+            sp.setEnabled(self._darf_aendern())
             sp.editingFinished.connect(lambda r=r, sp=sp: self.stueck_setzen(r, sp.value()))
             if b["stufe"] == "FEHLER" and not b["stueck"]:
                 sp.setStyleSheet(stil.ROTER_RAHMEN)
-            self.bt.setCellWidget(r, 6, sp)
+            self.bt.setCellWidget(r, 5, sp)
             self.stueck_felder.append(sp)
-        self.bt_hinweise.setzen(d["hinweise"] if d else [])
+            z = zeilen[r] if r < len(zeilen) else {}
+            self.bt.setItem(r, 6, _zelle(bm.euro(z.get("preis_teil")) if gerechnet else "–", True))
+            self.bt.setItem(r, 7, _zelle(bm.euro(z.get("preis_position")) if gerechnet else "–", True))
+        _hoehe_anpassen(self.bt, 6, 16)
+        self.bt_summe.setText(f"Summe {bm.euro(d['ergebnis']['verkauf'])} netto" if gerechnet and bauteile else
+                              ("Preise nach der Berechnung (Schritt 3)" if bauteile else ""))
+        self.bt_hinweise.setzen([h for h in (d["hinweise"] if d else []) if bm.schritt_von(h) == bm.BAUTEILE])
         if bauteile and self.bt.currentRow() < 0:
             self.bt.selectRow(0)
         else:
@@ -824,22 +1294,24 @@ class EinfachBereich(QWidget):
         r = self._bt_zeile()
         d = self.daten
         if r is None or d is None or r >= len(d["bauteile"]):
-            self.erkannt.setText("")
+            for w in list(self.erkannt.werte.values()) + list(self.erkannt_mehr.werte.values()):
+                w.setText("–")
+            self.bt_status.setText("")
             return
         b = d["bauteile"][r]
         p = self.seite.positionen[r]
-        werte = [("Art", b["art_text"]), ("Querschnitt", b["form"] or "–"), ("Abmessung", b["profil"] or "–"),
-                 ("Wandstärke", f"{bm.zahl(b['wand'], 1)} mm" if b["wand"] else "–"),
-                 ("Länge", f"{bm.zahl(b['laenge'], 1)} mm" if b["laenge"] else "–"),
-                 ("Werkstoff", b["werkstoff"] or "nicht erkannt"),
-                 ("Schnittkonturen", str(b["konturen"]) if b["konturen"] is not None else "–"),
-                 ("Schneidweg", f"{bm.zahl(b['schneidweg'], 0)} mm" if b["schneidweg"] else "–")]
-        if b["stufe"] != "OK":
-            werte.append(("Hinweis", f"<span style='color:{_farbe(FARBE_STUFE[b['stufe']])}'>"
-                                     f"{bm.loesung(b['status'])[0]}</span>"))
-        self.erkannt.setText("<table cellspacing=0 cellpadding=2>" + "".join(
-            f"<tr><td style='color:{_farbe(GRAU)};padding-right:10px'>{t}</td><td><b>{w}</b></td></tr>"
-            for t, w in werte) + "</table>")
+        werte = {"Art": b["art_text"], "Querschnitt": b["form"] or "–", "Abmessung": b["profil"] or "–",
+                 "Wandstärke": f"{bm.zahl(b['wand'], 1)} mm" if b["wand"] else "–",
+                 "Länge": f"{bm.zahl(b['laenge'], 1)} mm" if b["laenge"] else "–",
+                 "Werkstoff": b["werkstoff"] or "nicht erkannt",
+                 "Schnittkonturen": str(b["konturen"]) if b["konturen"] is not None else "–",
+                 "Schneidweg": f"{bm.zahl(b['schneidweg'], 0)} mm" if b["schneidweg"] else "–"}
+        for t, w in werte.items():
+            (self.erkannt.werte.get(t) or self.erkannt_mehr.werte[t]).setText(w)
+        self.vorschau_karte.titel.setText(b["name"][:60])
+        self.bt_status.setText(f"<span style='color:{_farbe(design.CHIPS[STUFE_CHIP[b['stufe']]][0])}'>"
+                               f"{ZEICHEN[b['stufe']]} {bm.loesung(b['status'])[0]}</span>" if b["stufe"] != "OK"
+                               else "")
         self._vorschau(r, p)
 
     def _vorschau(self, r, p):
@@ -849,21 +1321,23 @@ class EinfachBereich(QWidget):
             netz, titel = None, ""
         if netz is None:
             self.vorschau_titel.setText("Keine 3D-Daten (kein STEP, keine Eingaben im Editor).")
+            self.vorschau_titel.show()
             if self.vorschau is not None:
                 self.vorschau.setzen(None)
             return
         if self.vorschau is None:
             from .ansicht3d import Ansicht3D      # ruhige Vorschau: Drehen mit der Maus, ohne Werkzeugleiste
             self.vorschau = Ansicht3D()
-            self.vorschau.setMinimumHeight(240)
+            self.vorschau.setMinimumHeight(260)
             self.vorschau.setToolTip("Mit der Maus drehen und zoomen. Messen, Schnitt und Explosion: im Editor "
-                                     "bzw. im Expertenmodus.")
+                                     "bzw. im Pro-Modus.")
             self.vorschau_platz.addWidget(self.vorschau, 1)
         self.vorschau.setzen(netz, titel)
         self.vorschau_titel.setText("")
+        self.vorschau_titel.hide()
 
     def stueck_setzen(self, zeile, anzahl):
-        """Stückzahl wie in der Positionstabelle des Expertenmodus speichern (gleiche Prüfung und Sperre)."""
+        """Stückzahl wie in der Positionstabelle des Pro-Modus speichern (gleiche Prüfung und Sperre)."""
         s = self.seite
         if s is None or zeile >= len(s.positionen):
             return False
@@ -891,7 +1365,7 @@ class EinfachBereich(QWidget):
             self.f.meldung("Bitte zuerst ein Bauteil in der Liste wählen.", fehler=True)
             return None
         self._zeilen_markieren([r])
-        self.seite.positionen_loeschen()        # mit „Rückgängig“ in der Einblendung, wie im Expertenmodus
+        self.seite.positionen_loeschen()        # mit „Rückgängig“ in der Einblendung, wie im Pro-Modus
         self.aktualisieren()
         return True
 
@@ -902,11 +1376,22 @@ class EinfachBereich(QWidget):
         self.aktualisieren()
         return True
 
+    def aus_bibliothek(self, vorlage_id=None):
+        if self.seite is None:
+            return self.neu_aus_vorlage(vorlage_id)
+        if not self.db.zeilen("positionsvorlagen"):
+            self.f.meldung("Die Bauteilbibliothek ist noch leer.", fehler=True)
+            return None
+        erg = self.seite.position_aus_vorlage(vorlage_id)
+        self.aktualisieren()
+        return erg
+
     # -------------------------------------------------------------- Lösungen
     def loesen(self, aktion, zeile=None):
-        """Lösungsknopf eines Hinweises: an die passende Stelle (im einfachen Modus, sonst Editor/Expertenmodus)."""
+        """Lösungsknopf eines Hinweises: an die passende Stelle (im einfachen Modus, sonst Editor/Pro-Modus)."""
         s = self.seite
         if aktion == "import":
+            self.zu_schritt(bm.BAUTEILE)
             return self.importieren()
         if s is None:
             return None
@@ -924,8 +1409,9 @@ class EinfachBereich(QWidget):
             self.aktualisieren()
             return ok
         if aktion == "kunde":
-            self.zu_schritt(bm.ANGEBOT)
-            return self.kunde_waehlen()
+            self.zu_schritt(bm.KUNDE)
+            self.kd_suche.setFocus()
+            return True
         if aktion == "editor" and zeile is not None:
             erg = s.editor_oeffnen(zeile)
             self.aktualisieren()
@@ -937,37 +1423,72 @@ class EinfachBereich(QWidget):
                 umschalten(self.f, bm.EXPERTE)
             self.aktualisieren()
             return erg
+        if zeile is not None:
+            self._zeilen_markieren([zeile])
         umschalten(self.f, bm.EXPERTE)
         return True
 
-    # -------------------------------------------------------------- Schritt 3: Material
+    # -------------------------------------------------------------- Schritt 3: Material und Fertigung
     def _material_bauen(self):
-        w = QWidget()
-        v = QVBoxLayout(w)
-        v.setContentsMargins(24, 20, 24, 20)
-        v.setSpacing(12)
-        v.addWidget(_label("Material auswählen", "e_seitentitel"))
-        v.addWidget(_label("Je Abmessung ein Material. Das Programm schlägt es aus der erkannten Geometrie vor und "
-                           "übernimmt die hinterlegten Materialpreise.", "e_unter"))
-        self.mat_raster = Raster(min_breite=300)
-        v.addWidget(self.mat_raster)
+        rolle, v, self.mat_kopf = _seite("Material und Fertigung", "Das Programm schlägt Material und Maschine aus "
+                                         "der erkannten Geometrie vor. Ändern Sie nur, was der Kunde anders möchte.")
+        self.mat_hinweise = HinweisListe()
+        self.mat_hinweise.loesen.connect(self.loesen)
+        v.addWidget(self.mat_hinweise)
+        mat = bs.karte("Material je Abmessung", rechts=[_knopf(
+            "Materialpreise und Lieferlängen …", self.material_dialog,
+            "Materialeinsatz und Kosten je Abmessung; Werkstoff, Lieferlänge, Meterpreis ändern")])
+        self.mat_tab = _tabelle(["Abmessung", "Werkstoff", "Wand", "Teile", "Preis", "Preisstand", "Verfügbarkeit"],
+                                dehnen=6, rechts=(2, 3, 4))
+        self.mat_tab.verticalHeader().setDefaultSectionSize(38)
+        mat.inhalt.addWidget(self.mat_tab)
         self.mat_leer = _label("Keine Rohr- oder Profilteile: Zukauf-, Norm- und Blechteile haben ihren eigenen "
                                "Preis.", "e_unter")
-        v.addWidget(self.mat_leer)
+        mat.inhalt.addWidget(self.mat_leer)
+        v.addWidget(mat)
+        fert = bs.karte("Fertigung")
+        oben = QHBoxLayout()
+        oben.setSpacing(design.ABSTAND_GROSS)
+        self.fe_maschine = QComboBox()
+        self.fe_maschine.setMinimumWidth(220)
+        self.fe_maschine.activated.connect(lambda _i: self.maschine_setzen(self.fe_maschine.currentText()))
+        oben.addWidget(_feld("Maschine", self.fe_maschine, tipp=bm.FELD_HILFE["maschine"]), 0, Qt.AlignTop)
+        self.fe_werte = bs.wertzeilen([("Schnittplan", "–"), ("Maschinenzeit", "–"), ("Rüsten und Programmieren", "–")])
+        oben.addWidget(self.fe_werte, 1)
+        fert.inhalt.addLayout(oben)
+        fert.inhalt.addWidget(_trenner())
         zeile = QHBoxLayout()
-        zeile.addWidget(_knopf("Materialpreise und Lieferlängen …", self.material_dialog,
-                               "Materialeinsatz und Kosten je Abmessung; Werkstoff, Lieferlänge, Meterpreis ändern"))
+        zeile.addWidget(_knopf("Zusatzarbeiten hinzufügen …", self.zusatzarbeiten,
+                               "Gewinde, Senken, Entgraten, Biegen … für alle oder das gewählte Bauteil"))
+        self.vorschlag_knopf = _knopf("Vorgeschlagene Arbeiten übernehmen", self.vorschlaege,
+                                      "Vom Programm erkannte Zusatzarbeiten (z. B. Gewinde aus Bohrungen) übernehmen")
+        zeile.addWidget(self.vorschlag_knopf)
         zeile.addStretch(1)
-        v.addLayout(zeile)
+        zeile.addWidget(_knopf("Neu berechnen", lambda: self.loesen("optimieren"),
+                               "Stangen optimieren und alle Preise neu rechnen"))
+        fert.inhalt.addLayout(zeile)
+        self.zusatz_text = _label("", "e_klein")
+        fert.inhalt.addWidget(self.zusatz_text)
+        v.addWidget(fert)
+        weitere = bs.karte("")
+        self.weitere = Aufklapper("Weitere Kosten: Fracht")
+        self.weitere.lay.addWidget(self._fracht_karte_bauen())
+        weitere.inhalt.addWidget(self.weitere)
+        self.fr_kurz = _label("", "e_klein")
+        weitere.inhalt.addWidget(self.fr_kurz)
+        self.weitere.umgeschaltet.connect(lambda an: self.fr_kurz.setVisible(not an))
+        v.addWidget(weitere)
         v.addStretch(1)
-        return _scroll(w)
+        return rolle
 
     def _material_fuellen(self):
         s, d = self.seite, self.daten
+        _zellen_leeren(self.mat_tab)
+        self.mat_tab.setRowCount(0)
         if s is None or d is None:
-            self.mat_raster.setzen([])
+            self.mat_gruppen = []
             return
-        from . import materialplattform as mp, rechnen
+        from . import materialplattform as mp, rechnen, step
         try:
             var = mp.varianten(s.k, s.tabellen, self.db.zeilen(mp.LIEFERANTEN_TABELLE), bestand=mp.lager_bestand(self.db))
         except Exception:           # noqa: BLE001 – ohne Zusatzangaben weiter
@@ -975,57 +1496,91 @@ class EinfachBereich(QWidget):
         gruppen = bm.material_gruppen(s.positionen, d["bauteile"], s.kopf, s.k, s.tabellen, var,
                                       lambda p: rechnen.meterpreis(p, s.kopf, s.positionen, s.k, s.tabellen))
         lager = getattr(self.f, "lager_an", lambda: False)()
-        karten = []
-        for g in gruppen:
-            karten.append(self._material_karte(g, lager))
-        self.mat_raster.setzen(karten)
+        darf = self._darf_aendern()
+        self.mat_tab.setRowCount(len(gruppen))
+        self.mat_ws = []
+        for r, g in enumerate(gruppen):
+            erkannt = any(step.herkunft(s.positionen[i]) for i in g["zeilen"])
+            self.mat_tab.setItem(r, 0, _zelle(f"{g['form'] or 'Profil'} {g['profil']}",
+                                              tipp="Abmessung aus der STEP-Datei erkannt" if erkannt else ""))
+            ws = QComboBox()
+            ws.setEditable(True)
+            ws.setInsertPolicy(QComboBox.NoInsert)
+            ws.setToolTip(bm.FELD_HILFE["werkstoff"] + " Tippen zum Suchen.")
+            for wid, z in sorted(s.k.werkstoffe.items()):
+                ws.addItem(" · ".join(str(x) for x in (wid, z.get("werkstoff"), z.get("kategorie")) if x), wid)
+            i = ws.findData(g["werkstoff"])
+            if i < 0:
+                ws.insertItem(0, "(bitte wählen)", None)
+                i = 0
+            ws.setCurrentIndex(i)
+            ws.completer().setFilterMode(Qt.MatchContains)
+            ws.completer().setCompletionMode(QCompleter.PopupCompletion)
+            ws.setEnabled(darf)
+            ws.activated.connect(lambda _i, ws=ws, g=g: self.werkstoff_setzen(g["zeilen"], ws.currentData()))
+            self.mat_tab.setCellWidget(r, 1, ws)
+            self.mat_ws.append(ws)
+            self.mat_tab.setItem(r, 2, _zelle(f"{bm.zahl(g['wand'], 1)} mm" if g["wand"] else "–", True))
+            self.mat_tab.setItem(r, 3, _zelle(bm.zahl(g["stueck"], 0), True))
+            if g["fehlt_preis"]:
+                b = _knopf("Preis eintragen …", self.material_dialog, "Für dieses Material fehlt ein gültiger Preis")
+                b.setStyleSheet(stil.ROTER_RAHMEN)
+                self.mat_tab.setCellWidget(r, 4, b)
+            else:
+                self.mat_tab.setItem(r, 4, _zelle(f"{bm.zahl(g['preis_m'], 2)} €/m", True,
+                                                  (f"{bm.zahl(g['preis_kg'], 2)} €/kg · " if g.get("preis_kg") else "")
+                                                  + bm.FELD_HILFE["preis_m"]))
+            alter = g.get("alter_tage")
+            stand = (_datum(g["stand"]) if g["stand"] else "–") + (f" ({alter} Tage)" if alter is not None else "")
+            self.mat_tab.setItem(r, 5, _zelle(stand, tipp=g["quelle"] or ""))
+            vt = bm.verfuegbar_text(g, lager)
+            self.mat_tab.setItem(r, 6, _zelle(vt, tipp=bm.FELD_HILFE["verfuegbar"]))
+        _hoehe_anpassen(self.mat_tab, 1, 12)
+        self.mat_tab.setVisible(bool(gruppen))
         self.mat_leer.setVisible(not gruppen)
         self.mat_gruppen = gruppen
+        self.mat_hinweise.setzen([h for h in d["hinweise"] if bm.schritt_von(h) == bm.MATERIAL])
+        self._fertigung_fuellen()
+        self._fracht_fuellen()
 
-    def _material_karte(self, g, lager):
-        from . import step
+    def _fertigung_fuellen(self):
+        s, d = self.seite, self.daten
+        e, g = d["ergebnis"], d["ergebnis"]["gruppen"]
+        self.fe_maschine.blockSignals(True)
+        self.fe_maschine.clear()
+        self.fe_maschine.addItems(s.k.auswahl("maschine"))
+        m = (s.kopf or {}).get("maschine") or ""
+        if m and self.fe_maschine.findText(m) < 0:
+            self.fe_maschine.addItem(m)
+        self.fe_maschine.setCurrentText(m)
+        self.fe_maschine.setEnabled(self._darf_aendern() and self.fe_maschine.count() > 1)
+        self.fe_maschine.setToolTip(bm.FELD_HILFE["maschine"] if self.fe_maschine.count() > 1 else
+                                    "Nur eine Maschine eingerichtet: sie wird automatisch genommen.")
+        self.fe_maschine.blockSignals(False)
+        aktuell = d["stand"] == "aktuell"
+        w = self.fe_werte.werte
+        w["Schnittplan"].setText("✓ aktuell" if aktuell else "wird neu berechnet")
+        w["Schnittplan"].setStyleSheet(f"color: {_farbe(design.GRUEN if aktuell else design.GELB_TEXT)};")
+        w["Maschinenzeit"].setText(bm.minuten_text(e["maschine_min"]) if aktuell and e["teile"] else "–")
+        w["Rüsten und Programmieren"].setText(bm.euro(g["ruesten"]) if aktuell else "–")
+        vorschl = sum(len(x or ()) for x in getattr(s.pos_modell, "vorschlaege", ()) or ())
+        self.vorschlag_knopf.setText(f"Vorgeschlagene Arbeiten übernehmen ({vorschl})" if vorschl else
+                                     "Keine offenen Vorschläge")
+        self.vorschlag_knopf.setEnabled(bool(vorschl) and self._darf_aendern())
+        zus = g["zusatz"] + g["bearbeitung"]
+        self.zusatz_text.setText(f"Zusatzarbeiten und Bearbeitung in der Kalkulation: {bm.euro(zus)}" if aktuell and zus
+                                 else "Noch keine Zusatzarbeiten." if aktuell else "")
+
+    def maschine_setzen(self, name):
+        """Maschine des Angebots (Kopffeld wie im Pro-Modus); danach wird automatisch neu gerechnet."""
         s = self.seite
-        k = Karte(f"{g['form'] or 'Profil'} {g['profil']}")
-        erkannt = any(step.herkunft(s.positionen[i]) for i in g["zeilen"])
-        k.lay.addWidget(_label(("✓ Abmessung aus der STEP-Datei erkannt · " if erkannt else "")
-                               + f"{g['stueck']} Teile in {len(g['zeilen'])} Position(en)", "e_klein"))
-        form = QGridLayout()
-        form.setHorizontalSpacing(12)
-        ws = QComboBox()
-        ws.setToolTip(bm.FELD_HILFE["werkstoff"])
-        for wid, z in sorted(s.k.werkstoffe.items()):
-            text = " · ".join(str(x) for x in (wid, z.get("werkstoff"), z.get("kategorie")) if x)
-            ws.addItem(text, wid)
-        i = ws.findData(g["werkstoff"])
-        if i < 0:
-            ws.insertItem(0, "(bitte wählen)", None)
-            i = 0
-        ws.setCurrentIndex(i)
-        ws.currentIndexChanged.connect(lambda _, ws=ws, g=g: self.werkstoff_setzen(g["zeilen"], ws.currentData()))
-        zeilen = [("Werkstoff", ws),
-                  ("Wandstärke", _label(f"{bm.zahl(g['wand'], 1)} mm" if g["wand"] else "–")),
-                  ("Preis", _label((f"<b>{bm.zahl(g['preis_m'], 2)} €/m</b>" if g["preis_m"] is not None else
-                                    f"<span style='color:{_farbe(FARBE_STUFE['FEHLER'])}'><b>fehlt</b></span>")
-                                   + (f" · {bm.zahl(g['preis_kg'], 2)} €/kg" if g.get("preis_kg") else ""))),
-                  ("Preisstand", _label((f"{g['stand']}" if g["stand"] else "–")
-                                        + (f" ({g['alter_tage']} Tage)" if g.get("alter_tage") is not None else "")
-                                        + (f" · {g['quelle']}" if g["quelle"] else ""), "e_klein")),
-                  ("Verfügbarkeit", _label(bm.verfuegbar_text(g, lager)))]
-        tipps = {"Werkstoff": "werkstoff", "Preis": "preis_m", "Verfügbarkeit": "verfuegbar"}
-        for r, (t, wdg) in enumerate(zeilen):
-            lb = _label(t, "e_wert_titel", umbruch=False)
-            if t in tipps:
-                lb.setToolTip(bm.FELD_HILFE[tipps[t]])
-                wdg.setToolTip(bm.FELD_HILFE[tipps[t]])
-            form.addWidget(lb, r, 0)
-            form.addWidget(wdg, r, 1)
-        form.setColumnStretch(1, 1)
-        k.lay.addLayout(form)
-        if g["fehlt_preis"]:
-            k.lay.addWidget(_knopf("Preis eintragen …", self.material_dialog,
-                                   "Für dieses Material fehlt ein gültiger Preis", "primaer"), 0, Qt.AlignLeft)
-        k.ws = ws
-        return k
+        if s is None or not name or name == ((s.kopf or {}).get("maschine") or ""):
+            return False
+        ok = self._kopf_wert("maschine", name)
+        if ok:
+            self.automatisch_rechnen()
+            self.aktualisieren()
+        return ok
 
     def werkstoff_setzen(self, zeilen, werkstoff):
         if self.seite is None or not werkstoff:
@@ -1040,69 +1595,6 @@ class EinfachBereich(QWidget):
         erg = self.seite.material_einstellen()
         self.aktualisieren()
         return erg
-
-    # -------------------------------------------------------------- Schritt 4: Bearbeitung
-    def _bearbeitung_bauen(self):
-        w = QWidget()
-        v = QVBoxLayout(w)
-        v.setContentsMargins(24, 20, 24, 20)
-        v.setSpacing(12)
-        v.addWidget(_label("Bearbeitung und Zusatzkosten", "e_seitentitel"))
-        self.stand_text = _label("", "e_unter")
-        v.addWidget(self.stand_text)
-        self.kz = {n: Kennzahl(t, bm.FELD_HILFE[n]) for n, t in (
-            ("maschinenzeit", "Maschinenzeit"), ("schnitt", "Schnittkosten"), ("ruesten", "Rüstkosten"),
-            ("material", "Materialkosten"), ("zusatz", "Zusatzarbeiten"), ("zukauf", "Zukaufteile"),
-            ("gemein", "Gemeinkosten"))}
-        r = Raster(min_breite=200)
-        r.setzen(list(self.kz.values()))
-        v.addWidget(r)
-        v.addWidget(self._fracht_karte_bauen())
-        aktion = Karte("Wo Sie eingreifen können")
-        aktion.lay.addWidget(_label("Alles Übrige rechnet das Programm automatisch mit denselben Werten wie im "
-                                    "Expertenmodus.", "e_klein"))
-        zeile = QHBoxLayout()
-        zeile.addWidget(_knopf("Zusatzarbeiten hinzufügen …", self.zusatzarbeiten,
-                               "Gewinde, Senken, Entgraten, Biegen … für alle oder die gewählten Bauteile"))
-        self.vorschlag_knopf = _knopf("Vorgeschlagene Arbeiten übernehmen", self.vorschlaege,
-                                      "Vom Programm erkannte Zusatzarbeiten (z. B. Gewinde aus Bohrungen) übernehmen")
-        zeile.addWidget(self.vorschlag_knopf)
-        zeile.addWidget(_knopf("Neu berechnen", lambda: self.loesen("optimieren"),
-                               "Stangen optimieren und alle Preise neu rechnen"))
-        zeile.addStretch(1)
-        aktion.lay.addLayout(zeile)
-        v.addWidget(aktion)
-        v.addStretch(1)
-        return _scroll(w)
-
-    def _gruppen_tipp(self, gruppe):
-        d = self.daten
-        zuordnung = {n: g for g, _, namen in bm.GRUPPEN for n in namen}
-        teile = [f"{text}: {bm.euro(w)}" for (text, w, _), (_, n, fett) in d["kosten"]
-                 if not fett and zuordnung.get(n) == gruppe and abs(w or 0) > 0.004]
-        return "\n".join(teile)
-
-    def _bearbeitung_fuellen(self):
-        d = self.daten
-        if d is None:
-            return
-        e, g = d["ergebnis"], d["ergebnis"]["gruppen"]
-        stand = d["stand"]
-        self.stand_text.setText("✓ Schnittplan aktuell, alle Kosten gerechnet." if stand == "aktuell" else
-                                "Der Schnittplan ist noch nicht aktuell: „Neu berechnen“ oder weiter zum Ergebnis "
-                                "(rechnet automatisch).")
-        self.kz["maschinenzeit"].setzen(bm.minuten_text(e["maschine_min"]),
-                                        f"{e['teile']} Teile · {bm.zahl(e['maschine_min'] / e['teile'] * 60, 1)} s je Teil"
-                                        if e["teile"] else "")
-        for n in ("schnitt", "ruesten", "material", "zusatz", "zukauf", "gemein"):
-            tipp = self._gruppen_tipp(n)
-            self.kz[n].setzen(bm.euro(g[n]), bm.FELD_HILFE[n] if n != "material" else "Stangen inkl. Verschnitt",
-                              tipp=(bm.FELD_HILFE[n] + ("\n\n" + tipp if tipp else "")))
-        self._fracht_fuellen()
-        n_vorschlaege = sum(len(v or ()) for v in getattr(self.seite.pos_modell, "vorschlaege", ()) or ())
-        self.vorschlag_knopf.setText(f"Vorgeschlagene Arbeiten übernehmen ({n_vorschlaege})" if n_vorschlaege else
-                                     "Keine offenen Vorschläge")
-        self.vorschlag_knopf.setEnabled(bool(n_vorschlaege))
 
     def zusatzarbeiten(self):
         s = self.seite
@@ -1119,7 +1611,6 @@ class EinfachBereich(QWidget):
         erg = self.seite.vorschlaege_uebernehmen(list(range(len(self.seite.positionen))))
         self.aktualisieren()
         return erg
-
     # -------------------------------------------------------------- Fracht (Patrick 25.11.2026, gleiche Rechnung)
     def _darf_aendern(self):
         s = self.seite
@@ -1129,8 +1620,10 @@ class EinfachBereich(QWidget):
         """Frachtkosten wie im Angebotskopf des Expertenmodus: Frachtart, Betrag von Hand, Verteilung, „Fracht
         berechnen …“ (Paket/Palette, Tarif, auch je Staffelmenge) und automatisch nachführen (fracht_angebot.py)."""
         from . import fracht_angebot as fa
-        k = Karte("Frachtkosten")
-        k.lay.addWidget(_label("Fracht geht wie im Expertenmodus in den Verkaufspreis ein und wird auf die Bauteile "
+        k = QWidget()
+        k.lay = QVBoxLayout(k)
+        k.lay.setContentsMargins(0, 0, 0, 0)
+        k.lay.addWidget(_label("Fracht geht wie im Pro-Modus in den Verkaufspreis ein und wird auf die Bauteile "
                                "verteilt. Betrag von Hand eintragen oder vom Programm berechnen lassen.", "e_klein"))
         g = QGridLayout()
         g.setHorizontalSpacing(10)
@@ -1157,12 +1650,12 @@ class EinfachBereich(QWidget):
                                 "oder Palette) und Tarif rechnen")
         self.fr_auto.clicked.connect(self.fracht_auto)
         self.fr_knopf = _knopf("Fracht berechnen …", self.fracht_berechnen,
-                               "Fracht aus PLZ, Gewicht, Paket/Palette und Tarif berechnen (wie im Expertenmodus)")
-        g.addWidget(_label("Frachtart", "e_wert_titel"), 0, 0)
+                               "Fracht aus PLZ, Gewicht, Paket/Palette und Tarif berechnen (wie im Pro-Modus)")
+        g.addWidget(_label("Frachtart", "e_feld"), 0, 0)
         g.addWidget(self.fr_modus, 0, 1)
-        g.addWidget(_label("Betrag", "e_wert_titel"), 0, 2)
+        g.addWidget(_label("Betrag", "e_feld"), 0, 2)
         g.addWidget(self.fr_betrag, 0, 3)
-        g.addWidget(_label("Verteilen", "e_wert_titel"), 1, 0)
+        g.addWidget(_label("Verteilen", "e_feld"), 1, 0)
         g.addWidget(self.fr_umlage, 1, 1)
         g.addWidget(self.fr_auto, 1, 2, 1, 2)
         g.setColumnStretch(4, 1)
@@ -1213,6 +1706,10 @@ class EinfachBereich(QWidget):
         if berechnet and not betrag:
             teile.append("Noch nicht berechnet: „Fracht berechnen …“")
         self.fr_text.setText(" · ".join(teile))
+        self.fr_kurz.setText(f"{m}: {bm.euro(betrag)} in der Kalkulation" if m != fa.KEINE else "Keine Fracht.")
+        if (betrag or m not in (fa.KEINE, fa.MANUELL)) and not self.weitere.offen() and not getattr(self, "_fr_auf", 0):
+            self._fr_auf = 1            # einmal je Sitzung: vorhandene Fracht gleich sichtbar
+            self.weitere.zeigen(True)
 
     def _kopf_wert(self, name, wert):
         s = self.seite
@@ -1272,22 +1769,19 @@ class EinfachBereich(QWidget):
     def _marge_karte_bauen(self):
         """Marge einstellen: stellt den Gewinn des Angebots über die volle Kalkulation so ein, dass die Marge vom
         Warenwert erreicht wird (AngebotSeite.auf_marge_setzen, wie „Auf Zielmarge setzen“ in der Preisleiter)."""
-        k = Karte("Marge einstellen")
-        k.lay.addWidget(_label("Gewünschte Marge vom Warenwert eintragen: das Programm stellt den Gewinn so ein, "
-                               "dass der Verkaufspreis genau diese Marge ergibt (Rabatt, Rundung und Mindestpreis "
-                               "zählen mit). Fracht und Verpackung werden ohne Gewinn durchgereicht.", "e_klein"))
+        k = bs.karte("Marge einstellen")
         zeile = QHBoxLayout()
-        zeile.addWidget(_label("Marge", "e_wert_titel"))
+        zeile.setSpacing(design.ABSTAND_KLEIN)
         self.mg_wert = QDoubleSpinBox()
         self.mg_wert.setRange(0, 90)
         self.mg_wert.setDecimals(1)
         self.mg_wert.setSingleStep(0.5)
         self.mg_wert.setSuffix(" %")
-        self.mg_wert.setToolTip("Marge = Gewinn ÷ Warenwert (Verkaufspreis ohne Fracht, Verpackung, Skonto)")
+        self.mg_wert.setMinimumWidth(90)
+        self.mg_wert.setToolTip(bm.FELD_HILFE["marge"])
         zeile.addWidget(self.mg_wert)
         self.mg_knopf = _knopf("Marge übernehmen", lambda: self.marge_setzen(self.mg_wert.value()),
                                "Gewinn so einstellen, dass die eingetragene Marge erreicht wird (rückgängig möglich)")
-        self.mg_knopf.setObjectName("primaer")
         zeile.addWidget(self.mg_knopf)
         self.mg_ziel = _knopf("", lambda: self.marge_setzen(self._satz("zielmarge") * 100),
                               "Marge auf die Zielmarge aus den Einstellungen setzen")
@@ -1296,9 +1790,11 @@ class EinfachBereich(QWidget):
         zeile.addWidget(self.mg_ziel)
         zeile.addWidget(self.mg_min)
         zeile.addStretch(1)
-        k.lay.addLayout(zeile)
-        self.mg_text = _label("", "e_klein")
-        k.lay.addWidget(self.mg_text)
+        self.mg_text = _label("", "e_klein", umbruch=False)
+        zeile.addWidget(self.mg_text)
+        k.inhalt.addLayout(zeile)
+        k.inhalt.addWidget(_label("Marge = Gewinn ÷ Warenwert. Rabatt, Rundung und Mindestpreis zählen mit; Fracht "
+                                  "und Verpackung werden ohne Gewinn durchgereicht.", "e_klein"))
         return k
 
     def _satz(self, name):
@@ -1342,78 +1838,101 @@ class EinfachBereich(QWidget):
         self.aktualisieren()
         return g
 
-    # -------------------------------------------------------------- Schritt 5: Ergebnis
-    def _ergebnis_bauen(self):
-        w = QWidget()
-        v = QVBoxLayout(w)
-        v.setContentsMargins(24, 20, 24, 20)
-        v.setSpacing(12)
-        v.addWidget(_label("Kalkulationsergebnis", "e_seitentitel"))
-        self.ek = {"verkauf": Kennzahl("Verkaufspreis (netto)", bm.FELD_HILFE["verkauf"], gross=True, akzent=True),
-                   "gewinn": Kennzahl("Gewinn und Marge", bm.FELD_HILFE["gewinn"], gross=True),
-                   "gesamt": Kennzahl("Gesamtkosten", bm.FELD_HILFE["gesamt"], gross=True)}
-        oben = Raster(min_breite=260)
-        oben.setzen(list(self.ek.values()))
-        v.addWidget(oben)
-        self.ek2 = {n: Kennzahl(t, bm.FELD_HILFE[h]) for n, t, h in (
-            ("material", "Materialkosten", "material"), ("bearbeitung", "Bearbeitungskosten", "bearbeitung"),
-            ("maschine", "Maschinenkosten", "schnitt"), ("zusatz", "Zusatzkosten", "zusatz"))}
-        unten = Raster(min_breite=200)
-        unten.setzen(list(self.ek2.values()))
-        v.addWidget(unten)
-        v.addWidget(self._marge_karte_bauen())
-        auf = Karte("Kostenaufteilung")
-        self.balken = Balken()
-        self.balken_legende = _label("", "e_klein")
-        auf.lay.addWidget(self.balken)
-        auf.lay.addWidget(self.balken_legende)
-        v.addWidget(auf)
-        je = Karte("Preis je Bauteil")
-        self.preis_tab = _tabelle(["Bauteil", "Stück", "Stückpreis", "Summe"])
-        self.preis_tab.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.preis_tab.setMinimumHeight(220)
-        je.lay.addWidget(self.preis_tab)
-        v.addWidget(je, 1)
-        pk = Karte("Prüfung vor dem Angebot")
-        self.pruef = HinweisListe()
-        self.pruef.loesen.connect(self.loesen)
-        pk.lay.addWidget(self.pruef)
-        v.addWidget(pk)
-        return _scroll(w)
 
-    def _ergebnis_fuellen(self):
+    # -------------------------------------------------------------- Schritt 4: Kalkulation
+    def _kalkulation_bauen(self):
+        from .kostenbalken import Kostenbalken
+        rolle, v, self.ka_kopf = _seite("Kalkulation", "")
+        self.ampel = bs.chip("", "neutral")
+        self.kz_leiste = bs.kennzahlleiste([("verkauf", "Verkaufspreis netto", "–"), ("stueck", "Ø Stückpreis", "–"),
+                                            ("marge", "Marge", "–"), ("kosten", "Selbstkosten", "–")],
+                                           rechts=[self.ampel])
+        self.kz_leiste.werte["verkauf"].setObjectName("e_summe")
+        for n, t in (("verkauf", "verkauf"), ("marge", "gewinn"), ("kosten", "gesamt")):
+            self.kz_leiste.werte[n].setToolTip(bm.FELD_HILFE[t])
+            self.kz_leiste.titel[n].setToolTip(bm.FELD_HILFE[t])
+        v.addWidget(self.kz_leiste)
+        self.ka_hinweise = HinweisListe()
+        self.ka_hinweise.loesen.connect(self.loesen)
+        v.addWidget(self.ka_hinweise)
+        aufbau = bs.karte("Woraus sich der Preis zusammensetzt")
+        self.balken = Kostenbalken()
+        aufbau.inhalt.addWidget(self.balken)
+        self.kostenarten = Aufklapper("Kostenarten anzeigen")
+        self.ka_tab = _tabelle(["Kostenart", "Betrag", "Anteil"], dehnen=0, rechts=(1, 2))
+        self.kostenarten.lay.addWidget(self.ka_tab)
+        aufbau.inhalt.addWidget(self.kostenarten)
+        v.addWidget(aufbau)
+        je = bs.karte("Preis je Position")
+        self.preis_tab = _tabelle(["Pos.", "Bauteil", "Profil", "Stück", "Stückpreis", "Summe"], dehnen=1,
+                                  rechts=(3, 4, 5))
+        je.inhalt.addWidget(self.preis_tab)
+        v.addWidget(je)
+        v.addWidget(self._marge_karte_bauen())
+        v.addStretch(1)
+        return rolle
+
+    def _kalkulation_fuellen(self):
         d = self.daten
         if d is None:
             return
         e = d["ergebnis"]
-        self.ek["verkauf"].setzen(bm.euro(e["verkauf"]), f"{e['teile']} Teile" if e["teile"] else "")
-        farbe = AMPEL.get(e["stufe"])
-        marge = f"Marge {bm.zahl(100 * e['marge'], 1)} %" if e["marge"] is not None else "Marge –"
-        self.ek["gewinn"].setzen(bm.euro(e["gewinn"]), f"● {e['ampel_text']}" if e["ampel_text"] else marge,
-                                 _farbe(farbe) if farbe else None,
-                                 tipp=bm.FELD_HILFE["gewinn"] + "".join("\n• " + x for x in e["gruende"]))
-        self.ek["gesamt"].setzen(bm.euro(e["gesamt"]), "ohne Gewinn")
+        aktuell = d["stand"] == "aktuell"
+        self.ka_kopf.untertitel.setText("Automatisch berechnet mit der Kalkulation des Pro-Modus." if aktuell else
+                                        "Der Schnittplan ist nicht aktuell: Hinweise prüfen oder „Neu berechnen“ "
+                                        "(Schritt 3).")
+        self.ka_kopf.untertitel.show()
+        w = self.kz_leiste.werte
+        w["verkauf"].setText(bm.euro(e["verkauf"]))
+        w["stueck"].setText(bm.euro(e["verkauf"] / e["teile"]) if e["teile"] else "–")
+        w["marge"].setText(f"{bm.zahl(100 * e['marge'], 1)} %" if e["marge"] is not None else "–")
+        w["kosten"].setText(bm.euro(e["gesamt"]))
+        self.kz_leiste.titel["stueck"].setText(f"Ø Stückpreis ({bm.zahl(e['teile'], 0)} Stück)" if e["teile"]
+                                               else "Ø Stückpreis")
+        if e.get("stufe"):
+            bs.chip_setzen(self.ampel, e["ampel_text"] or e["stufe"], AMPEL_CHIP.get(e["stufe"], "neutral"))
+            self.ampel.setToolTip(bm.FELD_HILFE["gewinn"] + "".join("\n• " + x for x in e["gruende"]))
+            self.ampel.show()
+        else:
+            self.ampel.hide()
+        self.ka_hinweise.setzen([h for h in d["hinweise"] if h[0] in ("FEHLER", "WARNUNG")])
         self._marge_fuellen()
-        for n in ("material", "bearbeitung", "maschine", "zusatz"):
-            self.ek2[n].setzen(bm.euro(e[n]))
         g = e["gruppen"]
-        teile = [(bm.GRUPPE_TITEL[n], g[n]) for n, _, _ in bm.GRUPPEN if n not in ("preis",)]
+        farben = iter(design.PREIS_BALKEN)
+        teile = []
+        for n, titel, _ in bm.GRUPPEN:
+            if abs(g[n]) <= 0.004:
+                continue
+            farbe = design.PREIS_BALKEN_GEWINN[0] if n == "gewinn" else (
+                design.PREIS_BALKEN_GEWINN[1] if n == "preis" else next(farben, design.PREIS_BALKEN[-1]))
+            teile.append((bm.GRUPPE_TITEL[n], g[n], farbe))
         self.balken.setzen(teile)
-        summe = sum(w for _, w in teile if w > 0) or 1
-        self.balken_legende.setText(" · ".join(
-            f"<span style='color:{_farbe(Balken.FARBEN[i % len(Balken.FARBEN)])}'>■</span> {t} "
-            f"{bm.zahl(100 * w / summe, 0)} %" for i, (t, w) in enumerate((t, w) for t, w in teile if w > 0)))
-        zeilen = d["zeilen"]
-        bt = d["bauteile"]
+        summe = e["verkauf"] or 0
+        self.ka_tab.setRowCount(len(teile))
+        for r, (t, betrag, _) in enumerate(teile):
+            self.ka_tab.setItem(r, 0, _zelle(t, tipp=self._gruppen_tipp(next(n for n, x, _ in bm.GRUPPEN if x == t))))
+            self.ka_tab.setItem(r, 1, _zelle(bm.euro(betrag), True))
+            self.ka_tab.setItem(r, 2, _zelle(f"{bm.zahl(100 * betrag / summe, 1)} %" if summe else "–", True))
+        _hoehe_anpassen(self.ka_tab, 1, 12)
+        zeilen, bt = d["zeilen"], d["bauteile"]
         self.preis_tab.setRowCount(len(zeilen))
         for r, z in enumerate(zeilen):
-            name = bt[r]["name"] if r < len(bt) else str(z.get("artikel") or z.get("pos") or "")
-            self.preis_tab.setItem(r, 0, _zelle(name))
-            self.preis_tab.setItem(r, 1, _zelle(z.get("stueck") or "–", True))
-            self.preis_tab.setItem(r, 2, _zelle(bm.euro(z.get("preis_teil")), True))
-            self.preis_tab.setItem(r, 3, _zelle(bm.euro(z.get("preis_position")), True))
-        punkte = [(st, text, "experte", None) for st, text in self._punkte() if st in ("FEHLER", "WARNUNG")]
-        self.pruef.setzen([h for h in d["hinweise"] if h[0] != "HINWEIS"] + punkte)
+            b = bt[r] if r < len(bt) else {}
+            self.preis_tab.setItem(r, 0, _zelle(z.get("pos") or r + 1))
+            self.preis_tab.setItem(r, 1, _zelle(b.get("name") or str(z.get("artikel") or "")))
+            self.preis_tab.setItem(r, 2, _zelle(" ".join(x for x in (b.get("form"), b.get("profil")) if x)
+                                                or b.get("art_text") or ""))
+            self.preis_tab.setItem(r, 3, _zelle(z.get("stueck") or "–", True))
+            self.preis_tab.setItem(r, 4, _zelle(bm.euro(z.get("preis_teil")), True))
+            self.preis_tab.setItem(r, 5, _zelle(bm.euro(z.get("preis_position")), True))
+        _hoehe_anpassen(self.preis_tab, 2, 14)
+
+    def _gruppen_tipp(self, gruppe):
+        d = self.daten
+        zuordnung = {n: g for g, _, namen in bm.GRUPPEN for n in namen}
+        teile = [f"{text}: {bm.euro(w)}" for (text, w, _), (_, n, fett) in d["kosten"]
+                 if not fett and zuordnung.get(n) == gruppe and abs(w or 0) > 0.004]
+        return "\n".join(teile)
 
     def _punkte(self):
         aus = []
@@ -1422,86 +1941,174 @@ class EinfachBereich(QWidget):
                 st, text = p[0], p[1]
             except (TypeError, IndexError):
                 continue
-            if st in FARBE_STUFE:
+            if st in ZEICHEN:
                 aus.append((st, str(text)))
         return aus
 
-    # -------------------------------------------------------------- Schritt 6: Angebot
+    # -------------------------------------------------------------- Schritt 5: Angebot
     def _angebot_bauen(self):
-        w = QWidget()
-        v = QVBoxLayout(w)
-        v.setContentsMargins(24, 20, 24, 20)
-        v.setSpacing(12)
-        v.addWidget(_label("Angebot erstellen", "e_seitentitel"))
-        kunde = Karte("Kunde")
-        h = QHBoxLayout()
-        self.kunde_text = _label("")
-        h.addWidget(self.kunde_text, 1)
-        h.addWidget(_knopf("Kunde wählen …", self.kunde_waehlen, "Kunden suchen oder neu anlegen"))
-        kunde.lay.addLayout(h)
-        v.addWidget(kunde)
-        pos = Karte("Positionen, Mengen und Preise")
-        self.ang_tab = _tabelle(["Pos.", "Bauteil", "Menge", "Stückpreis", "Summe"])
-        self.ang_tab.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.ang_tab.setMinimumHeight(200)
-        pos.lay.addWidget(self.ang_tab, 1)
-        self.ang_summe = _label("", "e_karten_titel")
-        self.ang_summe.setAlignment(Qt.AlignRight)
-        pos.lay.addWidget(self.ang_summe)
-        v.addWidget(pos, 1)
-        self.ang_hinweise = HinweisListe()
-        self.ang_hinweise.loesen.connect(self.loesen)
-        v.addWidget(self.ang_hinweise)
+        self.pdf_knopf = _knopf("Angebot erstellen (PDF)", self.pdf_erstellen, "Angebots-PDF für den Kunden "
+                                "erstellen, ablegen und öffnen", haupt=True)
+        rolle, v, self.ang_kopf = _seite("Angebot", "Zusammenfassung prüfen, Vorschau ansehen, PDF erstellen.",
+                                         [self.pdf_knopf])
+        self.ang_box = QBoxLayout(QBoxLayout.LeftToRight)
+        self.ang_box.setSpacing(design.ABSTAND + 2)
+        links = QVBoxLayout()
+        links.setSpacing(design.ABSTAND + 2)
+        zus = bs.karte("Zusammenfassung", rechts=[_link("Kunde und Anfrage ändern", lambda: self.zu_schritt(bm.KUNDE))])
+        self.ang_werte = bs.wertzeilen([(t, "–") for t in ("Kunde", "Ansprechpartner", "Projekt", "Ihre Anfrage",
+                                                            "Lieferzeit", "Positionen", "Stück gesamt")])
+        zus.inhalt.addWidget(self.ang_werte)
+        zus.inhalt.addWidget(_trenner())
+        summe = QHBoxLayout()
+        summe.addWidget(_label("Angebotssumme netto", "abschnitt", umbruch=False))
+        summe.addStretch(1)
+        self.ang_summe = _label("–", "e_summe", umbruch=False)
+        summe.addWidget(self.ang_summe)
+        zus.inhalt.addLayout(summe)
+        links.addWidget(zus)
+        pos = bs.karte("Positionen", rechts=[_link("Stückzahlen ändern", lambda: self.zu_schritt(bm.BAUTEILE))])
+        self.ang_tab = _tabelle(["Pos.", "Bauteil", "Stück", "Stückpreis", "Summe"], dehnen=1, rechts=(2, 3, 4))
+        pos.inhalt.addWidget(self.ang_tab)
+        links.addWidget(pos)
+        pruef = bs.karte("Prüfung vor dem Angebot")
+        self.pruef_platz = QVBoxLayout()
+        self.pruef_platz.setSpacing(4)
+        pruef.inhalt.addLayout(self.pruef_platz)
+        self.pruef = HinweisListe()
+        self.pruef.loesen.connect(self.loesen)
+        pruef.inhalt.addWidget(self.pruef)
+        links.addWidget(pruef)
         zeile = QHBoxLayout()
-        zeile.addWidget(_knopf("Angebot erstellen (PDF)", self.pdf_erstellen, "Angebots-PDF für den Kunden "
-                               "erstellen und öffnen", "primaer"))
         zeile.addWidget(_knopf("PDF öffnen", self.pdf_oeffnen, "Zuletzt erstelltes PDF dieses Angebots öffnen"))
         self.mail_knopf = _knopf("Per E-Mail senden …", self.mail, "Angebot als PDF per E-Mail schicken")
         zeile.addWidget(self.mail_knopf)
         zeile.addWidget(_knopf("Angebot speichern", self.speichern, "Jede Änderung ist schon gespeichert; mit "
                                "gemeinsamem Ordner gleich abgleichen"))
         zeile.addStretch(1)
-        zeile.addWidget(_knopf("Im Expertenmodus weiterbearbeiten", lambda: umschalten(self.f, bm.EXPERTE),
+        zeile.addWidget(_knopf("Im Pro-Modus weiterbearbeiten", lambda: umschalten(self.f, bm.EXPERTE),
                                "Staffeln, Rabatte, Sonderfälle: dasselbe Angebot mit allen Funktionen"))
-        v.addLayout(zeile)
-        return _scroll(w)
+        links.addLayout(zeile)
+        links.addStretch(1)
+        self.ang_box.addLayout(links, 3)
+        vk = bs.karte("Vorschau", rechts=[_knopf("Vorschau aktualisieren", self.vorschau_aktualisieren,
+                                                 "Erste Seite des Angebots-PDFs neu zeichnen (Entwurf, nichts wird "
+                                                 "abgelegt)")])
+        self.pdf_bild = QLabel()
+        self.pdf_bild.setObjectName("e_vorschau")
+        self.pdf_bild.setAlignment(Qt.AlignCenter)
+        self.pdf_bild.setMinimumSize(300, 400)
+        self.pdf_bild.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        vk.inhalt.addWidget(self.pdf_bild, 1)
+        self.pdf_info = _label("", "e_klein")
+        vk.inhalt.addWidget(self.pdf_info)
+        vk.setMaximumWidth(520)
+        self.ang_box.addWidget(vk, 2)
+        v.addLayout(self.ang_box, 1)
+        self._vorschau_marke = None
+        return rolle
 
     def _angebot_fuellen(self):
         s, d = self.seite, self.daten
         if s is None or d is None:
             return
+        from .angebot import lieferzeit_eingabe
         k = s.kopf or {}
-        self.kunde_text.setText(f"<b>{k.get('kunde')}</b> · Kundennr. {k.get('kundennr') or '–'}" if k.get("kunde") else
-                                f"<span style='color:{_farbe(FARBE_STUFE['WARNUNG'])}'><b>Noch kein Kunde gewählt.</b>"
-                                "</span>")
         zeilen, bt = d["zeilen"], d["bauteile"]
+        stueck = sum(int(z.get("stueck") or 0) for z in zeilen)
+        werte = {"Kunde": (f"{k.get('kunde')} ({k.get('kundennr')})" if k.get("kundennr") else k.get("kunde"))
+                 or "noch kein Kunde",
+                 "Ansprechpartner": k.get("kunde_ansprech") or "–", "Projekt": k.get("projekt") or "–",
+                 "Ihre Anfrage": k.get("kundenreferenz") or "–", "Lieferzeit": lieferzeit_eingabe(k) or "–",
+                 "Positionen": str(len(zeilen)), "Stück gesamt": bm.zahl(stueck, 0)}
+        for t, w in werte.items():
+            self.ang_werte.werte[t].setText(str(w))
+        self.ang_werte.werte["Kunde"].setStyleSheet("" if k.get("kunde") or k.get("kundennr") else
+                                                    f"color: {_farbe(design.GELB_TEXT)};")
         self.ang_tab.setRowCount(len(zeilen))
-        self.menge_felder = []
         for r, z in enumerate(zeilen):
             self.ang_tab.setItem(r, 0, _zelle(z.get("pos") or r + 1))
             self.ang_tab.setItem(r, 1, _zelle(bt[r]["name"] if r < len(bt) else ""))
-            sp = QSpinBox()
-            sp.setRange(0, 9_999_999)
-            sp.setValue(int(z.get("stueck") or 0))
-            sp.setKeyboardTracking(False)
-            sp.setToolTip(bm.FELD_HILFE["stueck"])
-            sp.editingFinished.connect(lambda r=r, sp=sp: self.stueck_setzen(r, sp.value()))
-            self.ang_tab.setCellWidget(r, 2, sp)
-            self.menge_felder.append(sp)
+            self.ang_tab.setItem(r, 2, _zelle(bm.zahl(z.get("stueck"), 0) if z.get("stueck") else "–", True))
             self.ang_tab.setItem(r, 3, _zelle(bm.euro(z.get("preis_teil")), True))
             self.ang_tab.setItem(r, 4, _zelle(bm.euro(z.get("preis_position")), True))
+        _hoehe_anpassen(self.ang_tab, 2, 10)
         e = d["ergebnis"]
-        self.ang_summe.setText(f"Angebotssumme netto: {bm.euro(e['verkauf'])}")
+        self.ang_summe.setText(bm.euro(e["verkauf"]))
         from . import funktionen
         self.mail_knopf.setVisible(funktionen.an("funktion_angebot_mail", self.db))
-        self.ang_hinweise.setzen([h for h in d["hinweise"] if h[0] in ("FEHLER", "WARNUNG") or h[2] == "kunde"])
+        self._pruefliste_fuellen()
+        self.pruef.setzen([h for h in d["hinweise"] if h[0] in ("FEHLER", "WARNUNG")])
 
-    def kunde_waehlen(self, kundennr=None):
-        if self.seite is None:
-            return None
-        nr = self.seite.kunde_suchen(kundennr)
-        self.aktualisieren()
-        return nr
+    def pruefliste(self):
+        """Prüfliste vor dem Angebot: [(Text, erfüllt, Schritt)] aus dem Stand der Kalkulation (bereitschaft)."""
+        b = self.bereit or {}
+        je = b.get("je_schritt") or {}
+        e = (self.daten or {}).get("ergebnis") or {}
+        return [("Kunde gewählt", je.get(bm.KUNDE) == "ok", bm.KUNDE),
+                ("Alle Bauteile vollständig", je.get(bm.BAUTEILE) == "ok", bm.BAUTEILE),
+                ("Material, Preise und Fertigung vollständig", je.get(bm.MATERIAL) == "ok", bm.MATERIAL),
+                ("Kalkulation aktuell", bool(b.get("gerechnet")), bm.MATERIAL),
+                ("Preis wirtschaftlich", e.get("stufe") != "kritisch" and (e.get("verkauf") or 0) > 0, bm.KALKULATION),
+                ("Angebots-Check ohne offene Punkte", je.get(bm.KALKULATION) == "ok", bm.KALKULATION)]
+
+    def _pruefliste_fuellen(self):
+        _leeren(self.pruef_platz)
+        for text, erfuellt, schritt in self.pruefliste():
+            z = QWidget()
+            h = QHBoxLayout(z)
+            h.setContentsMargins(0, 0, 0, 0)
+            farbe = design.GRUEN if erfuellt else design.GELB_TEXT
+            h.addWidget(_label(f"<span style='color:{_farbe(farbe)}'><b>{'✓' if erfuellt else '!'}</b></span>&nbsp; "
+                               f"{text}", umbruch=False))
+            h.addStretch(1)
+            if not erfuellt:
+                h.addWidget(_link(f"Zu Schritt {schritt}", lambda _=False, i=schritt: self.zu_schritt(i)))
+            self.pruef_platz.addWidget(z)
+        b = self.bereit or {}
+        z = bs.hinweisband("Das Angebot ist bereit zur Ausgabe." if b.get("bereit") else
+                           "Noch nicht bereit: bitte die markierten Punkte prüfen. Ein PDF lässt sich trotzdem "
+                           "erstellen; vorher kommt die Sammelrückfrage wie im Pro-Modus.",
+                           "ok" if b.get("bereit") else "warnung")
+        self.pruef_platz.addWidget(z)
+
+    def _vorschau_spaeter(self):
+        if self.schritt == bm.ANGEBOT and self.isVisible() and self._vorschau_marke != self._kennung():
+            self.vorschau_aktualisieren()
+
+    def vorschau_aktualisieren(self):
+        """Erste Seite des Angebots-PDFs als Bild (Entwurf in einer temporären Datei, dieselbe Ausgabe wie „Angebot
+        erstellen“, aber ohne Ablage, Versandvermerk und Angebots-Check). Ergebnis: Anzahl Seiten oder 0."""
+        from . import pdf, pdf_vorschau
+        s = self.seite
+        self._vorschau_marke = self._kennung()
+        if s is None or not s.positionen:
+            self.pdf_bild.setPixmap(QPixmap())
+            self.pdf_bild.setText("Noch keine Bauteile.")
+            self.pdf_info.setText("")
+            return 0
+        try:
+            ang = s.angebot_daten(staffeln=False)
+            # Entwurf nur zum Rendern; die Bilder liegen danach im Speicher, der Ordner wird sofort wieder entfernt
+            with tempfile.TemporaryDirectory(prefix="rl_vorschau_") as ordner:
+                pfad = Path(ordner) / "Angebot_Vorschau.pdf"
+                pdf.angebot_pdf(str(pfad), s.kopf, s._pdf_sprache(ang), s.einst)
+                bilder = pdf_vorschau.seiten_bilder(pfad, breite_px=900)
+        except Exception:           # noqa: BLE001 – Vorschau ist Zusatz; „Angebot erstellen“ meldet den Grund
+            from . import protokoll
+            protokoll.warnung("Einfacher Modus: Angebotsvorschau nicht erstellt")
+            bilder = []
+        if not bilder:
+            self.pdf_bild.setPixmap(QPixmap())
+            self.pdf_bild.setText("Vorschau nicht verfügbar.")
+            self.pdf_info.setText("")
+            return 0
+        self._pdf_seite = QPixmap.fromImage(bilder[0])
+        breite = max(280, min(480, self.pdf_bild.width() - 8))
+        self.pdf_bild.setPixmap(self._pdf_seite.scaledToWidth(breite, Qt.SmoothTransformation))
+        self.pdf_info.setText(f"Entwurf, Seite 1 von {len(bilder)}. Staffelpreise und die endgültige Nummer kommen "
+                              "mit „Angebot erstellen (PDF)“.")
+        return len(bilder)
 
     def pdf_erstellen(self):
         if self.seite is None:
@@ -1657,7 +2264,7 @@ def menue_eintrag(f, menue):
     """Menü Ansicht: „Einfacher Modus“ zum Ankreuzen (Experten-Pro-Modus = ohne Haken)."""
     a = menue.addAction("Einfacher Modus")
     a.setCheckable(True)
-    a.setToolTip("Geführte Kalkulation in sechs Schritten; ohne Haken: Experten-Pro-Modus")
+    a.setToolTip("Geführte Kalkulation in fünf Schritten; ohne Haken: Experten-Pro-Modus")
     a.toggled.connect(lambda an: umschalten(f, bm.EINFACH if an else bm.EXPERTE))
     f.modus_aktion = a
     return a

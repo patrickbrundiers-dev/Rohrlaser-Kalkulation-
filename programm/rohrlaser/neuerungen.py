@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.557", "<b>Einfacher Modus 2.0</b>: Der Einfache Modus ist ruhiger und führt jetzt in fünf Schritten in der "
+                "Reihenfolge der Arbeit: <i>Anfrage und Kunde</i> (Kundensuche mit Vervollständigung, neuer Kunde "
+                "direkt im Schritt, Projekt, Ansprechpartner, Zeichen, Lieferzeit), <i>Bauteile</i>, <i>Material und "
+                "Fertigung</i> (Werkstoff mit Suche, Preis in der Zeile, Maschine, Zusatzarbeiten, Fracht aufklappbar), "
+                "<i>Kalkulation</i> (Kennzahlleiste, Preisbalken, Preis je Position, Marge) und <i>Angebot</i> "
+                "(Zusammenfassung, Prüfliste und Vorschau der ersten PDF-Seite im Programm). Die Schrittleiste zeigt "
+                "je Schritt ✓ oder !, der Status-Chip im Kopf sagt „Bereit zur Ausgabe“ oder was fehlt, rechts steht "
+                "die Zusammenfassung mit Angebotssumme, Marge und offenen Punkten (auf kleinen Bildschirmen als "
+                "Zeile). Alles im Designsystem „Klar“, normale Knopfgrößen, Hilfe über „?“. Rechenkern und "
+                "Pro-Modus sind unverändert ([[einfacher_modus]]).",
+     "Einfacher Modus 2.0: fünf Schritte vom Kunden bis zur PDF-Vorschau, Stand je Schritt ([[einfacher_modus]])."],
     ["0.9.555", "<b>X in Dialogen schließt wieder</b> ([[support_paket]]): Unter Windows war das Schließen-X in fast "
                 "allen Dialogen grau und ohne Wirkung. Beim Entfernen des ?-Knopfs fiel der Schließen-Knopf mit weg. "
                 "Jetzt hat jeder Dialog wieder ein aktives X, Minimieren und Maximieren bleiben. Außerdem gibt das "

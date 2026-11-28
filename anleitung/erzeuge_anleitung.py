@@ -17860,10 +17860,12 @@ OHNE_STELLE = {"stamm_stundensaetze",     # gleiche Seite wie stamm_arbeitsschri
 
 def kapitel_einfacher_modus(i):
     i.kapitel("Einfacher Modus", marke="einfacher_modus")
-    i.text("Neben der gewohnten Oberfläche (<i>Experten-Pro-Modus</i>) gibt es seit 0.9.486 den <b>Einfachen "
-           "Modus</b>: eine aufgeräumte Oberfläche, die in sechs Schritten durch eine Kalkulation führt. Beide "
-           "Oberflächen rechnen mit demselben Rechenkern, derselben Datenbank und denselben Angeboten. Jede "
-           "Kalkulation lässt sich in beiden Modi öffnen und weiterbearbeiten.", kurz=True)
+    i.text("Neben der gewohnten Oberfläche (<i>Experten-Pro-Modus</i>, kurz Pro-Modus) gibt es seit 0.9.486 den "
+           "<b>Einfachen Modus</b>: eine ruhige Oberfläche, die in fünf Schritten durch eine Kalkulation führt. Seit "
+           "0.9.557 ist er überarbeitet (Einfacher Modus 2.0): Kunde am Anfang, Stand jedes Schritts oben in der "
+           "Schrittleiste, Zusammenfassung rechts und Vorschau des Angebots-PDFs. Beide Oberflächen rechnen mit "
+           "demselben Rechenkern, derselben Datenbank und denselben Angeboten. Jede Kalkulation lässt sich in beiden "
+           "Modi öffnen und weiterbearbeiten.", kurz=True)
     i.abschnitt("Modus wählen und umschalten", marke="bedienmodus")
     i.liste("<b>Einstellungen → Allgemein → Darstellung und Bedienoberfläche</b>: <i>Einfacher Modus</i> oder "
             "<i>Experten-Pro-Modus</i> wählen. Die Wahl gilt nur für den angemeldeten Benutzer (ohne Anmeldung: "
@@ -17871,69 +17873,117 @@ def kapitel_einfacher_modus(i):
             "über den gemeinsamen Ordner. Die Seite ist nie durch Admin-Vorgaben gesperrt.",
             "Die Wahl bleibt nach einem Neustart erhalten.",
             "<b>Schnell umschalten:</b> Knopf unten rechts in der Statusleiste, Menü <i>Ansicht → Einfacher "
-            "Modus</i> oder <b>Strg+Alt+M</b>. Im Einfachen Modus steht oben rechts der Knopf <i>Expertenmodus</i>.",
+            "Modus</i> oder <b>Strg+Alt+M</b>. Im Einfachen Modus steht oben rechts der Knopf <i>Pro-Modus</i>.",
             "Ein Wechsel verliert nichts: die geöffnete Kalkulation bleibt offen und erscheint im anderen Modus "
             "mit allen Werten. Im Einfachen Modus sind Menüleiste, eigene Werkzeugleiste und Info-Panel "
-            "ausgeblendet; im Expertenmodus ist alles wie vorher.")
-    i.abschnitt("Die sechs Schritte", marke="einfach_schritte")
+            "ausgeblendet; im Pro-Modus ist alles wie vorher.")
+    i.abschnitt("Aufbau der Oberfläche", marke="einfach_aufbau")
+    i.liste("<b>Kopfzeile</b>: links Angebot, Kunde, Projekt, Bauteile und Stück; in der Mitte <i>Übersicht</i> "
+            "und die Schrittleiste <i>1 Anfrage und Kunde</i>, <i>2 Bauteile</i>, <i>3 Material und Fertigung</i>, "
+            "<i>4 Kalkulation</i>, <i>5 Angebot</i>; rechts der Status-Chip, <i>?</i> und <i>Pro-Modus</i>.",
+            "<b>Schrittleiste</b>: der aktuelle Schritt ist hellblau hinterlegt. Ein Schritt mit <b>✓</b> (grün) ist "
+            "vollständig, mit <b>!</b> (gelb) fehlt dort noch etwas, sonst steht die Nummer. Jeder Schritt ist "
+            "direkt anklickbar.",
+            "<b>Status-Chip</b>: <i>Bereit zur Ausgabe</i> (grün), <i>1 Angabe fehlt</i> bzw. <i>n Angaben fehlen</i> "
+            "(gelb), <i>Noch keine Bauteile</i> oder <i>Noch nicht berechnet</i>. Bereit heißt: Kunde gewählt, alle "
+            "Bauteile vollständig, Schnittplan aktuell, Preis größer 0 und keine offenen Punkte im Angebots-Check.",
+            "<b>Zusammenfassung</b> rechts (Schritte 1 bis 4): Angebotssumme netto, Angebotsnummer, Datum, Bauteile, "
+            "Stück gesamt, Maschinenzeit, Marge mit Ampel und die offenen Punkte; ein Klick auf einen Punkt führt zur "
+            "Lösung. Auf Bildschirmen unter etwa 1.400 Pixel Breite (Laptop) steht sie als eine Zeile unter dem Kopf, unter "
+            "etwa 1.360 Pixel zeigt die Schrittleiste nur beim aktuellen Schritt den Namen. Es gibt keinen "
+            "waagerechten Rollbalken.",
+            "<b>Fußzeile</b>: <i>‹ Zurück</i>, in einem Satz der nächste sinnvolle Schritt und <i>Weiter zu … ›</i> "
+            "mit dem Namen des nächsten Schritts.",
+            "<b>?</b> blendet unter dem Kopf die Erklärung zum aktuellen Schritt und seinen Feldern ein, mit dem "
+            "Knopf <i>Bedienungsanleitung öffnen</i>. Vorgabe: ausgeblendet; jedes Feld hat zusätzlich einen "
+            "Tooltip.",
+            "<b>Dateien hineinziehen</b>: STEP-, DXF-, LST- oder BLM-Dateien lassen sich ins Fenster ziehen. In der "
+            "Übersicht entsteht eine neue Kalkulation, in einer offenen Kalkulation kommen die Teile dazu.")
+    i.abschnitt("Die Übersicht und die fünf Schritte", marke="einfach_schritte")
     i.tabelle(["Schritt", "Was passiert"], [
-        ["1 Neue Kalkulation", "Großer Knopf <i>Neue Kalkulation erstellen</i>, Kacheln für STEP, CAD/andere "
-         "Formate, vorhandenes Bauteil und <i>Kalkulation öffnen</i>; darunter die letzten Angebote mit Suche."],
-        ["2 Bauteile", "Erkannte Teile mit Art, Querschnitt, Länge, Werkstoff und Stückzahl (direkt änderbar), "
-         "3D-Vorschau des markierten Teils und Hinweise mit Knopf zur Lösung."],
-        ["3 Material", "Je Werkstoff und Abmessung eine Karte: Werkstoff wählen, Wand, Preis je m und kg, "
-         "Preisstand und Verfügbarkeit. Fehlt ein Preis, führt <i>Preis eintragen …</i> direkt dorthin."],
-        ["4 Bearbeitung", "Maschinenzeit, Schnitt, Rüsten, Bearbeitung, Zusatzarbeiten, Zukauf und Gemeinkosten "
-         "als Kacheln; Karte <i>Frachtkosten</i>; Knöpfe für Zusatzarbeiten, Vorschläge übernehmen und Neu "
-         "berechnen."],
-        ["5 Ergebnis", "Verkaufspreis, Gewinn und Marge mit Ampel, Gesamtkosten, Aufteilung in Material, "
-         "Bearbeitung, Maschine und Zusatz; Karte <i>Marge einstellen</i>; Kostenbalken, Preis je Teil und die "
-         "Prüfliste."],
-        ["6 Angebot", "Kunde wählen, Mengen ändern, Gesamtsumme, PDF erstellen und öffnen, E-Mail, Speichern; "
-         "<i>Im Expertenmodus weiterbearbeiten</i> für alles Weitere."],
+        ["Übersicht", "Knöpfe <i>STEP importieren …</i>, <i>Andere CAD-Datei …</i>, <i>Aus Bauteilbibliothek …</i> "
+         "und <i>＋ Neue Kalkulation</i> (legt ein leeres Angebot an und beginnt beim Kunden). Darunter die "
+         "aktuelle Kalkulation mit <i>Weiterbearbeiten ›</i> (springt zum ersten Schritt, in dem etwas fehlt) und "
+         "<i>Zuletzt bearbeitet</i> mit Suche: Angebot, Kunde, Ihre Anfrage, Stand, Summe netto, Geändert; "
+         "Doppelklick oder <i>Öffnen</i>."],
+        ["1 Anfrage und Kunde", "Feld <i>Kunde</i> (Pflichtfeld *) mit Vervollständigung: Name, Kundennummer oder "
+         "Ort tippen und aus der Liste wählen; <i>Kunde suchen …</i> öffnet die Kundensuche, <i>Neuer Kunde …</i> "
+         "legt den Kunden direkt hier an. Dazu Ansprechpartner, Projekt, Ihre Anfrage / Zeichen und Lieferzeit "
+         "(ein Feld, z. B. <i>10 AT</i>, <i>KW 50</i> oder ein Datum). Angebotsnummer, Datum und Bearbeiter vergibt "
+         "das Programm."],
+        ["2 Bauteile", "Tabelle mit Stand (✓ ! ✕), Bauteil, Profil, Werkstoff, Länge, Stück (direkt änderbar), "
+         "Stückpreis und Summe; rechts die 3D-Vorschau des gewählten Teils mit Art, Querschnitt, Wandstärke und "
+         "Länge, unter <i>Details</i> Abmessung, Werkstoff, Schnittkonturen und Schneidweg. Hinweise mit Knopf zur "
+         "Lösung stehen über der Tabelle."],
+        ["3 Material und Fertigung", "Tabelle <i>Material je Abmessung</i>: Werkstoff (Auswahl mit Suche: tippen "
+         "filtert), Wand, Teile, Preis je Meter, Preisstand und Verfügbarkeit; fehlt ein Preis, steht in der Zeile "
+         "<i>Preis eintragen …</i>. Karte <i>Fertigung</i>: Maschine (nur wählbar, wenn mehrere eingerichtet sind), "
+         "Schnittplan, Maschinenzeit, Rüsten und Programmieren, Zusatzarbeiten. <i>Weitere Kosten: Fracht</i> "
+         "klappt die Frachtkosten auf."],
+        ["4 Kalkulation", "Kennzahlleiste mit Verkaufspreis netto, Ø Stückpreis, Marge und Selbstkosten, dazu die "
+         "Ampel. Balken <i>Woraus sich der Preis zusammensetzt</i> (Materialkosten, Schnitt, Rüsten, Gemeinkosten, "
+         "Gewinn …), <i>Kostenarten anzeigen</i> klappt die Beträge mit Anteil auf. Darunter <i>Preis je "
+         "Position</i> und <i>Marge einstellen</i>."],
+        ["5 Angebot", "Zusammenfassung (Kunde, Ansprechpartner, Projekt, Ihre Anfrage, Lieferzeit, Positionen, "
+         "Stück gesamt, Angebotssumme netto), Positionen, <i>Prüfung vor dem Angebot</i> und rechts die "
+         "<b>Vorschau</b> der ersten Seite des Angebots-PDFs."],
     ], [38, 226])
+    i.abschnitt("Prüfung und Vorschau vor dem Angebot", marke="einfach_vorschau")
+    i.liste("Die Prüfliste in Schritt 5 zeigt mit ✓ oder !: Kunde gewählt, Alle Bauteile vollständig, Material, "
+            "Preise und Fertigung vollständig, Kalkulation aktuell, Preis wirtschaftlich, Angebots-Check ohne offene "
+            "Punkte. Bei ! führt <i>Zu Schritt n</i> dorthin.",
+            "Die <b>Vorschau</b> zeichnet die erste Seite des Angebots-PDFs als Entwurf (temporäre Datei): nichts "
+            "wird abgelegt, kein Versandvermerk, der Vorgang bleibt Entwurf. Staffelpreise und die endgültige Nummer "
+            "kommen erst mit <i>Angebot erstellen (PDF)</i>. <i>Vorschau aktualisieren</i> zeichnet sie neu.",
+            "<i>Angebot erstellen (PDF)</i> ist dieselbe Ausgabe wie im Pro-Modus: mit Angebots-Check "
+            "(Sammelrückfrage bei offenen Punkten), Ablage und Versandvermerk.")
     i.abschnitt("Fracht und Marge im Einfachen Modus", marke="einfach_fracht_marge")
     i.text("Seit 0.9.506 lassen sich Frachtkosten und Marge auch im Einfachen Modus einstellen. Beides schreibt "
-           "dieselben Angebotsfelder wie der Expertenmodus und rechnet mit derselben Kalkulation.", kurz=True)
-    i.liste("<b>Frachtkosten</b> (Schritt 4): <i>Frachtart</i> (manuell, berechnet, keine Fracht, im Artikelpreis "
-            "enthalten), <i>Betrag</i> für das ganze Angebot und <i>Verteilen</i> (je Stück oder nach Gewicht). "
-            "Ein Betrag bei „keine Fracht“ stellt die Frachtart auf manuell. <i>Fracht berechnen …</i> öffnet "
-            "denselben Dialog wie im Expertenmodus (Ziel-PLZ, Gewicht, Paket oder Palette, Tarif; [[fracht]]); "
-            "<i>Fracht automatisch berechnen</i> führt die berechnete Fracht nach jeder Änderung nach. Darunter "
-            "steht der Betrag, der in die Kalkulation eingeht, und der Hinweis fürs Angebots-PDF.",
-            "<b>Marge einstellen</b> (Schritt 5): gewünschte Marge vom Warenwert eintragen und <i>Marge "
+           "dieselben Angebotsfelder wie der Pro-Modus und rechnet mit derselben Kalkulation.", kurz=True)
+    i.liste("<b>Frachtkosten</b> (Schritt 3, <i>Weitere Kosten: Fracht</i>): <i>Frachtart</i> (manuell, berechnet, "
+            "keine Fracht, im Artikelpreis enthalten), <i>Betrag</i> für das ganze Angebot und <i>Verteilen</i> "
+            "(je Stück oder nach Gewicht). Ein Betrag bei „keine Fracht“ stellt die Frachtart auf manuell. "
+            "<i>Fracht berechnen …</i> öffnet denselben Dialog wie im Pro-Modus (Ziel-PLZ, Gewicht, Paket oder "
+            "Palette, Tarif; [[fracht]]); <i>Fracht automatisch berechnen</i> führt die berechnete Fracht nach jeder "
+            "Änderung nach. Darunter steht der Betrag, der in die Kalkulation eingeht, und der Hinweis fürs "
+            "Angebots-PDF. Ist schon Fracht eingetragen, ist der Bereich gleich aufgeklappt.",
+            "<b>Marge einstellen</b> (Schritt 4): gewünschte Marge vom Warenwert eintragen und <i>Marge "
             "übernehmen</i>. Das Programm stellt den Gewinnzuschlag so ein, dass der Verkaufspreis genau diese "
             "Marge ergibt, wie <i>Auf Zielmarge setzen</i> in der Preisleiter; Rabatt, Rundung und Mindestpreis "
             "zählen mit, Fracht und Verpackung bleiben ohne Gewinn. Beispiel: 20 % Marge = 25 % Gewinnzuschlag "
             "auf die Kosten. Sind in den Einstellungen Ziel- oder Mindestmarge eingetragen, setzen die Knöpfe "
             "<i>Zielmarge …</i> und <i>Mindestmarge …</i> sie mit einem Klick. Die Änderung lässt sich mit "
             "<i>Rückgängig</i> zurücknehmen.")
-    i.abschnitt("Automatik, Prüfung und Hilfe", marke="einfach_hilfe")
+    i.abschnitt("Automatik und Hinweise", marke="einfach_hilfe")
     i.liste("Das Programm rechnet bei den Schritten 3 bis 5 selbst neu, wenn sich etwas geändert hat.",
             "Unsichere oder fehlende Werte (Stückzahl, Materialpreis, unsichere Erkennung, fehlender Kunde) "
             "werden nicht angenommen: sie erscheinen als Hinweis mit Knopf, z. B. <i>Stückzahl eintragen</i> "
-            "oder <i>Im Editor prüfen</i>. Ein roter Hinweis muss vor dem Angebot gelöst sein.",
-            "Die Fußleiste sagt immer, was als Nächstes zu tun ist; <i>Weiter</i> und <i>Zurück</i> wechseln den "
-            "Schritt, die Schrittknöpfe oben springen direkt.",
-            "<b>? Hilfe</b> öffnet rechts eine Erklärung zum aktuellen Schritt und zu den Feldern, dazu den Knopf "
-            "<i>Bedienungsanleitung öffnen</i>. Jede Kachel und jedes Feld hat einen Tooltip.",
+            "oder <i>Im Editor prüfen</i>, im Schritt, in dem sie gelöst werden, und in der Zusammenfassung.",
+            "Offene Punkte des Angebots-Checks (z. B. veraltete Staffelstufen) erscheinen in Schritt 4 mit dem Knopf "
+            "<i>Im Pro-Modus öffnen</i>.",
             "Alles, was der Einfache Modus nicht zeigt (Staffeln, Nesting, Maschinenvergleich, Werkstattpapiere "
-            "usw.), bleibt im Expertenmodus unverändert erreichbar.")
+            "usw.), bleibt im Pro-Modus unverändert erreichbar.")
     i.abschnitt("Knöpfe im Einfachen Modus", marke="einfach_knoepfe")
-    i.liste("Kopfleiste: die Schrittknöpfe <i>1 Start</i> bis <i>6 Angebot</i>, <i>? Hilfe</i> und "
-            "<i>Expertenmodus</i>. Der aktuelle Schritt ist dunkelblau, erledigte Schritte davor zeigen ein "
-            "<b>✓</b> statt der Nummer und sind hellblau; ein Klick springt zurück. Fußleiste: <i>‹ Zurück</i> und "
-            "<i>Weiter ›</i>.",
-            "Schritt 1: <i>＋ Neue Kalkulation erstellen</i>, die Kacheln und bei einer offenen Kalkulation "
-            "<i>Weiterbearbeiten ›</i>.",
-            "Schritt 2: <i>Weitere Bauteile importieren …</i>, <i>Im Editor prüfen</i> und <i>Bauteil entfernen</i> "
-            "(wie im Expertenmodus mit <i>Rückgängig</i> in der Einblendung).",
-            "Schritt 3: <i>Materialpreise und Lieferlängen …</i> öffnet das Materialfenster des Expertenmodus.",
-            "Schritt 4: <i>Fracht berechnen …</i>, <i>Zusatzarbeiten hinzufügen …</i> und <i>Vorgeschlagene Arbeiten übernehmen</i> "
-            "(übernimmt die erkannten Arbeitsschritte wie Gewinde oder Senkungen).",
-            "Schritt 5: <i>Marge übernehmen</i>, <i>Zielmarge …</i> und <i>Mindestmarge …</i>.",
-            "Schritt 6: <i>PDF erstellen</i>, <i>PDF öffnen</i>, <i>Per E-Mail senden …</i> (nur wenn die Funktion "
-            "Angebot per Mail eingeschaltet ist) und <i>Angebot speichern</i>.")
+    i.liste("Kopfzeile: <i>Übersicht</i>, die Schrittknöpfe <i>1 Anfrage und Kunde</i> bis <i>5 Angebot</i>, "
+            "<i>?</i> und <i>Pro-Modus</i>. Fußleiste: <i>‹ Zurück</i> und <i>Weiter ›</i> (mit dem Namen des "
+            "nächsten Schritts).",
+            "Übersicht: <i>STEP importieren …</i>, <i>Andere CAD-Datei …</i>, <i>Aus Bauteilbibliothek …</i>, "
+            "<i>＋ Neue Kalkulation</i>, <i>Weiterbearbeiten ›</i>, <i>Öffnen</i>; im Willkommenshinweis "
+            "<i>Ausblenden</i>.",
+            "Schritt 1: <i>Kunde suchen …</i>, <i>Neuer Kunde …</i> und im Bereich <i>Neuen Kunden anlegen</i> "
+            "(Kundennummer und Firmenname sind Pflicht, die Kundennummer tragen Sie immer von Hand ein) <i>Kunde "
+            "anlegen und übernehmen</i>, <i>Abbrechen</i> sowie bei einer möglichen Dublette <i>Trotzdem "
+            "anlegen</i>.",
+            "Schritt 2: <i>Importieren …</i>, <i>Aus Bibliothek …</i>, <i>Im Editor prüfen …</i> und <i>Bauteil "
+            "entfernen</i> (wie im Pro-Modus mit <i>Rückgängig</i> in der Einblendung).",
+            "Schritt 3: <i>Materialpreise und Lieferlängen …</i> öffnet das Materialfenster des Pro-Modus; "
+            "<i>Zusatzarbeiten hinzufügen …</i>, <i>Vorgeschlagene Arbeiten übernehmen</i> (übernimmt die erkannten "
+            "Arbeitsschritte wie Gewinde oder Senkungen), <i>Neu berechnen</i> und <i>Fracht berechnen …</i>.",
+            "Schritt 4: <i>Marge übernehmen</i>, <i>Zielmarge …</i> und <i>Mindestmarge …</i>.",
+            "Schritt 5: <i>Angebot erstellen (PDF)</i>, <i>Vorschau aktualisieren</i>, <i>PDF öffnen</i>, <i>Per "
+            "E-Mail senden …</i> (nur wenn die Funktion Angebot per Mail eingeschaltet ist), <i>Angebot "
+            "speichern</i> und <i>Im Pro-Modus weiterbearbeiten</i>; die Links <i>Kunde und Anfrage ändern</i> und "
+            "<i>Stückzahlen ändern</i> führen zurück zu Schritt 1 bzw. 2.")
 
 
 def kapitel_schnellstart(i):
@@ -17976,7 +18026,8 @@ STECKBRIEFE = {
               "Download-Bereich auf GitHub (Rohrlaser-Updates, <i>download</i>); im Programm der Reiter <i>Start</i>"),
     "schnellstart": ("Einmal durch ein ganzes Angebot, vom Anlegen bis zum PDF.",
                      "Reiter <i>Angebote</i> und das geöffnete Angebot"),
-    "einfacher_modus": ("Eine Kalkulation geführt in sechs Schritten erstellen, ohne die Expertenoberfläche.",
+    "einfacher_modus": ("Eine Kalkulation geführt in fünf Schritten erstellen, vom Kunden bis zum Angebots-PDF, ohne die "
+                        "Expertenoberfläche.",
                         "<i>Einstellungen → Darstellung und Bedienoberfläche</i>, Knopf in der Statusleiste, "
                         "Strg+Alt+M"),
     "angebote": ("Angebote finden, öffnen, kopieren und löschen.", "Reiter <i>Angebote</i>"),
