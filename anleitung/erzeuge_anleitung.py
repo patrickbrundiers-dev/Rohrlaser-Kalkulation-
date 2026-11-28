@@ -17855,7 +17855,7 @@ def kapitel_einfacher_modus(i):
             "Bauteile vollständig, Schnittplan aktuell, Preis größer 0 und keine offenen Punkte im Angebots-Check.",
             "<b>Zusammenfassung</b> rechts (Schritte 1 bis 4): Angebotssumme netto, Angebotsnummer, Datum, Bauteile, "
             "Stück gesamt, Maschinenzeit, Marge mit Ampel und die offenen Punkte; ein Klick auf einen Punkt führt zur "
-            "Lösung. Auf Bildschirmen unter etwa 1.180 Pixel Breite steht sie als eine Zeile unter dem Kopf, unter "
+            "Lösung. Auf Bildschirmen unter etwa 1.400 Pixel Breite (Laptop) steht sie als eine Zeile unter dem Kopf, unter "
             "etwa 1.360 Pixel zeigt die Schrittleiste nur beim aktuellen Schritt den Namen. Es gibt keinen "
             "waagerechten Rollbalken.",
             "<b>Fußzeile</b>: <i>‹ Zurück</i>, in einem Satz der nächste sinnvolle Schritt und <i>Weiter zu … ›</i> "

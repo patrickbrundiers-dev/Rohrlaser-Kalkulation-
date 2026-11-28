@@ -31,7 +31,7 @@ from . import design, stil
 
 PRUEF_TAKT_MS = 1200        # so oft schaut die sichtbare Seite nach, ob sich das Angebot geändert hat (billig)
 TASTE = "Ctrl+Alt+M"        # Moduswechsel (Strg+Umschalt+M ist die Materialanfrage)
-BREIT_AB = 1180             # ab dieser Breite steht die Zusammenfassung als Spalte rechts, darunter als Zeile oben
+BREIT_AB = 1400             # ab dieser Breite steht die Zusammenfassung als Spalte rechts, darunter als Zeile oben
 SCHMAL_AB = 1360            # darunter zeigt die Schrittleiste nur beim aktuellen Schritt den Namen
 STUFE_CHIP = {"FEHLER": "fehler", "WARNUNG": "warnung", "HINWEIS": "info", "OK": "ok"}
 AMPEL_CHIP = {"gut": "ok", "knapp": "warnung", "kritisch": "fehler"}
@@ -191,6 +191,17 @@ def _leeren(lay):
             w.hide()
             w.setParent(None)
             w.deleteLater()
+
+
+def _zellen_leeren(t):
+    """Eingebettete Felder einer Tabelle sofort ausblenden und entfernen, bevor sie neu gefüllt wird (sonst stünde
+    ein altes Feld bis zum Löschen noch über der neuen Zeile)."""
+    for r in range(t.rowCount()):
+        for c in range(t.columnCount()):
+            w = t.cellWidget(r, c)
+            if w is not None:
+                w.hide()
+                t.removeCellWidget(r, c)
 
 
 def _hoehe_anpassen(t, min_zeilen=3, max_zeilen=14):
@@ -1236,6 +1247,7 @@ class EinfachBereich(QWidget):
                                         "Bauteil anklicken für die Vorschau." if bauteile else
                                         "Noch keine Bauteile: „Importieren …“ oder Dateien ins Fenster ziehen.")
         self.bt_kopf.untertitel.show()
+        _zellen_leeren(self.bt)
         self.bt.setRowCount(len(bauteile))
         self.stueck_felder = []
         for r, b in enumerate(bauteile):
@@ -1469,6 +1481,7 @@ class EinfachBereich(QWidget):
 
     def _material_fuellen(self):
         s, d = self.seite, self.daten
+        _zellen_leeren(self.mat_tab)
         self.mat_tab.setRowCount(0)
         if s is None or d is None:
             self.mat_gruppen = []
