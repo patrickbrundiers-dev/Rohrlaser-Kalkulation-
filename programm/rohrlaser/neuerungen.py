@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.553", "<b>Einfacher Modus 2.0</b>: Der Einfache Modus ist ruhiger und führt jetzt in fünf Schritten in der "
+                "Reihenfolge der Arbeit: <i>Anfrage und Kunde</i> (Kundensuche mit Vervollständigung, neuer Kunde "
+                "direkt im Schritt, Projekt, Ansprechpartner, Zeichen, Lieferzeit), <i>Bauteile</i>, <i>Material und "
+                "Fertigung</i> (Werkstoff mit Suche, Preis in der Zeile, Maschine, Zusatzarbeiten, Fracht aufklappbar), "
+                "<i>Kalkulation</i> (Kennzahlleiste, Preisbalken, Preis je Position, Marge) und <i>Angebot</i> "
+                "(Zusammenfassung, Prüfliste und Vorschau der ersten PDF-Seite im Programm). Die Schrittleiste zeigt "
+                "je Schritt ✓ oder !, der Status-Chip im Kopf sagt „Bereit zur Ausgabe“ oder was fehlt, rechts steht "
+                "die Zusammenfassung mit Angebotssumme, Marge und offenen Punkten (auf kleinen Bildschirmen als "
+                "Zeile). Alles im Designsystem „Klar“, normale Knopfgrößen, Hilfe über „?“. Rechenkern und "
+                "Pro-Modus sind unverändert ([[einfacher_modus]]).",
+     "Einfacher Modus 2.0: fünf Schritte vom Kunden bis zur PDF-Vorschau, Stand je Schritt ([[einfacher_modus]])."],
     ["0.9.552", "<b>Neues Logo auch in Windows</b>: Nach dem Update zeigte Windows in den Eigenschaften der "
                 "Programmdatei, im Explorer und in der Taskleiste noch das alte Symbol, weil Windows Symbole je Datei "
                 "zwischenspeichert. Beim ersten Start einer neuen Version meldet NexTube Windows die geänderte "

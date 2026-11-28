@@ -16,9 +16,9 @@ Grundsätze
 
 EXPERTE, EINFACH = "experte", "einfach"
 MODI = ((EINFACH, "Einfacher Modus",
-         "Geführte Kalkulation in sechs Schritten: Bauteil importieren, prüfen, Material wählen, Kosten ansehen, "
-         "Ergebnis, Angebot. Große Schaltflächen, nur die wichtigen Angaben; alles Weitere rechnet das Programm im "
-         "Hintergrund. Für Mitarbeiter ohne tiefe CAD- oder Kalkulationskenntnisse."),
+         "Geführte Kalkulation in fünf Schritten: Anfrage und Kunde, Bauteile, Material und Fertigung, Kalkulation, "
+         "Angebot. Ruhige Oberfläche mit den wichtigen Angaben; alles Weitere rechnet das Programm im Hintergrund. "
+         "Für Mitarbeiter ohne tiefe CAD- oder Kalkulationskenntnisse."),
         (EXPERTE, "Experten-Pro-Modus",
          "Die vollständige technische Arbeitsumgebung wie bisher: alle Reiter, Menüs, Editoren, Maschinen- und "
          "Kalkulationsparameter, Verschachtelung, Datenbank- und Systemeinstellungen."))
@@ -106,7 +106,8 @@ def einstellungen_ebene_setzen(db, ebene):
 
 
 def hilfe_an(db):
-    return bool(_je_benutzer(db, HILFE_AN, True))
+    """Erklärung zum Schritt eingeblendet? Vorgabe aus (Einfacher Modus 2.0: Hilfe auf Abruf über „?“)."""
+    return bool(_je_benutzer(db, HILFE_AN, False))
 
 
 def hilfe_setzen(db, an):
@@ -122,42 +123,64 @@ def willkommen_aus(db):
 
 
 # ------------------------------------------------------------------ Schritte und Hilfe
-START, BAUTEILE, MATERIAL, BEARBEITUNG, ERGEBNIS, ANGEBOT = range(6)
+# Einfacher Modus 2.0 (Patrick 27.11.2026): Übersicht (Start) und fünf Schritte in der Reihenfolge der Arbeit.
+# BEARBEITUNG und ERGEBNIS bleiben als Namen der früheren Schritte (Bearbeitung steckt jetzt in „Material und
+# Fertigung“, Ergebnis heißt „Kalkulation“).
+START, KUNDE, BAUTEILE, MATERIAL, KALKULATION, ANGEBOT = range(6)
+BEARBEITUNG, ERGEBNIS = MATERIAL, KALKULATION
 SCHRITTE = (
-    ("start", "Start", "Neue Kalkulation erstellen oder eine bestehende öffnen.",
-     "Wählen Sie, womit Sie beginnen: eine STEP-Datei (3D-Modell des Bauteils), eine andere CAD-Datei (DXF, TRUMPF "
-     "LST, BLM ArTube/BPF, IGES), ein gespeichertes Bauteil aus der Bauteilbibliothek oder eine Kalkulation, die es "
-     "schon gibt. Das Programm legt dafür ein Angebot an; es ist dasselbe Angebot, das auch der Expertenmodus "
-     "zeigt."),
-    ("bauteile", "Bauteile", "Erkannte Bauteile prüfen und Stückzahlen eintragen.",
-     "Das Programm hat die Geometrie gelesen: Rohr- oder Profilquerschnitt, Abmessung, Wandstärke, Länge, "
-     "Schnittkonturen sowie Norm- und Zukaufteile. Prüfen Sie die Liste, tragen Sie die Stückzahl ein und sehen Sie "
-     "sich das Bauteil in 3D an. Rote oder gelbe Hinweise sagen, was fehlt, und bieten die Lösung mit einem Klick "
-     "an."),
-    ("material", "Material", "Werkstoff, Abmessung und Materialpreis kontrollieren.",
-     "Je Abmessung steht hier der Werkstoff mit Wandstärke, Preis (aus der Preisliste, der Lieferlänge oder dem "
-     "Tonnenpreis) und Verfügbarkeit. Das Programm schlägt das Material aus der erkannten Geometrie vor; ändern Sie "
-     "den Werkstoff nur, wenn der Kunde etwas anderes möchte. Fehlt ein Preis, führt der Knopf direkt dorthin, wo "
-     "er eingetragen wird."),
-    ("bearbeitung", "Bearbeitung", "Maschinenzeit, Schnitt-, Rüst- und Zusatzkosten ansehen.",
-     "Schnittwege, Maschinenzeiten, Rüsten und Gemeinkosten rechnet das Programm automatisch mit denselben Werten "
-     "wie im Expertenmodus. Eingreifen müssen Sie nur bei Zusatzarbeiten (z. B. Gewinde, Senken, Entgraten) und "
-     "Zukaufteilen. Vorgeschlagene Arbeiten übernehmen Sie mit einem Klick. Frachtkosten tragen Sie unter "
-     "„Frachtkosten“ von Hand ein oder lassen sie mit „Fracht berechnen …“ (Paket oder Palette, Tarif) rechnen."),
-    ("ergebnis", "Ergebnis", "Kosten, Verkaufspreis und Marge auf einen Blick.",
-     "Die Ergebnisübersicht zeigt Material-, Bearbeitungs-, Maschinen- und Zusatzkosten, die Gesamtkosten, den "
-     "Verkaufspreis und den Gewinn mit Marge. Die Ampel sagt, ob der Preis wirtschaftlich ist (grün gut, orange "
-     "knapp, rot kritisch). Unter „Marge einstellen“ tragen Sie die gewünschte Marge ein; das Programm stellt den "
-     "Gewinn passend ein. Darunter steht der Preis je Bauteil."),
-    ("angebot", "Angebot", "Kunden wählen, Mengen und Preise prüfen, PDF erstellen.",
-     "Wählen Sie den Kunden, kontrollieren Sie Mengen und Preise und erstellen Sie das Angebot als PDF. Gespeichert "
-     "wird jede Änderung sofort; mit gemeinsamem Ordner sehen die Kollegen das Angebot nach dem Abgleich. Für "
-     "Staffeln, Rabatte oder Sonderfälle öffnet „Im Expertenmodus weiterbearbeiten“ dasselbe Angebot mit allen "
-     "Funktionen."),
+    ("start", "Übersicht", "Neue Kalkulation anlegen oder eine bestehende öffnen.",
+     "Hier beginnt jede Kalkulation: <i>Neue Kalkulation</i> legt ein leeres Angebot an und führt zum Kunden, "
+     "<i>STEP importieren …</i> und <i>Andere CAD-Datei …</i> lesen gleich die Bauteile ein, <i>Aus "
+     "Bauteilbibliothek …</i> holt ein gespeichertes Bauteil. Dateien lassen sich auch einfach ins Fenster ziehen. "
+     "Darunter stehen die zuletzt bearbeiteten Kalkulationen mit Suche. Jede Kalkulation ist dasselbe Angebot, das "
+     "auch der Pro-Modus zeigt."),
+    ("kunde", "Anfrage und Kunde", "Kunden wählen oder anlegen, Projekt und Ansprechpartner eintragen.",
+     "Kunden im Suchfeld eintippen (Name, Kundennummer oder Ort) und aus der Liste wählen. Name, Konditionen, "
+     "Ansprechpartner und Lieferadresse kommen aus dem Kundenstamm. Einen neuen Kunden legen Sie mit <i>Neuer Kunde "
+     "…</i> direkt hier an; die Kundennummer tragen Sie von Hand ein. Angebotsnummer, Datum und Bearbeiter vergibt "
+     "das Programm."),
+    ("bauteile", "Bauteile", "Bauteile importieren, Stückzahlen eintragen, Erkennung prüfen.",
+     "Das Programm hat die Geometrie gelesen: Querschnitt, Abmessung, Wandstärke, Länge, Schnittkonturen sowie Norm- "
+     "und Zukaufteile. Tragen Sie die Stückzahl ein und sehen Sie sich das gewählte Bauteil in 3D an. Rote oder "
+     "gelbe Hinweise sagen, was fehlt, und bieten die Lösung mit einem Klick an."),
+    ("material", "Material und Fertigung", "Werkstoff, Materialpreis, Maschine und Zusatzarbeiten.",
+     "Je Abmessung stehen Werkstoff, Wandstärke, Preis je Meter, Preisstand und Verfügbarkeit. Das Programm schlägt "
+     "das Material aus der erkannten Geometrie vor; ändern Sie den Werkstoff nur, wenn der Kunde etwas anderes "
+     "möchte. Maschine, Schnittplan, Rüsten und Zeiten rechnet das Programm selbst. Eingreifen müssen Sie nur bei "
+     "Zusatzarbeiten (Gewinde, Senken, Entgraten …) und, falls nötig, bei den Frachtkosten unter <i>Weitere "
+     "Kosten</i>."),
+    ("kalkulation", "Kalkulation", "Verkaufspreis, Stückpreise, Kosten und Marge.",
+     "Oben stehen Verkaufspreis netto, Durchschnitt je Stück, Marge mit Ampel und Selbstkosten. Der Balken zeigt, "
+     "woraus sich der Preis zusammensetzt, darunter der Preis je Position. Unter <i>Marge einstellen</i> tragen Sie "
+     "die gewünschte Marge ein; das Programm stellt den Gewinn passend ein. Die Aufteilung nach Kostenarten klappen "
+     "Sie bei Bedarf auf."),
+    ("angebot", "Angebot", "Zusammenfassung prüfen, PDF ansehen und erstellen.",
+     "Die Zusammenfassung zeigt Kunde, Projekt, Positionen und Summe, die Prüfliste sagt, ob das Angebot bereit ist, "
+     "und rechts steht die Vorschau der ersten Seite des Angebots-PDFs. <i>Angebot erstellen (PDF)</i> schreibt es "
+     "endgültig. Gespeichert wird jede Änderung sofort. Für Staffeln, Rabatte oder Sonderfälle öffnet <i>Im "
+     "Pro-Modus weiterbearbeiten</i> dasselbe Angebot mit allen Funktionen."),
 )
+# Zu welchem Schritt ein Hinweis gehört (Aktion des Lösungsknopfs)
+SCHRITT_DER_AKTION = {"kunde": KUNDE, "import": BAUTEILE, "stueck": BAUTEILE, "editor": BAUTEILE, "zukauf": BAUTEILE,
+                      "material": MATERIAL, "optimieren": MATERIAL, "experte": KALKULATION}
+
+
+def schritt_von(h):
+    """Schritt, in dem ein Hinweis (stufe, text, aktion, zeile) gelöst wird: nach der Aktion; ein Hinweis zu einem
+    Bauteil ohne eigene Aktion (Pro-Modus) gehört zu den Bauteilen."""
+    if h[2] == "experte" and h[3] is not None:
+        return BAUTEILE
+    return SCHRITT_DER_AKTION.get(h[2], KALKULATION)
 
 # kurze Erklärungen zu Feldern und Kennzahlen (Tooltips und Hilfe)
 FELD_HILFE = {
+    "kunde": "Kunde aus dem Kundenstamm: Name, Kundennummer oder Ort eintippen und aus der Liste wählen. Name, "
+             "Konditionen, Ansprechpartner und Lieferadresse kommen mit.",
+    "projekt": "Projekt oder Bauvorhaben des Kunden; steht im Angebot und hilft beim Wiederfinden.",
+    "lieferzeit": "Lieferzeit in einem Feld, so wie man sie sagt: 10 AT, 3 Wochen, KW 50 oder ein Datum.",
+    "maschine": "Maschine, mit der gerechnet wird. Vorbelegt aus den Einstellungen; ändern nur, wenn eine andere "
+                "Anlage fertigen soll. Danach rechnet das Programm neu.",
     "stueck": "Wie viele Teile der Kunde von diesem Bauteil braucht. Ändern speichert sofort und rechnet neu.",
     "profil": "Querschnitt des Rohrs oder Profils mit Abmessung und Wandstärke, aus der STEP-Datei erkannt.",
     "laenge": "Länge des fertigen Teils in mm (gemessen, ohne Schnittzugabe).",
@@ -380,16 +403,58 @@ def hinweise(bauteile, kopf=None, stand=None, ergebnis_=None, fehler_einplanen=0
     return aus
 
 
-def naechster_schritt(schritt, hinw, hat_angebot):
-    """Text der Benutzerführung unten: was als Nächstes zu tun ist."""
+def naechster_schritt(schritt, hinw, hat_angebot, kunde=True):
+    """Text der Benutzerführung in der Fußleiste: was als Nächstes zu tun ist (ein Satz)."""
     if not hat_angebot:
-        return "Mit „Neue Kalkulation erstellen“ beginnen oder eine bestehende Kalkulation öffnen."
-    fehler = [h for h in hinw if h[0] == "FEHLER"]
-    if fehler and schritt <= BAUTEILE:
-        return f"Bitte zuerst {len(fehler)} rot markierte Angabe(n) ergänzen, dann „Weiter“."
+        return ("„Neue Kalkulation“ anlegen, eine STEP- oder CAD-Datei hineinziehen oder eine bestehende Kalkulation "
+                "öffnen.")
+    fehler = [h for h in hinw if h[0] == "FEHLER" and schritt_von(h) == BAUTEILE]
+    if schritt == KUNDE:
+        return ("Kunden wählen oder anlegen, dann weiter zu den Bauteilen." if not kunde else
+                "Weiter zu Schritt 2: Bauteile importieren und Stückzahlen prüfen.")
+    if schritt == BAUTEILE:
+        if not any(h[2] == "import" for h in hinw) and fehler:
+            return f"Bitte zuerst {len(fehler)} rot markierte Angabe(n) ergänzen, dann „Weiter“."
+        if any(h[2] == "import" for h in hinw):
+            return "Bauteile importieren: Knopf „Importieren …“ oder Dateien ins Fenster ziehen."
+        return "Weiter zu Schritt 3: Material und Fertigung prüfen."
+    if schritt == MATERIAL:
+        return "Weiter zu Schritt 4: Preis und Marge ansehen."
+    if schritt == KALKULATION:
+        return "Preis passt? Weiter zu Schritt 5: Angebot prüfen und PDF erstellen."
     if schritt >= ANGEBOT:
         return "Angebot erstellen (PDF). Gespeichert wird jede Änderung sofort."
-    return f"Weiter zu Schritt {schritt + 2}: {SCHRITTE[schritt + 1][1]}."
+    return f"Weiter zu Schritt {schritt + 1}: {SCHRITTE[schritt + 1][1]}."
+
+
+def bereitschaft(hinw, kopf, bauteile, stand, ergebnis_=None):
+    """Stand der Kalkulation für Schrittleiste und Kopf (Einfacher Modus 2.0): dict(je_schritt={Schritt: "ok" |
+    "fehlt" | "offen"}, offen=[Hinweise mit FEHLER/WARNUNG oder fehlendem Kunden], gerechnet=bool, bereit=bool,
+    text, stufe (Chip: ok/warnung/info)). Fehlt nichts und ist der Schnittplan aktuell, ist das Angebot bereit zur
+    Ausgabe."""
+    kopf = kopf or {}
+    e = ergebnis_ or {}
+    offen = [h for h in hinw if h[0] in ("FEHLER", "WARNUNG") or h[2] == "kunde"]
+    je = {s: "offen" for s in range(KUNDE, ANGEBOT + 1)}
+    fehlt = {schritt_von(h) for h in offen}
+    gerechnet = stand == "aktuell"
+    hat_kunde = bool(kopf.get("kundennr") or kopf.get("kunde"))
+    je[KUNDE] = "ok" if hat_kunde else "fehlt"
+    je[BAUTEILE] = "fehlt" if BAUTEILE in fehlt else ("ok" if bauteile else "offen")
+    je[MATERIAL] = "fehlt" if MATERIAL in fehlt else ("ok" if bauteile and gerechnet else "offen")
+    je[KALKULATION] = "fehlt" if KALKULATION in fehlt else (
+        "ok" if gerechnet and (e.get("verkauf") or 0) > 0 else "offen")
+    bereit = not offen and gerechnet and bool(bauteile) and (e.get("verkauf") or 0) > 0
+    je[ANGEBOT] = "ok" if bereit else "offen"
+    if bereit:
+        text, stufe = "Bereit zur Ausgabe", "ok"
+    elif offen:
+        text, stufe = (f"{len(offen)} Angabe fehlt" if len(offen) == 1 else f"{len(offen)} Angaben fehlen"), "warnung"
+    elif not bauteile:
+        text, stufe = "Noch keine Bauteile", "info"
+    else:
+        text, stufe = "Noch nicht berechnet", "info"
+    return dict(je_schritt=je, offen=offen, gerechnet=gerechnet, bereit=bereit, text=text, stufe=stufe)
 
 
 # ------------------------------------------------------------------ Material

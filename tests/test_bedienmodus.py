@@ -18,6 +18,7 @@ HIER = Path(__file__).resolve().parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 
+from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 import beispiel_angebot  # noqa: E402
@@ -69,6 +70,33 @@ assert aktion == "experte" and text.startswith("Etwas ganz Neues") and "Experten
 h = bm.hinweise([], {"kundennr": None})
 assert [x[2] for x in h] == ["import", "kunde"], h
 ok("verständliche Hinweise mit Lösungsvorschlag (Stückzahl, Material, Editor, Expertenmodus, Import, Kunde)")
+
+# Einfacher Modus 2.0 (27.11.2026): Stand je Schritt, Bereitschaft, Führung
+assert [x[1] for x in bm.SCHRITTE] == ["Übersicht", "Anfrage und Kunde", "Bauteile", "Material und Fertigung",
+                                       "Kalkulation", "Angebot"]
+assert (bm.BEARBEITUNG, bm.ERGEBNIS) == (bm.MATERIAL, bm.KALKULATION)
+bt_ok = [dict(stufe="OK")]
+b = bm.bereitschaft([], {"kundennr": "K1"}, bt_ok, "aktuell", {"verkauf": 100})
+assert b["bereit"] and b["stufe"] == "ok" and set(b["je_schritt"].values()) == {"ok"}, b
+b = bm.bereitschaft([("HINWEIS", "kein Kunde", "kunde", None), ("FEHLER", "x: Stück", "stueck", 0)], {},
+                    bt_ok, "aktuell", {"verkauf": 100})
+assert not b["bereit"] and b["text"] == "2 Angaben fehlen" and b["je_schritt"][bm.KUNDE] == "fehlt"
+assert b["je_schritt"][bm.BAUTEILE] == "fehlt" and b["je_schritt"][bm.MATERIAL] == "ok"
+b = bm.bereitschaft([], {"kunde": "X"}, bt_ok, "VERALTET", {"verkauf": 100})
+assert not b["bereit"] and b["text"] == "Noch nicht berechnet" and b["je_schritt"][bm.MATERIAL] == "offen"
+b = bm.bereitschaft([("WARNUNG", "Staffeln veraltet", "experte", None)], {"kunde": "X"}, bt_ok, "aktuell",
+                    {"verkauf": 100})
+assert b["je_schritt"][bm.KALKULATION] == "fehlt" and b["text"] == "1 Angabe fehlt"
+assert bm.schritt_von(("WARNUNG", "t", "experte", 3)) == bm.BAUTEILE
+assert "Kunden wählen" in bm.naechster_schritt(bm.KUNDE, [], True, kunde=False)
+assert "rot markierte" in bm.naechster_schritt(bm.BAUTEILE, [("FEHLER", "x", "stueck", 0)], True)
+assert not bm.hilfe_an(db), "Hilfe auf Abruf (Vorgabe aus)"
+hexwerte = set(__import__("re").findall(r"#[0-9A-Fa-f]{6}", es.STIL))
+from rohrlaser import stil as _stil  # noqa: E402
+assert hexwerte <= set(_stil.UMSETZUNG["Dunkel"]), sorted(hexwerte - set(_stil.UMSETZUNG["Dunkel"]))
+assert "border-radius: 10px" not in es.STIL and "e_riesig" not in es.STIL, "nur Ecken aus design.py"
+ok("Einfacher Modus 2.0: fünf Schritte, Stand je Schritt und „Bereit zur Ausgabe“, Führung als Satz, Stylesheet nur "
+   "aus Klar-Farben mit Dunkel-Entsprechung")
 db.schliessen() if hasattr(db, "schliessen") else None
 
 # ------------------------------------------------------------------ Hauptfenster
@@ -111,12 +139,12 @@ assert abs(sum(erg["gruppen"].values()) - summen["verkauf"]) < 0.005, (erg["grup
 assert abs(erg["verkauf"] - summen["verkauf"]) < 1e-9 and erg["verkauf"] > 0
 from rohrlaser import marge  # noqa: E402
 assert abs(erg["gewinn"] - marge.werte(summen)["gewinn"]) < 1e-9 and erg["stufe"] in ("gut", "knapp", "kritisch")
-assert e.ek["verkauf"].zahl.text() == bm.euro(summen["verkauf"])
+assert e.kz_leiste.werte["verkauf"].text() == bm.euro(summen["verkauf"])
 assert abs((db.angebot(aid) or {}).get("vk_netto") - round(summen["verkauf"], 2)) < 0.006, \
     "Kennzahl der Angebotsliste = Verkaufspreis im einfachen Modus"
 assert e.preis_tab.rowCount() == len(s.positionen) and e.ang_tab.rowCount() == len(s.positionen)
 assert len(e.mat_gruppen) == 4 and all(g["preis_m"] for g in e.mat_gruppen)
-ok(f"sechs Schritte: Verkaufspreis {bm.euro(summen['verkauf'])} = Kalkulation des Expertenmodus, Kostengruppen "
+ok(f"fünf Schritte und Übersicht: Verkaufspreis {bm.euro(summen['verkauf'])} = Kalkulation des Expertenmodus, Kostengruppen "
    "ergeben genau den Preis, Marge/Ampel wie die Kachel „Gewinn und Marge“")
 
 # Stückzahl im einfachen Modus ändern -> dieselben Daten im Expertenmodus
@@ -139,7 +167,7 @@ db.position_aendern(s.positionen[1]["id"], "stueck", 80)
 s.neu_laden()
 es.umschalten(f, bm.EINFACH)
 e.zu_schritt(bm.ANGEBOT)
-assert e.menge_felder[1].value() == 80 and e.menge_felder[0].value() == 48
+assert e.ang_tab.item(1, 2).text() == "80" and e.ang_tab.item(0, 2).text() == "48", "Stück nur in Schritt 2, im Angebot angezeigt"
 ok("dieselbe Kalkulation in beiden Modi: Änderung im einfachen Modus im Expertenmodus sichtbar und umgekehrt")
 
 # Fracht und Marge im einfachen Modus (Patrick 25.11.2026): dieselben Kopffelder und dieselbe Rechnung
@@ -184,6 +212,46 @@ assert e.marge_setzen(e._satz("zielmarge") * 100) is not None
 assert 0.25 - 1e-6 <= marge.werte(s._rechnung()[1])["marge"] < 0.252
 ok(f"Marge im einfachen Modus: 20 % ergibt Gewinnzuschlag {bm.zahl(100 * g, 2)} % (wie Preisleiter), Knopf "
    "Zielmarge aus den Einstellungen")
+
+# Schritt 1 Anfrage und Kunde: Felder des Angebotskopfs, Kunde anlegen nur mit Kundennummer von Hand
+e.zu_schritt(bm.KUNDE)
+assert e.feld_setzen("projekt", "Hallentor Nord") and s.kopf.get("projekt") == "Hallentor Nord"
+assert e.feld_setzen("kundenreferenz", "AN-118") and (db.angebot(aid) or {}).get("kundenreferenz") == "AN-118"
+assert e.lieferzeit_setzen("3 Wochen") and s.kopf.get("lieferzeit_wert")
+assert "Hallentor Nord" in e.untertitel.text() and e.an_projekt.text() == "Hallentor Nord"
+assert e.kunde_anlegen({"name": "Neukunde Rohrbau GmbH"}) is None and "Kundennummer" in e.kn_fehler.text()
+assert e.kunde_anlegen({"kundennr": "K-77001", "name": "Neukunde Rohrbau GmbH", "ort": "Münster"}) == "K-77001"
+assert s.kopf.get("kundennr") == "K-77001" and s.kopf.get("kunde") == "Neukunde Rohrbau GmbH"
+assert any("Neukunde Rohrbau GmbH · K-77001" in t for t in e._kd_modell.stringList()), "Kunde in der Vervollständigung"
+assert e.bereit["je_schritt"][bm.KUNDE] == "ok" and "Neukunde" in e.titel.text()
+ok("Schritt 1: Projekt, Zeichen und Lieferzeit in denselben Angebotsfeldern; neuer Kunde nur mit Kundennummer, "
+   "danach übernommen und in der Suche")
+
+# Schritt 5: Vorschau der ersten PDF-Seite ohne Ablage und ohne Versandvermerk
+versand_vorher = (db.angebot(aid) or {}).get("versand")
+e.zu_schritt(bm.ANGEBOT)
+assert e.vorschau_aktualisieren() >= 1 and not e.pdf_bild.pixmap().isNull()
+assert (db.angebot(aid) or {}).get("versand") == versand_vorher and (db.angebot(aid) or {}).get("vorgang") in (None, "", "Entwurf")
+assert [t for t, _, _ in e.pruefliste()][0] == "Kunde gewählt"
+ok("Schritt 5: Vorschau der ersten PDF-Seite im Programm (Entwurf, nichts abgelegt), Prüfliste")
+
+# kleine Bildschirme: Zusammenfassung als Zeile, kurze Schrittleiste, kein waagerechter Rollbalken
+for breite in (1600, 1280, 1100):
+    f.resize(breite, 760)
+    app.processEvents()
+    for i in range(1, 6):
+        e.zu_schritt(i)
+        app.processEvents()
+        rolle = e.stapel.currentWidget()
+        assert rolle.horizontalScrollBarPolicy() == Qt.ScrollBarAlwaysOff
+        assert rolle.widget().minimumSizeHint().width() <= rolle.viewport().width() + 1, \
+            (breite, i, rolle.widget().minimumSizeHint().width(), rolle.viewport().width())
+    breit = e.width() >= es.BREIT_AB
+    e.zu_schritt(bm.KALKULATION)
+    assert e._zus_aussen.isVisible() == breit and e.streifen.isVisible() == (not breit), breite
+f.resize(1400, 860)
+app.processEvents()
+ok("schmale Bildschirme (1600, 1280, 1100 px): Zusammenfassung als Zeile, Seiten ohne waagerechten Rollbalken")
 
 # Angebot erstellen (PDF) im einfachen und im Expertenmodus
 pfad = e.pdf_erstellen()
@@ -243,6 +311,17 @@ es.umschalten(f2, bm.EXPERTE)
 assert f2.reiter.currentWidget() is neu
 ok(f"STEP-Import im einfachen Modus: {b['form']} {b['profil']}, {b['konturen']} Konturen erkannt, vollständig "
    "gerechnet, im Expertenmodus dieselbe Seite")
+
+# Neue Kalkulation: beginnt mit Schritt 1 (Anfrage und Kunde), Stand „Noch keine Bauteile“
+es.umschalten(f2, bm.EINFACH)
+leer = e2.neu_anlegen()
+assert leer is not None and e2.schritt == bm.KUNDE and e2.seite is leer and not leer.positionen
+assert e2.bereit["text"] in ("2 Angaben fehlen", "1 Angabe fehlt", "Noch keine Bauteile"), e2.bereit
+assert e2.bereit["je_schritt"][bm.KUNDE] == "fehlt" and "Kunden wählen" in e2.fuehrung.text()
+f2.angebot_schliessen(leer.id)
+db.angebot_loeschen(leer.id, trotz_schutz=True)
+e2.oeffnen(neu.id)
+ok("Neue Kalkulation beginnt beim Kunden; Schrittleiste und Kopf zeigen, was fehlt")
 
 # unvollständige Bauteildaten und abgebrochene Neuanlage
 es.umschalten(f2, bm.EINFACH)
