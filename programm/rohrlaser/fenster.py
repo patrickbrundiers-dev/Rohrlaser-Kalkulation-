@@ -3430,7 +3430,7 @@ class Hauptfenster(QMainWindow):
         rollen.SITZUNG = self.rollen_sitzung
         self.lizenz = lizenz        # lizenz.LizenzStelle oder None (voller Zugriff, keine Hinweise)
         self._anmeldung = None      # zugang_anmeldung.Anmeldung (Zugangssystem Paket C), beim ersten Gebrauch
-        self.waechter = None        # zugang_fenster.Waechter: Sperre nach Inaktivität
+        self.sperr_waechter = None  # zugang_fenster.Waechter: Sperre nach Inaktivität (self.waechter = Verbindung)
         hilfe.einrichten(db)
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
@@ -5038,9 +5038,9 @@ class Hauptfenster(QMainWindow):
 
     def _nach_anmeldung(self):
         self.rechte_anwenden()
-        if self.waechter is None and not self.stumm:
+        if self.sperr_waechter is None and not self.stumm:
             from .zugang_fenster import Waechter
-            self.waechter = Waechter(self, self.anmeldung)
+            self.sperr_waechter = Waechter(self, self.anmeldung)
 
     def anmeldung_beim_start(self):
         """Beim Start anmelden, sobald es Benutzer mit Passwort oder PIN gibt (E5a, ohne automatisches Anmelden).
@@ -5290,8 +5290,8 @@ class Hauptfenster(QMainWindow):
                 return
         if getattr(self, "tempo", None) is not None:
             self.tempo.stoppen()
-        if self.waechter is not None:
-            self.waechter.beenden()
+        if self.sperr_waechter is not None:
+            self.sperr_waechter.beenden()
         if self._anmeldung is not None and self._anmeldung.angemeldet():
             self._anmeldung.ps.abmelden()          # Sitzung endet mit dem Programm (zg_sitzungen, Protokoll)
         super().closeEvent(ereignis)
