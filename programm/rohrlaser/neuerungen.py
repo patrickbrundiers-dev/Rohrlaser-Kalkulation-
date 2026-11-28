@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.555", "<b>X in Dialogen schließt wieder</b> ([[support_paket]]): Unter Windows war das Schließen-X in fast "
+                "allen Dialogen grau und ohne Wirkung. Beim Entfernen des ?-Knopfs fiel der Schließen-Knopf mit weg. "
+                "Jetzt hat jeder Dialog wieder ein aktives X, Minimieren und Maximieren bleiben. Außerdem gibt das "
+                "Programm geschlossene Dialoge wieder frei, statt sie bis zum Programmende im Speicher zu halten, "
+                "und <i>Diagnose</i>, <i>Zwischenspeicher</i> und <i>Referenzen prüfen</i> öffnen nicht mehr doppelt, "
+                "sondern holen das offene Fenster nach vorn.",
+     "X in Dialogen wieder aktiv; Dialoge öffnen nicht doppelt."],
     ["0.9.552", "<b>Neues Logo auch in Windows</b>: Nach dem Update zeigte Windows in den Eigenschaften der "
                 "Programmdatei, im Explorer und in der Taskleiste noch das alte Symbol, weil Windows Symbole je Datei "
                 "zwischenspeichert. Beim ersten Start einer neuen Version meldet NexTube Windows die geänderte "
