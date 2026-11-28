@@ -58,6 +58,7 @@ def kennzahlen_text(k=None, kollegen=None):
 class CacheFenster(QDialog):
     def __init__(self, f=None):
         super().__init__(f)
+        self.setProperty("dialog_rahmen", True)       # freigegebener Dialog-Rahmen (Variante B, 28.11.2026)
         self.f = f
         self.setWindowTitle("Angebots-Cache")
         self.resize(1000, 600)

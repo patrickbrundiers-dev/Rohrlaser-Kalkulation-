@@ -668,6 +668,13 @@ def kapitel_ueberblick(i):
            "Alten Wert zurückholen und Auf Ursprung zurücksetzen passieren sofort, die Einblendung bietet "
            "<b>Rückgängig</b>. Fehler des Systems (Datei in einem anderen Programm geöffnet, Netzlaufwerk nicht "
            "erreichbar, Datenbank belegt) meldet das Programm in Klartext mit dem, was zu tun ist.")
+    i.abschnitt("Aufbau der Dialoge", marke="dialog_rahmen")
+    i.text("Dialoge mit Tabelle oder Werkzeugen (z. B. <i>Lernzentrale</i>, <i>Angebots-Cache</i>, <i>Archiv "
+           "durchsuchen</i>, <i>Preis-Simulator</i>) sind gleich aufgebaut: oben Titel und eine kurze Erklärung, "
+           "darunter die Aktionen, die für markierte Zeilen gelten, dann der Inhalt, unten rechts <b>Schließen</b> "
+           "oder die Hauptaktion (dunkelblau, z. B. <i>Zurückholen</i>). Es stehen höchstens drei Aktionen sichtbar "
+           "da. Seltene und folgenreiche Aktionen (Löschen, Vergessen, Neu aufbauen) stehen unter <b>Weitere "
+           "Aktionen</b>, die folgenreichen abgesetzt am Ende. Es fällt keine Aktion weg, Tastenkürzel gelten weiter.")
     i.abschnitt("Farben in den Tabellen")
     i.tabelle(["Farbe", "Bedeutung"], [
         ["hellgelb", "<b>Eingabefeld</b>: lostippen, F2 oder Doppelklick ([[doppelklick]])."],

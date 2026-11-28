@@ -37,6 +37,7 @@ class PreisSimulatorDialog(QDialog):
 
     def __init__(self, fenster, admin=None):
         super().__init__(fenster)
+        self.setProperty("dialog_rahmen", True)       # freigegebener Dialog-Rahmen (Variante B, 28.11.2026)
         self.f = fenster
         self.admin = bool(getattr(getattr(fenster, "bereich", None), "admin", False)) if admin is None else admin
         self.zeilen, self.summen = [], {}

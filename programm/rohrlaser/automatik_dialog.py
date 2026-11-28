@@ -52,6 +52,7 @@ def zeigen(f, dialog=None):
                        if eintraege else "Das Programm hat in den letzten 90 Tagen nichts von selbst erledigt.",
                        ("Zeit", "Wer", "Was", "Angebot", "Einzelheiten", ""), zeilen(eintraege),
                        [("Rückgängig", rueck), ("Angebot öffnen", oeffnen)], farben=grau, breite=1100)
+    d.setProperty("dialog_rahmen", True)       # freigegebener Dialog-Rahmen (Variante B, 28.11.2026)
     if dialog:
         dialog(d)
     else:

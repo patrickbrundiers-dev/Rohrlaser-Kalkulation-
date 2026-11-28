@@ -102,6 +102,7 @@ def zeigen(f, dialog=None):
                         ("LST-Ordner einlesen", lst_einlesen),
                         ("Produktionsdaten-Intelligenz …", lernsystem)],
                        farben=grau, breite=1100)
+    d.setProperty("dialog_rahmen", True)       # freigegebener Dialog-Rahmen (Variante B, 28.11.2026)
     if dialog:
         dialog(d)
     else:
