@@ -273,7 +273,14 @@ def lauf():
         mm.showMinimized()
         warten(0.6)
         befund("Hauptfenster bei minimiertem modalem Dialog", haupt, erwartet_zu=None)
-        ZEILEN[-1]["name"] += f" (Dialog noch sichtbar: {mm.isVisible()}, minimiert: {mm.isMinimized()})"
+        ZEILEN[-1]["name"] += (f" (Dialog minimiert: {mm.isMinimized()}, Hauptfenster mit minimiert: "
+                               f"{haupt.isMinimized()})")
+        if not haupt.isMinimized():
+            FEHLER.append("Minimierter modaler Dialog: Hauptfenster bleibt gesperrt stehen")
+        haupt.showNormal()
+        warten(0.6)
+        if mm.isMinimized():
+            FEHLER.append("Hauptfenster wiederhergestellt: modaler Dialog bleibt minimiert")
         mm.showNormal()
         warten(0.4)
         mm.reject()
