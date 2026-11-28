@@ -100,13 +100,16 @@ def x_finden(hwnd):
 
 
 def klicken(x, y):
+    """Druck und Loslassen in EINEM SendInput (sonst wartet Windows nach dem Druck auf der Titelleiste in seiner
+    eigenen Schleife auf das Loslassen, das nie kommt)."""
     u32.SetCursorPos(x, y)
     warten(0.15)
-    for flag in (LEFTDOWN, LEFTUP):
-        i = INPUT(type=INPUT_MOUSE)
-        i.mi = MOUSEINPUT(0, 0, 0, flag, 0, 0)
-        u32.SendInput(1, ctypes.byref(i), ctypes.sizeof(INPUT))
-        warten(0.08)
+    feld = (INPUT * 2)()
+    for i, flag in enumerate((LEFTDOWN, LEFTUP)):
+        feld[i].type = INPUT_MOUSE
+        feld[i].mi = MOUSEINPUT(0, 0, 0, flag, 0, 0)
+    u32.SendInput(2, feld, ctypes.sizeof(INPUT))
+    warten(0.3)
 
 
 def befund(name, w, klick=True, erwartet_zu=True):
