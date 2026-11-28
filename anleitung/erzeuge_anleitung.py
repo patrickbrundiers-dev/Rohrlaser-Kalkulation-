@@ -13062,8 +13062,10 @@ def kapitel_einstellungen(i):
             "Felder lassen den Zugang wie er ist.",
             "<b>Sperren / Entsperren</b>: ein gesperrter Benutzer kann sich nicht anmelden und darf nur sehen. "
             "<b>Entfernen</b> löscht den Benutzer.",
-            "<b>Beim Start anmelden (Kürzel und Passwort oder PIN)</b>: das Programm fragt beim Start danach. "
-            "Ohne Haken gilt der Benutzer dieses Arbeitsplatzes (Mein Arbeitsplatz).",
+            "<b>Beim Start anmelden (Kürzel und Passwort oder PIN)</b>: das Programm fragt beim Start danach. Der "
+            "Mitarbeiter wird aus einer Liste gewählt (Name und Kürzel, der Mitarbeiter dieses Arbeitsplatzes schon "
+            "vorausgewählt); eingeben muss man nur Passwort oder PIN. Ohne Haken gilt der Benutzer dieses "
+            "Arbeitsplatzes (Mein Arbeitsplatz).",
             "<b>Rechte der Rollen</b>: Tabelle Rolle × Bereich (Angebote, Aufträge, Arbeitsvorbereitung, "
             "Produktion, Qualitätskontrolle, Auslieferung, Auswertungen) mit <i>–</i>, <i>sehen</i> oder "
             "<i>bearbeiten</i>; wirkt sofort. <b>Vorgabe wiederherstellen</b> setzt die Tabelle zurück. Der "
@@ -17240,8 +17242,21 @@ def kapitel_admin_datenbank(i):
     i.text("Statt jeder PC mit eigener Datenbank und Abgleich über den gemeinsamen Ordner können alle Arbeitsplätze "
            "mit <b>einer zentralen Datenbank</b> auf einem Server-Rechner im Firmennetz arbeiten (ausgelegt für 10 "
            "bis 25 gleichzeitige Mitarbeiter). Das Programm ist dasselbe; nur die Betriebsart ändert sich. Die "
-           "lokale Betriebsart bleibt unverändert und lässt sich jederzeit wieder wählen.")
-    i.liste("<b>Server einrichten</b> (einmal, auf dem Server-Rechner, in der Eingabeaufforderung): "
+           "lokale Betriebsart bleibt unverändert und lässt sich jederzeit wieder wählen. Für die IT liegt im "
+           "Programmordner das <i>IT-Handbuch_Server.pdf</i> mit allen Voraussetzungen (VM-Größe, Windows, Ports, "
+           "Firewall, Zertifikat, Virenscanner, Sicherung, Überwachung), der Einrichtung Schritt für Schritt und einer "
+           "Abnahme-Checkliste.")
+    i.liste("<b>Server einrichten mit dem Server-Setup</b> (empfohlen): <i>NexTube-Server-Setup.exe</i> auf dem "
+            "Server-Rechner ausführen (Administratorrechte). Es installiert das Programm und startet den "
+            "<b>Einrichtungs-Assistenten</b>: Server-Ordner, Firma, Adressen, erster Administrator, Firewall, Freigabe "
+            "der Ablage, Sicherungszeiten, zweites Sicherungsziel und Dienstkonto auf fünf Seiten, dann richtet er "
+            "alles in einem Durchgang ein und zeigt Zugangsdatei und Fingerabdruck. Der Assistent arbeitet dabei die "
+            "Schritte selbst ab: <b>Firewall-Regel für die Datenbank anlegen</b>, <b>Ablage im Netz freigeben und "
+            "Rechte setzen</b> und <b>gleich die erste Sicherung mit Probe machen</b>. Am Ende kann er "
+            "<i>Server-Ordner öffnen</i> und <i>IT-Handbuch öffnen</i>. Er darf erneut laufen"
+            "(Startmenü: <i>NexTube Server einrichten</i>). Ein neues Server-Setup über das alte ausgeführt stoppt "
+            "den Server, tauscht das Programm und startet ihn wieder.",
+            "<b>Server einrichten von Hand</b> (einmal, auf dem Server-Rechner, in der Eingabeaufforderung): "
             "<i>Rohrlaser-Angebotskalkulation.exe --server einrichten --ordner D:\\RohrlaserServer --admin PB "
             "--name \"Firma\" --adresse SERVERNAME 192.168.1.10</i>. Das Passwort des ersten Administrators wird "
             "abgefragt. Es entstehen der Datenordner, ein eigenes Zertifikat und die Zugangsdatei "
@@ -17289,24 +17304,39 @@ def kapitel_admin_datenbank(i):
             "Sekunde. Probe-Zugänge und -Angebote werden danach entfernt, Angebotsnummern nicht verbraucht. Ideal "
             "nach dem Einrichten und nach dem Umzug auf neue Hardware.",
             "<b>Aufgabenplanung</b> (einmal): <i>… --server aufgaben --ordner D:\\RohrlaserServer</i> trägt unter "
-            "Windows drei Aufgaben ein: Server und Rechner beim Hochfahren starten, täglich um 22:30 Uhr sichern "
-            "(<i>--uhrzeit 03:00</i> für eine andere Zeit). Sie laufen unter dem Windows-Konto, das den Server "
+            "Windows drei Aufgaben ein: Server und Rechner beim Hochfahren starten, täglich um 12:30 und 22:30 Uhr "
+            "sichern (<i>--uhrzeit 03:00</i> oder <i>--uhrzeit 12:30,22:30</i> für andere Zeiten). War der "
+            "Server-Rechner zur Sicherungszeit aus, holt Windows die Sicherung nach, sobald er wieder läuft; ein "
+            "Fehlstart wird bis zu dreimal wiederholt. Sie laufen unter dem Windows-Konto, das den Server "
             "eingerichtet hat (ihm gehört der Datenordner), auch ohne Anmeldung; sein Windows-Passwort wird dafür "
             "einmal abgefragt (<i>--konto DOMÄNE\\NAME</i> für ein anderes Konto mit Zugriff auf den Ordner).",
             "<b>Serversicherung</b>: <i>… --server sichern --ordner D:\\RohrlaserServer</i> sichert mit festem Stand "
             "nach <i>D:\\RohrlaserServer\\Sicherung</i> (Datenbank, Zugänge, Prüfwerte) und macht gleich die "
             "<b>Rücksicherungsprobe</b>: die Sicherung wird in eine Probe-Datenbank eingespielt und Zeile für Zeile "
-            "verglichen. Nur dann gilt sie als gut. Die 14 neuesten täglichen Sicherungen bleiben (<i>--behalten "
-            "N</i>); vor einem Update <i>--anlass vor_Update</i> (bleibt dauerhaft). <i>--server sicherungen</i> "
-            "listet sie. Den Ordner Sicherung zusätzlich auf ein anderes Laufwerk oder NAS kopieren lassen und "
-            "vor fremdem Zugriff schützen (er enthält die Prüfwerte der Passwörter).",
+            "verglichen. Nur dann gilt sie als gut. Mit jeder Sicherung kommen auch die <b>Ablage am Server</b> "
+            "(Angebotsordner, PDF, STEP, Anfragen, Austausch; ohne die Zwischenspeicher des Rechners, ältere "
+            "Dateistände 60 Tage) und die <b>Server-Einstellungen</b> (Zertifikate, Zugangsdatei) dazu. Es bleiben "
+            "die 14 neuesten täglichen Sicherungen (<i>--behalten N</i>), dazu je Woche (8 Wochen) und je Monat (12 "
+            "Monate) die neueste gute; vor einem Update <i>--anlass vor_Update</i> (bleibt dauerhaft). <i>--server "
+            "sicherungen</i> listet sie. Ergebnis und Fehler stehen im Windows-Ereignisprotokoll (Anwendung, Quelle "
+            "Rohrlaser-Server).",
+            "<b>Zweites Ziel</b> (dringend empfohlen): <i>… --server sicherungsziel --ordner D:\\RohrlaserServer "
+            "--pfad \\\\NAS\\Backup\\Rohrlaser</i>. Jede gute Sicherung wird dorthin kopiert und per Prüfsumme "
+            "(SHA-256) nachgeprüft, die Ablage dort ein zweites Mal gespiegelt, alte Stände dort ebenso aufgeräumt. "
+            "Schlägt das fehl, bleibt die Sicherung am Server gut, aber die Verwalter werden gewarnt. So übersteht "
+            "die Sicherung auch einen Plattenausfall oder Verschlüsselungstrojaner am Server. Das Ziel vor fremdem "
+            "Zugriff schützen (es enthält die Prüfwerte der Passwörter).",
             "<b>Zurückholen</b>: <i>… --server zurueckholen --ordner D:\\RohrlaserServer --datei "
             "D:\\RohrlaserServer\\Sicherung\\server_….pgdump</i>. Erst wird der jetzige Stand gesichert, dann die "
             "Sicherung in eine neue Datenbank eingespielt und geprüft; erst danach wird getauscht (die Arbeitsplätze "
             "verbinden sich neu, die bisherige Datenbank bleibt bis zum nächsten Zurückholen). Auf einem neuen "
             "Server-Rechner: dort <i>einrichten</i> wie oben, dann <i>zurueckholen</i>: alle Daten und die übrigen "
             "Zugänge mit ihren Passwörtern kommen aus der Sicherung (der beim Einrichten angelegte Administrator "
-            "behält sein neues Passwort); danach die neue Zugangsdatei an den Arbeitsplätzen einlesen.",
+            "behält sein neues Passwort). Die Ablage kommt mit zurück (fehlende Dateien zurück, abweichende ersetzt, "
+            "der abweichende Stand in <i>_vor_Wiederherstellung</i>; <i>--ohne-ablage</i> lässt sie unverändert). "
+            "Mit <i>--mit-zertifikat</i> übernimmt ein neuer Server-Rechner auch Zertifikate und Zugangsdatei: Bei "
+            "gleichem Namen bzw. gleicher IP verbinden sich die Arbeitsplätze ohne neue Zugangsdatei; sonst die neue "
+            "Zugangsdatei an den Arbeitsplätzen einlesen. Die Sicherung kann direkt vom zweiten Ziel kommen.",
             "<b>Update</b>: erst <i>--server sichern --anlass vor_Update</i>, dann das Programm am Server-Rechner "
             "und an einem Verwalter-Arbeitsplatz aktualisieren (er stellt den Server auf die neue Version um), "
             "Rechner am Server neu starten, danach alle Arbeitsplätze aktualisieren.",

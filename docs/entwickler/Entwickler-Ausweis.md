@@ -37,4 +37,6 @@ alten Passwort mehr an.
 ## Was der Ausweis ersetzt
 
 Den Entwicklerzugang mit festem Prüfwert (`entwickler.py`, `VERIFIZIERER`) aus PR #703. Er wurde dort leer (= aus)
-gemergt und wird mit dem Einbau des Ausweises entfernt.
+gemergt und ist seit 0.9.555 vollständig entfernt (Modul, Haken in Start-Login und Einstellungen,
+Werkzeug-Befehl `entwickler-schluessel`). Bis das neue Anmeldefenster (Paket C) den Ausweis einbindet, gibt es
+keinen Entwicklerzugang im Programm.

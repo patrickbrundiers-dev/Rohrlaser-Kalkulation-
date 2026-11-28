@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.553", "<b>Grundlage für das neue Anmelde- und Berechtigungssystem</b> (Paket A): Kern für Anmeldung, "
+    ["0.9.555", "<b>Grundlage für das neue Anmelde- und Berechtigungssystem</b> (Paket A): Kern für Anmeldung, "
                 "Sitzungen, Rollen mit Einzelrechten, Sicherheitsprotokoll und den Entwickler-Ausweis (signiert, "
                 "ohne Rechnerbindung, ohne eingebautes Passwort). Dazu (Paket B) eigene Datenbanktabellen für "
                 "Arbeitsplätze, Sitzungen, Anmeldeversuche und das Sicherheitsprotokoll; beim ersten Start sichert "
@@ -29,6 +29,20 @@ NEUERUNGEN = [
                 "übernommen wird (jeder behält genau seine bisherigen Rechte). Im Programm ändert sich dadurch noch nichts "
                 "Sichtbares; das neue Loginfenster folgt mit einer der nächsten Versionen.",
      "Grundlage für das neue Anmelde- und Berechtigungssystem (noch unsichtbar)."],
+    ["0.9.554", "<b>Server-Setup mit Einrichtungs-Assistent</b> (Serverversion): <i>NexTube-Server-Setup.exe</i> "
+                "installiert das Programm auf dem Server-Rechner und startet einen Assistenten. Er fragt Server-Ordner, "
+                "Firma, Adressen, ersten Administrator, Firewall, Freigabe der Ablage, Sicherungszeiten, NAS-Ziel und "
+                "Dienstkonto ab und richtet alles in einem Durchgang ein, inklusive erster Sicherung mit Probe. Am Ende "
+                "zeigt er Zugangsdatei und Fingerabdruck. Ein neues Server-Setup stoppt den Server, tauscht das "
+                "Programm und startet ihn wieder.",
+     "Server-Einrichtung ohne Befehle in der Eingabeaufforderung."],
+    ["0.9.553", "<b>Serversicherung lückenlos</b> (Serverversion): Jede Sicherung enthält jetzt auch die Ablage und die "
+                "Server-Einstellungen (Zertifikate, Zugangsdatei). Mit <i>sicherungsziel --pfad</i> geht jede gute "
+                "Sicherung zusätzlich auf ein NAS, Datei für Datei per SHA-256 geprüft. Gesichert wird um 12:30 und "
+                "22:30 Uhr; war der Server aus, wird nachgeholt. Aufbewahrt werden 14 Tage, 8 Wochen und 12 Monate. "
+                "<i>zurueckholen</i> holt die Ablage mit zurück, <i>--mit-zertifikat</i> stellt einen neuen Server "
+                "komplett her. Ergebnisse stehen im Windows-Ereignisprotokoll. Neu: <i>IT-Handbuch_Server.pdf</i>.",
+     "Sicherung übersteht Bedienfehler, Plattenausfall und neuen Server-Rechner."],
     ["0.9.552", "<b>Neues Logo auch in Windows</b>: Nach dem Update zeigte Windows in den Eigenschaften der "
                 "Programmdatei, im Explorer und in der Taskleiste noch das alte Symbol, weil Windows Symbole je Datei "
                 "zwischenspeichert. Beim ersten Start einer neuen Version meldet NexTube Windows die geänderte "
