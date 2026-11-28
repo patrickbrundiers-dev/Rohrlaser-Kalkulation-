@@ -95,7 +95,8 @@ assert not f.benutzer_anmelden("WS", "0000")
 for _ in range(rollen.FEHL_FREI - 1):
     assert rollen.anmelden(db, "WS", "9999")
 assert "warten" in rollen.anmelden(db, "WS", "1234")             # Sperre auch für das richtige Passwort
-f.rollen_sitzung.gesperrt_bis = 0
+from rohrlaser import zugang_daten  # noqa: E402
+zugang_daten.Sperre(db, "WS").freigeben()                         # Sperre je Kürzel in der Datenbank (0.9.559)
 assert f.benutzer_anmelden("ws", "1234") and rollen.angemeldet(db) == "WS"
 assert f.anmeldung_beim_start()                                   # stumm: keine Abfrage
 ok("R3 Anmeldung mit Kürzel und PIN, Sperre nach Fehlversuchen")

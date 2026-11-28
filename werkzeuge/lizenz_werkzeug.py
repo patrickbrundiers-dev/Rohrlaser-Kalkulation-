@@ -17,6 +17,12 @@ Aufrufe (python werkzeuge/lizenz_werkzeug.py …):
                                          Passwort noch ein Hash, nur ein damit verschlüsselter Admin-Schlüssel).
                                          --ersetzt: neue Datei für eine vergessene/bekannt gewordene (danach die alte
                                          sperren)
+  entwickler-ausweis [--name Patrick] [--monate 24] [--umgebung produktiv|test|entwicklung]… [--installation ID]…
+                     [--ersetzt EW-…] [--ziel PFAD]
+                                         Entwickler-Ausweis (Datei entwickler.ausweis, z. B. auf den USB-Stick) ohne
+                                         Rechner-ID für alle (oder die genannten) Installationen. Das Passwort wird
+                                         abgefragt (mindestens 12 Zeichen) und steht nirgends, nur ein damit
+                                         verschlüsselter Anmeldeschlüssel. Verloren: sperren EW-… und neu ausstellen.
   notfallcode --rechner RL-…             Admin-Passwort vergessen: Code für heute und morgen, schaltet am Rechner einmal
                                          die Admin-Rechte frei (danach neue Admin-Lizenz mit neuem Passwort ausstellen)
   pruefen DATEI [--rechner RL-…]         Inhalt und Prüfergebnis einer Lizenzdatei
@@ -58,6 +64,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "programm"))
 from rohrlaser import hauptadmin, lizenz  # noqa: E402
+from rohrlaser import zugang_ausweis as entwickler_ausweis  # noqa: E402
 from rohrlaser.passwort import hash_bilden  # noqa: E402
 from rl_auslastung import lizenzen  # noqa: E402  Art „auslastung“ (Plan 2.4)
 
@@ -277,6 +284,59 @@ def hauptadmin_ausstellen(ordner, inhaber, admin_passwort, heute=None, ziel=None
     return datei
 
 
+def entwickler_passwort_abfragen():
+    pw = os.environ.get("ROHRLASER_ENTWICKLER_PASSWORT")
+    if not pw:
+        pw = getpass.getpass("Entwickler-Passwort: ")
+        if getpass.getpass("Entwickler-Passwort wiederholen: ") != pw:
+            raise SystemExit("Die Entwickler-Passwörter stimmen nicht überein.")
+    fehler = entwickler_ausweis.passwort_regeln(pw)
+    if fehler:
+        raise SystemExit(fehler)
+    return pw
+
+
+def ausweis_ausstellen(ordner, name, passwort, monate=24, umgebungen=None, installationen=None, ersetzt="",
+                       heute=None, ziel=None, pw=None, kdf=None):
+    """Entwickler-Ausweis signieren und speichern; Register-Nummer EW-JJJJ-NNNN."""
+    fehler = entwickler_ausweis.passwort_regeln(passwort)
+    if fehler:
+        raise SystemExit(fehler)
+    ordner = Path(ordner)
+    heute = heute or datetime.date.today()
+    sid = aktueller_schluessel(ordner)
+    privat = privat_laden(ordner, sid, pw)
+    zeilen = register_lesen(ordner)
+    praefix = f"{entwickler_ausweis.PRAEFIX}-{heute.year}-"
+    n = max([int(z["lizenz_id"][len(praefix):]) for z in zeilen if z["lizenz_id"].startswith(praefix)] or [0])
+    aid = f"{praefix}{n + 1:04d}"
+    bis = monate_spaeter(heute, int(monate))
+    try:
+        daten = entwickler_ausweis.erstellen(name or "Patrick", passwort, privat, sid, aid, bis,
+                                             umgebungen or entwickler_ausweis.UMGEBUNGEN,
+                                             installationen or (entwickler_ausweis.ALLE,), heute, ersetzt, kdf)
+        entwickler_ausweis.pruefen(daten, {sid: lizenz.oeffentlich_text(privat)}, heute)
+    except lizenz.LizenzFehler as e:
+        raise SystemExit(str(e)) from None
+    if entwickler_ausweis.tresor_oeffnen(daten, passwort) is None:
+        raise SystemExit("Interner Fehler: Passwort-Tresor lässt sich nicht öffnen.")
+    ziel = Path(ziel) if ziel else ordner / "Entwickler"
+    ziel.mkdir(parents=True, exist_ok=True)
+    datei = ziel / entwickler_ausweis.DATEI
+    if datei.exists():
+        datei.replace(ziel / f"{datei.stem}_vor_{aid}{datei.suffix}")
+    datei.write_text(json.dumps(daten, indent=1, ensure_ascii=False), encoding="utf-8")
+    zeilen.append(dict(lizenz_id=aid, art=entwickler_ausweis.ART, inhaber=daten["inhalt"]["name"], firma="",
+                       rechner="keine Bindung", ausgestellt=heute.isoformat(), gueltig_bis=bis.isoformat(),
+                       gesperrt="", datei=datei.name))
+    register_schreiben(ordner, zeilen)
+    print(f"Entwickler-Ausweis {aid} für {daten['inhalt']['name']}, gültig bis {bis:%d.%m.%Y}, Umgebungen "
+          f"{', '.join(daten['inhalt']['umgebungen'])}, Installationen {', '.join(daten['inhalt']['installationen'])}:"
+          f"\n  {datei}\nDie Datei auf den USB-Stick kopieren (Wurzel oder Ordner NexTube). Ersatz-Ausweis "
+          "danach mit „sperren <alte EW-Nummer>“ die alte sperren.")
+    return datei
+
+
 def schluessel_bekannt(ordner):
     """Öffentliche Schlüssel des Programms und die im Lizenzordner (solange lizenz_schluessel.py noch leer ist)."""
     s = dict(lizenz.standard_schluessel())
@@ -287,6 +347,16 @@ def schluessel_bekannt(ordner):
 
 def pruefen(datei, rechner=None, ordner=None):
     schluessel = schluessel_bekannt(ordner) if ordner else None
+    if entwickler_ausweis.ist_ausweis(Path(datei)):
+        try:
+            daten, inhalt = entwickler_ausweis.pruefen(Path(datei), schluessel)
+        except lizenz.LizenzFehler as e:
+            print(f"UNGÜLTIG: {e}")
+            return 1
+        print(json.dumps(inhalt, indent=1, ensure_ascii=False))
+        print(f"Signatur gültig. Entwickler-Ausweis ohne Rechner-ID, Passwort-Stand "
+              f"{entwickler_ausweis.stand(daten)}.")
+        return 0
     if hauptadmin.ist_datei(Path(datei)):
         try:
             daten, inhalt = hauptadmin.pruefen(Path(datei), schluessel)
@@ -600,9 +670,15 @@ def main(argv=None):
     h_.add_argument("--inhaber", default="Patrick")
     h_.add_argument("--ersetzt", default="", help="Lizenz-ID der bisherigen Hauptadmin-Lizenz (danach sperren)")
     h_.add_argument("--ziel")
+    ea = sub.add_parser("entwickler-ausweis")
+    ea.add_argument("--name", default="Patrick")
+    ea.add_argument("--monate", type=int, default=24)
+    ea.add_argument("--umgebung", action="append", choices=entwickler_ausweis.UMGEBUNGEN)
+    ea.add_argument("--installation", action="append", help="nur diese Installation(en); ohne = alle")
+    ea.add_argument("--ersetzt", default="")
+    ea.add_argument("--ziel")
     n_ = sub.add_parser("notfallcode")
     n_.add_argument("--rechner", required=True)
-    sub.add_parser("entwickler-schluessel")
     p = sub.add_parser("pruefen")
     p.add_argument("datei")
     p.add_argument("--rechner")
@@ -663,23 +739,15 @@ def main(argv=None):
         if len(a.rechner) > lizenz.ADMIN_RECHNER_MAX:
             raise SystemExit(f"Höchstens {lizenz.ADMIN_RECHNER_MAX} Rechner.")
         ausstellen(ordner, "admin", a.inhaber, "", None, a.rechner, ziel=a.ziel, admin_passwort=admin_passwort_abfragen())
+    elif a.befehl == "entwickler-ausweis":
+        ausweis_ausstellen(ordner, a.name, entwickler_passwort_abfragen(), a.monate, a.umgebung, a.installation,
+                           a.ersetzt, ziel=a.ziel)
     elif a.befehl == "hauptadmin":
         hauptadmin_ausstellen(ordner, a.inhaber, admin_passwort_abfragen(), ziel=a.ziel, ersetzt=a.ersetzt)
     elif a.befehl == "notfallcode":
         print(f"Notfallcode für {lizenz.id_normal(a.rechner)} (heute und morgen gültig, am Rechner statt des "
               f"Admin-Passworts eingeben):\n\n    {notfallcode(ordner, a.rechner)}\n\n"
               "Danach eine neue Admin-Lizenz mit neuem Passwort ausstellen (verlaengern L-…).")
-    elif a.befehl == "entwickler-schluessel":
-        from rohrlaser import entwickler
-        eins = getpass.getpass("Entwickler-Passwort (überall gleich, mindestens 12 Zeichen): ")
-        if len(eins) < 12:
-            raise SystemExit("Mindestens 12 Zeichen.")
-        if eins != getpass.getpass("Noch einmal: "):
-            raise SystemExit("Die beiden Passwörter sind verschieden.")
-        print("\nDiese Zeile in programm/rohrlaser/entwickler.py eintragen (nur der öffentliche Prüfwert, nicht das "
-              "Passwort):\n\n"
-              f'    VERIFIZIERER = "{entwickler.verifizierer(eins)}"\n\n'
-              "Das Passwort selbst nirgends speichern. Danach einmal bauen; der Entwickler-Login gilt dann überall.")
     elif a.befehl == "pruefen":
         return pruefen(a.datei, a.rechner, ordner)
     elif a.befehl == "sperren":

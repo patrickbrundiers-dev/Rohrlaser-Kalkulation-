@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, rahmenauftrag, reklamation, step_pruefung
-from . import austausch_dateien, kunden_daten
+from . import austausch_dateien, kunden_daten, zugang_daten
 from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, ki_protokoll, material_import, lst_lernen, lst_vergleich, onlinepreise, pg_lokal, produktion_lst, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
@@ -51,7 +51,7 @@ from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VO
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 108    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 109    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -229,6 +229,9 @@ SCHEMA_VERSION = 108    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 108: Packmittelmanagement (26.11.2026, packmittel_tausch.py): Tabelle fracht_tauschregeln
                         #      (Tausch je Dienstleister und Packmittel), fracht_lht.wiederbeschaffung/tauschwert/
                         #      tauschzuschlag/bestand, fracht_dienstleister Transportbedingungen; leer = wie bisher
+                        # 109: Zugangssystem Paket B (28.11.2026, zugang_daten.py): Tabellen zg_installation,
+                        #      zg_arbeitsplaetze, zg_konto_stand, zg_sitzungen, zg_anmeldeversuche, zg_protokoll,
+                        #      zg_migration mit Bericht der Übernahme; Geschäftstabellen unverändert
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -568,8 +571,9 @@ class Datenbank:
         if version > SCHEMA_VERSION:
             raise RuntimeError(f"Die Datendatei {self.pfad} stammt von einer neueren Programmversion "
                                f"(Schema {version}). Bitte das Programm aktualisieren.")
+        schema_sicherung = ""
         if 0 < version < SCHEMA_VERSION:    # Rückfall: Stand vor der Umstellung sichern
-            self.sicherung(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
+            schema_sicherung = self.sicherung(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
         elif version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
             self.sicherung(zusatz="vor_Maschinen_T03_T11_LT7")
         elif version > 0 and self.einstellung("richtwerte_stand") != RICHTWERTE_STAND:
@@ -807,6 +811,9 @@ class Datenbank:
                 self.con.execute(f'CREATE INDEX IF NOT EXISTS "{t.name}_kunde" ON "{t.name}" (kundennr)')
             kunden_daten.migrieren(self)            # einmalig: PLZ/Ort, Status, Ansprechpartner aus den Altdaten
             self.con.execute("CREATE INDEX IF NOT EXISTS austausch_ereignisse_datei ON austausch_ereignisse (datei)")
+            zugang_daten.einrichten(self.con)          # Zugangssystem Paket B: Tabellen zg_*
+            if version < zugang_daten.SCHEMA:          # einmalig: Bericht der Übernahme (Sicherung siehe oben)
+                zugang_daten.migrieren(self, version, sicherung=schema_sicherung)
             db_verbindung.schema_version_setzen(self.con, SCHEMA_VERSION)
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")

@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.559", "<b>Neues Anmeldefenster und Benutzer wechseln</b> ([[benutzer_rollen]]): Sobald ein Benutzer ein "
+                "Passwort oder eine PIN hat, meldet sich beim Start jeder an. Der zuletzt angemeldete Benutzer ist "
+                "vorgewählt (gemerkt wird nur sein Kürzel), niemand wird automatisch angemeldet. Auf Wunsch fragt das "
+                "Programm zusätzlich einen Einmalcode aus der Authenticator-App ab. <i>Datei › Benutzer wechseln</i> "
+                "(Strg+Alt+W) schließt offene Fenster mit Rückfrage und meldet ab; nach 30 Minuten ohne Eingabe "
+                "sperrt das Programm, weiter nur mit dem eigenen Passwort (sofort: Strg+Alt+L). Fehlversuche bremsen "
+                "die Anmeldung auch über einen Neustart hinweg. Der Entwickler meldet sich mit einem signierten "
+                "Ausweis vom USB-Stick an (ohne eingebautes Passwort, ohne Rechnerbindung); der alte Zugang mit "
+                "festem Prüfwert ist entfernt. Im Hintergrund: eigene Tabellen für Sitzungen, Anmeldeversuche, "
+                "Arbeitsplätze und Sicherheitsprotokoll; beim ersten Start sichert das Programm die Datenbank und "
+                "übernimmt jeden Benutzer mit genau seinen bisherigen Rechten ins neue Rollenmodell.",
+     "Neues Anmeldefenster, Benutzer wechseln, Sperre nach 30 Minuten ohne Eingabe."],
     ["0.9.557", "<b>Einfacher Modus 2.0</b>: Der Einfache Modus ist ruhiger und führt jetzt in fünf Schritten in der "
                 "Reihenfolge der Arbeit: <i>Anfrage und Kunde</i> (Kundensuche mit Vervollständigung, neuer Kunde "
                 "direkt im Schritt, Projekt, Ansprechpartner, Zeichen, Lieferzeit), <i>Bauteile</i>, <i>Material und "

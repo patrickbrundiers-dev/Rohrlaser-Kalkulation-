@@ -13,8 +13,8 @@ Solange niemand eine Rolle hat, ist die Benutzerverwaltung aus und alles bleibt 
 an, gilt für den angemeldeten Benutzer (sonst das Kürzel dieses Arbeitsplatzes) seine Rollen; wer keine Rolle hat,
 darf nur sehen. Ein freigeschalteter Admin (Admin-Schutz) darf immer alles, damit sich niemand aussperrt.
 
-Passwörter und PINs liegen nur als gesalzener, langsamer Hash vor (passwort.py). Nach FEHL_FREI Fehlversuchen wartet
-die Anmeldung SPERRE_S Sekunden.
+Passwörter und PINs liegen nur als gesalzener, langsamer Hash vor. Anmeldung und Sperre nach Fehlversuchen macht seit
+0.9.559 das Zugangssystem (zugang_anmeldung, zugang_daten.Sperre: nach 5 Fehlversuchen 1 Minute, verdoppelt).
 """
 import time
 
@@ -56,8 +56,7 @@ VORGABE = {r: dict(zip((b for b, _ in BEREICHE), w)) for r, w in _VORGABE.items(
 
 PASSWORT_MIN = 6
 PIN_MIN, PIN_MAX = 4, 8
-FEHL_FREI = 5
-SPERRE_S = 30
+FEHL_FREI = 5           # wie zugang_daten.FEHL_FREI (Anzeige, ältere Tests)
 
 
 class RechteFehler(ValueError):
@@ -201,23 +200,27 @@ SITZUNG = None          # Sitzung des Hauptfensters (ohne Fenster: Kürzel des A
 
 
 def anmelden(db, kuerzel, geheim, sitzung=None):
-    """Mit Kürzel und Passwort oder PIN anmelden. Ergebnis: Fehlertext oder '' (angemeldet)."""
+    """Mit Kürzel und Passwort oder PIN anmelden. Ergebnis: Fehlertext oder '' (angemeldet).
+    Seit 0.9.559 prüft das Zugangssystem (zugang_authentifizierung, Sperre je Kürzel in zugang_daten über Neustart);
+    hier bleibt nur die Schnittstelle der bisherigen Aufrufer. Das Anmeldefenster nimmt zugang_anmeldung."""
+    from . import zugang_authentifizierung as auth
+    from . import zugang_daten as D
+    from . import zugang_pruefstelle as PS
     s = sitzung if sitzung is not None else SITZUNG
-    if s is not None and s.uhr() < s.gesperrt_bis:
-        return f"Zu viele Fehlversuche. Bitte {int(s.gesperrt_bis - s.uhr()) + 1} Sekunden warten."
     from .teilen import kuerzel_sauber
     k = kuerzel_sauber(kuerzel)
-    e = benutzer(db).get(k)
-    ok = bool(e) and e.get("aktiv", True) and bool(geheim) and any(
-        e.get(f) and pw.pruefen(geheim, e[f]) for f in ("hash", "pin"))
+    sperre = D.Sperre(db, k)
+    w = sperre.wartezeit()
+    if w:
+        return f"Zu viele Fehlversuche. Bitte {auth.warte_text(w)} warten."
+    konto = D.konten(db).get(k)
+    ok = bool(konto) and bool(geheim) and any(konto.get(f) and auth.pruefen(geheim, konto[f]) for f in ("hash", "pin"))
     if not ok:
-        if s is not None:
-            s.fehl += 1
-            if s.fehl >= FEHL_FREI:
-                s.gesperrt_bis, s.fehl = s.uhr() + SPERRE_S, 0
-        if e and not e.get("aktiv", True):
-            return "Dieser Benutzer ist gesperrt."
-        return "Kürzel oder Passwort/PIN stimmt nicht."
+        sperre.fehlschlag()
+        return PS.FALSCH
+    if konto["status"] != "aktiv":
+        return "Dieser Benutzer ist gesperrt."
+    sperre.erfolg()
     if s is not None:
         s.kuerzel, s.fehl = k, 0
     return ""
