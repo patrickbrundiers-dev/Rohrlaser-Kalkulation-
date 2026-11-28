@@ -26,7 +26,9 @@ NEUERUNGEN = [
                 "Jetzt hat jeder Dialog wieder ein aktives X, Minimieren und Maximieren bleiben. Außerdem gibt das "
                 "Programm geschlossene Dialoge wieder frei, statt sie bis zum Programmende im Speicher zu halten, "
                 "und <i>Diagnose</i>, <i>Zwischenspeicher</i> und <i>Referenzen prüfen</i> öffnen nicht mehr doppelt, "
-                "sondern holen das offene Fenster nach vorn.",
+                "sondern holen das offene Fenster nach vorn. Wird ein Dialog minimiert, der das Programm "
+                "solange sperrt, geht das Hauptfenster mit in die Taskleiste und kommt beim Öffnen zusammen mit "
+                "dem Dialog zurück, statt gesperrt stehen zu bleiben.",
      "X in Dialogen wieder aktiv; Dialoge öffnen nicht doppelt."],
     ["0.9.552", "<b>Neues Logo auch in Windows</b>: Nach dem Update zeigte Windows in den Eigenschaften der "
                 "Programmdatei, im Explorer und in der Taskleiste noch das alte Symbol, weil Windows Symbole je Datei "
