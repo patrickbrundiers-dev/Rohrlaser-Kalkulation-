@@ -619,7 +619,9 @@ class EinfachBereich(QWidget):
         s = self.seite
         if s is None:
             return None
-        return (id(s), id(getattr(s, "positionen", None)), id(getattr(s, "ergebnis", None)), id(getattr(s, "kopf", None)))
+        # die Punkte des Angebots-Checks kommen verzögert (AngebotSeite._check_jetzt) und gehen in die Bereitschaft ein
+        return (id(s), id(getattr(s, "positionen", None)), id(getattr(s, "ergebnis", None)), id(getattr(s, "kopf", None)),
+                tuple(self._punkte()))
 
     def _pruefen(self):
         if self.isVisible() and self._kennung() != self._marke:
@@ -2087,10 +2089,11 @@ class EinfachBereich(QWidget):
             return 0
         try:
             ang = s.angebot_daten(staffeln=False)
-            ordner = Path(tempfile.mkdtemp(prefix="rl_vorschau_"))
-            pfad = ordner / "Angebot_Vorschau.pdf"
-            pdf.angebot_pdf(str(pfad), s.kopf, s._pdf_sprache(ang), s.einst)
-            bilder = pdf_vorschau.seiten_bilder(pfad, breite_px=900)
+            # Entwurf nur zum Rendern; die Bilder liegen danach im Speicher, der Ordner wird sofort wieder entfernt
+            with tempfile.TemporaryDirectory(prefix="rl_vorschau_") as ordner:
+                pfad = Path(ordner) / "Angebot_Vorschau.pdf"
+                pdf.angebot_pdf(str(pfad), s.kopf, s._pdf_sprache(ang), s.einst)
+                bilder = pdf_vorschau.seiten_bilder(pfad, breite_px=900)
         except Exception:           # noqa: BLE001 – Vorschau ist Zusatz; „Angebot erstellen“ meldet den Grund
             from . import protokoll
             protokoll.warnung("Einfacher Modus: Angebotsvorschau nicht erstellt")

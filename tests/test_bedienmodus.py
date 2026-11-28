@@ -233,6 +233,19 @@ e.zu_schritt(bm.ANGEBOT)
 assert e.vorschau_aktualisieren() >= 1 and not e.pdf_bild.pixmap().isNull()
 assert (db.angebot(aid) or {}).get("versand") == versand_vorher and (db.angebot(aid) or {}).get("vorgang") in (None, "", "Entwurf")
 assert [t for t, _, _ in e.pruefliste()][0] == "Kunde gewählt"
+import glob as _glob
+_vor = set(_glob.glob(str(Path(tempfile.gettempdir()) / "rl_vorschau_*")))
+assert e.vorschau_aktualisieren() >= 1
+assert set(_glob.glob(str(Path(tempfile.gettempdir()) / "rl_vorschau_*"))) <= _vor, "Vorschau-Ordner bleibt nicht liegen"
+# verzögerte Punkte des Angebots-Checks ändern die Kennung, die Bereitschaft wird neu gelesen
+_alt = e._kennung()
+_punkte_vorher = getattr(e.seite, "_punkte", None)
+e.seite._punkte = list(_punkte_vorher or ()) + [("WARNUNG", "Staffeln veraltet (Test)")]
+assert e._kennung() != _alt
+e.aktualisieren()
+assert e._marke == e._kennung() and e.bereit["bereit"] is False, "Check-Warnung nimmt die Bereitschaft"
+e.seite._punkte = _punkte_vorher
+e.aktualisieren()
 ok("Schritt 5: Vorschau der ersten PDF-Seite im Programm (Entwurf, nichts abgelegt), Prüfliste")
 
 # kleine Bildschirme: Zusammenfassung als Zeile, kurze Schrittleiste, kein waagerechter Rollbalken
