@@ -8,6 +8,8 @@ Sicherungen und merkt je Datenbank-Sicherung, welche Dateien zu diesem Stand geh
     <Sicherung>/Dokumente/alt/<JJJJ-MM-TT>/<Pfad>          ältere Stände (geändert oder gelöscht), ALT_TAGE lang
     <Sicherung>/<Sicherung>.dokumente.json                 Liste {Pfad: [Größe, Zeit]} zu dieser Sicherung
 
+Auch die Serversicherung (server_sicherung, 27.11.2026) spiegelt so die Ablage am Server.
+
 Gespiegelt wird nur, was sich geändert hat (Größe oder Zeit), die erste Sicherung dauert also am längsten. Nichts wird
 in der Ablage gelöscht oder überschrieben, was neuer ist: zurückholen() legt nur fehlende Dateien und Dateien mit
 anderem Stand zurück und verschiebt den abweichenden Stand vorher nach <Ablage>/_vor_Wiederherstellung/<Zeit>/.
@@ -58,12 +60,15 @@ def _auslassen(rel):
             or teile[0] == VOR_WIEDERHERSTELLUNG)
 
 
-def bestand(ablage):
-    """{relativer Pfad (mit /): [Größe, mtime_ns]} aller Dateien der Ablage (ohne Office-Sperrdateien und Reste)."""
+def bestand(ablage, auslassen=()):
+    """{relativer Pfad (mit /): [Größe, mtime_ns]} aller Dateien der Ablage (ohne Office-Sperrdateien und Reste).
+    auslassen: Ordnernamen direkt in der Ablage, die nicht dazugehören (z. B. Zwischenspeicher am Server)."""
     ablage = Path(ablage)
     ergebnis = {}
     for wurzel, ordner, dateien in os.walk(ablage):
-        ordner[:] = [o for o in ordner if not o.startswith(".") and o != VOR_WIEDERHERSTELLUNG]
+        oben = Path(wurzel) == ablage
+        ordner[:] = [o for o in ordner if not o.startswith(".") and o != VOR_WIEDERHERSTELLUNG
+                     and not (oben and o in auslassen)]
         for d in dateien:
             p = Path(wurzel) / d
             rel = p.relative_to(ablage).as_posix()
@@ -92,7 +97,7 @@ def _kopieren(quelle, ziel):
     os.replace(neu, ziel)
 
 
-def spiegeln(ablage, sicherungsordner, liste_fuer=None, heute=None, ordner=ORDNER):
+def spiegeln(ablage, sicherungsordner, liste_fuer=None, heute=None, ordner=ORDNER, auslassen=()):
     """Ablage in <sicherungsordner>/Dokumente spiegeln. liste_fuer: Pfad der Datenbank-Sicherung, neben die die Liste
     <name>.dokumente.json kommt. ordner: anderer Spiegel-Ordner (ANFRAGEN: die Anfrage-Akten, 20.11.2026).
     Ergebnis: dict(neu=…, geaendert=…, weg=…, dateien=…, bytes=…, fehler=[…])."""
@@ -101,7 +106,7 @@ def spiegeln(ablage, sicherungsordner, liste_fuer=None, heute=None, ordner=ORDNE
     aktuell = basis / AKTUELL
     heute = heute or datetime.date.today()
     alt = basis / ALT / heute.isoformat()
-    jetzt = bestand(ablage) if ablage.is_dir() else {}
+    jetzt = bestand(ablage, auslassen) if ablage.is_dir() else {}
     gespiegelt = bestand(aktuell) if aktuell.is_dir() else {}
     z = dict(neu=0, geaendert=0, weg=0, dateien=len(jetzt), bytes=sum(m[0] for m in jetzt.values()), fehler=[])
     for rel, merkmal in jetzt.items():
