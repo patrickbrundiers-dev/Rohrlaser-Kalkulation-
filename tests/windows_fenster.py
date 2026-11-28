@@ -188,7 +188,27 @@ class Hauptfenster(QMainWindow):        # Klassenname wie im Programm (fenster_m
     pass
 
 
+def flaggen_diagnose():
+    """Rechnung von knoepfe_setzen unter dieser Python/PySide-Version (Verdacht: Flags verlieren X und Customize)."""
+    from PySide6.QtCore import Qt
+    from rohrlaser import fenster_merken
+    h = lambda f: hex(int(f.value if hasattr(f, "value") else f))  # noqa: E731
+    print("Python", sys.version.split()[0], "| CloseButtonHint", h(Qt.WindowCloseButtonHint),
+          "| ~ContextHelp", h(~Qt.WindowContextHelpButtonHint), flush=True)
+    d = QDialog()
+    alt = d.windowFlags()
+    roh = alt | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint | Qt.CustomizeWindowHint
+    print("alt", h(alt), "| oder", h(roh), "| und-nicht", h(roh & ~Qt.WindowContextHelpButtonHint), flush=True)
+    fenster_merken.knoepfe_setzen(d)
+    print("nach knoepfe_setzen", h(d.windowFlags()), flush=True)
+    d.show()
+    warten(0.3)
+    print("nach show", h(d.windowFlags()), flush=True)
+    d.close()
+
+
 def lauf():
+    flaggen_diagnose()
     # 1 Vergleich: Dialog ohne Programmrahmen
     roh = QMainWindow()
     roh.setWindowTitle("Roh")
@@ -238,6 +258,8 @@ def lauf():
         befund("Hauptfenster hinter modalem Dialog", haupt, erwartet_zu=False)
         befund("Modaler Dialog (exec)", m)
         ergebnis["fertig"] = True
+        if m.isVisible():       # X hat nicht geschlossen: sonst hängt exec() bis zum Abbruch
+            m.reject()
     m = dialog(haupt, "Modal")
     QTimer.singleShot(700, im_modal)
     m.exec()
@@ -246,6 +268,8 @@ def lauf():
 
     def minimiert():
         mm = QApplication.activeModalWidget()
+        if mm is None:
+            return
         mm.showMinimized()
         warten(0.6)
         befund("Hauptfenster bei minimiertem modalem Dialog", haupt, erwartet_zu=None)
