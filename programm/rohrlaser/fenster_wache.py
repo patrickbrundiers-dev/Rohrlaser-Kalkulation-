@@ -19,11 +19,6 @@ import types
 from PySide6.QtCore import QObject, Qt, QThread, QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
-try:
-    from shiboken6 import Shiboken
-except ImportError:                 # pragma: no cover – PySide6 bringt shiboken6 immer mit
-    Shiboken = None
-
 WARTEN_MS = 1500                    # nach dem Schließen so lange warten (Aufrufer liest noch Werte) [ms]
 VERSUCHE = 3                        # so oft prüfen, ob ein gehaltener Dialog frei geworden ist
 _versuche = {}                      # id(Dialog) -> Anzahl Prüfungen, bei denen er gehalten war
@@ -36,9 +31,11 @@ _alt_mb_exec = None
 
 
 def _gueltig(o):
+    """Qt-Objekt noch nicht gelöscht (wie shiboken6.isValid, ohne eigenes Paket im Windows-Bau, vgl. freigeben)."""
     try:
-        return Shiboken is None or Shiboken.isValid(o)
-    except Exception:               # noqa: BLE001
+        o.objectName()
+        return True
+    except RuntimeError:            # „Internal C++ object … already deleted“
         return False
 
 
