@@ -14,7 +14,7 @@ an, gilt für den angemeldeten Benutzer (sonst das Kürzel dieses Arbeitsplatzes
 darf nur sehen. Ein freigeschalteter Admin (Admin-Schutz) darf immer alles, damit sich niemand aussperrt.
 
 Passwörter und PINs liegen nur als gesalzener, langsamer Hash vor. Anmeldung und Sperre nach Fehlversuchen macht seit
-0.9.556 das Zugangssystem (zugang_anmeldung, zugang_daten.Sperre: nach 5 Fehlversuchen 1 Minute, verdoppelt).
+0.9.559 das Zugangssystem (zugang_anmeldung, zugang_daten.Sperre: nach 5 Fehlversuchen 1 Minute, verdoppelt).
 """
 import time
 
@@ -201,7 +201,7 @@ SITZUNG = None          # Sitzung des Hauptfensters (ohne Fenster: Kürzel des A
 
 def anmelden(db, kuerzel, geheim, sitzung=None):
     """Mit Kürzel und Passwort oder PIN anmelden. Ergebnis: Fehlertext oder '' (angemeldet).
-    Seit 0.9.556 prüft das Zugangssystem (zugang_authentifizierung, Sperre je Kürzel in zugang_daten über Neustart);
+    Seit 0.9.559 prüft das Zugangssystem (zugang_authentifizierung, Sperre je Kürzel in zugang_daten über Neustart);
     hier bleibt nur die Schnittstelle der bisherigen Aufrufer. Das Anmeldefenster nimmt zugang_anmeldung."""
     from . import zugang_authentifizierung as auth
     from . import zugang_daten as D
