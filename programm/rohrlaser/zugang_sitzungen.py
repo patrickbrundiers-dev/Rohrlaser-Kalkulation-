@@ -10,6 +10,8 @@ import threading
 import time
 from dataclasses import dataclass, field
 
+from . import protokoll as _protokoll
+
 MINUTEN_STANDARD = 30
 MINUTEN_ENTWICKLER = 15
 
@@ -44,8 +46,9 @@ class Sitzung:
 class Sitzungen:
     """Sitzungsverwaltung eines Programms (eine aktuelle Sitzung je Programmfenster)."""
 
-    def __init__(self, uhr=time.monotonic):
+    def __init__(self, uhr=time.monotonic, beobachter=None):
         self.uhr = uhr
+        self.beobachter = beobachter    # Funktion(ereignis, sitzung): Eintrag in zg_sitzungen (zugang_daten)
         self.aktuell = None
         self._beendet = set()
         self._lock = threading.Lock()
@@ -60,11 +63,20 @@ class Sitzungen:
             self.aktuell = Sitzung(secrets.token_hex(32), str(benutzer), kuerzel, name, tuple(rollen),
                                    frozenset(rechte), bool(entwickler), str(installation), str(arbeitsplatz), jetzt,
                                    jetzt, max(1, m), zusatz=dict(zusatz))
+            self._melden("angelegt", self.aktuell)
             return self.aktuell
+
+    def _melden(self, ereignis, s):
+        if self.beobachter is not None:
+            try:
+                self.beobachter(ereignis, s)
+            except Exception:  # noqa: BLE001 – Ablage darf die Sitzung nie verhindern
+                _protokoll.warnung(f"Sitzung: Ereignis {ereignis} nicht abgelegt")
 
     def _beenden(self, s):
         s.beendet = True
         self._beendet.add(s.token)
+        self._melden("beendet", s)
 
     def beenden(self):
         with self._lock:
@@ -84,6 +96,7 @@ class Sitzungen:
         s = self.aktuell
         if s and s.aktiv and self.uhr() - s.letzte >= s.minuten * 60:
             s.gesperrt = True
+            self._melden("gesperrt", s)
             return True
         return False
 
@@ -93,6 +106,7 @@ class Sitzungen:
         if s and not s.beendet:
             s.gesperrt = False
             s.letzte = self.uhr()
+            self._melden("entsperrt", s)
 
     def pruefen(self, token=None):
         """Aktuelle Sitzung, wenn sie gilt; sonst SitzungFehler. token: das Token, das der Aufrufer kennt (z. B. aus

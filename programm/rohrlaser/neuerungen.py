@@ -23,7 +23,10 @@ def als_html(neuerungen=None):
 NEUERUNGEN = [
     ["0.9.553", "<b>Grundlage für das neue Anmelde- und Berechtigungssystem</b> (Paket A): Kern für Anmeldung, "
                 "Sitzungen, Rollen mit Einzelrechten, Sicherheitsprotokoll und den Entwickler-Ausweis (signiert, "
-                "ohne Rechnerbindung, ohne eingebautes Passwort). Im Programm ändert sich dadurch noch nichts "
+                "ohne Rechnerbindung, ohne eingebautes Passwort). Dazu (Paket B) eigene Datenbanktabellen für "
+                "Arbeitsplätze, Sitzungen, Anmeldeversuche und das Sicherheitsprotokoll; beim ersten Start sichert "
+                "das Programm die Datenbank und schreibt einen Bericht, wie jeder Benutzer ins neue Rollenmodell "
+                "übernommen wird (jeder behält genau seine bisherigen Rechte). Im Programm ändert sich dadurch noch nichts "
                 "Sichtbares; das neue Loginfenster folgt mit einer der nächsten Versionen.",
      "Grundlage für das neue Anmelde- und Berechtigungssystem (noch unsichtbar)."],
     ["0.9.552", "<b>Neues Logo auch in Windows</b>: Nach dem Update zeigte Windows in den Eigenschaften der "
