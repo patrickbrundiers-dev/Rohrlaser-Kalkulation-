@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.555", "<b>X in Dialogen schließt wieder</b> ([[support_paket]]): Unter Windows war das Schließen-X in fast "
+                "allen Dialogen grau und ohne Wirkung. Beim Entfernen des ?-Knopfs fiel der Schließen-Knopf mit weg. "
+                "Jetzt hat jeder Dialog wieder ein aktives X, Minimieren und Maximieren bleiben. Außerdem gibt das "
+                "Programm geschlossene Dialoge wieder frei, statt sie bis zum Programmende im Speicher zu halten, "
+                "und <i>Diagnose</i>, <i>Zwischenspeicher</i> und <i>Referenzen prüfen</i> öffnen nicht mehr doppelt, "
+                "sondern holen das offene Fenster nach vorn. Wird ein Dialog minimiert, der das Programm "
+                "solange sperrt, geht das Hauptfenster mit in die Taskleiste und kommt beim Öffnen zusammen mit "
+                "dem Dialog zurück, statt gesperrt stehen zu bleiben.",
+     "X in Dialogen wieder aktiv; Dialoge öffnen nicht doppelt."],
     ["0.9.554", "<b>Server-Setup mit Einrichtungs-Assistent</b> (Serverversion): <i>NexTube-Server-Setup.exe</i> "
                 "installiert das Programm auf dem Server-Rechner und startet einen Assistenten. Er fragt Server-Ordner, "
                 "Firma, Adressen, ersten Administrator, Firewall, Freigabe der Ablage, Sicherungszeiten, NAS-Ziel und "
