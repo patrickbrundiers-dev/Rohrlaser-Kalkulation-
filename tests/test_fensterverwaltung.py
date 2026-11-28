@@ -7,7 +7,10 @@ F2 Titelleiste: Minimieren, Maximieren, Schließen; feste Größe nur Schließen
 F3 verkleinert geschlossen: öffnet in der gemerkten Größe, nicht maximiert; maximiert geschlossen: öffnet maximiert;
 F4 je Benutzer: ein anderes Kürzel hat eigenen Stand; ältere Einträge ohne Kürzel gelten weiter;
 F5 Eigenschaft fenster_groesse und Vorgabe aus (Ansicht) werden beachtet; Fenstergrößen zurücksetzen;
-F6 Menü Ansicht hat beide Einträge, Teiler werden weiter gemerkt.
+F6 Menü Ansicht hat beide Einträge, Teiler werden weiter gemerkt;
+F7 X grau unter Windows (28.11.2026): ?-Knopf wird ohne „& ~Qt.Window…“ entfernt (unter Python 3.12 verliert das
+   Umkehren eines Fensterflags den Schließen-Knopf), Schließen bleibt; kein Programmcode kehrt Fensterflags um;
+F8 minimierter modaler Dialog nimmt sein Fenster mit in die Taskleiste, Wiederherstellen holt beide zurück.
 Aufruf: python tests/test_fensterverwaltung.py
 """
 import os
@@ -183,6 +186,53 @@ a.setChecked(False)
 pruefe(db.einstellung(fm.VORGABE) is False, "F6 Haken aus wird gemerkt")
 b.trigger()
 pruefe(f.meldungen and "zurückgesetzt" in f.meldungen[-1], f"F6 Zurücksetzen meldet {f.meldungen[-1:]}")
+
+# F7 Hilfe-Knopf weg, Schließen bleibt; keine Umkehrung von Fensterflags im Programm
+import re  # noqa: E402
+
+dh = QDialog()
+dh.setWindowFlags(dh.windowFlags() | Qt.WindowContextHelpButtonHint)
+fm.knoepfe_setzen(dh)
+fl7 = dh.windowFlags()
+pruefe(bool(fl7 & Qt.WindowCloseButtonHint) and bool(fl7 & Qt.CustomizeWindowHint)
+       and not fl7 & Qt.WindowContextHelpButtonHint, f"F7 Schließen bleibt, ? weg ({hex(int(fl7.value))})")
+umkehr = re.compile(r"~\s*\(?\s*Qt\.(Window|Customize|Frameless|Dialog\b|Tool\b|Popup\b|Sheet\b|Drawer\b|SubWindow)")
+treffer = [f"{q.name}:{i}" for q in (Path(__file__).resolve().parent.parent / "programm").rglob("*.py")
+           for i, z in enumerate(q.read_text(encoding="utf-8").splitlines(), 1)
+           if umkehr.search(z.split("#", 1)[0]) and "WindowM" not in z.split("~", 1)[1][:20]]
+pruefe(not treffer, f"F7 keine Umkehrung von Fensterflags (Python 3.12 verliert Bits): {treffer}")
+
+# F8 modaler Dialog minimiert: Fenster dahinter mit
+from PySide6.QtCore import QEvent, QTimer  # noqa: E402
+
+hinten = QMainWindow()
+hinten.show()
+app.processEvents()
+merker8 = fm.FensterMerker(db, benutzer="PB")
+app.installEventFilter(merker8)
+md = QDialog(hinten)
+befund8 = {}
+
+
+def _f8():
+    md.showMinimized()
+    for _ in range(5):
+        app.processEvents()
+    befund8["mit"] = hinten.isMinimized()
+    hinten.showNormal()
+    for _ in range(5):
+        app.processEvents()
+    befund8["zurueck"] = not md.isMinimized() and not hinten.isMinimized()
+    md.reject()
+
+
+QTimer.singleShot(50, _f8)
+md.exec()
+app.removeEventFilter(merker8)
+pruefe(QEvent.WindowStateChange in fm.ARTEN, "F8 Zustandswechsel geht an die Fensterverwaltung")
+pruefe(befund8.get("mit"), f"F8 Fenster dahinter minimiert mit ({befund8})")
+pruefe(befund8.get("zurueck"), f"F8 Wiederherstellen holt Dialog und Fenster zurück ({befund8})")
+hinten.close()
 
 print(f"\n{len(fehler)} Fehler." if fehler else "\nAlles in Ordnung.")
 sys.exit(1 if fehler else 0)

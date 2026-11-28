@@ -145,11 +145,10 @@ class DiagnoseFenster(QDialog):
 
 
 def diagnose_fenster(f, zeigen=True):
-    d = DiagnoseFenster(f)
-    if zeigen:
-        d.show()
-    f._diagnose_fenster = d         # bleibt offen, solange es angezeigt wird
-    return d
+    from . import fenster_wache
+    if zeigen:                      # nur ein Fenster; erneutes Öffnen holt es nach vorn (27.11.2026)
+        return fenster_wache.einmal(f, "_diagnose_fenster", lambda: DiagnoseFenster(f))
+    return fenster_wache.ersetzen(f, "_diagnose_fenster", DiagnoseFenster(f))
 
 
 def cache_fenster(f, zeigen=True):

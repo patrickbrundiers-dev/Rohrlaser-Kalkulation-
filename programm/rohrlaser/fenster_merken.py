@@ -79,10 +79,14 @@ def knoepfe_setzen(w):
     """Minimieren, Maximieren und Schließen in der Titelleiste (vor dem ersten Zeigen, sonst blendet Qt das Fenster
     beim Ändern der Flags aus). Fenster mit fester Größe bekommen nur Schließen. Ergebnis: True bei Änderung."""
     alt = w.windowFlags()
-    neu = (alt | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint | Qt.CustomizeWindowHint) \
-        & ~Qt.WindowContextHelpButtonHint
+    neu = alt | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint | Qt.CustomizeWindowHint
     if not feste_groesse(w):
         neu |= Qt.WindowMinMaxButtonsHint
+    # Hilfe-Knopf entfernen OHNE „& ~Qt.WindowContextHelpButtonHint“: unter Python 3.12 (Windows-Paket) liefert das
+    # Umkehren eines Qt-Flags nur die Bits bis 0x01FFFFFF – Schließen-Knopf (0x08000000) und Customize gingen
+    # verloren, das X war in jedem Dialog grau und ohne Funktion (Windows-Probe 28.11.2026).
+    if neu & Qt.WindowContextHelpButtonHint:
+        neu ^= Qt.WindowContextHelpButtonHint
     if neu == alt:
         return False
     w.setWindowFlags(neu)
@@ -147,6 +151,8 @@ class FensterMerker(QObject):
             self.setzen(w)
         elif t in (QEvent.Hide, QEvent.Close) and self._passt(w) and id(w) in self.gesetzt:
             self.merken(w)
+        elif t == QEvent.WindowStateChange and isinstance(w, QWidget) and w.isWindow():
+            modal_mitnehmen(w)
         return False
 
     def eintrag(self, w):
@@ -224,7 +230,30 @@ class FensterMerker(QObject):
         return len(weg)
 
 
-ARTEN = (QEvent.Polish, QEvent.Show, QEvent.Hide, QEvent.Close)
+ARTEN = (QEvent.Polish, QEvent.Show, QEvent.Hide, QEvent.Close, QEvent.WindowStateChange)
+
+
+def _modal(w):
+    return isinstance(w, QDialog) and w.isVisible() and (w.isModal() or w.windowModality() != Qt.NonModal)
+
+
+def modal_mitnehmen(w):
+    """Minimierter modaler Dialog sperrt sonst das sichtbare Hauptfenster (X und alles ohne Wirkung, Windows-Probe
+    28.11.2026): Wird ein modaler Dialog minimiert, geht sein Fenster dahinter mit in die Taskleiste; wird dieses
+    wiederhergestellt, kommt auch der Dialog wieder nach vorn."""
+    if _modal(w) and w.isMinimized():
+        eltern = w.parentWidget().window() if w.parentWidget() else None
+        if eltern is not None and eltern.isVisible() and not eltern.isMinimized():
+            QTimer.singleShot(0, eltern.showMinimized)
+    elif not w.isMinimized():
+        eltern = w.parentWidget().window() if _modal(w) and w.parentWidget() else None
+        if eltern is not None and eltern.isMinimized():
+            QTimer.singleShot(0, eltern.showNormal)
+            QTimer.singleShot(0, w.raise_)
+        for d in QApplication.topLevelWidgets():
+            if d is not w and _modal(d) and d.isMinimized() and d.parentWidget() and d.parentWidget().window() is w:
+                QTimer.singleShot(0, d.showNormal)
+                QTimer.singleShot(0, d.raise_)
 
 
 def menue_eintraege(f, menue):

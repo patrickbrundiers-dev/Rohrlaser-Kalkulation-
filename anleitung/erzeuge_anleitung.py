@@ -736,6 +736,10 @@ def kapitel_start(i):
     i.text("Seit 0.9.551 liegt auch <i>fenster.txt</i> bei: welche Fenster gerade offen sind, welches aktiv ist, ob ein "
            "Menü offen steht und welche Knöpfe (Schließen, Minimieren, Maximieren) die Titelleiste hat. Lässt sich ein "
            "Fenster nicht schließen, das Paket erstellen, solange das Problem zu sehen ist.")
+    i.text("Seit 0.9.555 hat jeder Dialog ein aktives Schließen-X (vorher unter Windows oft grau). Ein Fenster wie "
+           "<i>Diagnose</i> oder <i>Zwischenspeicher</i> öffnet nur einmal: ein zweiter Aufruf holt das offene "
+           "Fenster nach vorn. Geschlossene Dialoge gibt das Programm wieder frei, der Speicher wächst beim häufigen "
+           "Öffnen und Schließen nicht mehr.")
     i.liste("Haken <i>Offenes Angebot beilegen</i> (Vorgabe aus): Kopf und Positionen des gerade offenen Angebots "
             "kommen als angebot.json dazu, wenn der Fehler nur bei diesem Angebot auftritt.",
             "<b>Prüfsammlung (seit 0.9.272):</b> stellt man im STEP-Prüfdialog die Art eines Teils von Hand um (z. B. "
