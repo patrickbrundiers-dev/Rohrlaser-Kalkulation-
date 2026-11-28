@@ -7,6 +7,9 @@ Echter zentraler Server mit Arbeitsplatz und Daten:
 - zurueckholen: jetziger Stand vorher gesichert, Daten auf den Stand der Sicherung, Zugänge bleiben, Arbeitsplatz
   arbeitet danach normal weiter; auf einem NEUEN Server-Rechner kommen Zugänge und Daten aus der Sicherung;
 - Befehlszeile sichern/sicherungen/zurueckholen/status/aufgaben.
+Lückenlos (27.11.2026): Ablage und Server-Einstellungen in jeder Sicherung, zweites Ziel mit SHA-256-Prüfung und
+Warnung, Wochen-/Monatsstände, zurueckholen bringt die Ablage zurück und mit --mit-zertifikat die alte Zugangsdatei,
+Aufgaben mit Nachholen (XML) mittags und abends.
 Als root (initdb verweigert root) oder ohne PostgreSQL-Programme übersprungen.
 
 Aufruf: python tests/test_server_sicherung.py
@@ -105,8 +108,18 @@ try:
     ok("ohne Serversicherung wird der Verwalter gewarnt (einmal)")
 
     # ------------------------------------------------------------------ Sichern
+    ablage = server.ablage_ordner()
+    (ablage / "Angebote" / nr1).mkdir(parents=True, exist_ok=True)
+    pdf = ablage / "Angebote" / nr1 / "Angebot.pdf"
+    pdf.write_bytes(b"%PDF Stand 1")
+    (ablage / "STEP-Cache").mkdir(exist_ok=True)
+    (ablage / "STEP-Cache" / "gross.bin").write_bytes(b"x" * 1000)
+    nas = tmp / "NAS" / "Rohrlaser"
+    code, aus = cli("sicherungsziel", "--pfad", str(nas))
+    assert code == 0 and str(nas) in aus[-1], aus
     code, aus = cli("sichern")
     assert code == 0 and any("Zeile für Zeile gleich" in z for z in aus), aus
+    aus_sichern = aus
     s1 = ss.sicherungen(server)
     assert len(s1) == 1 and s1[0]["gut"] and s1[0]["anlass"] == ss.TAEGLICH, s1
     d1 = s1[0]["datei"]
@@ -125,6 +138,59 @@ try:
     code, aus = cli("status")
     assert any("Serversicherung: zuletzt" in z for z in aus), aus
     ok("Sichern: Abbild + Zugänge + Prüfwerte, Rücksicherungsprobe gleich, Probe-Datenbank weg, Anzeige am Platz")
+
+    # Ablage, Server-Einstellungen, zweites Ziel
+    aus = aus_sichern
+    assert any("Ablage gesichert" in z for z in aus) and any("Zweites Ziel" in z and "SHA-256" in z for z in aus), aus
+    spiegel = server.daten / "Sicherung" / "Dokumente" / "aktuell"
+    assert (spiegel / "Angebote" / nr1 / "Angebot.pdf").read_bytes() == b"%PDF Stand 1"
+    assert not (spiegel / "STEP-Cache").exists(), "Zwischenspeicher des Rechners wird nicht gesichert"
+    assert ss.neben(d1, ".dokumente.json").exists()
+    import zipfile
+    with zipfile.ZipFile(ss.neben(d1, ss.KONFIG)) as z:
+        assert {"ca.crt", "ca.key", "server.crt", "server.key", sb.ZUGANG_DATEI} <= set(z.namelist())
+    for endung in (".pgdump", ".json", ".rollen.sql", ss.KONFIG, ".dokumente.json"):
+        q, k = ss.neben(d1, endung), nas / ss.neben(d1, endung).name
+        assert k.read_bytes() == q.read_bytes(), endung
+    assert (nas / "Dokumente" / "aktuell" / "Angebote" / nr1 / "Angebot.pdf").exists()
+    assert ss.sicherungen_in(nas)[0]["gut"]
+    i = sb.info_lesen(db.con)
+    assert i["sicherung_ziel2_probe"] == "ok" and i["sicherung_ablage"].startswith("1 Dateien"), i
+    text, warnen = ss.zustand(i)
+    assert not warnen and "zweites Ziel" in text and "Kopie ok" in text, text
+    ok("Mit Ablage (ohne Zwischenspeicher) und Server-Einstellungen; zweites Ziel kopiert und per SHA-256 geprüft")
+
+    # zweites Ziel nicht erreichbar: Sicherung bleibt gut, aber Fehler + Warnung
+    with server.verwalter_verbinden(sb.DATENBANK) as con:
+        (tmp / "kaputt").write_text("eine Datei, kein Ordner")
+        sb.info_setzen(con, **{ss.ZIEL2: str(tmp / "kaputt" / "nicht")})
+    try:
+        ss.sichern(server, melden=None)
+        raise AssertionError("Fehler am zweiten Ziel nicht gemeldet")
+    except ss.SicherungFehler as e:
+        assert "zweites Ziel" in str(e), e
+    i = sb.info_lesen(db.con)
+    assert i["sicherung_probe"] == "ok" and i["sicherung_ziel2_probe"].startswith("FEHLER")
+    alt2 = (datetime.datetime.now() - datetime.timedelta(hours=40)).isoformat(timespec="seconds")
+    text, warnen = ss.zustand(dict(i, sicherung_ziel2_gut=alt2))
+    assert warnen and "zweites Ziel" in text, text
+    ss.ziel2_setzen(server, str(nas))
+    for x in ss.sicherungen(server)[:1]:            # diese Sicherung zählt nicht für die folgenden Prüfungen
+        for endung in (ss.ENDUNG, *ss.NEBEN):
+            ss.neben(x["datei"], endung).unlink(missing_ok=True)
+    ok("Zweites Ziel fehlt: Datenbank-Sicherung trotzdem gut, Fehler gemeldet, Verwalter gewarnt")
+
+    # Generationen: 14 Tage + je Woche + je Monat
+    heute = datetime.datetime(2026, 11, 27, 22, 30)
+    reihe = [dict(datei=Path(f"t{n}"), zeit=(heute - datetime.timedelta(days=n)).isoformat(), gut=True)
+             for n in range(400)]
+    bleibt = ss.bleiben(reihe, behalten=14)
+    tage = sorted(int(str(p)[1:]) for p in bleibt)
+    assert set(range(14)) <= set(tage) and len(tage) < 14 + 8 + 12 + 1, tage
+    assert max(tage) > 300 and any(60 < t < 90 for t in tage), "Monatsstände reichen fast ein Jahr zurück"
+    reihe[20]["gut"] = False
+    assert Path("t20") not in ss.bleiben(reihe, behalten=14), "nur gute Sicherungen als Wochenstand"
+    ok("Aufbewahrung: 14 Tage, dazu je Woche (8) und je Monat (12) die neueste gute Sicherung")
 
     alt = (datetime.datetime.now() - datetime.timedelta(hours=40)).isoformat(timespec="seconds")
     text, warnen = ss.zustand(dict(i, sicherung_gut=alt))
@@ -161,12 +227,17 @@ try:
     ohne = tmp / "ohne_pruefwerte.pgdump"
     ohne.write_bytes(stand.read_bytes())
     assert "Prüfwerte" in ss_fehler(ss.zurueckholen, server, ohne), "ohne Prüfwerte nie einspielen"
+    pdf.write_bytes(b"%PDF nach der Sicherung kaputt")
+    (ablage / "Angebote" / "neu.pdf").write_bytes(b"neu")
     with db.con:
         db.con.execute("UPDATE angebote SET kunde='nach der Sicherung geändert' WHERE id=?", (a1,))
     a2 = db.angebot_neu(dict(kunde="nach der Sicherung neu"))
     nr2 = db.angebot(a2)["nummer"]
     code, aus = cli("zurueckholen", "--datei", str(stand))
     assert code == 0 and any("auf den Stand von" in z for z in aus), aus
+    assert any("Ablage" in z and "ersetzt" in z for z in aus), aus
+    assert pdf.read_bytes() == b"%PDF Stand 1" and (ablage / "Angebote" / "neu.pdf").exists()
+    assert list((ablage / "_vor_Wiederherstellung").rglob("Angebot.pdf")), "abweichender Stand beiseitegelegt"
     vorher = [x for x in ss.sicherungen(server) if x["anlass"] == "vor_Zurueckholen"]
     assert len(vorher) == 1 and vorher[0]["gut"], "jetziger Stand vorher gesichert"
     for d in offen:
@@ -186,12 +257,16 @@ try:
 
     # ------------------------------------------------------------------ Neuer Server-Rechner
     neu_server.einrichten("Testfirma", "", "")      # ohne Administrator: alles kommt aus der Sicherung
-    code, aus = cli("zurueckholen", "--datei", str(stand), srv=neu_server)
+    vom_nas = nas / stand.name                      # vom zweiten Ziel, als wäre der alte Server weg
+    assert sb.fingerabdruck(neu_server.ca_pem()) != sb.fingerabdruck(server.ca_pem())
+    code, aus = cli("zurueckholen", "--datei", str(vom_nas), "--mit-zertifikat", srv=neu_server)
     assert code == 0 and any("Zugänge aus der Sicherung" in z and "rl_ab" in z for z in aus), aus
+    assert sb.fingerabdruck(neu_server.ca_pem()) == sb.fingerabdruck(server.ca_pem()), "alte CA übernommen"
+    assert (neu_server.ablage_ordner() / "Angebote" / nr1 / "Angebot.pdf").read_bytes() == b"%PDF Stand 1"
     zugang_neu = neu_server.zugang_schreiben()
     dneu = platz(neu_server, zugang_neu, "PC-DREI", "AB", PW_AB)
     assert dneu.con.execute("SELECT kunde FROM angebote WHERE nummer=?", (nr1,)).fetchone()[0] == "Müller GmbH"
-    ok("Neuer Server-Rechner: Zugänge (mit Passwort) und Daten kommen aus der Sicherung")
+    ok("Neuer Server-Rechner vom zweiten Ziel: Zugänge, Daten, Ablage und Zertifikat (alte Zugangsdatei gilt)")
 
     # ------------------------------------------------------------------ Liste, Aufgaben
     code, aus = cli("sicherungen")
@@ -200,10 +275,20 @@ try:
                         anlegen=False, konto=r"FIRMA\pb")
     assert [n for n, _z in liste] == ["Rohrlaser-Server starten", "Rohrlaser-Server Rechner",
                                       "Rohrlaser-Server Sicherung"]
-    assert "DAILY" in liste[2][1] and "22:30" in liste[2][1] and "sichern" in liste[2][1], liste[2]
-    assert all("/RU FIRMA\\pb" in z and "SYSTEM" not in z for _n, z in liste), liste
+    assert "12:30, 22:30" in liste[2][1] and "nachholen" in liste[2][1] and "sichern" in liste[2][1], liste[2]
+    assert all("Konto FIRMA\\pb" in z and "SYSTEM" not in z for _n, z in liste), liste
+    xml_text = ss.aufgabe_xml(r"C:\Rohrlaser\R.exe", "--server sichern", uhrzeiten=ss._uhrzeiten("22:30, 12:30"))
+    from xml.dom import minidom
+    minidom.parseString(xml_text.split("\n", 1)[1])
+    assert "<StartWhenAvailable>true</StartWhenAvailable>" in xml_text and xml_text.count("<CalendarTrigger>") == 2
+    assert "T12:30:00" in xml_text and "T22:30:00" in xml_text and "<RestartOnFailure>" in xml_text
+    try:
+        ss._uhrzeiten("25:00")
+        raise AssertionError("falsche Uhrzeit angenommen")
+    except ss.SicherungFehler:
+        pass
     assert ss.konto_vorgabe(), "Vorgabe: dieses Konto (Eigentümer des Datenordners)"
-    ok("Befehlszeile sicherungen; Aufgaben für die Aufgabenplanung (Start, Rechner, tägliche Sicherung)")
+    ok("Befehlszeile sicherungen; Aufgaben (Start, Rechner, Sicherung mittags+abends, verpasste nachholen, XML)")
 finally:
     for d in offen:
         try:
