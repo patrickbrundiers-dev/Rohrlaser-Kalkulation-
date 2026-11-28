@@ -12,6 +12,8 @@ import re
 import threading
 from pathlib import Path
 
+from . import protokoll as _protokoll
+
 DATEI = "sicherheit.jsonl"
 GROESSE_MAX = 5 * 1024 * 1024
 TEXT_MAX = 500
@@ -71,13 +73,13 @@ class Protokoll:
                         os.replace(self.pfad, self.pfad.with_suffix(".jsonl.1"))
                     with open(self.pfad, "a", encoding="utf-8") as f:
                         f.write(json.dumps(e, ensure_ascii=False) + "\n")
-                except OSError:
-                    pass        # ein volles Laufwerk darf die Anmeldung nicht verhindern
+                except OSError:     # ein volles Laufwerk darf die Anmeldung nicht verhindern
+                    _protokoll.warnung("Sicherheitsprotokoll nicht geschrieben")
         if self.senke:
             try:
                 self.senke(e)
             except Exception:  # noqa: BLE001 – Protokoll darf nie den Ablauf abbrechen
-                pass
+                _protokoll.warnung("Sicherheitsprotokoll: Ablage in der Datenbank fehlgeschlagen")
         return e
 
     def lesen(self, letzte=500, aktion=None, benutzer=None):
