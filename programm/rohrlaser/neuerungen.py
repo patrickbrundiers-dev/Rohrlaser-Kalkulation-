@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.555", "<b>Einfacher Modus 2.0</b>: Der Einfache Modus ist ruhiger und führt jetzt in fünf Schritten in der "
+    ["0.9.557", "<b>Einfacher Modus 2.0</b>: Der Einfache Modus ist ruhiger und führt jetzt in fünf Schritten in der "
                 "Reihenfolge der Arbeit: <i>Anfrage und Kunde</i> (Kundensuche mit Vervollständigung, neuer Kunde "
                 "direkt im Schritt, Projekt, Ansprechpartner, Zeichen, Lieferzeit), <i>Bauteile</i>, <i>Material und "
                 "Fertigung</i> (Werkstoff mit Suche, Preis in der Zeile, Maschine, Zusatzarbeiten, Fracht aufklappbar), "

@@ -17858,7 +17858,7 @@ def kapitel_einfacher_modus(i):
     i.kapitel("Einfacher Modus", marke="einfacher_modus")
     i.text("Neben der gewohnten Oberfläche (<i>Experten-Pro-Modus</i>, kurz Pro-Modus) gibt es seit 0.9.486 den "
            "<b>Einfachen Modus</b>: eine ruhige Oberfläche, die in fünf Schritten durch eine Kalkulation führt. Seit "
-           "0.9.555 ist er überarbeitet (Einfacher Modus 2.0): Kunde am Anfang, Stand jedes Schritts oben in der "
+           "0.9.557 ist er überarbeitet (Einfacher Modus 2.0): Kunde am Anfang, Stand jedes Schritts oben in der "
            "Schrittleiste, Zusammenfassung rechts und Vorschau des Angebots-PDFs. Beide Oberflächen rechnen mit "
            "demselben Rechenkern, derselben Datenbank und denselben Angeboten. Jede Kalkulation lässt sich in beiden "
            "Modi öffnen und weiterbearbeiten.", kurz=True)
